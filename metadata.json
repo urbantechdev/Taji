@@ -1,0 +1,6 @@
+{
+  "name": "Taji",
+  "description": "Taji - Multi-location textile inventory, ETR compliance billing, inter-store ledger, POS, and HR payroll platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

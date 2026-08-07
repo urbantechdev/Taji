@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'urbaninteriorkenya@gmail.com' ||
+        request.auth.token.email == 'zamodasports@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // POS Operators Collection
+    match /pos_operators/{operatorId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Sales Orders Collection
+    match /orders/{orderId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Brand Settings Collection
+    match /brand_settings/{settingsId} {
+      allow read: if true;
+      allow create, update, delete: if isSuperAdmin();
+    }
+  }
+}

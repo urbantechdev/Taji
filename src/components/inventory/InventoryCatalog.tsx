@@ -1,0 +1,762 @@
+import React, { useState } from 'react';
+import { useERP } from '../../context/ERPContext';
+import RightEdgeBlend from '../common/RightEdgeBlend';
+import { CategoryType, ProductBatch, UnitType } from '../../types';
+import { LOCATIONS } from '../../data/initialData';
+import {
+  Layers,
+  Search,
+  Plus,
+  QrCode,
+  Filter,
+  Sparkles,
+  Printer,
+  X,
+  Check,
+  AlertTriangle,
+  RefreshCw,
+  Warehouse,
+  Store,
+  Flame,
+  Tag,
+  ArrowRight,
+  TrendingDown
+} from 'lucide-react';
+
+export const InventoryCatalog: React.FC = () => {
+  const {
+    products,
+    orders,
+    addProductBatch,
+    requestRestock,
+    updateProductPrice,
+    createDirectDispatchTransfer,
+    setIsQRScannerOpen,
+    handleQRScan
+  } = useERP();
+
+  const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>('All');
+  const [stockFilter, setStockFilter] = useState<'All' | 'main_store_low' | 'sales_shop_low' | 'dead_stock'>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeBatchModal, setActiveBatchModal] = useState<ProductBatch | null>(null);
+  const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
+
+  // Price Markdown Modal State for Dead Stock Clearance
+  const [discountModalBatch, setDiscountModalBatch] = useState<ProductBatch | null>(null);
+  const [newPromoPrice, setNewPromoPrice] = useState<number>(1000);
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+
+  // New Batch Form State
+  const [newName, setNewName] = useState('');
+  const [newSku, setNewSku] = useState('');
+  const [newCategory, setNewCategory] = useState<CategoryType>('Dereck');
+  const [newSubCategory, setNewSubCategory] = useState('');
+  const [newComposition, setNewComposition] = useState('100% Cotton');
+  const [newColorName, setNewColorName] = useState('Crimson Red');
+  const [newColorHex, setNewColorHex] = useState('#E91E63');
+  const [newUnit, setNewUnit] = useState<UnitType>('meter');
+  const [newRetailPrice, setNewRetailPrice] = useState(1200);
+  const [newBulkPrice, setNewBulkPrice] = useState(950);
+  const [newCostPrice, setNewCostPrice] = useState(600);
+  const [newMinLevel, setNewMinLevel] = useState(50);
+  const [newMainStock, setNewMainStock] = useState(300);
+
+  // Low stock counts
+  const mainStoreLowCount = products.filter(p => p.locationStock.main_store <= p.minReorderLevel).length;
+  const salesShopLowCount = products.filter(p => p.locationStock.sales_shop <= p.minReorderLevel).length;
+
+  // Dead Stock calculation (Items with total stock > 0 but 0 sales in order history)
+  const deadStockProducts = products.filter(p => {
+    const totalStock = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
+    if (totalStock <= 0) return false;
+    const unitsSold = orders.reduce((acc, order) => {
+      if (order.status !== 'completed') return acc;
+      const item = order.items.find(i => i.batchId === p.id);
+      return acc + (item ? item.quantity : 0);
+    }, 0);
+    return unitsSold === 0;
+  });
+
+  const deadStockCount = deadStockProducts.length;
+  const deadStockCapital = deadStockProducts.reduce((acc, p) => {
+    const totalStock = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
+    return acc + totalStock * p.costPrice;
+  }, 0);
+
+  const filteredProducts = products.filter(p => {
+    const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
+    const matchesQuery =
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.colorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.fiberComposition.toLowerCase().includes(searchQuery.toLowerCase());
+
+    let matchesStock = true;
+    if (stockFilter === 'main_store_low') {
+      matchesStock = p.locationStock.main_store <= p.minReorderLevel;
+    } else if (stockFilter === 'sales_shop_low') {
+      matchesStock = p.locationStock.sales_shop <= p.minReorderLevel;
+    } else if (stockFilter === 'dead_stock') {
+      const totalStock = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
+      const unitsSold = orders.reduce((acc, order) => {
+        if (order.status !== 'completed') return acc;
+        const item = order.items.find(i => i.batchId === p.id);
+        return acc + (item ? item.quantity : 0);
+      }, 0);
+      matchesStock = totalStock > 0 && unitsSold === 0;
+    }
+
+    return matchesCat && matchesQuery && matchesStock;
+  });
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName || !newSku) return;
+
+    addProductBatch({
+      sku: newSku.toUpperCase(),
+      name: newName,
+      category: newCategory,
+      subCategory: newSubCategory || `${newCategory} Specialty`,
+      fiberComposition: newComposition,
+      colorName: newColorName,
+      colorHex: newColorHex,
+      unit: newUnit,
+      unitPriceRetail: Number(newRetailPrice),
+      unitPriceBulk: Number(newBulkPrice),
+      costPrice: Number(newCostPrice),
+      locationStock: {
+        main_store: Number(newMainStock),
+        sales_shop: 50,
+        store_1: 20,
+        store_2: 15
+      },
+      minReorderLevel: Number(newMinLevel)
+    });
+
+    setIsAddBatchModalOpen(false);
+    // Reset Form
+    setNewName('');
+    setNewSku('');
+  };
+
+  return (
+    <div className="space-y-6">
+      
+      {/* Top Header & Search Controls */}
+      <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 group">
+        <RightEdgeBlend variant="sunset" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-rose-600" />
+              <h2 className="font-bold text-slate-900 text-lg">
+                Textile Batch Catalog &amp; Color System
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Exact Hex Color Codes (#E91E63 Crimson, #9C27B0 Plum, #00BCD4 Teal) &amp; QR Tracking for Dereck, Fleece, and Yarns
+            </p>
+          </div>
+
+          <button
+            onClick={() => setIsAddBatchModalOpen(true)}
+            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            Add New Product Batch
+          </button>
+        </div>
+
+        {/* Filter Bar */}
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
+            {(['All', 'Dereck', 'Fleece', 'Yarns'] as const).map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  selectedCategory === cat
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-700'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+
+            <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" />
+
+            {/* Stock Alert Specific Filters */}
+            <button
+              onClick={() => setStockFilter(stockFilter === 'main_store_low' ? 'All' : 'main_store_low')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border ${
+                stockFilter === 'main_store_low'
+                  ? 'bg-slate-900 text-rose-400 border-slate-800 shadow-xs'
+                  : mainStoreLowCount > 0
+                  ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                  : 'bg-slate-100 text-slate-500 border-slate-200'
+              }`}
+            >
+              <Warehouse className="w-3.5 h-3.5 text-rose-500" />
+              <AlertTriangle className="w-3 h-3 text-amber-500" />
+              <span>Main Store Low ({mainStoreLowCount})</span>
+            </button>
+
+            <button
+              onClick={() => setStockFilter(stockFilter === 'sales_shop_low' ? 'All' : 'sales_shop_low')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border ${
+                stockFilter === 'sales_shop_low'
+                  ? 'bg-pink-900 text-pink-200 border-pink-800 shadow-xs'
+                  : salesShopLowCount > 0
+                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                  : 'bg-slate-100 text-slate-500 border-slate-200'
+              }`}
+            >
+              <Store className="w-3.5 h-3.5 text-amber-600" />
+              <AlertTriangle className="w-3 h-3 text-amber-500" />
+              <span>Shop Low ({salesShopLowCount})</span>
+            </button>
+
+            {/* Dead Stock Alert Filter Button */}
+            <button
+              onClick={() => setStockFilter(stockFilter === 'dead_stock' ? 'All' : 'dead_stock')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border ${
+                stockFilter === 'dead_stock'
+                  ? 'bg-gradient-to-r from-purple-900 to-indigo-900 text-white border-purple-700 shadow-md ring-2 ring-purple-500'
+                  : deadStockCount > 0
+                  ? 'bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100 animate-pulse'
+                  : 'bg-slate-100 text-slate-500 border-slate-200'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5 text-purple-600" />
+              <span>⚠️ Dead Stock Alert ({deadStockCount})</span>
+            </button>
+          </div>
+
+          <div className="relative w-full md:w-72">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search by SKU, color name, or fiber..."
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Dead Stock Alert Banner */}
+      {stockFilter === 'dead_stock' && (
+        <div className="p-4 bg-gradient-to-r from-purple-950 via-indigo-900 to-slate-900 text-white rounded-2xl shadow-lg border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0">
+              <Flame className="w-5 h-5 animate-pulse text-amber-300" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-purple-100 flex items-center gap-2">
+                <span>⚠️ Dead Stock &amp; Stagnant Capital Clearance Hub</span>
+              </h4>
+              <p className="text-xs text-purple-200">
+                {deadStockCount} inventory batches have recorded 0 sales • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-bold">KSh {deadStockCapital.toLocaleString()}</strong>
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-mono font-bold bg-purple-500/30 border border-purple-400/40 text-purple-200 px-3 py-1 rounded-full shrink-0">
+            Capital Protection Mode
+          </span>
+        </div>
+      )}
+
+      {/* Product Catalog Table */}
+      <div className="relative overflow-hidden bg-white rounded-2xl border border-rose-100 shadow-xs group">
+        <RightEdgeBlend variant="rainbow" />
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-rose-50/60 border-b border-rose-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                <th className="p-4">Color &amp; Swatch</th>
+                <th className="p-4">Product Batch / SKU</th>
+                <th className="p-4">Category / Composition</th>
+                <th className="p-4">Prices (KSh)</th>
+                <th className="p-4 text-center">Main Store</th>
+                <th className="p-4 text-center">Sales Shop</th>
+                <th className="p-4 text-center">Store 1</th>
+                <th className="p-4 text-center">Store 2</th>
+                <th className="p-4 text-right">Batch QR</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs font-sans">
+              {filteredProducts.map(p => {
+                const totalStock = (Object.values(p.locationStock) as number[]).reduce((a: number, b: number) => a + b, 0);
+
+                return (
+                  <tr key={p.id} className="hover:bg-rose-50/30 transition-colors">
+                    
+                    {/* Color Swatch & Code */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="w-7 h-7 rounded-xl border border-slate-200 shadow-sm shrink-0"
+                          style={{ backgroundColor: p.colorHex }}
+                        />
+                        <div>
+                          <p className="font-bold text-slate-900 leading-tight">{p.colorName}</p>
+                          <p className="font-mono text-[10px] text-slate-500">{p.colorHex}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Product Name & SKU */}
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        {p.imageUrl ? (
+                          <img
+                            src={p.imageUrl}
+                            alt={p.name}
+                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-xs shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200">
+                            <Layers className="w-5 h-5 text-slate-400" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-bold text-slate-900">{p.name}</p>
+                          <p className="font-mono text-[10px] text-slate-500">{p.sku} • {p.id}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Fiber & Subcategory */}
+                    <td className="p-4">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 mb-0.5">
+                        {p.category} ({p.subCategory})
+                      </span>
+                      <p className="text-[11px] text-slate-500">{p.fiberComposition}</p>
+                    </td>
+
+                    {/* Prices */}
+                    <td className="p-4 font-mono">
+                      <p className="font-bold text-rose-700">Retail: {p.unitPriceRetail.toLocaleString()}</p>
+                      <p className="text-[10px] text-emerald-600">Bulk: {p.unitPriceBulk.toLocaleString()}</p>
+                      <p className="text-[10px] text-slate-400">Cost: {p.costPrice.toLocaleString()}</p>
+                    </td>
+
+                    {/* Main Store Stock */}
+                    <td className="p-4 text-center font-mono">
+                      {p.locationStock.main_store <= p.minReorderLevel ? (
+                        <div className="flex flex-col items-center">
+                          <span className="font-bold text-rose-700">{p.locationStock.main_store} {p.unit}</span>
+                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full border border-rose-300 mt-1">
+                            <AlertTriangle className="w-2.5 h-2.5 text-rose-600 animate-bounce" />
+                            Low Hub (Min {p.minReorderLevel})
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-bold text-slate-800">{p.locationStock.main_store} {p.unit}</span>
+                      )}
+                    </td>
+
+                    {/* Sales Shop Stock */}
+                    <td className="p-4 text-center font-mono">
+                      {p.locationStock.sales_shop <= p.minReorderLevel ? (
+                        <div className="flex flex-col items-center">
+                          <span className="font-bold text-amber-800">{p.locationStock.sales_shop} {p.unit}</span>
+                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300 mt-1">
+                            <AlertTriangle className="w-2.5 h-2.5 text-amber-600 animate-bounce" />
+                            Low Shop (Min {p.minReorderLevel})
+                          </span>
+                          <button
+                            onClick={() => {
+                              requestRestock(
+                                [{ batchId: p.id, quantity: p.minReorderLevel * 2 }],
+                                `Restock Request for ${p.name} at Sales Shop`
+                              );
+                            }}
+                            className="mt-1 px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-bold rounded flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            Request
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="font-bold text-slate-800">{p.locationStock.sales_shop} {p.unit}</span>
+                      )}
+                    </td>
+
+                    {/* Store 1 Stock */}
+                    <td className="p-4 text-center font-mono font-bold text-slate-800">
+                      {p.locationStock.store_1} {p.unit}
+                    </td>
+
+                    {/* Store 2 Stock */}
+                    <td className="p-4 text-center font-mono font-bold text-slate-800">
+                      {p.locationStock.store_2} {p.unit}
+                    </td>
+
+                    {/* QR Code Trigger Button */}
+                    <td className="p-4 text-right space-y-1">
+                      <button
+                        onClick={() => setActiveBatchModal(p)}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-rose-600" />
+                        View QR
+                      </button>
+
+                      {/* Dead Stock Flash Clearance Discount Button */}
+                      {deadStockProducts.some(dp => dp.id === p.id) && (
+                        <button
+                          onClick={() => {
+                            setDiscountModalBatch(p);
+                            setNewPromoPrice(Math.round(p.unitPriceRetail * 0.8));
+                          }}
+                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-colors block w-full text-center cursor-pointer mt-1"
+                        >
+                          ⚡ Flash Discount
+                        </button>
+                      )}
+                    </td>
+
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* BATCH QR CODE GENERATOR & TAG MODAL */}
+      {activeBatchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-rose-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-rose-600" />
+                <h3 className="font-bold text-slate-900 text-base">
+                  Product Batch QR Tag
+                </h3>
+              </div>
+              <button
+                onClick={() => setActiveBatchModal(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Printable QR Tag Card */}
+            <div className="p-4 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 space-y-3 text-center">
+              {activeBatchModal.imageUrl && (
+                <div className="relative w-full h-24 rounded-xl overflow-hidden shadow-xs border border-slate-200">
+                  <img
+                    src={activeBatchModal.imageUrl}
+                    alt={activeBatchModal.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div
+                    className="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white shadow-md"
+                    style={{ backgroundColor: activeBatchModal.colorHex }}
+                    title={activeBatchModal.colorName}
+                  />
+                </div>
+              )}
+              {!activeBatchModal.imageUrl && (
+                <div
+                  className="w-10 h-10 rounded-full mx-auto border-2 border-white shadow-md"
+                  style={{ backgroundColor: activeBatchModal.colorHex }}
+                />
+              )}
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm">
+                  {activeBatchModal.name}
+                </h4>
+                <p className="text-xs text-rose-700 font-semibold">
+                  {activeBatchModal.colorName} ({activeBatchModal.colorHex})
+                </p>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                  SKU: {activeBatchModal.sku} • ID: {activeBatchModal.id}
+                </p>
+              </div>
+
+              {/* QR Code Payload Simulation */}
+              <div className="bg-white p-3 rounded-xl border border-slate-200 inline-block shadow-xs">
+                <QrCode className="w-24 h-24 mx-auto text-slate-900" />
+                <span className="text-[8px] font-mono text-slate-400 uppercase mt-1 block">
+                  Scannable Batch QR Token
+                </span>
+              </div>
+
+              <div className="text-[10px] text-slate-600 space-y-0.5">
+                <p>Fiber: {activeBatchModal.fiberComposition}</p>
+                <p>Retail: KSh {activeBatchModal.unitPriceRetail} / {activeBatchModal.unit}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={() => window.print()}
+                className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                Print Batch Tag
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD PRODUCT BATCH MODAL */}
+      {isAddBatchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-rose-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-900 text-base">
+                Catalog New Textile Batch
+              </h3>
+              <button
+                onClick={() => setIsAddBatchModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSubmit} className="space-y-4 text-xs font-sans">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">SKU Code:</label>
+                  <input
+                    type="text"
+                    required
+                    value={newSku}
+                    onChange={e => setNewSku(e.target.value)}
+                    placeholder="e.g. DRK-CRIMSON-220"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Category:</label>
+                  <select
+                    value={newCategory}
+                    onChange={e => setNewCategory(e.target.value as CategoryType)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  >
+                    <option value="Dereck">Dereck</option>
+                    <option value="Fleece">Fleece</option>
+                    <option value="Yarns">Yarns</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Product Batch Name:</label>
+                <input
+                  type="text"
+                  required
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="e.g. Heavy Dereck Suiting Weave"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Color Name:</label>
+                  <input
+                    type="text"
+                    required
+                    value={newColorName}
+                    onChange={e => setNewColorName(e.target.value)}
+                    placeholder="e.g. Crimson Red"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Hex Color Code:</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={newColorHex}
+                      onChange={e => setNewColorHex(e.target.value)}
+                      className="w-9 h-9 rounded-lg border border-slate-300 cursor-pointer p-0.5 shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={newColorHex}
+                      onChange={e => setNewColorHex(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Fiber Composition:</label>
+                  <input
+                    type="text"
+                    value={newComposition}
+                    onChange={e => setNewComposition(e.target.value)}
+                    placeholder="e.g. 80% Wool, 20% Polyester"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Unit Type:</label>
+                  <select
+                    value={newUnit}
+                    onChange={e => setNewUnit(e.target.value as UnitType)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  >
+                    <option value="meter">Meter</option>
+                    <option value="kg">Kilogram (kg)</option>
+                    <option value="roll">Roll</option>
+                    <option value="skein">Skein</option>
+                    <option value="yard">Yard</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Retail Price (KSh):</label>
+                  <input
+                    type="number"
+                    value={newRetailPrice}
+                    onChange={e => setNewRetailPrice(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Bulk Price (KSh):</label>
+                  <input
+                    type="number"
+                    value={newBulkPrice}
+                    onChange={e => setNewBulkPrice(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Cost Price (KSh):</label>
+                  <input
+                    type="number"
+                    value={newCostPrice}
+                    onChange={e => setNewCostPrice(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddBatchModalOpen(false)}
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors"
+                >
+                  Catalog Product
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FLASH DISCOUNT PROMOTIONAL MODAL FOR DEAD STOCK */}
+      {discountModalBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-purple-200 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Flame className="w-5 h-5 text-purple-600" />
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  Dead Stock Flash Price Clearance
+                </h3>
+              </div>
+              <button
+                onClick={() => setDiscountModalBatch(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-xs space-y-1">
+              <p className="font-extrabold text-purple-950">{discountModalBatch.name} ({discountModalBatch.sku})</p>
+              <p className="text-[11px] text-purple-800">
+                Current Retail Price: <strong>KSh {discountModalBatch.unitPriceRetail.toLocaleString()}</strong>
+              </p>
+              <p className="text-[10px] text-purple-700">Cost Price Base: KSh {discountModalBatch.costPrice.toLocaleString()}</p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <label className="font-bold text-slate-700 block">Preset Discount Percentages:</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[15, 25, 40].map(pct => {
+                  const promo = Math.round(discountModalBatch.unitPriceRetail * (1 - pct / 100));
+                  return (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setNewPromoPrice(promo)}
+                      className={`py-2 px-1 rounded-xl font-bold border text-xs cursor-pointer transition-all ${
+                        newPromoPrice === promo
+                          ? 'bg-purple-600 text-white border-purple-700 shadow-md'
+                          : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-purple-100'
+                      }`}
+                    >
+                      -{pct}% Off<br />
+                      <span className="text-[10px] font-mono">KSh {promo}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Custom Promotional Retail Price (KSh):</label>
+                <input
+                  type="number"
+                  value={newPromoPrice}
+                  onChange={e => setNewPromoPrice(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-extrabold text-sm text-purple-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDiscountModalBatch(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateProductPrice(discountModalBatch.id, newPromoPrice);
+                  setDiscountModalBatch(null);
+                }}
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow cursor-pointer"
+              >
+                Apply Promotional Price
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

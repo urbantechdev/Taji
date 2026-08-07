@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "POSOperator": {
+      "title": "POS Operator",
+      "description": "Store cashier or operator authorized with a 6-digit PIN",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "pin": { "type": "string", "minLength": 6, "maxLength": 6 },
+        "location": { "type": "string" },
+        "role": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "pin", "location"]
+    },
+    "Product": {
+      "title": "Product Batch",
+      "description": "Textile product batch item in inventory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "fabricType": { "type": "string" },
+        "batchNumber": { "type": "string" },
+        "location": { "type": "string" },
+        "quantity": { "type": "number" },
+        "buyingPrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "supplier": { "type": "string" },
+        "minThreshold": { "type": "number" },
+        "qrCodeData": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "location"]
+    },
+    "SaleOrder": {
+      "title": "Sale Order",
+      "description": "Completed or held POS sales order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerKraPin": { "type": "string" },
+        "location": { "type": "string" },
+        "cashierName": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "totalAmount", "paymentMethod", "location"]
+    },
+    "BrandSettings": {
+      "title": "Brand Settings",
+      "description": "Store customization and branding configurations",
+      "type": "object",
+      "properties": {
+        "storeName": { "type": "string" },
+        "primaryColor": { "type": "string" },
+        "headerBgColor": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["storeName"]
+    }
+  },
+  "firestore": {
+    "/pos_operators/{operatorId}": {
+      "schema": "POSOperator",
+      "description": "List of authorized POS Cashiers and Operators with 6-digit PINs"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Inventory product batch items"
+    },
+    "/orders/{orderId}": {
+      "schema": "SaleOrder",
+      "description": "Completed checkout and sales receipts"
+    },
+    "/brand_settings/{settingsId}": {
+      "schema": "BrandSettings",
+      "description": "Store layout, color theme, and header branding"
+    }
+  }
+}

@@ -1,0 +1,869 @@
+import {
+  LocationInfo,
+  ProductBatch,
+  SaleOrder,
+  InterStoreTransfer,
+  LedgerEntry,
+  AuditLog,
+  StaffMember,
+  PayrollRecord,
+  ETRConfig,
+  UserProfile,
+  POSOperator
+} from '../types';
+import tajiLogo from '../assets/images/taji_logo_1786034537873.jpg';
+
+export const INITIAL_POS_OPERATORS: POSOperator[] = [
+  {
+    id: 'op-super-admin',
+    name: 'Super Admin (Urban Interior)',
+    email: 'urbaninteriorkenya@gmail.com',
+    pin: '123456',
+    location: 'main_store',
+    role: 'admin',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'op-main-cashier',
+    name: 'Main Store Operator',
+    email: 'mainstore@urbaninterior.co.ke',
+    pin: '123456',
+    location: 'main_store',
+    role: 'main_store_operator',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'op-sales-cashier',
+    name: 'Sales Shop Cashier',
+    email: 'salesshop@urbaninterior.co.ke',
+    pin: '123456',
+    location: 'sales_shop',
+    role: 'sales_shop_cashier',
+    createdAt: new Date().toISOString()
+  }
+];
+
+export const LOCATIONS: LocationInfo[] = [
+  {
+    id: 'main_store',
+    name: 'Main Store & Central Hub',
+    type: 'Main Store',
+    canSellDirectly: true,
+    canFulfillOrders: true,
+    canRequestRestock: false,
+    address: 'Textile Hub, Block A1, Industrial Area, Nairobi',
+    phone: '+254 700 111 000',
+  },
+  {
+    id: 'sales_shop',
+    name: 'Sales Shop (Retail POS)',
+    type: 'Sales Shop',
+    canSellDirectly: true,
+    canFulfillOrders: false,
+    canRequestRestock: true,
+    address: 'Biashara Street Plaza, Ground Floor, Nairobi',
+    phone: '+254 700 222 000',
+  },
+  {
+    id: 'store_1',
+    name: 'Store 1 (Transfer & Fulfillment Only)',
+    type: 'Store 1 (Transfer Only)',
+    canSellDirectly: false, // DIRECT POS DISABLED
+    canFulfillOrders: false,
+    canRequestRestock: true,
+    address: 'Eastleigh Garment Center, Shop 14, Nairobi',
+    phone: '+254 700 333 000',
+  },
+  {
+    id: 'store_2',
+    name: 'Store 2 (Transfer & Fulfillment Only)',
+    type: 'Store 2 (Transfer Only)',
+    canSellDirectly: false, // DIRECT POS DISABLED
+    canFulfillOrders: false,
+    canRequestRestock: true,
+    address: 'River Road Textile Mart, Unit 8, Nairobi',
+    phone: '+254 700 444 000',
+  },
+];
+
+export const INITIAL_PRODUCTS: ProductBatch[] = [
+  // DERECK CATEGORY
+  {
+    id: 'BATCH-DRK-001',
+    sku: 'DRK-CRIMSON-220',
+    name: 'Heavy Dereck Weave 220 GSM',
+    category: 'Dereck',
+    subCategory: 'Heavy Weave Suiting',
+    fiberComposition: '70% Wool, 30% Polyester',
+    colorName: 'Crimson Red',
+    colorHex: '#E91E63',
+    unit: 'meter',
+    unitPriceRetail: 1250,
+    unitPriceBulk: 980,
+    costPrice: 650,
+    locationStock: {
+      main_store: 450,
+      sales_shop: 85,
+      store_1: 40,
+      store_2: 30,
+    },
+    minReorderLevel: 50,
+    imageUrl: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'DRK-CRIMSON-220',
+      batch: 'BATCH-DRK-001',
+      cat: 'Dereck',
+      color: '#E91E63',
+      unitPrice: 1250,
+      comp: '70% Wool 30% Poly'
+    }),
+    createdAt: '2026-07-01',
+  },
+  {
+    id: 'BATCH-DRK-002',
+    sku: 'DRK-PLUM-180',
+    name: 'Dereck Royal Tweed 180 GSM',
+    category: 'Dereck',
+    subCategory: 'Tweed Suiting',
+    fiberComposition: '80% Pure Wool, 20% Cashmere Blend',
+    colorName: 'Plum Purple',
+    colorHex: '#9C27B0',
+    unit: 'meter',
+    unitPriceRetail: 1600,
+    unitPriceBulk: 1300,
+    costPrice: 850,
+    locationStock: {
+      main_store: 320,
+      sales_shop: 45,
+      store_1: 15,
+      store_2: 20,
+    },
+    minReorderLevel: 40,
+    imageUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'DRK-PLUM-180',
+      batch: 'BATCH-DRK-002',
+      cat: 'Dereck',
+      color: '#9C27B0',
+      unitPrice: 1600,
+      comp: '80% Wool 20% Cashmere'
+    }),
+    createdAt: '2026-07-05',
+  },
+  {
+    id: 'BATCH-DRK-003',
+    sku: 'DRK-ROYAL-300',
+    name: 'Dereck Executive Poly-Wool Roll',
+    category: 'Dereck',
+    subCategory: 'Executive Roll',
+    fiberComposition: '65% Polyester, 35% Wool',
+    colorName: 'Royal Sapphire',
+    colorHex: '#1E88E5',
+    unit: 'roll',
+    unitPriceRetail: 28500,
+    unitPriceBulk: 24000,
+    costPrice: 16000,
+    locationStock: {
+      main_store: 18,
+      sales_shop: 2,
+      store_1: 1,
+      store_2: 0,
+    },
+    minReorderLevel: 3,
+    imageUrl: 'https://images.unsplash.com/photo-1528459801416-a9e53bbf4e17?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'DRK-ROYAL-300',
+      batch: 'BATCH-DRK-003',
+      cat: 'Dereck',
+      color: '#1E88E5',
+      unitPrice: 28500,
+      comp: '65% Poly 35% Wool'
+    }),
+    createdAt: '2026-07-10',
+  },
+
+  // FLEECE CATEGORY
+  {
+    id: 'BATCH-FLC-101',
+    sku: 'FLC-TEAL-280',
+    name: 'Polar Anti-Pill Fleece 280 GSM',
+    category: 'Fleece',
+    subCategory: 'Polar Fleece',
+    fiberComposition: '100% Micro-Polyester',
+    colorName: 'Teal Cyan',
+    colorHex: '#00BCD4',
+    unit: 'kg',
+    unitPriceRetail: 1100,
+    unitPriceBulk: 880,
+    costPrice: 520,
+    locationStock: {
+      main_store: 600,
+      sales_shop: 120,
+      store_1: 85,
+      store_2: 90,
+    },
+    minReorderLevel: 60,
+    imageUrl: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'FLC-TEAL-280',
+      batch: 'BATCH-FLC-101',
+      cat: 'Fleece',
+      color: '#00BCD4',
+      unitPrice: 1100,
+      comp: '100% Micro-Poly'
+    }),
+    createdAt: '2026-07-12',
+  },
+  {
+    id: 'BATCH-FLC-102',
+    sku: 'FLC-AMBER-320',
+    name: 'Sherpa Warm Plush Fleece',
+    category: 'Fleece',
+    subCategory: 'Sherpa Fleece',
+    fiberComposition: '100% Thermal Polyester',
+    colorName: 'Amber Gold',
+    colorHex: '#FF9800',
+    unit: 'kg',
+    unitPriceRetail: 1450,
+    unitPriceBulk: 1180,
+    costPrice: 720,
+    locationStock: {
+      main_store: 250,
+      sales_shop: 35,
+      store_1: 10,
+      store_2: 12,
+    },
+    minReorderLevel: 30,
+    imageUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'FLC-AMBER-320',
+      batch: 'BATCH-FLC-102',
+      cat: 'Fleece',
+      color: '#FF9800',
+      unitPrice: 1450,
+      comp: '100% Thermal Poly'
+    }),
+    createdAt: '2026-07-15',
+  },
+  {
+    id: 'BATCH-FLC-103',
+    sku: 'FLC-MAGENTA-240',
+    name: 'Microfleece Soft Stretch 240 GSM',
+    category: 'Fleece',
+    subCategory: 'Microfleece',
+    fiberComposition: '95% Polyester, 5% Spandex',
+    colorName: 'Bright Magenta',
+    colorHex: '#E040FB',
+    unit: 'meter',
+    unitPriceRetail: 950,
+    unitPriceBulk: 750,
+    costPrice: 420,
+    locationStock: {
+      main_store: 500,
+      sales_shop: 110,
+      store_1: 50,
+      store_2: 45,
+    },
+    minReorderLevel: 50,
+    imageUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'FLC-MAGENTA-240',
+      batch: 'BATCH-FLC-103',
+      cat: 'Fleece',
+      color: '#E040FB',
+      unitPrice: 950,
+      comp: '95% Poly 5% Spandex'
+    }),
+    createdAt: '2026-07-18',
+  },
+
+  // YARNS CATEGORY
+  {
+    id: 'BATCH-YRN-201',
+    sku: 'YRN-EMERALD-4PLY',
+    name: 'High-Luster Acrylic Yarn 4-Ply',
+    category: 'Yarns',
+    subCategory: 'Knitting Yarn',
+    fiberComposition: '100% Premium Acrylic',
+    colorName: 'Emerald Green',
+    colorHex: '#4CAF50',
+    unit: 'skein',
+    unitPriceRetail: 380,
+    unitPriceBulk: 300,
+    costPrice: 180,
+    locationStock: {
+      main_store: 1200,
+      sales_shop: 280,
+      store_1: 120,
+      store_2: 150,
+    },
+    minReorderLevel: 100,
+    imageUrl: 'https://images.unsplash.com/photo-1606760227091-3dd850d97f1d?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'YRN-EMERALD-4PLY',
+      batch: 'BATCH-YRN-201',
+      cat: 'Yarns',
+      color: '#4CAF50',
+      unitPrice: 380,
+      comp: '100% Premium Acrylic'
+    }),
+    createdAt: '2026-07-20',
+  },
+  {
+    id: 'BATCH-YRN-202',
+    sku: 'YRN-PURPLE-8PLY',
+    name: 'Merino Wool Blend Chunky Yarn',
+    category: 'Yarns',
+    subCategory: 'Chunky Wool Yarn',
+    fiberComposition: '75% Australian Merino Wool, 25% Acrylic',
+    colorName: 'Deep Purple',
+    colorHex: '#673AB7',
+    unit: 'skein',
+    unitPriceRetail: 850,
+    unitPriceBulk: 690,
+    costPrice: 410,
+    locationStock: {
+      main_store: 420,
+      sales_shop: 60,
+      store_1: 25,
+      store_2: 30,
+    },
+    minReorderLevel: 40,
+    imageUrl: 'https://images.unsplash.com/photo-1584992236310-6edddc08acff?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'YRN-PURPLE-8PLY',
+      batch: 'BATCH-YRN-202',
+      cat: 'Yarns',
+      color: '#673AB7',
+      unitPrice: 850,
+      comp: '75% Merino 25% Acrylic'
+    }),
+    createdAt: '2026-07-22',
+  },
+  {
+    id: 'BATCH-YRN-203',
+    sku: 'YRN-CHOCO-CHEN',
+    name: 'Velvet Chenille Soft Carpet Yarn',
+    category: 'Yarns',
+    subCategory: 'Chenille Weaving Yarn',
+    fiberComposition: '100% Micro-Polyester Chenille',
+    colorName: 'Chocolate Brown',
+    colorHex: '#795548',
+    unit: 'kg',
+    unitPriceRetail: 1350,
+    unitPriceBulk: 1080,
+    costPrice: 650,
+    locationStock: {
+      main_store: 380,
+      sales_shop: 45,
+      store_1: 18,
+      store_2: 12,
+    },
+    minReorderLevel: 30,
+    imageUrl: 'https://images.unsplash.com/photo-1576426863848-c21f53c60b19?auto=format&fit=crop&w=600&q=80',
+    qrCodeData: JSON.stringify({
+      sku: 'YRN-CHOCO-CHEN',
+      batch: 'BATCH-YRN-203',
+      cat: 'Yarns',
+      color: '#795548',
+      unitPrice: 1350,
+      comp: '100% Poly Chenille'
+    }),
+    createdAt: '2026-07-25',
+  },
+  {
+    id: 'BATCH-YRN-204',
+    sku: 'YRN-SLATE-COTTON',
+    name: 'Combed Cotton Weaving Yarn Cone',
+    category: 'Yarns',
+    subCategory: 'Industrial Cotton Yarn',
+    fiberComposition: '100% Natural Combed Cotton',
+    colorName: 'Slate Gray',
+    colorHex: '#607D8B',
+    unit: 'kg',
+    unitPriceRetail: 1200,
+    unitPriceBulk: 950,
+    costPrice: 580,
+    locationStock: {
+      main_store: 520,
+      sales_shop: 90,
+      store_1: 40,
+      store_2: 35,
+    },
+    minReorderLevel: 50,
+    qrCodeData: JSON.stringify({
+      sku: 'YRN-SLATE-COTTON',
+      batch: 'BATCH-YRN-204',
+      cat: 'Yarns',
+      color: '#607D8B',
+      unitPrice: 1200,
+      comp: '100% Combed Cotton'
+    }),
+    createdAt: '2026-07-28',
+  },
+];
+
+export const INITIAL_ORDERS: SaleOrder[] = [
+  {
+    id: 'ORD-2026-8801',
+    receiptNumber: 'ETR-8801-001',
+    etrDevicePin: 'P051982341Z',
+    cuSerialNumber: 'KRA-CU-8812930',
+    originLocation: 'sales_shop',
+    fulfilledByLocation: 'sales_shop',
+    customerName: 'Kipchoge Tailors Ltd',
+    customerKraPin: 'A009123847P',
+    items: [
+      {
+        batchId: 'BATCH-DRK-001',
+        productName: 'Heavy Dereck Weave 220 GSM',
+        category: 'Dereck',
+        unit: 'meter',
+        quantity: 20,
+        unitPrice: 1250,
+        totalPrice: 25000,
+      },
+      {
+        batchId: 'BATCH-YRN-201',
+        productName: 'High-Luster Acrylic Yarn 4-Ply',
+        category: 'Yarns',
+        unit: 'skein',
+        quantity: 15,
+        unitPrice: 380,
+        totalPrice: 5700,
+      }
+    ],
+    subtotal: 26465.52,
+    vatAmount: 4234.48, // 16% VAT
+    grandTotal: 30700,
+    paymentMethod: 'M-Pesa',
+    paymentReference: 'RKS9910293',
+    status: 'completed',
+    operatorId: 'USR-002',
+    operatorName: 'Amina Zainab',
+    timestamp: '2026-08-04T09:30:00Z',
+    isRerouted: false,
+  },
+  {
+    id: 'ORD-2026-8802',
+    receiptNumber: 'ETR-8802-002',
+    etrDevicePin: 'P051982341Z',
+    cuSerialNumber: 'KRA-CU-8812930',
+    originLocation: 'store_1',
+    fulfilledByLocation: 'main_store',
+    customerName: 'Eastleigh Uniform Manufacturers',
+    customerKraPin: 'P051119284K',
+    items: [
+      {
+        batchId: 'BATCH-FLC-101',
+        productName: 'Polar Anti-Pill Fleece 280 GSM',
+        category: 'Fleece',
+        unit: 'kg',
+        quantity: 50,
+        unitPrice: 1100,
+        totalPrice: 55000,
+      }
+    ],
+    subtotal: 47413.79,
+    vatAmount: 7586.21,
+    grandTotal: 55000,
+    paymentMethod: 'Bank Transfer',
+    paymentReference: 'FT260804-0012',
+    status: 'completed',
+    operatorId: 'USR-003',
+    operatorName: 'David Ochieng',
+    timestamp: '2026-08-04T11:15:00Z',
+    isRerouted: true, // Store 1 -> Main Store fulfillment
+  },
+  {
+    id: 'ORD-2026-8803',
+    receiptNumber: 'ETR-8803-003',
+    etrDevicePin: 'P051982341Z',
+    cuSerialNumber: 'KRA-CU-8812930',
+    originLocation: 'main_store',
+    fulfilledByLocation: 'main_store',
+    customerName: 'Rift Valley Garments',
+    customerKraPin: 'A010992384X',
+    items: [
+      {
+        batchId: 'BATCH-DRK-003',
+        productName: 'Dereck Executive Poly-Wool Roll',
+        category: 'Dereck',
+        unit: 'roll',
+        quantity: 2,
+        unitPrice: 24000, // Bulk price at Main Store
+        totalPrice: 48000,
+      }
+    ],
+    subtotal: 41379.31,
+    vatAmount: 6620.69,
+    grandTotal: 48000,
+    paymentMethod: 'Cheque',
+    paymentReference: 'CHQ-882910',
+    status: 'completed',
+    operatorId: 'USR-001',
+    operatorName: 'Dereck Mwangi (Main Admin)',
+    timestamp: '2026-08-04T14:20:00Z',
+    isRerouted: false,
+  }
+];
+
+export const INITIAL_TRANSFERS: InterStoreTransfer[] = [
+  {
+    id: 'TRF-2026-001',
+    transferType: 'restock_free',
+    fromLocation: 'main_store',
+    toLocation: 'sales_shop',
+    requestedByOperator: 'Amina Zainab (Sales Shop)',
+    fulfilledByOperator: 'Dereck Mwangi (Main Store)',
+    items: [
+      {
+        batchId: 'BATCH-DRK-001',
+        productName: 'Heavy Dereck Weave 220 GSM',
+        quantity: 50,
+        unit: 'meter',
+        unitCost: 650,
+      },
+      {
+        batchId: 'BATCH-FLC-101',
+        productName: 'Polar Anti-Pill Fleece 280 GSM',
+        quantity: 40,
+        unit: 'kg',
+        unitCost: 520,
+      }
+    ],
+    notes: 'Weekly routine retail shop stock replenish at zero internal cost.',
+    status: 'fulfilled',
+    requestedAt: '2026-08-03T08:00:00Z',
+    dispatchedAt: '2026-08-03T09:30:00Z',
+    fulfilledAt: '2026-08-03T10:15:00Z',
+  },
+  {
+    id: 'TRF-2026-002',
+    transferType: 'order_fulfillment_reroute',
+    fromLocation: 'store_1',
+    toLocation: 'main_store',
+    requestedByOperator: 'David Ochieng (Store 1)',
+    fulfilledByOperator: 'Dereck Mwangi (Main Store)',
+    items: [
+      {
+        batchId: 'BATCH-FLC-101',
+        productName: 'Polar Anti-Pill Fleece 280 GSM',
+        quantity: 50,
+        unit: 'kg',
+        unitCost: 520,
+      }
+    ],
+    notes: 'Store 1 Customer Order Ticket rerouted to Main Store for billing & dispatch',
+    status: 'fulfilled',
+    requestedAt: '2026-08-04T10:30:00Z',
+    dispatchedAt: '2026-08-04T11:00:00Z',
+    fulfilledAt: '2026-08-04T11:15:00Z',
+    customerOrderRef: 'ORD-2026-8802'
+  },
+  {
+    id: 'TRF-2026-003',
+    transferType: 'restock_free',
+    fromLocation: 'main_store',
+    toLocation: 'store_2',
+    requestedByOperator: 'Grace Wanjiku (Store 2)',
+    items: [
+      {
+        batchId: 'BATCH-YRN-202',
+        productName: 'Merino Wool Blend Chunky Yarn',
+        quantity: 20,
+        unit: 'skein',
+        unitCost: 410,
+      },
+      {
+        batchId: 'BATCH-FLC-102',
+        productName: 'Sherpa Warm Plush Fleece',
+        quantity: 15,
+        unit: 'kg',
+        unitCost: 720,
+      }
+    ],
+    notes: 'Low stock threshold triggered at Store 2',
+    status: 'pending_approval',
+    requestedAt: '2026-08-05T05:30:00Z'
+  }
+];
+
+export const INITIAL_LEDGER: LedgerEntry[] = [
+  {
+    id: 'LEDG-1001',
+    timestamp: '2026-08-03T09:30:00Z',
+    transactionRef: 'TRF-2026-001',
+    description: 'Inter-store Restock Transfer (Main Store -> Sales Shop) @ Free Internal Cost',
+    debitAccount: 'Sales Shop Inventory Asset',
+    creditAccount: 'Main Store Inventory Asset',
+    amount: 53300, // (50 * 650) + (40 * 520)
+    locationId: 'main_store',
+    category: 'Inter-Store Transfer'
+  },
+  {
+    id: 'LEDG-1002',
+    timestamp: '2026-08-04T09:30:00Z',
+    transactionRef: 'ORD-2026-8801',
+    description: 'Sales Shop Retail Revenue & VAT Output Tax',
+    debitAccount: 'Cash/M-Pesa Clearing',
+    creditAccount: 'Sales Revenue (Sales Shop)',
+    amount: 30700,
+    locationId: 'sales_shop',
+    category: 'Sales'
+  },
+  {
+    id: 'LEDG-1003',
+    timestamp: '2026-08-04T09:30:00Z',
+    transactionRef: 'ORD-2026-8801',
+    description: 'VAT Output Tax (16%) Payable to KRA',
+    debitAccount: 'Sales Revenue (Sales Shop)',
+    creditAccount: 'KRA VAT Output Tax Liability',
+    amount: 4234.48,
+    locationId: 'sales_shop',
+    category: 'Tax VAT'
+  },
+  {
+    id: 'LEDG-1004',
+    timestamp: '2026-08-04T11:15:00Z',
+    transactionRef: 'ORD-2026-8802',
+    description: 'Store 1 Rerouted Fulfillment Sale executed by Main Store',
+    debitAccount: 'Bank Accounts (Nairobi)',
+    creditAccount: 'Main Store Sales Revenue',
+    amount: 55000,
+    locationId: 'main_store',
+    category: 'Sales'
+  },
+  {
+    id: 'LEDG-1005',
+    timestamp: '2026-08-04T11:15:00Z',
+    transactionRef: 'ORD-2026-8802',
+    description: 'VAT Output Tax (16%) on Store 1 Rerouted Sale',
+    debitAccount: 'Main Store Sales Revenue',
+    creditAccount: 'KRA VAT Output Tax Liability',
+    amount: 7586.21,
+    locationId: 'main_store',
+    category: 'Tax VAT'
+  }
+];
+
+export const INITIAL_STAFF: StaffMember[] = [
+  {
+    id: 'STAFF-001',
+    employeeNo: 'EMP-001',
+    name: 'Dereck Mwangi',
+    role: 'admin',
+    locationId: 'main_store',
+    idNumber: '28192039',
+    kraPin: 'A008291039M',
+    nssfNo: 'NSSF-99012',
+    nhifNo: 'NHIF-44120',
+    basicSalary: 140000,
+    allowances: 25000,
+    joinedDate: '2023-01-15'
+  },
+  {
+    id: 'STAFF-002',
+    employeeNo: 'EMP-002',
+    name: 'Amina Zainab',
+    role: 'sales_shop_cashier',
+    locationId: 'sales_shop',
+    idNumber: '31920192',
+    kraPin: 'A009182736Z',
+    nssfNo: 'NSSF-88123',
+    nhifNo: 'NHIF-55102',
+    basicSalary: 55000,
+    allowances: 8000,
+    joinedDate: '2024-03-01'
+  },
+  {
+    id: 'STAFF-003',
+    employeeNo: 'EMP-003',
+    name: 'David Ochieng',
+    role: 'store_1_attendant',
+    locationId: 'store_1',
+    idNumber: '29102938',
+    kraPin: 'A007716253O',
+    nssfNo: 'NSSF-77291',
+    nhifNo: 'NHIF-33829',
+    basicSalary: 48000,
+    allowances: 6000,
+    joinedDate: '2024-05-10'
+  },
+  {
+    id: 'STAFF-004',
+    employeeNo: 'EMP-004',
+    name: 'Grace Wanjiku',
+    role: 'store_2_attendant',
+    locationId: 'store_2',
+    idNumber: '30918273',
+    kraPin: 'A006512938W',
+    nssfNo: 'NSSF-66129',
+    nhifNo: 'NHIF-22910',
+    basicSalary: 48000,
+    allowances: 6000,
+    joinedDate: '2024-06-01'
+  },
+  {
+    id: 'STAFF-005',
+    employeeNo: 'EMP-005',
+    name: 'Samuel Otieno',
+    role: 'main_store_operator',
+    locationId: 'main_store',
+    idNumber: '27192837',
+    kraPin: 'A005519283S',
+    nssfNo: 'NSSF-55192',
+    nhifNo: 'NHIF-11293',
+    basicSalary: 62000,
+    allowances: 10000,
+    joinedDate: '2023-11-20'
+  },
+  {
+    id: 'STAFF-006',
+    employeeNo: 'EMP-006',
+    name: 'Faith Chebet',
+    role: 'accountant',
+    locationId: 'main_store',
+    idNumber: '32192847',
+    kraPin: 'A010293847C',
+    nssfNo: 'NSSF-44829',
+    nhifNo: 'NHIF-99182',
+    basicSalary: 85000,
+    allowances: 12000,
+    joinedDate: '2024-01-10'
+  }
+];
+
+export const INITIAL_PAYROLL: PayrollRecord[] = [
+  {
+    id: 'PAY-2026-07-001',
+    monthYear: 'July 2026',
+    staffId: 'STAFF-001',
+    staffName: 'Dereck Mwangi',
+    employeeNo: 'EMP-001',
+    role: 'admin',
+    locationId: 'main_store',
+    basicSalary: 140000,
+    allowances: 25000,
+    grossPay: 165000,
+    payeTax: 42150,
+    nssfDeduction: 1080,
+    nhifDeduction: 1700,
+    housingLevy: 2475, // 1.5% of 165,000
+    totalDeductions: 47405,
+    netPay: 117595,
+    paymentStatus: 'Paid',
+    generatedAt: '2026-07-28T16:00:00Z'
+  },
+  {
+    id: 'PAY-2026-07-002',
+    monthYear: 'July 2026',
+    staffId: 'STAFF-002',
+    staffName: 'Amina Zainab',
+    employeeNo: 'EMP-002',
+    role: 'sales_shop_cashier',
+    locationId: 'sales_shop',
+    basicSalary: 55000,
+    allowances: 8000,
+    grossPay: 63000,
+    payeTax: 12450,
+    nssfDeduction: 1080,
+    nhifDeduction: 1300,
+    housingLevy: 945,
+    totalDeductions: 15775,
+    netPay: 47225,
+    paymentStatus: 'Paid',
+    generatedAt: '2026-07-28T16:00:00Z'
+  }
+];
+
+export const INITIAL_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: 'AUD-9001',
+    timestamp: '2026-08-04T09:30:15Z',
+    operatorName: 'Amina Zainab',
+    operatorRole: 'sales_shop_cashier',
+    locationId: 'sales_shop',
+    action: 'POS Retail Sale Executed',
+    details: 'Order ORD-2026-8801 total KSh 30,700 via M-Pesa. ETR Receipt ETR-8801-001 issued.',
+    ipAddress: '192.168.1.45'
+  },
+  {
+    id: 'AUD-9002',
+    timestamp: '2026-08-04T10:30:00Z',
+    operatorName: 'David Ochieng',
+    operatorRole: 'store_1_attendant',
+    locationId: 'store_1',
+    action: 'Direct Sale Blocked & Order Ticket Rerouted',
+    details: 'Direct POS sale disabled at Store 1. Rerouted Order Ticket TRF-2026-002 to Main Store for 50kg Fleece.',
+    ipAddress: '192.168.2.12'
+  },
+  {
+    id: 'AUD-9003',
+    timestamp: '2026-08-04T11:15:22Z',
+    operatorName: 'Dereck Mwangi',
+    operatorRole: 'admin',
+    locationId: 'main_store',
+    action: 'Order Reroute Fulfilled & Dispatched',
+    details: 'Main Store fulfilled rerouted ticket TRF-2026-002. Decremented Main Store inventory (-50kg) & issued ETR-8802-002.',
+    ipAddress: '192.168.1.10'
+  }
+];
+
+export const INITIAL_ETR_CONFIG: ETRConfig = {
+  taxPin: 'P051982341Z',
+  cuSerialNumber: 'KRA-CU-8812930',
+  vatRate: 0.16,
+  companyName: 'Taji Textile & Garment Solutions Ltd',
+  companyAddress: 'Industrial Area, Block A1, P.O. Box 40210 - 00100 Nairobi, Kenya',
+  companyPhone: '+254 700 111 000 / +254 722 999 888',
+  companyEmail: 'billing@taji.co.ke',
+  receiptFooterMessage: 'Thank you for trading with Taji. Official KRA ETR Tax Invoice.'
+};
+
+export const INITIAL_BRAND_SETTINGS = {
+  brandName: 'Taji',
+  tagline: 'Textile Inventory & ETR Billing Platform',
+  primaryColor: '#B50044', // Taji Pink #B50044
+  accentColor: '#9f003c',
+  headerBgColor: 'pink', // Options: 'pink', 'rose', 'slate', 'indigo', 'emerald'
+  logoUrl: 'https://i.pinimg.com/736x/b2/47/2b/b2472b0a27beee4bf5d46d692ae0d8ed.jpg',
+  faviconUrl: ''
+};
+
+export const INITIAL_MAIL_NOTIFICATIONS = [
+  {
+    id: 'MAIL-001',
+    title: '📩 Restock Request Received at Main Store',
+    message: 'Store 2 (Grace Wanjiku) requested a zero-cost restock for 20 skeins Merino Wool & 15kg Sherpa Fleece.',
+    transferId: 'TRF-2026-003',
+    transferType: 'restock_free' as const,
+    fromLocation: 'main_store' as const,
+    toLocation: 'store_2' as const,
+    timestamp: '2026-08-05T05:30:00Z',
+    read: false,
+    itemCount: 2
+  },
+  {
+    id: 'MAIL-002',
+    title: '📩 Rerouted Purchase Order Ticket',
+    message: 'Store 1 (David Ochieng) routed customer order ticket TRF-2026-002 to Main Store for 50kg Polar Fleece.',
+    transferId: 'TRF-2026-002',
+    transferType: 'order_fulfillment_reroute' as const,
+    fromLocation: 'store_1' as const,
+    toLocation: 'main_store' as const,
+    timestamp: '2026-08-04T10:30:00Z',
+    read: true,
+    itemCount: 1
+  }
+];
+
+export const CURRENT_USER: UserProfile = {
+
+  id: 'USR-001',
+  name: 'Dereck Mwangi',
+  email: 'dereck@textiles.co.ke',
+  role: 'admin',
+  assignedLocation: 'main_store',
+  kraPin: 'A008291039M'
+};

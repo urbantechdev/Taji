@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Montserrat', system-ui, sans-serif;
+  --font-mono: 'Montserrat', system-ui, sans-serif;
+}
+
+:root {
+  font-family: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  font-family: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+@keyframes headerReflectionSweep {
+  0% {
+    transform: translateX(-150%) skewX(-25deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(320%) skewX(-25deg);
+    opacity: 0;
+  }
+}
+
+.animate-reflection-sweep {
+  animation: headerReflectionSweep 5s ease-in-out infinite;
+}
+
+/* Reusable moving light reflection sheen for window headers, cards, and hero sections */
+.reflection-sheen-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.reflection-sheen-beam {
+  position: absolute;
+  top: -3rem;
+  bottom: -3rem;
+  left: 0;
+  width: 500px;
+  animation: headerReflectionSweep 5s ease-in-out infinite;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 20%,
+    rgba(255, 255, 255, 0.22) 45%,
+    rgba(255, 192, 203, 0.35) 50%,
+    rgba(255, 255, 255, 0.22) 55%,
+    rgba(255, 255, 255, 0.05) 80%,
+    transparent 100%
+  );
+  filter: blur(10px);
+}
+
+
