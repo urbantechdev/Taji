@@ -834,7 +834,7 @@ export const INITIAL_BRAND_SETTINGS = {
 export const INITIAL_MAIL_NOTIFICATIONS = [
   {
     id: 'MAIL-001',
-    title: '📩 Restock Request Received at Main Store',
+    title: 'Restock Request Received at Main Store',
     message: 'Store 2 (Grace Wanjiku) requested a zero-cost restock for 20 skeins Merino Wool & 15kg Sherpa Fleece.',
     transferId: 'TRF-2026-003',
     transferType: 'restock_free' as const,
@@ -846,7 +846,7 @@ export const INITIAL_MAIL_NOTIFICATIONS = [
   },
   {
     id: 'MAIL-002',
-    title: '📩 Rerouted Purchase Order Ticket',
+    title: 'Rerouted Purchase Order Ticket',
     message: 'Store 1 (David Ochieng) routed customer order ticket TRF-2026-002 to Main Store for 50kg Polar Fleece.',
     transferId: 'TRF-2026-002',
     transferType: 'order_fulfillment_reroute' as const,

@@ -19,40 +19,10 @@ import { QRScannerModal } from './components/common/QRScannerModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
 import { Footer } from './components/layout/Footer';
-import { Maximize2, Sparkles, X } from 'lucide-react';
 
 const ERPContent: React.FC = () => {
   const { appMode } = useERP();
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
-  const [isFS, setIsFS] = useState(false);
-
-  useEffect(() => {
-    const checkFS = () => {
-      const doc = window.document as any;
-      setIsFS(
-        !!(
-          doc.fullscreenElement ||
-          doc.webkitFullscreenElement ||
-          doc.mozFullScreenElement ||
-          doc.msFullscreenElement
-        )
-      );
-    };
-
-    document.addEventListener('fullscreenchange', checkFS);
-    document.addEventListener('webkitfullscreenchange', checkFS);
-    document.addEventListener('mozfullscreenchange', checkFS);
-    document.addEventListener('MSFullscreenChange', checkFS);
-
-    checkFS();
-
-    return () => {
-      document.removeEventListener('fullscreenchange', checkFS);
-      document.removeEventListener('webkitfullscreenchange', checkFS);
-      document.removeEventListener('mozfullscreenchange', checkFS);
-      document.removeEventListener('MSFullscreenChange', checkFS);
-    };
-  }, []);
 
   const triggerFullscreen = () => {
     const doc = window.document;
@@ -70,72 +40,79 @@ const ERPContent: React.FC = () => {
         docEl.msRequestFullscreen;
 
       if (enterMethod) {
-        enterMethod.call(docEl).catch((err: any) => {
-          console.log('Fullscreen request prevented:', err);
+        enterMethod.call(docEl).catch(() => {
+          // Handled silently if browser security blocks non-gesture fullscreen
         });
       }
     }
   };
 
   useEffect(() => {
-    // Attempt auto-fullscreen on first user interaction gesture
+    // Attempt immediate fullscreen upon platform mount
+    triggerFullscreen();
+
+    // Browser security may require a user gesture; automatically trigger on any first user interaction
     const handleGesture = () => {
       triggerFullscreen();
     };
 
     window.addEventListener('click', handleGesture, { passive: true });
     window.addEventListener('touchstart', handleGesture, { passive: true });
+    window.addEventListener('keydown', handleGesture, { passive: true });
+    window.addEventListener('pointerdown', handleGesture, { passive: true });
 
     return () => {
       window.removeEventListener('click', handleGesture);
       window.removeEventListener('touchstart', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+      window.removeEventListener('pointerdown', handleGesture);
     };
   }, []);
 
   useEffect(() => {
-    if (appMode === 'pos') {
-      triggerFullscreen();
-    }
-  }, [appMode]);
+    triggerFullscreen();
+  }, [appMode, activeTab]);
 
   return (
-    <div className="min-h-screen w-full bg-slate-50/80 font-sans text-slate-800 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900 pb-16 md:pb-0">
+    <div className="h-screen max-h-screen w-full bg-slate-50/80 font-sans text-slate-800 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900 overflow-hidden">
       
-      {/* Top Header Bar */}
+      {/* Top Header Bar (Stationary at top) */}
       <Header />
 
-      {/* Main Workspace Body */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden w-full">
+      {/* Main Workspace Body (Stationary Sidebar + Scrollable Body) */}
+      <div className="flex-1 flex flex-row overflow-hidden w-full min-h-0 relative">
         
-        {/* Navigation Sidebar (rendered in Admin mode on desktop) */}
+        {/* Navigation Sidebar (Stationary left column - does NOT scroll with page content) */}
         {appMode === 'admin' && (
           <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
         )}
 
-        {/* Dynamic View Area */}
-        <main className="flex-1 p-3 sm:p-5 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6 pb-24 md:pb-28">
-          {appMode === 'pos' ? (
-            <POSModule />
-          ) : (
-            <>
-              {activeTab === 'dashboard' && <AdminDashboard />}
-              {activeTab === 'pos' && <POSModule />}
-              {activeTab === 'catalog' && <InventoryCatalog />}
-              {activeTab === 'transfers' && <InterStoreTransfers />}
-              {activeTab === 'ledger' && <AccountingLedger />}
-              {activeTab === 'etr' && <ETRModule />}
-              {activeTab === 'payroll' && <HRPayrollModule />}
-              {activeTab === 'operators' && <POSOperatorManager />}
-              {activeTab === 'audit' && <AuditLogsModule />}
-              {activeTab === 'gmail' && <GmailInbox />}
-            </>
-          )}
-        </main>
+        {/* Dynamic View Area (The only area that scrolls up and down) */}
+        <div className="flex-1 h-full overflow-y-auto overflow-x-hidden min-h-0 flex flex-col justify-between">
+          <main className="p-3 sm:p-5 md:p-8 max-w-7xl mx-auto w-full space-y-6 pb-28 md:pb-36">
+            {appMode === 'pos' ? (
+              <POSModule />
+            ) : (
+              <>
+                {activeTab === 'dashboard' && <AdminDashboard />}
+                {activeTab === 'pos' && <POSModule />}
+                {activeTab === 'catalog' && <InventoryCatalog />}
+                {activeTab === 'transfers' && <InterStoreTransfers />}
+                {activeTab === 'ledger' && <AccountingLedger />}
+                {activeTab === 'etr' && <ETRModule />}
+                {activeTab === 'payroll' && <HRPayrollModule />}
+                {activeTab === 'operators' && <POSOperatorManager />}
+                {activeTab === 'audit' && <AuditLogsModule />}
+                {activeTab === 'gmail' && <GmailInbox />}
+              </>
+            )}
+          </main>
+
+          {/* Footer inside scroll container */}
+          <Footer />
+        </div>
 
       </div>
-
-      {/* Footer */}
-      <Footer />
 
       {/* Desktop Floating Dock Navigation Bar */}
       <DesktopBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />

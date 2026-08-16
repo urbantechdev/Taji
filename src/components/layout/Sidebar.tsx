@@ -85,7 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
   return (
     <aside
-      className="hidden md:flex w-full md:w-64 border-r border-slate-700/50 text-slate-200 flex-col shrink-0 transition-colors duration-300 bg-gradient-to-b from-[#242830] via-[#1a1d24] to-[#121418] shadow-2xl relative overflow-hidden group/sidebar"
+      className="hidden md:flex w-full md:w-64 border-r border-slate-700/50 text-slate-200 flex-col shrink-0 transition-colors duration-300 bg-gradient-to-b from-[#242830] via-[#1a1d24] to-[#121418] shadow-2xl relative overflow-y-auto overflow-x-hidden group/sidebar h-full select-none z-20"
     >
       {/* Sidebar Ambient Background Light Glow Effect */}
       <div className="absolute -top-24 -left-24 w-64 h-64 bg-rose-600/10 rounded-full blur-3xl pointer-events-none group-hover/sidebar:bg-rose-500/15 transition-all duration-700" />

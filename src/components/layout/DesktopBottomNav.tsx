@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { NavTab } from './Sidebar';
+import { playClickSound } from '../../utils/audio';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -12,7 +13,6 @@ import {
   Users,
   ShieldCheck,
   UserCheck,
-  Building2,
   Mail
 } from 'lucide-react';
 
@@ -36,11 +36,8 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
   const {
     transfers,
     orders,
-    activeLocation,
-    brandSettings,
-    currentUser,
-    isSuperAdmin,
-    unreadMailCount
+    unreadMailCount,
+    brandSettings
   } = useERP();
 
   const pendingTransfersCount = transfers.filter(
@@ -52,118 +49,169 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
   const navItems: NavItem[] = [
     {
       id: 'dashboard',
-      label: 'Admin Hub',
+      label: 'Hub',
       icon: LayoutDashboard,
     },
     {
       id: 'pos',
-      label: 'POS Register',
+      label: 'POS',
       icon: ShoppingCart,
       badge: todayOrdersCount > 0 ? todayOrdersCount : undefined,
       highlight: true
     },
     {
       id: 'catalog',
-      label: 'Stock Catalog',
+      label: 'Stock',
       icon: Package,
     },
     {
       id: 'transfers',
-      label: 'Inter-Store',
+      label: 'Transfers',
       icon: ArrowLeftRight,
       badge: pendingTransfersCount > 0 ? pendingTransfersCount : undefined
     },
     {
       id: 'etr',
-      label: 'TIMS ETR',
+      label: 'ETR',
       icon: Receipt,
     },
     {
       id: 'ledger',
-      label: 'P&L Ledger',
+      label: 'Ledger',
       icon: FileSpreadsheet,
     },
     {
       id: 'operators',
-      label: 'POS Team',
+      label: 'Team',
       icon: UserCheck,
     },
     {
       id: 'payroll',
-      label: 'HR Payroll',
+      label: 'Payroll',
       icon: Users,
     },
     {
       id: 'gmail',
-      label: 'Messages',
+      label: 'Inbox',
       icon: Mail,
       badge: (unreadMailCount || 0) > 0 ? unreadMailCount : undefined
     },
     {
       id: 'audit',
-      label: 'Audit Trail',
+      label: 'Audit',
       icon: ShieldCheck,
     }
   ];
 
-  const activeLocationName =
-    activeLocation === 'main_store'
-      ? 'Main Warehouse'
-      : activeLocation === 'sales_shop'
-      ? 'Sales Shop'
-      : activeLocation === 'store_1'
-      ? 'Store 1'
-      : 'Store 2';
-
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 w-full hidden md:block pointer-events-auto transition-all duration-300">
-      {/* Single Wave Curved SVG Top Edge */}
-      <div className="relative w-full h-3 -mb-1 overflow-hidden pointer-events-none">
+      {/* Light Reflection Sheen Custom CSS Animations matching Header */}
+      <style>{`
+        @keyframes bottomNavReflectionSweep {
+          0% {
+            transform: translateX(-150%) skewX(-25deg);
+            opacity: 0;
+          }
+          15% {
+            opacity: 0.9;
+          }
+          85% {
+            opacity: 0.9;
+          }
+          100% {
+            transform: translateX(320%) skewX(-25deg);
+            opacity: 0;
+          }
+        }
+
+        .animate-nav-reflection-sweep {
+          animation: bottomNavReflectionSweep 5s ease-in-out infinite;
+        }
+      `}</style>
+
+      {/* Smooth Wave Curved SVG Top Edge with Glowing Light Highlight & Reflection Effect */}
+      <div className="relative w-full h-8 sm:h-10 -mb-1 overflow-hidden pointer-events-none">
         <svg
-          className="w-full h-full text-white drop-shadow-[0_-2px_4px_rgba(0,0,0,0.02)]"
-          viewBox="0 0 1440 48"
+          className="w-full h-full text-white drop-shadow-[0_-6px_14px_rgba(0,0,0,0.06)]"
+          viewBox="0 0 1440 60"
           preserveAspectRatio="none"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
-          {/* Smooth Single Wave Fill */}
+          <defs>
+            <linearGradient id="navWaveLightGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#fda4af" stopOpacity="0.3" />
+              <stop offset="25%" stopColor="#ffffff" stopOpacity="0.9" />
+              <stop offset="50%" stopColor="#f43f5e" stopOpacity="0.8" />
+              <stop offset="75%" stopColor="#ffffff" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#fda4af" stopOpacity="0.3" />
+            </linearGradient>
+
+            <filter id="navWaveSoftGlow" x="-20%" y="-50%" width="140%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* Main solid clean white wave fill matching the bar */}
           <path
-            d="M 0,24 C 420,52 1020,-8 1440,24 L 1440,48 L 0,48 Z"
-            fill="currentColor"
+            d="M0,60 C480,-20 960,80 1440,0 L1440,60 L0,60 Z"
+            fill="#ffffff"
           />
-          {/* Subtle Rose Wave Contour Line */}
+
+          {/* Subtle soft rose/light halo along the wave curve */}
           <path
-            d="M 0,24 C 420,52 1020,-8 1440,24"
-            stroke="rgba(244, 63, 94, 0.25)"
-            strokeWidth="1.5"
+            d="M0,60 C480,-20 960,80 1440,0"
             fill="none"
+            stroke="#f43f5e"
+            strokeWidth="3"
+            strokeOpacity="0.25"
+            filter="url(#navWaveSoftGlow)"
+          />
+
+          {/* Clean inner highlight stroke */}
+          <path
+            d="M0,60 C480,-20 960,80 1440,0"
+            fill="none"
+            stroke="url(#navWaveLightGradient)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          />
+
+          {/* Animated Light Reflection Sheen following the wave curve */}
+          <path
+            d="M0,60 C480,-20 960,80 1440,0"
+            fill="none"
+            stroke="#ffffff"
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray="400 1040"
+            className="animate-nav-reflection-sweep"
+            style={{
+              filter: 'drop-shadow(0 0 8px rgba(255, 255, 255, 1)) drop-shadow(0 0 16px rgba(244, 63, 94, 0.6))'
+            }}
           />
         </svg>
+
+        {/* Ambient light flare reflection */}
+        <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-r from-pink-500/10 via-white/40 to-pink-500/10 blur-md pointer-events-none" />
       </div>
 
-      {/* Main Sleek White Bar Container with 100% Increased Height */}
-      <div className="w-full bg-white text-slate-900 border-t border-slate-100/80 shadow-[0_-12px_30px_rgba(0,0,0,0.06)] px-4 lg:px-8 py-3.5 min-h-[124px] flex items-center justify-between gap-4">
-        
-        {/* Brand Info & Active Location (Left of Nav) */}
-        <div className="hidden sm:flex items-center gap-3 shrink-0 pr-4 border-r border-slate-200/80">
-          <div className="space-y-1 leading-tight">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-extrabold text-slate-900 tracking-tight">
-                {brandSettings?.brandName || 'Zamoda'}
-              </span>
-              <span className="text-[9px] font-mono font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full border border-rose-100">
-                ERP
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-mono font-bold text-slate-700">{activeLocationName}</span>
-            </div>
+      {/* Main Sleek White Bar Container with Moving Light Reflection Effect */}
+      <div className="w-full bg-white text-slate-900 border-t border-slate-100 shadow-[0_-12px_30px_rgba(0,0,0,0.08)] px-2 sm:px-4 lg:px-6 py-2.5 min-h-[105px] lg:min-h-[115px] flex items-center justify-center relative overflow-hidden">
+        {/* Moving Glass & Light Reflection Overlay */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute -top-12 -bottom-12 left-0 w-[500px] sm:w-[700px] animate-nav-reflection-sweep pointer-events-none">
+            <div className="w-full h-full bg-gradient-to-r from-transparent via-rose-100/10 via-pink-100/30 via-white/60 via-pink-100/30 via-rose-100/10 to-transparent blur-lg" />
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-16 bg-gradient-to-r from-transparent via-rose-300/30 to-transparent blur-sm" />
           </div>
         </div>
 
-        {/* Bottom Navigation Dock with doubled height buttons */}
-        <div className="flex items-center justify-center gap-2.5 overflow-x-auto no-scrollbar py-1 flex-1">
+        {/* Bottom Navigation Grid: evenly distributed with enlarged icons */}
+        <div className="grid grid-cols-5 xl:grid-cols-10 gap-1.5 sm:gap-2.5 lg:gap-3 w-full max-w-7xl items-center relative z-10">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -171,16 +219,19 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
             return (
               <motion.button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                whileHover={{ scale: 1.04, y: -2 }}
-                whileTap={{ scale: 0.96 }}
+                onClick={() => {
+                  playClickSound();
+                  setActiveTab(item.id);
+                }}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                className={`relative group h-16 lg:h-18 px-4 lg:px-5 py-3 rounded-2xl text-xs sm:text-sm font-extrabold transition-all duration-150 flex items-center justify-center gap-2.5 shrink-0 cursor-pointer ${
+                className={`relative group w-full h-18 lg:h-20 px-1 sm:px-2 py-2 rounded-2xl font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer ${
                   isActive
                     ? 'bg-gradient-to-r from-rose-600 via-rose-500 to-red-600 text-white shadow-xl shadow-rose-500/35 ring-2 ring-rose-400/80'
                     : item.highlight
-                    ? 'bg-rose-50 text-rose-800 border-2 border-rose-300/80 shadow-xs hover:bg-rose-100 hover:shadow-lg hover:shadow-rose-500/15'
-                    : 'bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs hover:bg-white hover:text-rose-700 hover:border-rose-300 hover:shadow-lg hover:shadow-slate-300/40'
+                    ? 'bg-rose-50 text-rose-800 border-2 border-rose-300/80 shadow-xs hover:bg-rose-100 hover:shadow-md hover:shadow-rose-500/15'
+                    : 'bg-slate-50 text-slate-700 border border-slate-200/90 shadow-xs hover:bg-white hover:text-rose-700 hover:border-rose-300 hover:shadow-md hover:shadow-slate-300/40'
                 }`}
               >
                 {/* Background Shadow & Glow Blur Layer */}
@@ -200,27 +251,33 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
                   }}
                 />
 
-                <Icon className={`w-5 h-5 shrink-0 z-10 ${
-                  isActive ? 'text-white' : 'text-slate-500 group-hover:text-rose-600'
-                }`} />
+                {/* Enlarged Icon Container with Floating Badge */}
+                <div className="relative flex items-center justify-center">
+                  <Icon className={`w-6 h-6 lg:w-7 lg:h-7 stroke-[2.2] shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                    isActive ? 'text-white' : 'text-slate-600 group-hover:text-rose-600'
+                  }`} />
 
-                <span className="whitespace-nowrap font-sans font-extrabold text-xs sm:text-sm tracking-tight z-10">{item.label}</span>
+                  {item.badge !== undefined && (
+                    <span
+                      className={`absolute -top-1.5 -right-3.5 px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-black shadow-xs shrink-0 ${
+                        isActive ? 'bg-white text-rose-700' : 'bg-rose-600 text-white'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
 
-                {item.badge !== undefined && (
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-black z-10 shadow-xs ${
-                      isActive ? 'bg-white text-rose-700' : 'bg-rose-600 text-white'
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
+                {/* Shortened Label */}
+                <span className="truncate max-w-full font-sans font-extrabold text-xs lg:text-[13px] tracking-tight leading-none">
+                  {item.label}
+                </span>
 
                 {/* Active Underline Pill Accent */}
                 {isActive && (
                   <motion.span
                     layoutId="activeUnderline"
-                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-amber-400 rounded-full z-10"
+                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 sm:w-10 h-1 sm:h-1.5 bg-amber-400 rounded-full z-10"
                     animate={{
                       scaleX: [1, 1.15, 1],
                       boxShadow: [
@@ -240,36 +297,6 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
             );
           })}
         </div>
-
-        {/* Quick System & Operator Profile Tag (Right Side) */}
-        <div className="hidden lg:flex items-center gap-3 shrink-0 pl-4 border-l border-slate-200/80">
-          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-            <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="font-semibold">ETR Online</span>
-            </div>
-            <span className="text-slate-300">|</span>
-            <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-              <span className="w-2 h-2 rounded-full bg-indigo-500" />
-              <span>Orders: <strong className="text-slate-900 font-mono font-bold">{todayOrdersCount}</strong></span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 pl-1">
-            <div className="p-2 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 shadow-xs">
-              <Building2 className="w-4 h-4" />
-            </div>
-            <div className="space-y-0.5 text-right">
-              <p className="text-xs font-mono font-extrabold text-slate-900 truncate max-w-[110px]">
-                {currentUser?.name || 'POS Cashier'}
-              </p>
-              <p className="text-[8px] font-mono text-emerald-700 uppercase tracking-wider font-extrabold bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
-                {isSuperAdmin ? 'SUPER ADMIN' : 'POS OPERATOR'}
-              </p>
-            </div>
-          </div>
-        </div>
-
       </div>
     </div>
   );

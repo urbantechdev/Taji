@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
+import { playPopupSound, playClickSound, playTrashSound } from '../../utils/audio';
 import { PauseCircle, Play, Trash2, X, Clock, User, ArrowRightLeft, Sparkles, Layers } from 'lucide-react';
 
 interface HeldCartsModalProps {
@@ -10,6 +11,12 @@ interface HeldCartsModalProps {
 
 export const HeldCartsModal: React.FC<HeldCartsModalProps> = ({ isOpen, onClose }) => {
   const { heldCarts, restoreHeldCart, discardHeldCart, cart } = useERP();
+
+  useEffect(() => {
+    if (isOpen) {
+      playPopupSound();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -130,7 +137,10 @@ export const HeldCartsModal: React.FC<HeldCartsModalProps> = ({ isOpen, onClose 
                   {/* Actions */}
                   <div className="flex items-center justify-between pt-1">
                     <button
-                      onClick={() => discardHeldCart(held.id)}
+                      onClick={() => {
+                        playTrashSound();
+                        discardHeldCart(held.id);
+                      }}
                       className="text-xs text-rose-600 hover:text-rose-800 font-medium flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -139,6 +149,7 @@ export const HeldCartsModal: React.FC<HeldCartsModalProps> = ({ isOpen, onClose 
 
                     <button
                       onClick={() => {
+                        playClickSound();
                         restoreHeldCart(held.id);
                         onClose();
                       }}

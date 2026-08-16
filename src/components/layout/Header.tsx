@@ -5,6 +5,7 @@ import { UserRole, LocationId } from '../../types';
 import { LOCATIONS } from '../../data/initialData';
 import { MailInboxDrawer } from '../notifications/MailInboxDrawer';
 import { BrandSettingsModal } from '../settings/BrandSettingsModal';
+import { isSoundEnabled, toggleSound, playClickSound } from '../../utils/audio';
 import {
   Store,
   Warehouse,
@@ -19,12 +20,12 @@ import {
   ShoppingBag,
   Sparkles,
   AlertTriangle,
-  Maximize2,
-  Minimize2,
   KeyRound,
   Lock,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -51,45 +52,23 @@ export const Header: React.FC = () => {
     setIsMailDrawerOpen
   } = useERP();
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [soundOn, setSoundOn] = useState<boolean>(true);
 
   useEffect(() => {
-    const handleFSChange = () => {
-      const doc = window.document as any;
-      const isFS = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
-      setIsFullscreen(isFS);
+    setSoundOn(isSoundEnabled());
+    const handleSoundChange = (e: Event) => {
+      const customEvt = e as CustomEvent<{ enabled: boolean }>;
+      if (customEvt.detail) {
+        setSoundOn(customEvt.detail.enabled);
+      }
     };
-
-    document.addEventListener('fullscreenchange', handleFSChange);
-    document.addEventListener('webkitfullscreenchange', handleFSChange);
-    document.addEventListener('mozfullscreenchange', handleFSChange);
-    document.addEventListener('MSFullscreenChange', handleFSChange);
-
-    handleFSChange();
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFSChange);
-      document.removeEventListener('webkitfullscreenchange', handleFSChange);
-      document.removeEventListener('mozfullscreenchange', handleFSChange);
-      document.removeEventListener('MSFullscreenChange', handleFSChange);
-    };
+    window.addEventListener('zamoda-sound-changed', handleSoundChange);
+    return () => window.removeEventListener('zamoda-sound-changed', handleSoundChange);
   }, []);
 
-  const toggleFullscreen = () => {
-    const doc = window.document;
-    const docEl = doc.documentElement as any;
-
-    if (!doc.fullscreenElement && !(doc as any).webkitFullscreenElement && !(doc as any).mozFullScreenElement && !(doc as any).msFullscreenElement) {
-      const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
-      if (req) {
-        req.call(docEl).catch((err: any) => console.log('Fullscreen error:', err));
-      }
-    } else {
-      const exit = doc.exitFullscreen || (doc as any).webkitExitFullscreen || (doc as any).mozCancelFullScreen || (doc as any).msExitFullscreen;
-      if (exit) {
-        exit.call(doc);
-      }
-    }
+  const handleToggleSound = () => {
+    const newState = toggleSound();
+    setSoundOn(newState);
   };
 
   const activeLocInfo = LOCATIONS.find(l => l.id === activeLocation);
@@ -358,33 +337,33 @@ export const Header: React.FC = () => {
             )}
           </button>
 
+          {/* Sound Effects Audio Mute / Unmute Toggle */}
+          <button
+            onClick={handleToggleSound}
+            className={`p-2 border rounded-xl transition-all cursor-pointer ${
+              soundOn
+                ? 'bg-white/15 hover:bg-white/25 border-white/30 text-white shadow-xs'
+                : 'bg-black/30 hover:bg-black/40 border-white/10 text-white/50'
+            }`}
+            title={soundOn ? 'Sound Effects: Enabled (Click to mute)' : 'Sound Effects: Muted (Click to enable)'}
+          >
+            {soundOn ? (
+              <Volume2 className="w-4 h-4 text-emerald-300" />
+            ) : (
+              <VolumeX className="w-4 h-4 text-rose-300" />
+            )}
+          </button>
+
           {/* Brand Settings Gear Button */}
           <button
-            onClick={() => setIsBrandSettingsModalOpen(true)}
+            onClick={() => {
+              playClickSound();
+              setIsBrandSettingsModalOpen(true);
+            }}
             className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-colors cursor-pointer"
             title="Brand Color & Logo Settings"
           >
             <Settings className="w-4 h-4" />
-          </button>
-
-          {/* Fullscreen Toggle Button */}
-          <button
-            onClick={toggleFullscreen}
-            className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
-              isFullscreen
-                ? 'bg-amber-400 text-slate-950 font-bold border border-amber-300 shadow-xs'
-                : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
-            }`}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen Mode'}
-          >
-            {isFullscreen ? (
-              <Minimize2 className="w-4 h-4" />
-            ) : (
-              <Maximize2 className="w-4 h-4" />
-            )}
-            <span className="text-xs font-bold hidden xl:inline">
-              {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-            </span>
           </button>
 
           {/* QR Scanner Trigger */}

@@ -20,7 +20,8 @@ import {
   Flame,
   Tag,
   ArrowRight,
-  TrendingDown
+  TrendingDown,
+  Zap
 } from 'lucide-react';
 
 export const InventoryCatalog: React.FC = () => {
@@ -229,8 +230,8 @@ export const InventoryCatalog: React.FC = () => {
                   : 'bg-slate-100 text-slate-500 border-slate-200'
               }`}
             >
-              <Flame className="w-3.5 h-3.5 text-purple-600" />
-              <span>⚠️ Dead Stock Alert ({deadStockCount})</span>
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>Dead Stock Alert ({deadStockCount})</span>
             </button>
           </div>
 
@@ -256,7 +257,8 @@ export const InventoryCatalog: React.FC = () => {
             </div>
             <div>
               <h4 className="font-extrabold text-sm text-purple-100 flex items-center gap-2">
-                <span>⚠️ Dead Stock &amp; Stagnant Capital Clearance Hub</span>
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Dead Stock &amp; Stagnant Capital Clearance Hub</span>
               </h4>
               <p className="text-xs text-purple-200">
                 {deadStockCount} inventory batches have recorded 0 sales • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-bold">KSh {deadStockCapital.toLocaleString()}</strong>
@@ -414,9 +416,10 @@ export const InventoryCatalog: React.FC = () => {
                             setDiscountModalBatch(p);
                             setNewPromoPrice(Math.round(p.unitPriceRetail * 0.8));
                           }}
-                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-colors block w-full text-center cursor-pointer mt-1"
+                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer mt-1"
                         >
-                          ⚡ Flash Discount
+                          <Zap className="w-3 h-3 text-amber-300 fill-amber-300" />
+                          <span>Flash Discount</span>
                         </button>
                       )}
                     </td>

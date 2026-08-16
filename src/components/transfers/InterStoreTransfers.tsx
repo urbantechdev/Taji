@@ -715,9 +715,9 @@ export const InterStoreTransfers: React.FC = () => {
               </h3>
               <button
                 onClick={() => setSelectedFulfillTransfer(null)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

@@ -3,6 +3,7 @@ import { NavTab } from './Sidebar';
 import { useERP } from '../../context/ERPContext';
 import { LOCATIONS } from '../../data/initialData';
 import { LocationId, UserRole } from '../../types';
+import { playClickSound, playPopupSound } from '../../utils/audio';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -20,7 +21,6 @@ import {
   UserCheck,
   QrCode,
   Settings,
-  Maximize2,
   Lock,
   ShieldCheck,
   Store,
@@ -77,21 +77,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const salesShopLowCount = products.filter(
     p => p.locationStock ? p.locationStock.sales_shop <= p.minReorderLevel : (p.location === 'sales_shop' && p.stockQuantity <= p.reorderLevel)
   ).length;
-
-  const toggleFullscreen = () => {
-    const doc = window.document as any;
-    const docEl = doc.documentElement as any;
-
-    const isFS = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
-
-    if (!isFS) {
-      const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
-      if (requestFS) requestFS.call(docEl);
-    } else {
-      const exitFS = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
-      if (exitFS) exitFS.call(doc);
-    }
-  };
 
   const primaryNav: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     {
@@ -150,6 +135,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   ];
 
   const handleSelectTab = (tab: NavTab) => {
+    playClickSound();
     setActiveTab(tab);
     setIsMoreMenuOpen(false);
   };
@@ -265,7 +251,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Quick Action Tools
               </label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {/* Inbox Notifications */}
                 <button
                   onClick={() => {
@@ -305,18 +291,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 >
                   <Settings className="w-5 h-5 text-amber-600" />
                   <span className="text-[10px] font-bold text-slate-700 mt-1">Settings</span>
-                </button>
-
-                {/* Fullscreen Toggle */}
-                <button
-                  onClick={() => {
-                    toggleFullscreen();
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  <Maximize2 className="w-5 h-5 text-emerald-600" />
-                  <span className="text-[10px] font-bold text-slate-700 mt-1">Full Screen</span>
                 </button>
               </div>
             </div>

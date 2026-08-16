@@ -5,6 +5,8 @@ import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, LocationId } from '../../types';
 import { LOCATIONS } from '../../data/initialData';
 import { HeldCartsModal } from './HeldCartsModal';
+import { ProductDetailModal } from './ProductDetailModal';
+import { playClickSound, playPopupSound } from '../../utils/audio';
 import {
   Search,
   QrCode,
@@ -27,7 +29,9 @@ import {
   Truck,
   Store,
   Warehouse,
-  AlertCircle
+  AlertCircle,
+  X,
+  Eye
 } from 'lucide-react';
 
 export const POSModule: React.FC = () => {
@@ -60,6 +64,9 @@ export const POSModule: React.FC = () => {
   const [holdNote, setHoldNote] = useState('');
   const [isQuotation, setIsQuotation] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Product Quick View Modal State
+  const [selectedViewProduct, setSelectedViewProduct] = useState<ProductBatch | null>(null);
 
   // Inter-Store Stock Transfer Modal State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -203,7 +210,10 @@ export const POSModule: React.FC = () => {
                 {(['All', 'Dereck', 'Fleece', 'Yarns'] as const).map(cat => (
                   <button
                     key={cat}
-                    onClick={() => setSelectedCategory(cat)}
+                    onClick={() => {
+                      playClickSound();
+                      setSelectedCategory(cat);
+                    }}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
                       selectedCategory === cat
                         ? 'bg-rose-600 text-white shadow-xs'
@@ -223,7 +233,7 @@ export const POSModule: React.FC = () => {
                   title="Direct Inter-Store Stock Dispatch & Transfer from POS"
                 >
                   <ArrowRightLeft className="w-4 h-4 text-amber-400" />
-                  <span>🚀 Inter-Store POS Transfer</span>
+                  <span>Inter-Store POS Transfer</span>
                 </button>
 
                 <button
@@ -258,11 +268,22 @@ export const POSModule: React.FC = () => {
               return (
                 <div
                   key={prod.id}
-                  className={`relative overflow-hidden bg-white p-4 rounded-2xl border transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-rose-300 flex flex-col justify-between group ${
-                    isOut ? 'border-slate-200 opacity-70 bg-slate-50' : 'border-rose-100'
+                  onClick={() => setSelectedViewProduct(prod)}
+                  className={`relative overflow-hidden bg-white p-4 rounded-2xl border transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:border-rose-300 flex flex-col justify-between group cursor-pointer ${
+                    isOut ? 'border-slate-200 opacity-75 bg-slate-50' : 'border-rose-100'
                   }`}
+                  title="Tap product to view full details and stock breakdown"
                 >
                   <RightEdgeBlend variant="rainbow" />
+                  
+                  {/* Subtle Tap to View Indicator on hover */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <span className="flex items-center gap-1 bg-slate-900/80 backdrop-blur-xs text-white text-[9.5px] font-bold px-2 py-0.5 rounded-full shadow-xs">
+                      <Eye className="w-3 h-3 text-rose-400" />
+                      <span>Tap to view</span>
+                    </span>
+                  </div>
+
                   <div className="space-y-2">
                     {/* Product Image preview */}
                     {prod.imageUrl && (
@@ -352,18 +373,36 @@ export const POSModule: React.FC = () => {
                       Active Loc: {currentLocStock} {prod.unit}
                     </span>
 
-                    <button
-                      onClick={() => addToCart(prod, 1)}
-                      disabled={isOut && activeLocInfo?.canSellDirectly}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer ${
-                        isOut
-                          ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                          : 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs hover:shadow-md'
-                      }`}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedViewProduct(prod);
+                        }}
+                        className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-rose-700 transition-colors"
+                        title="View details"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart(prod, 1);
+                        }}
+                        disabled={isOut && activeLocInfo?.canSellDirectly}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer ${
+                          isOut
+                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                            : 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs hover:shadow-md'
+                        }`}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -647,9 +686,9 @@ export const POSModule: React.FC = () => {
               </h3>
               <button
                 onClick={() => setIsCheckoutModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -759,9 +798,9 @@ export const POSModule: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsRerouteModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -824,7 +863,7 @@ export const POSModule: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-base">
-                    🚀 Direct Inter-Store POS Stock Transfer
+                    Direct Inter-Store POS Stock Transfer
                   </h3>
                   <p className="text-xs text-slate-500">
                     Deducts stock from source store and adds immediately to receiving store node.
@@ -835,7 +874,7 @@ export const POSModule: React.FC = () => {
                 onClick={() => setIsTransferModalOpen(false)}
                 className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1033,6 +1072,18 @@ export const POSModule: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* PRODUCT DETAIL POPUP MODAL */}
+      {selectedViewProduct && (
+        <ProductDetailModal
+          product={selectedViewProduct}
+          onClose={() => setSelectedViewProduct(null)}
+          onAddToCart={(prod, qty) => addToCart(prod, qty)}
+          onQuickTransfer={handleQuickTransferProduct}
+          activeLocation={activeLocation}
+          canSellDirectly={activeLocInfo?.canSellDirectly ?? true}
+        />
       )}
 
     </div>

@@ -3,7 +3,7 @@ import { useERP } from '../../context/ERPContext';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { Mail, CheckCircle2, PackageCheck, X, Clock, Sparkles } from 'lucide-react';
 import { LOCATIONS } from '../../data/initialData';
-import { playRingingChime } from '../../utils/audio';
+import { playNotificationSound, playClickSound, playSuccessSound } from '../../utils/audio';
 
 export const MailNotificationPopup: React.FC = () => {
   const {
@@ -19,7 +19,7 @@ export const MailNotificationPopup: React.FC = () => {
 
   useEffect(() => {
     if (activeToastNotification) {
-      playRingingChime();
+      playNotificationSound();
     }
   }, [activeToastNotification?.id]);
 
@@ -29,6 +29,7 @@ export const MailNotificationPopup: React.FC = () => {
   const isPurchase = notif.transferType === 'order_fulfillment_reroute';
 
   const handleAction = () => {
+    playSuccessSound();
     markNotificationRead(notif.id);
     if (notif.transferType === 'order_fulfillment_reroute') {
       acceptPurchaseOrder(notif.transferId, 'M-Pesa');
@@ -39,6 +40,7 @@ export const MailNotificationPopup: React.FC = () => {
   };
 
   const handleResumeInPOS = () => {
+    playClickSound();
     markNotificationRead(notif.id);
     resumeTransferredSaleToCart(notif.transferId);
     setActiveToastNotification(null);

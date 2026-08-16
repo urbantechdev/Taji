@@ -36,6 +36,13 @@ import {
   INITIAL_POS_OPERATORS,
   CURRENT_USER
 } from '../data/initialData';
+import {
+  playAddToCartSound,
+  playTrashSound,
+  playSuccessSound,
+  playNotificationSound,
+  playAlertSound
+} from '../utils/audio';
 
 interface ERPContextType {
   // Navigation, Mode & Role Context
@@ -579,6 +586,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // CART OPERATIONS
   const addToCart = (batch: ProductBatch, quantity: number = 1, isBulk: boolean = false) => {
+    playAddToCartSound();
     const available = batch.locationStock[activeLocation] || 0;
     const price = (isBulk && activeLocation === 'main_store') ? batch.unitPriceBulk : batch.unitPriceRetail;
 
@@ -611,6 +619,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const removeFromCart = (batchId: string) => {
+    playTrashSound();
     setCart(prev => prev.filter(item => item.batchId !== batchId));
   };
 
@@ -625,6 +634,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const clearCart = () => {
+    playTrashSound();
     setCart([]);
   };
 
@@ -638,6 +648,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Check Store 1 and Store 2 restriction
     const locInfo = LOCATIONS.find(l => l.id === activeLocation);
     if (!locInfo?.canSellDirectly && !isQuotation) {
+      playAlertSound();
       return {
         success: false,
         message: `Direct POS Sales are disabled at ${locInfo?.name}. Please route this purchase order ticket to Main Store or Sales Shop.`
@@ -645,6 +656,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (cart.length === 0) {
+      playAlertSound();
       return { success: false, message: 'Cart is empty.' };
     }
 
@@ -756,7 +768,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setOrders(prev => [newOrder, ...prev]);
     setSelectedReceipt(newOrder);
-    clearCart();
+    playSuccessSound();
+    setCart([]);
 
     return { success: true, orderId };
   };
@@ -792,6 +805,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setTransfers(prev => [newTransfer, ...prev]);
+    playNotificationSound();
 
     // Auto-add transfer to receiver's held carts list so receiver can resume to serve transferred sale
     const cartItemsForHeld: POSCartItem[] = transferItems.map(i => {
@@ -830,7 +844,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Send Mail Notification Popup
     const mailNotif: MailNotification = {
       id: `MAIL-${Date.now().toString().slice(-5)}`,
-      title: '📩 New Purchase Order Ticket Rerouted',
+      title: 'New Purchase Order Ticket Rerouted',
       message: `Purchase order ticket ${transferId} created at ${LOCATIONS.find(l => l.id === activeLocation)?.name} -> Rerouted to Main Store for customer ${customerName}.`,
       transferId,
       transferType: 'order_fulfillment_reroute',
@@ -886,7 +900,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Send Mail Notification Popup
     const mailNotif: MailNotification = {
       id: `MAIL-${Date.now().toString().slice(-5)}`,
-      title: '📩 New Restock Request to Main Store',
+      title: 'New Restock Request to Main Store',
       message: `${LOCATIONS.find(l => l.id === activeLocation)?.name} requested zero-cost restock ${transferId} (${items.length} line items).`,
       transferId,
       transferType: 'restock_free',
@@ -904,19 +918,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       `Restock request ${transferId} issued by ${LOCATIONS.find(l => l.id === activeLocation)?.name} to Main Store`
     );
 
+    playNotificationSound();
     return { success: true, transferId };
   };
 
   // DISPATCH RESTOCK TRANSFER (Main Store -> Target Shop at $0 Internal Cost)
   const dispatchRestockTransfer = (transferId: string) => {
     const trf = transfers.find(t => t.id === transferId);
-    if (!trf) return { success: false, message: 'Transfer record not found' };
+    if (!trf) {
+      playAlertSound();
+      return { success: false, message: 'Transfer record not found' };
+    }
 
     // Verify Main Store stock availability
     for (const item of trf.items) {
       const prod = products.find(p => p.id === item.batchId);
       const mainStock = prod?.locationStock.main_store || 0;
       if (mainStock < item.quantity) {
+        playAlertSound();
         return {
           success: false,
           message: `Main Store stock insufficient for ${item.productName}. Required: ${item.quantity}, Available: ${mainStock}`
@@ -984,6 +1003,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       `Dispatched restock ${transferId} to ${toLocName}. Main Store stock decremented and ${toLocName} stock updated ($0 internal cost).`
     );
 
+    playSuccessSound();
     return { success: true, message: `Restock transfer ${transferId} successfully dispatched and fulfilled!` };
   };
 
@@ -995,9 +1015,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     notes: string = 'Inter-store dispatch transfer'
   ) => {
     if (fromLocation === toLocation) {
+      playAlertSound();
       return { success: false, message: 'Source and destination locations must be different.' };
     }
     if (!items || items.length === 0) {
+      playAlertSound();
       return { success: false, message: 'Please add at least one item to dispatch.' };
     }
 
@@ -1005,10 +1027,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     for (const item of items) {
       const prod = products.find(p => p.id === item.batchId);
       if (!prod) {
+        playAlertSound();
         return { success: false, message: `Product batch ${item.batchId} not found.` };
       }
       const currentStock = prod.locationStock[fromLocation] || 0;
       if (currentStock < item.quantity) {
+        playAlertSound();
         const locName = LOCATIONS.find(l => l.id === fromLocation)?.name || fromLocation;
         return {
           success: false,
@@ -1098,7 +1122,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Notification Mail
     const mailNotif: MailNotification = {
       id: `MAIL-${Date.now().toString().slice(-5)}`,
-      title: `📦 Stock Dispatch Received at ${toName}`,
+      title: `Stock Dispatch Received at ${toName}`,
       message: `${fromName} dispatched stock transfer ${transferId} (${transferItems.length} items) directly to ${toName}. Dispatcher: ${dispatcherName}.`,
       transferId,
       transferType: 'restock_free',
@@ -1272,6 +1296,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     setSelectedReceipt(newOrder);
+    playSuccessSound();
     return { success: true, orderId, message: `Rerouted order successfully fulfilled! ETR Receipt ${receiptNum} generated.` };
   };
 

@@ -4,6 +4,8 @@ import { LOCATIONS } from '../../data/initialData';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import {
+  Smartphone,
+  Banknote,
   DollarSign,
   Package,
   TrendingUp,
@@ -30,6 +32,8 @@ import {
   Building2,
   PackageCheck,
   BarChart2,
+  LayoutDashboard,
+  Landmark,
   Calculator,
   Scale,
   Users,
@@ -267,56 +271,71 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* EXECUTIVE VIEW SWITCHER BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-rose-100 shadow-xs">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2 sm:p-2.5 rounded-2xl border border-rose-100 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tab 1: Enterprise Overview */}
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`group px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition-all duration-200 cursor-pointer ${
               activeTab === 'overview'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-200'
-                : 'bg-slate-50 text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/60'
+                ? 'bg-gradient-to-r from-rose-600 to-rose-500 text-white shadow-md shadow-rose-200 ring-1 ring-rose-400'
+                : 'bg-slate-50 text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/80'
             }`}
           >
-            <BarChart2 className="w-4 h-4" />
-            <span>📊 Enterprise Overview</span>
+            <div className={`p-1 rounded-lg transition-colors ${
+              activeTab === 'overview' ? 'bg-white/20 text-white' : 'bg-rose-100/80 text-rose-600 group-hover:bg-rose-200/80'
+            }`}>
+              <LayoutDashboard className="w-4 h-4 stroke-[2.2]" />
+            </div>
+            <span className="tracking-tight">Enterprise Overview</span>
           </button>
 
+          {/* Tab 2: Store Sales & Stock Accountability */}
           <button
             onClick={() => setActiveTab('store_breakdown')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`group px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition-all duration-200 cursor-pointer ${
               activeTab === 'store_breakdown'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-200'
-                : 'bg-slate-50 text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/60'
+                ? 'bg-gradient-to-r from-rose-600 to-rose-500 text-white shadow-md shadow-rose-200 ring-1 ring-rose-400'
+                : 'bg-slate-50 text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/80'
             }`}
           >
-            <Store className="w-4 h-4 text-amber-500" />
-            <span>🏬 Store Sales &amp; Stock Accountability</span>
-            <span className={`px-1.5 py-0.5 text-[10px] font-mono rounded-full ${
-              activeTab === 'store_breakdown' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900 border border-amber-300'
+            <div className={`p-1 rounded-lg transition-colors ${
+              activeTab === 'store_breakdown' ? 'bg-white/20 text-white' : 'bg-amber-100/80 text-amber-600 group-hover:bg-amber-200/80'
+            }`}>
+              <Store className="w-4 h-4 stroke-[2.2]" />
+            </div>
+            <span className="tracking-tight">Store Sales &amp; Stock Accountability</span>
+            <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full transition-colors ${
+              activeTab === 'store_breakdown' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800 border border-amber-200'
             }`}>
               4 Stores
             </span>
           </button>
 
+          {/* Tab 3: Financials & General Accounting */}
           <button
             onClick={() => setActiveTab('general_accounting')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`group px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition-all duration-200 cursor-pointer ${
               activeTab === 'general_accounting'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-200'
-                : 'bg-slate-50 text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/60'
+                ? 'bg-gradient-to-r from-rose-600 to-rose-500 text-white shadow-md shadow-rose-200 ring-1 ring-rose-400'
+                : 'bg-slate-50 text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/80'
             }`}
           >
-            <Calculator className="w-4 h-4 text-emerald-500" />
-            <span>⚖️ Financials &amp; General Accounting</span>
-            <span className={`px-1.5 py-0.5 text-[10px] font-mono rounded-full ${
-              activeTab === 'general_accounting' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+            <div className={`p-1 rounded-lg transition-colors ${
+              activeTab === 'general_accounting' ? 'bg-white/20 text-white' : 'bg-emerald-100/80 text-emerald-600 group-hover:bg-emerald-200/80'
+            }`}>
+              <Scale className="w-4 h-4 stroke-[2.2]" />
+            </div>
+            <span className="tracking-tight">Financials &amp; General Accounting</span>
+            <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full transition-colors ${
+              activeTab === 'general_accounting' ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
             }`}>
               P&amp;L &amp; Trial Balance
             </span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-500 pr-2">
+        <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-slate-500 pr-2">
           <Clock className="w-3.5 h-3.5 text-slate-400" />
           <span>Real-time POS &amp; Ledger Audit</span>
         </div>
@@ -1108,9 +1127,19 @@ export const AdminDashboard: React.FC = () => {
               </p>
             </div>
 
-            <span className="px-3 py-1 text-xs font-mono font-extrabold rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 shrink-0">
-              {deadStockItems.length > 0 ? `⚠️ ${deadStockItems.length} Batches Stagnant` : 'Zero Dead Stock'}
-            </span>
+            <div className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-extrabold rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 shrink-0">
+              {deadStockItems.length > 0 ? (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <span>{deadStockItems.length} Batches Stagnant</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                  <span>Zero Dead Stock</span>
+                </>
+              )}
+            </div>
           </div>
 
           {deadStockItems.length === 0 ? (
@@ -1264,19 +1293,28 @@ export const AdminDashboard: React.FC = () => {
                     </p>
 
                     <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="p-2 bg-white rounded-xl border border-slate-200 text-center">
-                        <p className="text-[10px] font-bold text-emerald-700">🟢 M-Pesa</p>
-                        <p className="font-mono font-bold text-slate-900 mt-0.5">KSh {s.paymentBreakdown.mpesa.toLocaleString()}</p>
+                      <div className="p-2 bg-white rounded-xl border border-slate-200 text-center space-y-1">
+                        <div className="flex items-center justify-center gap-1 text-[10px] font-bold text-emerald-700">
+                          <Smartphone className="w-3 h-3 text-emerald-600" />
+                          <span>M-Pesa</span>
+                        </div>
+                        <p className="font-mono font-bold text-slate-900">KSh {s.paymentBreakdown.mpesa.toLocaleString()}</p>
                       </div>
 
-                      <div className="p-2 bg-white rounded-xl border border-slate-200 text-center">
-                        <p className="text-[10px] font-bold text-amber-700">💵 Cash</p>
-                        <p className="font-mono font-bold text-slate-900 mt-0.5">KSh {s.paymentBreakdown.cash.toLocaleString()}</p>
+                      <div className="p-2 bg-white rounded-xl border border-slate-200 text-center space-y-1">
+                        <div className="flex items-center justify-center gap-1 text-[10px] font-bold text-amber-700">
+                          <Banknote className="w-3 h-3 text-amber-600" />
+                          <span>Cash</span>
+                        </div>
+                        <p className="font-mono font-bold text-slate-900">KSh {s.paymentBreakdown.cash.toLocaleString()}</p>
                       </div>
 
-                      <div className="p-2 bg-white rounded-xl border border-slate-200 text-center">
-                        <p className="text-[10px] font-bold text-indigo-700">🏦 Bank Transfer</p>
-                        <p className="font-mono font-bold text-slate-900 mt-0.5">KSh {s.paymentBreakdown.bank.toLocaleString()}</p>
+                      <div className="p-2 bg-white rounded-xl border border-slate-200 text-center space-y-1">
+                        <div className="flex items-center justify-center gap-1 text-[10px] font-bold text-indigo-700">
+                          <Landmark className="w-3 h-3 text-indigo-600" />
+                          <span>Bank Transfer</span>
+                        </div>
+                        <p className="font-mono font-bold text-slate-900">KSh {s.paymentBreakdown.bank.toLocaleString()}</p>
                       </div>
                     </div>
                   </div>
@@ -1288,13 +1326,23 @@ export const AdminDashboard: React.FC = () => {
                       <span>Restocks Received: <strong>{s.transfersReceivedCount}</strong></span>
                     </div>
 
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                    <div className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono ${
                       s.lowStockCount > 0
                         ? 'bg-amber-100 text-amber-900 border border-amber-300'
                         : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                     }`}>
-                      {s.lowStockCount > 0 ? `⚠️ ${s.lowStockCount} Low Batches` : 'Stock Fully Healthy'}
-                    </span>
+                      {s.lowStockCount > 0 ? (
+                        <>
+                          <AlertTriangle className="w-3 h-3 text-amber-700 shrink-0" />
+                          <span>{s.lowStockCount} Low Batches</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3 h-3 text-emerald-700 shrink-0" />
+                          <span>Stock Healthy</span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Orders fulfilled at this store list */}
@@ -1432,9 +1480,10 @@ export const AdminDashboard: React.FC = () => {
                   Double-Entry General Ledger Trial Balance Audit ({ledger.length} Transactions)
                 </h4>
               </div>
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-mono font-bold rounded-full border border-emerald-300">
-                ✓ Debits = Credits Balanced
-              </span>
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-mono font-bold rounded-full border border-emerald-300">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Debits = Credits Balanced</span>
+              </div>
             </div>
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
