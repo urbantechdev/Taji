@@ -294,3 +294,7 @@ export function playTrashSound() {
 export function playRingingChime() {
   playNotificationSound();
 }
+
+export function playErrorSound() {
+  playAlertSound();
+}

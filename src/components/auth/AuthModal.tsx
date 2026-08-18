@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
+import tajiLogo from '../../assets/images/taji_logo_1786034537873.jpg';
 import {
   Lock,
   ShieldCheck,
@@ -39,6 +40,8 @@ export const AuthModal: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  const displayLogo = brandSettings?.logoUrl || tajiLogo;
 
   if (!isAuthModalOpen) return null;
 
@@ -100,24 +103,35 @@ export const AuthModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
-      <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-scaleUp">
+    <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-fadeIn overflow-y-auto">
+      <div className="w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] sm:max-w-md bg-white rounded-none sm:rounded-3xl border-0 sm:border border-slate-200 shadow-2xl overflow-y-auto flex flex-col animate-scaleUp">
         
         {/* Header Bar */}
-        <div className="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-5 text-white flex items-center justify-between border-b border-rose-500/30">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md text-rose-400 border border-white/20 flex items-center justify-center shadow-lg">
-              <Lock className="w-5 h-5" />
+        <div className="bg-white p-4 sm:p-5 text-slate-900 flex items-center justify-between border-b border-slate-200 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-white border border-rose-100 p-0.5 shadow-sm flex items-center justify-center shrink-0">
+              {displayLogo ? (
+                <img
+                  src={displayLogo}
+                  alt={brandSettings.brandName || 'Logo'}
+                  className="w-full h-full object-cover rounded-lg sm:rounded-xl"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full rounded-lg sm:rounded-xl bg-rose-600 text-white font-black flex items-center justify-center text-sm sm:text-base">
+                  {(brandSettings.brandName || 'T').charAt(0)}
+                </div>
+              )}
             </div>
             <div>
-              <h2 className="text-base font-black tracking-tight">System Login &amp; Security</h2>
-              <p className="text-[11px] text-rose-200">{brandSettings.brandName}</p>
+              <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900">System Authentication</h2>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">{brandSettings.brandName} • {brandSettings.tagline}</p>
             </div>
           </div>
 
           <button
             onClick={() => setIsAuthModalOpen(false)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-xl bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -202,12 +216,12 @@ export const AuthModal: React.FC = () => {
                 Select Terminal Register Location:
               </label>
               <select
-                value={activeLocation}
+                value={activeLocation === 'main_store' ? 'sales_shop' : activeLocation}
                 onChange={(e) => setActiveLocation(e.target.value as LocationId)}
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
               >
-                <option value="main_store">Main Store &amp; Hub</option>
                 <option value="sales_shop">Sales Shop (Retail POS)</option>
+                <option value="branch_westlands">Westlands Flagship Branch</option>
                 <option value="store_1">Store 1 (Transfer Only)</option>
                 <option value="store_2">Store 2 (Transfer Only)</option>
               </select>

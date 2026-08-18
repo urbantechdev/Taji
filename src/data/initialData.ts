@@ -1001,8 +1001,8 @@ export const INITIAL_MAIL_NOTIFICATIONS = [
     message: 'Store 2 (Grace Wanjiku) requested a zero-cost restock for 20 skeins Merino Wool & 15kg Sherpa Fleece.',
     transferId: 'TRF-2026-003',
     transferType: 'restock_free' as const,
-    fromLocation: 'main_store' as const,
-    toLocation: 'store_2' as const,
+    fromLocation: 'store_2' as const,
+    toLocation: 'main_store' as const,
     timestamp: '2026-08-05T05:30:00Z',
     read: false,
     itemCount: 2

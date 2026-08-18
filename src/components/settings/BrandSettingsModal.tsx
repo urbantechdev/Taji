@@ -79,8 +79,8 @@ export const BrandSettingsModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-white rounded-none sm:rounded-3xl max-w-xl w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] shadow-2xl overflow-hidden border-0 sm:border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col">
         
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-r from-pink-600 via-rose-600 to-pink-700 text-white p-5 flex items-center justify-between shrink-0">

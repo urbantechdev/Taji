@@ -46,37 +46,37 @@ export const POSPinModal: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center p-4 sm:p-6 bg-slate-50/50">
-      <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-6">
+    <div className="min-h-[100dvh] flex items-center justify-center p-3 sm:p-6 bg-slate-50/50">
+      <div className="w-full max-w-md bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xl sm:shadow-2xl p-4 sm:p-8 space-y-3.5 sm:space-y-6">
         
         {/* Top Header */}
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-1.5 sm:space-y-2">
           {brandSettings.logoUrl ? (
             <img
               src={brandSettings.logoUrl}
               alt={brandSettings.brandName}
-              className="w-24 h-24 sm:w-28 sm:h-28 object-contain rounded-full mx-auto mb-1 mix-blend-multiply"
+              className="w-16 h-16 sm:w-28 sm:h-28 object-contain rounded-full mx-auto mb-1 mix-blend-multiply"
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="w-14 h-14 rounded-2xl bg-slate-900 text-rose-400 border border-slate-800 flex items-center justify-center mx-auto shadow-lg">
-              <KeyRound className="w-7 h-7" />
+            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-slate-900 text-rose-400 border border-slate-800 flex items-center justify-center mx-auto shadow-lg">
+              <KeyRound className="w-5 h-5 sm:w-7 sm:h-7" />
             </div>
           )}
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-extrabold">
-            <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+          <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] sm:text-[11px] font-extrabold">
+            <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-rose-600" />
             <span>6-Digit POS Terminal Lock</span>
           </div>
 
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Enter Cashier PIN</h2>
-          <p className="text-xs text-slate-500">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Enter Cashier PIN</h2>
+          <p className="text-[11px] sm:text-xs text-slate-500">
             Enter your 6-digit POS PIN to unlock the checkout terminal
           </p>
         </div>
 
         {/* Location selector for terminal register */}
-        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
+        <div className="p-2.5 sm:p-3 bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-200 space-y-1 sm:space-y-1.5">
           <div className="flex items-center justify-between text-xs font-bold text-slate-700">
             <span className="flex items-center gap-1.5">
               <Store className="w-3.5 h-3.5 text-rose-600" />
@@ -86,7 +86,7 @@ export const POSPinModal: React.FC = () => {
           <select
             value={activeLocation}
             onChange={(e) => setActiveLocation(e.target.value as LocationId)}
-            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
+            className="w-full bg-white border border-slate-200 rounded-lg sm:rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
           >
             <option value="main_store">Main Store & Central Hub</option>
             <option value="sales_shop">Sales Shop (Retail POS)</option>
@@ -96,7 +96,7 @@ export const POSPinModal: React.FC = () => {
         </div>
 
         {/* Default PIN Banner */}
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-900">
+        <div className="p-2.5 sm:p-3 bg-amber-50 border border-amber-200 rounded-xl sm:rounded-2xl flex items-center justify-between text-xs text-amber-900">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
             <div>
@@ -109,27 +109,27 @@ export const POSPinModal: React.FC = () => {
 
         {/* Messages */}
         {errorMessage && (
-          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake">
+          <div className="p-2.5 sm:p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl sm:rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
 
         {successMessage && (
-          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-semibold flex items-center gap-2">
+          <div className="p-2.5 sm:p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl sm:rounded-2xl text-xs font-semibold flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{successMessage}</span>
           </div>
         )}
 
         {/* PIN Dots display */}
-        <div className="flex items-center justify-center gap-3 py-2">
+        <div className="flex items-center justify-center gap-2 sm:gap-3 py-1 sm:py-2">
           {[0, 1, 2, 3, 4, 5].map((index) => {
             const hasDigit = pin.length > index;
             return (
               <div
                 key={index}
-                className={`w-10 h-12 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${
+                className={`w-8 h-10 sm:w-10 sm:h-12 rounded-xl sm:rounded-2xl border-2 flex items-center justify-center text-lg sm:text-xl font-bold transition-all ${
                   hasDigit
                     ? 'border-slate-900 bg-slate-900 text-white scale-105 shadow-md'
                     : 'border-slate-200 bg-slate-50 text-slate-400'
@@ -142,7 +142,7 @@ export const POSPinModal: React.FC = () => {
         </div>
 
         {/* Numeric Keypad Grid */}
-        <div className="grid grid-cols-3 gap-2.5 pt-2">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 pt-1 sm:pt-2">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
             <button
               key={num}

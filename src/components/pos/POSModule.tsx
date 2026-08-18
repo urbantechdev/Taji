@@ -5,7 +5,7 @@ import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, LocationId } from '../../types';
 import { HeldCartsModal } from './HeldCartsModal';
 import { ProductDetailModal } from './ProductDetailModal';
-import { playClickSound, playPopupSound } from '../../utils/audio';
+import { playClickSound, playPopupSound, playSuccessSound, playAlertSound } from '../../utils/audio';
 import {
   Search,
   QrCode,
@@ -30,7 +30,11 @@ import {
   Warehouse,
   AlertCircle,
   X,
-  Eye
+  Eye,
+  Mail,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown
 } from 'lucide-react';
 
 export const POSModule: React.FC = () => {
@@ -49,8 +53,12 @@ export const POSModule: React.FC = () => {
     setIsQRScannerOpen,
     etrConfig,
     heldCarts,
-    holdCurrentCart
+    holdCurrentCart,
+    setIsMailDrawerOpen,
+    mailNotifications
   } = useERP();
+
+  const unreadMails = mailNotifications.filter(m => !m.isRead).length;
 
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,6 +72,7 @@ export const POSModule: React.FC = () => {
   const [holdNote, setHoldNote] = useState('');
   const [isQuotation, setIsQuotation] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isCartExpanded, setIsCartExpanded] = useState(false);
 
   // Product Quick View Modal State
   const [selectedViewProduct, setSelectedViewProduct] = useState<ProductBatch | null>(null);
@@ -141,10 +150,12 @@ export const POSModule: React.FC = () => {
     setTransferFeedback(null);
     if (transferItems.length === 0) {
       setTransferFeedback({ success: false, message: 'Please select at least one item to transfer.' });
+      playAlertSound();
       return;
     }
     if (transferFromLocation === transferToLocation) {
       setTransferFeedback({ success: false, message: 'Source and destination locations must be different.' });
+      playAlertSound();
       return;
     }
 
@@ -156,10 +167,17 @@ export const POSModule: React.FC = () => {
     );
 
     if (res.success) {
-      setTransferFeedback({ success: true, message: res.message || 'Stock successfully transferred and updated!' });
+      playSuccessSound();
+      // Auto-close modal window automatically upon confirmation & execution
+      setIsTransferModalOpen(false);
+      setTransferItems([]);
+      setTransferNotes('');
+      setTransferSearch('');
+      setTransferFeedback(null);
       // Clear cart if items were transferred from cart
       clearCart();
     } else {
+      playAlertSound();
       setTransferFeedback({ success: false, message: res.message || 'Transfer failed.' });
     }
   };
@@ -225,8 +243,26 @@ export const POSModule: React.FC = () => {
                 ))}
               </div>
 
-              {/* Quick Action Buttons: POS Transfer & QR Scanner */}
+              {/* Quick Action Buttons: Inbox, POS Transfer & QR Scanner */}
               <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => setIsMailDrawerOpen(true)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer border hover:scale-105 active:scale-95 ${
+                    unreadMails > 0
+                      ? 'bg-amber-400 text-slate-950 border-amber-300 animate-pulse ring-2 ring-amber-300/80 shadow-md shadow-amber-400/40'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                  }`}
+                  title="Store Mail & Transfer Inbox"
+                >
+                  <Mail className={`w-4 h-4 ${unreadMails > 0 ? 'text-slate-950 font-bold' : 'text-rose-600'}`} />
+                  <span>Inbox</span>
+                  {unreadMails > 0 && (
+                    <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                      {unreadMails}
+                    </span>
+                  )}
+                </button>
+
                 <button
                   onClick={() => handleOpenTransferModalWithCart()}
                   className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-900 to-rose-900 hover:from-indigo-800 hover:to-rose-800 text-white text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer border border-indigo-700/50 hover:scale-105 active:scale-95"
@@ -456,62 +492,100 @@ export const POSModule: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              {cart.map(item => (
-                <div
-                  key={item.batchId}
-                  className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3.5 h-3.5 rounded-full border border-white shadow-xs shrink-0"
-                        style={{ backgroundColor: item.colorHex }}
-                      />
-                      <div>
-                        <p className="font-bold text-slate-900 text-xs leading-tight">
-                          {item.productName}
-                        </p>
-                        <p className="text-[10px] text-slate-500">
-                          {item.colorName} • KSh {item.unitPrice.toLocaleString()} / {item.unit}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => removeFromCart(item.batchId)}
-                      className="text-slate-400 hover:text-rose-600 p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Quantity Controls & Line Total */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                    <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg p-1">
-                      <button
-                        onClick={() => updateCartQuantity(item.batchId, item.quantity - 1)}
-                        className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="font-black font-mono text-sm px-2.5 min-w-[30px] text-center text-slate-900">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => updateCartQuantity(item.batchId, item.quantity + 1)}
-                        className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">{item.unit}</span>
-                    </div>
-
-                    <span className="font-mono font-black text-slate-900 text-sm sm:text-base">
-                      KSh {(item.unitPrice * item.quantity).toLocaleString()}
-                    </span>
-                  </div>
+            <div className="space-y-2">
+              {/* Scroll / Item Count Notification Bar if > 2 items */}
+              {cart.length > 2 && (
+                <div className="flex items-center justify-between px-2.5 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px]">
+                  <span className="font-bold text-rose-900 flex items-center gap-1">
+                    <ChevronsUpDown className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
+                    {isCartExpanded ? `All ${cart.length} items shown` : `2 of ${cart.length} items in view`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickSound();
+                      setIsCartExpanded(!isCartExpanded);
+                    }}
+                    className="font-black text-rose-700 hover:text-rose-900 underline underline-offset-2 cursor-pointer flex items-center gap-0.5"
+                  >
+                    {isCartExpanded ? (
+                      <>
+                        <span>Collapse</span>
+                        <ChevronUp className="w-3 h-3" />
+                      </>
+                    ) : (
+                      <>
+                        <span>Expand all ({cart.length})</span>
+                        <ChevronDown className="w-3 h-3" />
+                      </>
+                    )}
+                  </button>
                 </div>
-              ))}
+              )}
+
+              {/* 2-Item Height Constrained Scroll Container */}
+              <div
+                className={`space-y-2.5 overflow-y-auto pr-1 transition-all duration-300 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400 ${
+                  isCartExpanded ? 'max-h-[460px]' : 'max-h-[210px]'
+                }`}
+              >
+                {cart.map(item => (
+                  <div
+                    key={item.batchId}
+                    className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3.5 h-3.5 rounded-full border border-white shadow-xs shrink-0"
+                          style={{ backgroundColor: item.colorHex }}
+                        />
+                        <div>
+                          <p className="font-bold text-slate-900 text-xs leading-tight">
+                            {item.productName}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            {item.colorName} • KSh {item.unitPrice.toLocaleString()} / {item.unit}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeFromCart(item.batchId)}
+                        className="text-slate-400 hover:text-rose-600 p-1"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Quantity Controls & Line Total */}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                      <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg p-1">
+                        <button
+                          onClick={() => updateCartQuantity(item.batchId, item.quantity - 1)}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="font-black font-mono text-sm px-2.5 min-w-[30px] text-center text-slate-900">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateCartQuantity(item.batchId, item.quantity + 1)}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">{item.unit}</span>
+                      </div>
+
+                      <span className="font-mono font-black text-slate-900 text-sm sm:text-base">
+                        KSh {(item.unitPrice * item.quantity).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -619,45 +693,55 @@ export const POSModule: React.FC = () => {
 
       {/* HOLD ORDER PROMPT MODAL */}
       {isHoldModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-4 border border-amber-200">
-            <div className="flex items-center gap-2 text-amber-900">
-              <PauseCircle className="w-5 h-5 text-amber-600" />
-              <h3 className="font-bold text-base">Put Order On Hold</h3>
-            </div>
-            <p className="text-xs text-slate-600">
-              Save this cart to process later without losing selected items.
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Customer Name / Ref (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={e => setCustomerName(e.target.value)}
-                  placeholder="e.g. Kipchoge Tailors"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500"
-                />
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-xs p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-sm w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] p-5 space-y-4 border-0 sm:border border-amber-200 overflow-y-auto flex flex-col justify-between sm:justify-start">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2 text-amber-900">
+                  <PauseCircle className="w-5 h-5 text-amber-600" />
+                  <h3 className="font-bold text-base">Put Order On Hold</h3>
+                </div>
+                <button
+                  onClick={() => setIsHoldModalOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Hold Note / Order Label
-                </label>
-                <input
-                  type="text"
-                  value={holdNote}
-                  onChange={e => setHoldNote(e.target.value)}
-                  placeholder="e.g. Waiting for M-Pesa phone confirmation"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500"
-                />
+              <p className="text-xs text-slate-600">
+                Save this cart to process later without losing selected items.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Customer Name / Ref (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={e => setCustomerName(e.target.value)}
+                    placeholder="e.g. Kipchoge Tailors"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Hold Note / Order Label
+                  </label>
+                  <input
+                    type="text"
+                    value={holdNote}
+                    onChange={e => setHoldNote(e.target.value)}
+                    placeholder="e.g. Waiting for M-Pesa phone confirmation"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
               <button
                 onClick={() => setIsHoldModalOpen(false)}
-                className="px-3.5 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl"
+                className="w-1/2 sm:w-auto px-3.5 py-2.5 sm:py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl"
               >
                 Cancel
               </button>
@@ -667,7 +751,7 @@ export const POSModule: React.FC = () => {
                   setHoldNote('');
                   setIsHoldModalOpen(false);
                 }}
-                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs"
+                className="w-1/2 sm:w-auto px-4 py-2.5 sm:py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs"
               >
                 Confirm Hold
               </button>
@@ -678,9 +762,9 @@ export const POSModule: React.FC = () => {
 
       {/* CHECKOUT & PAYMENT MODAL */}
       {isCheckoutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-100 space-y-4 p-6 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-md w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto border-0 sm:border border-rose-100 space-y-4 p-5 sm:p-6 animate-in fade-in zoom-in duration-200 flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
               <h3 className="font-bold text-slate-900 text-base">
                 Payment Capture &amp; ETR Billing
               </h3>
@@ -693,12 +777,12 @@ export const POSModule: React.FC = () => {
             </div>
 
             {checkoutError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold">
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold shrink-0">
                 {checkoutError}
               </div>
             )}
 
-            <div className="space-y-3">
+            <div className="space-y-3 flex-1 overflow-y-auto">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
                   Customer Name:
@@ -767,16 +851,16 @@ export const POSModule: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex items-center gap-2 pt-2 shrink-0">
               <button
                 onClick={() => setIsCheckoutModalOpen(false)}
-                className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+                className="w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCheckoutSubmit}
-                className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors"
+                className="w-1/2 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors"
               >
                 Confirm &amp; Issue ETR
               </button>
@@ -787,62 +871,64 @@ export const POSModule: React.FC = () => {
 
       {/* REROUTE TICKET CONFIRMATION MODAL FOR STORE 1 / STORE 2 */}
       {isRerouteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-amber-200 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-amber-800">
-                <ArrowRightLeft className="w-5 h-5" />
-                <h3 className="font-bold text-slate-900 text-base">
-                  Route Order Ticket to Main Store
-                </h3>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-md w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] p-5 sm:p-6 space-y-4 border-0 sm:border border-amber-200 animate-in fade-in zoom-in duration-200 overflow-y-auto flex flex-col justify-between sm:justify-start">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2 text-amber-800">
+                  <ArrowRightLeft className="w-5 h-5" />
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Route Order Ticket to Main Store
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsRerouteModalOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                onClick={() => setIsRerouteModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <p className="text-xs text-slate-600">
-              Direct sales are disabled at <strong>{activeLocInfo?.name}</strong>. Submitting this order ticket sends an inter-store fulfillment request to <strong>Main Store</strong>. The Main Store operator will capture payment and issue the KRA ETR receipt.
-            </p>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">
-                Customer Name / Note:
-              </label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
-              />
-            </div>
-
-            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs space-y-1">
-              <p className="font-bold text-amber-900">
-                Ticket Summary ({cart.length} item lines):
+              <p className="text-xs text-slate-600">
+                Direct sales are disabled at <strong>{activeLocInfo?.name}</strong>. Submitting this order ticket sends an inter-store fulfillment request to <strong>Main Store</strong>. The Main Store operator will capture payment and issue the KRA ETR receipt.
               </p>
-              <ul className="list-disc list-inside text-[11px] text-amber-800 space-y-0.5">
-                {cart.map(c => (
-                  <li key={c.batchId}>
-                    {c.quantity} {c.unit} {c.productName} ({c.colorName})
-                  </li>
-                ))}
-              </ul>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Customer Name / Note:
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs space-y-1">
+                <p className="font-bold text-amber-900">
+                  Ticket Summary ({cart.length} item lines):
+                </p>
+                <ul className="list-disc list-inside text-[11px] text-amber-800 space-y-0.5">
+                  {cart.map(c => (
+                    <li key={c.batchId}>
+                      {c.quantity} {c.unit} {c.productName} ({c.colorName})
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex items-center gap-2 pt-4">
               <button
                 onClick={() => setIsRerouteModalOpen(false)}
-                className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+                className="w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRerouteSubmit}
-                className="w-1/2 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow transition-colors"
+                className="w-1/2 py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow transition-colors"
               >
                 Submit Ticket
               </button>
@@ -853,10 +939,10 @@ export const POSModule: React.FC = () => {
 
       {/* DIRECT INTER-STORE POS STOCK TRANSFER MODAL */}
       {isTransferModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 space-y-5 border border-indigo-200 animate-in fade-in zoom-in duration-200 my-8">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-none sm:rounded-3xl shadow-2xl max-w-2xl w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] p-5 sm:p-6 space-y-5 border-0 sm:border border-indigo-200 animate-in fade-in zoom-in duration-200 my-0 sm:my-8 overflow-y-auto flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-2xl border border-indigo-100">
                   <ArrowRightLeft className="w-5 h-5" />

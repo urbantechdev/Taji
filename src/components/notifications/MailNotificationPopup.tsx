@@ -1,53 +1,96 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import RightEdgeBlend from '../common/RightEdgeBlend';
-import { Mail, CheckCircle2, PackageCheck, X, Clock, Sparkles } from 'lucide-react';
-import { LOCATIONS } from '../../data/initialData';
+import { Mail, CheckCircle2, PackageCheck, X, Clock, Sparkles, Check } from 'lucide-react';
 import { playNotificationSound, playClickSound, playSuccessSound } from '../../utils/audio';
 
 export const MailNotificationPopup: React.FC = () => {
   const {
     activeToastNotification,
     setActiveToastNotification,
-    mailNotifications,
     markNotificationRead,
     acceptPurchaseOrder,
     receiveRestockTransfer,
     resumeTransferredSaleToCart,
-    activeLocation
+    activeLocation,
+    posSession
   } = useERP();
 
+  const [isFadingOut, setIsFadingOut] = useState(false);
+  const [actionDoneText, setActionDoneText] = useState<string | null>(null);
+
+  // Effective current store location of the active session / operator terminal
+  const currentStoreLocation = posSession?.isUnlocked ? posSession.location : activeLocation;
+
+  // STRICT RECIPIENT VISIBILITY RULE:
+  // If Main Store made the transfer -> Only show popup to whom the transfer has been made to.
+  // If a branch made the transfer -> Only show popup to Main Store (or destination branch) and NOT the sender branch.
+  const isTargetRecipient = Boolean(
+    activeToastNotification &&
+    currentStoreLocation === activeToastNotification.toLocation &&
+    currentStoreLocation !== activeToastNotification.fromLocation
+  );
+
   useEffect(() => {
-    if (activeToastNotification) {
+    if (activeToastNotification && isTargetRecipient) {
+      setIsFadingOut(false);
+      setActionDoneText(null);
       playNotificationSound();
     }
-  }, [activeToastNotification?.id]);
+  }, [activeToastNotification?.id, isTargetRecipient]);
 
-  if (!activeToastNotification) return null;
+  if (!activeToastNotification || !isTargetRecipient) return null;
 
   const notif = activeToastNotification;
   const isPurchase = notif.transferType === 'order_fulfillment_reroute';
 
+  const triggerFadeAndComplete = (callback: () => void, feedbackText?: string) => {
+    if (feedbackText) {
+      setActionDoneText(feedbackText);
+    }
+    setIsFadingOut(true);
+    setTimeout(() => {
+      callback();
+      setActiveToastNotification(null);
+      setIsFadingOut(false);
+      setActionDoneText(null);
+    }, 600);
+  };
+
   const handleAction = () => {
     playSuccessSound();
-    markNotificationRead(notif.id);
-    if (notif.transferType === 'order_fulfillment_reroute') {
-      acceptPurchaseOrder(notif.transferId, 'M-Pesa');
-    } else {
-      receiveRestockTransfer(notif.transferId);
-    }
-    setActiveToastNotification(null);
+    triggerFadeAndComplete(() => {
+      markNotificationRead(notif.id);
+      if (notif.transferType === 'order_fulfillment_reroute') {
+        acceptPurchaseOrder(notif.transferId, 'M-Pesa');
+      } else {
+        receiveRestockTransfer(notif.transferId);
+      }
+    }, isPurchase ? 'Purchase Order Accepted & Processed ✓' : 'Stock Received into Inventory ✓');
   };
 
   const handleResumeInPOS = () => {
     playClickSound();
-    markNotificationRead(notif.id);
-    resumeTransferredSaleToCart(notif.transferId);
-    setActiveToastNotification(null);
+    triggerFadeAndComplete(() => {
+      markNotificationRead(notif.id);
+      resumeTransferredSaleToCart(notif.transferId);
+    }, 'Resuming Sale in POS Counter...');
+  };
+
+  const handleDismiss = () => {
+    triggerFadeAndComplete(() => {
+      markNotificationRead(notif.id);
+    }, 'Notification Read & Closed');
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 max-w-md w-full animate-in slide-in-from-bottom-5 duration-300">
+    <div
+      className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-5 sm:bottom-5 z-50 sm:max-w-md w-auto sm:w-full transition-all duration-600 ease-in-out ${
+        isFadingOut
+          ? 'opacity-0 translate-y-6 scale-95 pointer-events-none'
+          : 'opacity-100 translate-y-0 scale-100 animate-in slide-in-from-bottom-5 duration-300'
+      }`}
+    >
       <div className="group relative overflow-hidden bg-slate-900/95 text-white rounded-2xl shadow-2xl border-2 border-pink-500/80 hover:border-pink-400 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_12px_30px_rgba(244,63,94,0.3)] p-4 backdrop-blur-md">
         
         {/* Blended Color Edge Accent */}
@@ -55,6 +98,18 @@ export const MailNotificationPopup: React.FC = () => {
 
         {/* Top Animated Pulse Glow */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-pink-500 via-purple-500 to-rose-500 animate-pulse group-hover:h-2 transition-all" />
+
+        {/* Action Done Feedback Overlay */}
+        {actionDoneText && (
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-xs flex items-center justify-center p-4 z-20 animate-fadeIn">
+            <div className="flex items-center gap-2.5 text-emerald-300 font-extrabold text-sm">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center">
+                <Check className="w-5 h-5 text-emerald-300 animate-scaleUp" />
+              </div>
+              <span>{actionDoneText}</span>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-2 relative z-10">
@@ -74,7 +129,7 @@ export const MailNotificationPopup: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => setActiveToastNotification(null)}
+            onClick={handleDismiss}
             className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-all cursor-pointer hover:rotate-90"
           >
             <X className="w-4 h-4" />
@@ -97,11 +152,8 @@ export const MailNotificationPopup: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                markNotificationRead(notif.id);
-                setActiveToastNotification(null);
-              }}
-              className="text-xs text-slate-400 hover:text-white px-2.5 py-1.5 font-medium transition-colors"
+              onClick={handleDismiss}
+              className="text-xs text-slate-400 hover:text-white px-2.5 py-1.5 font-medium transition-colors cursor-pointer"
             >
               Dismiss
             </button>

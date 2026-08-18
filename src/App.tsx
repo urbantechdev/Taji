@@ -18,11 +18,12 @@ import { GmailInbox } from './components/gmail/GmailInbox';
 import { ETRReceiptModal } from './components/common/ETRReceiptModal';
 import { QRScannerModal } from './components/common/QRScannerModal';
 import { AuthModal } from './components/auth/AuthModal';
+import { PlatformLockScreen } from './components/auth/PlatformLockScreen';
 import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
 import { Footer } from './components/layout/Footer';
 
 const ERPContent: React.FC = () => {
-  const { appMode } = useERP();
+  const { appMode, isPlatformUnlocked, isAdmin } = useERP();
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
 
   const triggerFullscreen = () => {
@@ -74,6 +75,16 @@ const ERPContent: React.FC = () => {
     triggerFullscreen();
   }, [appMode, activeTab]);
 
+  // HARD AUTHENTICATION GATE: Lock platform until Admin logs in with Gmail or User logs in with PIN
+  if (!isPlatformUnlocked) {
+    return (
+      <>
+        <PlatformLockScreen />
+        <MailNotificationPopup />
+      </>
+    );
+  }
+
   return (
     <div className="h-screen max-h-screen w-full bg-slate-50/80 font-sans text-slate-800 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900 overflow-hidden">
       
@@ -83,15 +94,15 @@ const ERPContent: React.FC = () => {
       {/* Main Workspace Body (Stationary Sidebar + Scrollable Body) */}
       <div className="flex-1 flex flex-row overflow-hidden w-full min-h-0 relative">
         
-        {/* Navigation Sidebar (Stationary left column - does NOT scroll with page content) */}
-        {appMode === 'admin' && (
+        {/* Navigation Sidebar (Stationary left column for Admin only) */}
+        {isAdmin && appMode === 'admin' && (
           <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
         )}
 
         {/* Dynamic View Area (The only area that scrolls up and down) */}
         <div className="flex-1 h-full overflow-y-auto overflow-x-hidden min-h-0 flex flex-col justify-between">
           <main className="p-3 sm:p-5 md:p-8 max-w-7xl mx-auto w-full space-y-6 pb-28 md:pb-36">
-            {appMode === 'pos' ? (
+            {!isAdmin || appMode === 'pos' ? (
               <POSModule />
             ) : (
               <>
@@ -116,8 +127,8 @@ const ERPContent: React.FC = () => {
 
       </div>
 
-      {/* Desktop Floating Dock Navigation Bar */}
-      <DesktopBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      {/* Desktop Floating Dock Navigation Bar (Admin only) */}
+      {isAdmin && <DesktopBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
 
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} appMode={appMode} />

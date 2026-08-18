@@ -17,8 +17,8 @@ export const ETRReceiptModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-md w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto border-0 sm:border border-rose-100 animate-in fade-in zoom-in duration-200 flex flex-col">
         
         {/* Modal Top Header (Screen Only) */}
         <div className="relative overflow-hidden bg-gradient-to-r from-rose-600 to-pink-600 text-white p-4 flex items-center justify-between print:hidden">

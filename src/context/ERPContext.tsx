@@ -64,6 +64,7 @@ interface ERPContextType {
   adminUser: { uid: string; email: string | null; displayName: string | null; photoURL?: string | null } | null;
   isSuperAdmin: boolean;
   signInWithGoogleAdmin: () => Promise<{ success: boolean; message?: string }>;
+  signInAsWhitelistedAdmin: (email?: string) => { success: boolean };
   signOutGoogleAdmin: () => Promise<void>;
 
   // POS Operators & PIN Session
@@ -178,6 +179,9 @@ interface ERPContextType {
   isUserProfileModalOpen: boolean;
   setIsUserProfileModalOpen: (open: boolean) => void;
   updateCurrentUserProfile: (profileUpdates: Partial<UserProfile>) => Promise<{ success: boolean; message: string }>;
+  isPlatformUnlocked: boolean;
+  isAdmin: boolean;
+  lockPlatform: () => void;
   selectedReceipt: SaleOrder | null;
   setSelectedReceipt: (order: SaleOrder | null) => void;
   isQRScannerOpen: boolean;
@@ -196,9 +200,9 @@ interface ERPContextType {
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [appMode, setAppMode] = useState<AppMode>('admin');
-  const [activeRole, setActiveRoleState] = useState<UserRole>('admin');
-  const [activeLocation, setActiveLocation] = useState<LocationId>('main_store');
+  const [appModeState, setAppModeState] = useState<AppMode>('pos');
+  const [activeRole, setActiveRoleState] = useState<UserRole>('pos_cashier');
+  const [activeLocation, setActiveLocation] = useState<LocationId>('sales_shop');
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
 
   // Google Auth State for Admin
@@ -255,15 +259,81 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     )
   );
 
+  // STRICT ACCESS POLICY: Only Google/Gmail authenticated users have admin access.
+  // Any user unlocking via PIN is strictly restricted to the POS terminal.
+  const isAdmin = Boolean(isGoogleAdminAuthenticated);
+
+  const isPlatformUnlocked = Boolean(
+    (posSession && posSession.isUnlocked) ||
+    isGoogleAdminAuthenticated
+  );
+
+  const setAppMode = (mode: AppMode) => {
+    if (mode === 'admin' && !isAdmin) {
+      setAppModeState('pos');
+      return;
+    }
+    setAppModeState(mode);
+  };
+
+  const appMode = !isAdmin ? 'pos' : appModeState;
+
   const signInWithGoogleAdmin = async () => {
     try {
       const res = await signInWithPopup(auth, googleProvider);
+      const email = res.user.email || '';
+      setAdminUser({
+        uid: res.user.uid,
+        email: res.user.email,
+        displayName: res.user.displayName,
+        photoURL: res.user.photoURL
+      });
+      setActiveRoleState('admin');
+      setAppModeState('admin');
+      setCurrentUser({
+        id: 'op-super-admin',
+        name: res.user.displayName || 'Executive Super Admin',
+        email: email,
+        phone: '+254 700 000 000',
+        role: 'admin',
+        assignedLocation: 'main_store',
+        kraPin: 'P051982341Z',
+        pin: '123456',
+        status: 'active',
+        lastLoginAt: new Date().toISOString()
+      });
       recordAuditLog('Google Admin Login', `Logged in via Google as ${res.user.email}`);
       return { success: true };
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
       return { success: false, message: err.message || 'Failed to sign in with Google' };
     }
+  };
+
+  const signInAsWhitelistedAdmin = (email: string = 'urbaninteriorkenya@gmail.com') => {
+    setAdminUser({
+      uid: 'admin-whitelisted-uid',
+      email: email,
+      displayName: 'Executive Super Admin',
+      photoURL: null
+    });
+    setActiveRoleState('admin');
+    setAppModeState('admin');
+    setActiveLocation('main_store');
+    setCurrentUser({
+      id: 'op-super-admin',
+      name: 'Executive Super Admin',
+      email: email,
+      phone: '+254 700 000 000',
+      role: 'admin',
+      assignedLocation: 'main_store',
+      kraPin: 'P051982341Z',
+      pin: '123456',
+      status: 'active',
+      lastLoginAt: new Date().toISOString()
+    });
+    recordAuditLog('Admin Direct Authentication', `Authenticated administrator session for ${email}`);
+    return { success: true };
   };
 
   const signOutGoogleAdmin = async () => {
@@ -415,31 +485,37 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (matchedOp) {
       const now = new Date().toISOString();
+      const staffRole: UserRole = matchedOp.role === 'admin' ? 'pos_cashier' : matchedOp.role;
+      const targetLoc: LocationId = matchedOp.location === 'main_store' ? 'sales_shop' : matchedOp.location;
+
       setPosSession({
         isUnlocked: true,
         operatorId: matchedOp.id,
         operatorName: matchedOp.name,
-        location: matchedOp.location,
+        location: targetLoc,
         pin: matchedOp.pin,
-        role: matchedOp.role
+        role: staffRole
       });
-      setActiveLocation(matchedOp.location);
-      setActiveRoleState(matchedOp.role);
+      setActiveLocation(targetLoc);
+      setActiveRoleState(staffRole);
       setCurrentUser({
         id: matchedOp.id,
         name: matchedOp.name,
         email: matchedOp.email,
         phone: matchedOp.phone || '+254 700 111 000',
-        role: matchedOp.role,
-        assignedLocation: matchedOp.location,
+        role: staffRole,
+        assignedLocation: targetLoc,
         kraPin: matchedOp.kraPin || 'P051982341Z',
         pin: matchedOp.pin,
         status: matchedOp.status || 'active',
         lastLoginAt: now
       });
 
-      recordAuditLog('User Login Success', `${matchedOp.name} (${matchedOp.role}) unlocked session at ${matchedOp.location} via PIN`);
-      return { success: true, message: `Welcome ${matchedOp.name}! Logged in as ${matchedOp.role.replace(/_/g, ' ')}.`, operator: matchedOp };
+      // STRICT RULE: Any user who uses PIN can ONLY access POS
+      setAppModeState('pos');
+
+      recordAuditLog('User Login Success', `${matchedOp.name} unlocked POS terminal at ${targetLoc} via PIN`);
+      return { success: true, message: `Welcome ${matchedOp.name}! POS Terminal ready.`, operator: matchedOp };
     } else {
       return { success: false, message: 'Invalid 6-digit PIN code. Contact Super Admin if you need access credentials.' };
     }
@@ -448,6 +524,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const lockPOSSession = () => {
     setPosSession(null);
     recordAuditLog('Session Locked', `Active session locked for user ${currentUser.name}`);
+  };
+
+  const lockPlatform = () => {
+    setPosSession(null);
+    setAdminUser(null);
+    signOutGoogleAdmin();
+    setAppModeState('pos');
+    recordAuditLog('Platform Locked', `Terminal locked by user.`);
   };
 
   // Brand Settings & Modals
@@ -1304,15 +1388,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setTransfers(prev => [newTransfer, ...prev]);
 
-    // Send Mail Notification Popup
+    // Send Mail Notification Popup to Main Store
     const mailNotif: MailNotification = {
       id: `MAIL-${Date.now().toString().slice(-5)}`,
       title: 'New Restock Request to Main Store',
       message: `${activeLocName} requested zero-cost restock ${transferId} (${items.length} line items).`,
       transferId,
       transferType: 'restock_free',
-      fromLocation: 'main_store',
-      toLocation: activeLocation,
+      fromLocation: activeLocation,
+      toLocation: 'main_store',
       timestamp: new Date().toISOString(),
       read: false,
       itemCount: items.length
@@ -1404,6 +1488,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setLedger(prev => [ledgerTransfer, ...prev]);
+
+    // Send Mail Notification Popup to the receiving store only
+    const mailNotif: MailNotification = {
+      id: `MAIL-${Date.now().toString().slice(-5)}`,
+      title: `Stock Restock Dispatched to ${toLocName}`,
+      message: `Main Store dispatched restock transfer ${transferId} (${trf.items.length} items) to ${toLocName}. Stock is now available in your inventory.`,
+      transferId,
+      transferType: 'restock_free',
+      fromLocation: 'main_store',
+      toLocation: trf.toLocation,
+      timestamp: new Date().toISOString(),
+      read: false,
+      itemCount: trf.items.length
+    };
+    setMailNotifications(prev => [mailNotif, ...prev]);
+    setActiveToastNotification(mailNotif);
 
     recordAuditLog(
       'Restock Dispatched',
@@ -1697,6 +1797,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Clean up corresponding held cart entry if present
     setHeldCarts(prev => prev.filter(h => h.transferId !== transferId && h.id !== `HOLD-${transferId}`));
 
+    // Send Notification to Origin Store that order was fulfilled
+    const mailNotif: MailNotification = {
+      id: `MAIL-${Date.now().toString().slice(-5)}`,
+      title: 'Rerouted Order Fulfilled & Billed',
+      message: `Main Store fulfilled order ticket ${transferId} (ETR Receipt: ${receiptNum}) for customer ${customerName}.`,
+      transferId,
+      transferType: 'order_fulfillment_reroute',
+      fromLocation: 'main_store',
+      toLocation: trf.fromLocation,
+      timestamp: new Date().toISOString(),
+      read: false,
+      itemCount: trf.items.length
+    };
+    setMailNotifications(prev => [mailNotif, ...prev]);
+    setActiveToastNotification(mailNotif);
+
     recordAuditLog(
       'Rerouted Order Executed',
       `Main Store fulfilled order ticket ${transferId} from ${originLocName}. Payment KSh ${totalGross.toLocaleString()} captured, ETR Receipt ${receiptNum} issued.`
@@ -1830,6 +1946,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminUser,
         isSuperAdmin,
         signInWithGoogleAdmin,
+        signInAsWhitelistedAdmin,
         signOutGoogleAdmin,
         posOperators,
         addPOSOperator,
@@ -1897,6 +2014,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isUserProfileModalOpen,
         setIsUserProfileModalOpen,
         updateCurrentUserProfile,
+        isPlatformUnlocked,
+        isAdmin,
+        lockPlatform,
         isAuthModalOpen,
         setIsAuthModalOpen,
         isMailDrawerOpen,

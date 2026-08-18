@@ -54,7 +54,9 @@ export const Header: React.FC = () => {
     lockPOSSession,
     signOutGoogleAdmin,
     isMailDrawerOpen,
-    setIsMailDrawerOpen
+    setIsMailDrawerOpen,
+    isAdmin,
+    lockPlatform
   } = useERP();
 
   const [soundOn, setSoundOn] = useState<boolean>(true);
@@ -76,8 +78,11 @@ export const Header: React.FC = () => {
     setSoundOn(newState);
   };
 
+  const currentStoreLocation = posSession?.isUnlocked ? posSession.location : activeLocation;
   const activeLocInfo = locations.find(l => l.id === activeLocation);
-  const unreadMails = mailNotifications.filter(m => !m.read).length;
+  const unreadMails = mailNotifications.filter(
+    m => !m.read && m.toLocation === currentStoreLocation && m.fromLocation !== currentStoreLocation
+  ).length;
 
   const mainStoreLowCount = products.filter(p => p.locationStock.main_store <= p.minReorderLevel).length;
   const salesShopLowCount = products.filter(p => p.locationStock.sales_shop <= p.minReorderLevel).length;
@@ -249,34 +254,41 @@ export const Header: React.FC = () => {
         {/* Center / Right Action Bar Controls (Hidden on Mobile, accessible in Mobile Bottom Nav) */}
         <div className="hidden md:flex flex-wrap items-center gap-2">
           
-          {/* Mode Switcher: POS vs Administrator Dashboard */}
-          <div className="bg-black/20 p-1 rounded-2xl flex items-center gap-1 border border-white/20 backdrop-blur-xs">
-            <button
-              onClick={() => setAppMode('admin')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                appMode === 'admin'
-                  ? 'bg-white text-pink-700 shadow-sm'
-                  : 'text-white/80 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Admin Dashboard</span>
-              <span className="sm:hidden">Admin</span>
-            </button>
+          {/* Mode Switcher: Admin has access to all menus, regular users are locked to POS */}
+          {isAdmin ? (
+            <div className="bg-black/20 p-1 rounded-2xl flex items-center gap-1 border border-white/20 backdrop-blur-xs">
+              <button
+                onClick={() => setAppMode('admin')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  appMode === 'admin'
+                    ? 'bg-white text-pink-700 shadow-sm'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Admin Dashboard</span>
+                <span className="sm:hidden">Admin</span>
+              </button>
 
-            <button
-              onClick={() => setAppMode('pos')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                appMode === 'pos'
-                  ? 'bg-white text-pink-700 shadow-sm'
-                  : 'text-white/80 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">POS Terminal</span>
-              <span className="sm:hidden">POS</span>
-            </button>
-          </div>
+              <button
+                onClick={() => setAppMode('pos')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  appMode === 'pos'
+                    ? 'bg-white text-pink-700 shadow-sm'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">POS Terminal</span>
+                <span className="sm:hidden">POS</span>
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white/15 px-3 py-1.5 rounded-xl text-xs font-black text-white flex items-center gap-1.5 border border-white/20 backdrop-blur-xs">
+              <ShoppingBag className="w-3.5 h-3.5 text-pink-200" />
+              <span>POS Terminal (Staff Counter)</span>
+            </div>
+          )}
 
           {/* Location Selector */}
           <div className="flex items-center gap-1 bg-white/10 border border-white/20 rounded-xl px-2 py-1 backdrop-blur-xs max-w-[125px] sm:max-w-[150px]">
@@ -284,7 +296,8 @@ export const Header: React.FC = () => {
             <select
               value={activeLocation}
               onChange={e => setActiveLocation(e.target.value as LocationId)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer w-full truncate"
+              disabled={!isAdmin}
+              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer w-full truncate disabled:opacity-80"
             >
               {locations.map(loc => (
                 <option key={loc.id} value={loc.id} className="text-slate-900 font-medium">
@@ -294,24 +307,26 @@ export const Header: React.FC = () => {
             </select>
           </div>
 
-          {/* Role Switcher */}
-          <div className="flex items-center gap-1 bg-white/10 border border-white/20 rounded-xl px-2 py-1 backdrop-blur-xs max-w-[125px] sm:max-w-[150px]">
-            <UserCheck className="w-3.5 h-3.5 text-pink-100 shrink-0" />
-            <select
-              value={activeRole}
-              onChange={e => setActiveRole(e.target.value as UserRole)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer w-full truncate"
-            >
-              {roles.map(r => (
-                <option key={r.role} value={r.role} className="text-slate-900 font-medium">
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Role Switcher (Admin Only) */}
+          {isAdmin && (
+            <div className="flex items-center gap-1 bg-white/10 border border-white/20 rounded-xl px-2 py-1 backdrop-blur-xs max-w-[125px] sm:max-w-[150px]">
+              <UserCheck className="w-3.5 h-3.5 text-pink-100 shrink-0" />
+              <select
+                value={activeRole}
+                onChange={e => setActiveRole(e.target.value as UserRole)}
+                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer w-full truncate"
+              >
+                {roles.map(r => (
+                  <option key={r.role} value={r.role} className="text-slate-900 font-medium">
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Stock Alert Quick Badges */}
-          {mainStoreLowCount > 0 && (
+          {isAdmin && mainStoreLowCount > 0 && (
             <button
               onClick={() => setAppMode('admin')}
               className="hidden lg:flex items-center gap-1.5 bg-rose-500/25 hover:bg-rose-500/40 text-rose-100 border border-rose-400/50 rounded-xl px-2.5 py-1.5 backdrop-blur-xs text-xs font-bold cursor-pointer transition-all shadow-xs group"
@@ -323,7 +338,7 @@ export const Header: React.FC = () => {
             </button>
           )}
 
-          {salesShopLowCount > 0 && (
+          {isAdmin && salesShopLowCount > 0 && (
             <button
               onClick={() => setAppMode('admin')}
               className="hidden lg:flex items-center gap-1.5 bg-amber-500/25 hover:bg-amber-500/40 text-amber-100 border border-amber-400/50 rounded-xl px-2.5 py-1.5 backdrop-blur-xs text-xs font-bold cursor-pointer transition-all shadow-xs group"
@@ -373,17 +388,19 @@ export const Header: React.FC = () => {
             )}
           </button>
 
-          {/* Brand Settings Gear Button */}
-          <button
-            onClick={() => {
-              playClickSound();
-              setIsBrandSettingsModalOpen(true);
-            }}
-            className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-colors cursor-pointer"
-            title="Brand Color & Logo Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          {/* Brand Settings Gear Button (Admin only) */}
+          {isAdmin && (
+            <button
+              onClick={() => {
+                playClickSound();
+                setIsBrandSettingsModalOpen(true);
+              }}
+              className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-colors cursor-pointer"
+              title="Brand Color & Logo Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
 
           {/* QR Scanner Trigger */}
           <button
@@ -395,40 +412,27 @@ export const Header: React.FC = () => {
             <span className="hidden md:inline">Scan</span>
           </button>
 
-          {/* User Account Profile & Role Button */}
+          {/* User Account Profile Icon Button */}
           <button
             onClick={() => setIsUserProfileModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer group"
-            title="Open Account Profile & Role Permissions"
+            className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group relative"
+            title={`Account Profile: ${currentUser.name} (${currentUser.role})`}
           >
-            <div className="w-5 h-5 rounded-lg bg-rose-500 text-white flex items-center justify-center font-black text-[10px] shadow-xs group-hover:scale-105 transition-transform">
-              {currentUser.name.charAt(0).toUpperCase()}
-            </div>
-            <span className="max-w-[100px] sm:max-w-[130px] truncate hidden md:inline">
-              {currentUser.name}
-            </span>
+            <User className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
           </button>
 
-          {/* User Auth & PIN Switch / Lock Button */}
-          {posSession?.isUnlocked || isGoogleAdminAuthenticated ? (
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-300/50 text-emerald-100 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
-              title="Active User Session - Click to Switch User or Lock Terminal"
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              <span className="hidden lg:inline text-[11px]">Active</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-black rounded-xl shadow-md border border-white/30 transition-all cursor-pointer"
-              title="Login with Cashier PIN or Admin Google Account"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-300" />
-              <span>Login</span>
-            </button>
-          )}
+          {/* Lock Session Terminal Button */}
+          <button
+            onClick={() => {
+              playClickSound();
+              lockPlatform();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95"
+            title="Lock POS & Terminal Session Immediately"
+          >
+            <Lock className="w-3.5 h-3.5 text-rose-300" />
+            <span className="hidden lg:inline text-[11px]">Lock Terminal</span>
+          </button>
 
         </div>
 

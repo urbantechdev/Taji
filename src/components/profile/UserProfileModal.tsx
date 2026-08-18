@@ -114,8 +114,8 @@ export const UserProfileModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-50 animate-fadeIn">
-      <div className="w-full max-w-2xl bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-scaleUp max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-fadeIn overflow-y-auto">
+      <div className="w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[92vh] max-w-2xl bg-white rounded-none sm:rounded-3xl border-0 sm:border border-slate-200 shadow-2xl overflow-hidden animate-scaleUp flex flex-col">
         
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-5 text-white flex items-center justify-between border-b border-rose-500/30 shrink-0">
