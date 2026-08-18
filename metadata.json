@@ -1,6 +1,6 @@
 {
   "name": "Taji",
-  "description": "Taji - Multi-location textile inventory, ETR compliance billing, inter-store ledger, POS, and HR payroll platform.",
+  "description": "Taji - Autonomous Multi-location textile inventory, ETR compliance billing, 3-statement auto-balancing accounting ledger, Virtual CFO treasury advisor, Forensic Audit engine, and 2026 Kenyan statutory HR payroll platform.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

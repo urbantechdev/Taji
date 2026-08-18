@@ -1,10 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Michroma&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Orbitron:wght@400..900&family=Rajdhani:wght@500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Montserrat', system-ui, sans-serif;
+  --font-display: 'Orbitron', 'Audiowide', 'Michroma', sans-serif;
   --font-mono: 'Montserrat', system-ui, sans-serif;
+  --font-ai: 'Orbitron', 'Audiowide', 'Michroma', sans-serif;
+  --font-cyber: 'Audiowide', 'Orbitron', sans-serif;
+}
+
+.font-ai {
+  font-family: 'Orbitron', 'Audiowide', 'Michroma', sans-serif;
+  letter-spacing: 0.12em;
+}
+
+.font-cyber {
+  font-family: 'Audiowide', 'Orbitron', 'Michroma', sans-serif;
+}
+
+.ai-glow-text {
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.6), 0 0 20px rgba(236, 72, 153, 0.4), 0 2px 4px rgba(0, 0, 0, 0.6);
 }
 
 :root {

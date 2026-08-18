@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { UserRole, LocationId } from '../../types';
-import { LOCATIONS } from '../../data/initialData';
 import { MailInboxDrawer } from '../notifications/MailInboxDrawer';
 import { BrandSettingsModal } from '../settings/BrandSettingsModal';
+import { UserProfileModal } from '../profile/UserProfileModal';
 import { isSoundEnabled, toggleSound, playClickSound } from '../../utils/audio';
 import {
   Store,
@@ -25,7 +25,8 @@ import {
   LogOut,
   ShieldCheck,
   Volume2,
-  VolumeX
+  VolumeX,
+  User
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -36,6 +37,7 @@ export const Header: React.FC = () => {
     setActiveRole,
     activeLocation,
     setActiveLocation,
+    locations,
     transfers,
     products,
     setIsQRScannerOpen,
@@ -43,6 +45,9 @@ export const Header: React.FC = () => {
     setIsBrandSettingsModalOpen,
     mailNotifications,
     setIsAuthModalOpen,
+    isUserProfileModalOpen,
+    setIsUserProfileModalOpen,
+    currentUser,
     posSession,
     isGoogleAdminAuthenticated,
     adminUser,
@@ -71,7 +76,7 @@ export const Header: React.FC = () => {
     setSoundOn(newState);
   };
 
-  const activeLocInfo = LOCATIONS.find(l => l.id === activeLocation);
+  const activeLocInfo = locations.find(l => l.id === activeLocation);
   const unreadMails = mailNotifications.filter(m => !m.read).length;
 
   const mainStoreLowCount = products.filter(p => p.locationStock.main_store <= p.minReorderLevel).length;
@@ -174,55 +179,69 @@ export const Header: React.FC = () => {
       {/* Main Header Container with doubled height padding */}
       <div className="px-4 sm:px-8 pt-8 sm:pt-12 pb-12 sm:pb-16 flex flex-wrap items-center justify-between gap-5 relative z-10">
         
-        {/* Brand Title & Animated Round Logo */}
-        <div className="flex items-center gap-4">
+        {/* Brand Title & Enlarged Animated Round Logo Frame */}
+        <div className="flex items-center gap-4 sm:gap-5">
           <motion.div
+            onClick={() => setIsBrandSettingsModalOpen(true)}
+            title="Click to customize brand logo & settings"
             animate={{
-              scale: [1, 1.05, 1],
+              scale: [1, 1.03, 1],
               boxShadow: [
-                '0 0 0 0px rgba(255, 255, 255, 0.4)',
-                '0 0 0 12px rgba(255, 255, 255, 0)',
-                '0 0 0 0px rgba(255, 255, 255, 0.4)'
+                '0 0 0 0px rgba(255, 255, 255, 0.45)',
+                '0 0 0 16px rgba(255, 255, 255, 0)',
+                '0 0 0 0px rgba(255, 255, 255, 0.45)'
               ]
             }}
             transition={{
-              duration: 2.8,
+              duration: 3,
               repeat: Infinity,
               ease: 'easeInOut'
             }}
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/20 border-2 border-white/40 p-1 shadow-xl flex items-center justify-center shrink-0 backdrop-blur-xs overflow-hidden relative cursor-pointer"
+            className="w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full bg-white/25 border-3 sm:border-4 border-white/60 p-1.5 sm:p-2 shadow-2xl ring-4 ring-white/20 flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative cursor-pointer group/logo hover:border-white transition-all"
           >
             {brandSettings?.logoUrl ? (
               <motion.img
                 src={brandSettings.logoUrl}
                 alt={brandSettings.brandName || 'Logo'}
-                className="w-full h-full object-cover rounded-full bg-white p-0.5 shadow-inner"
+                className="w-full h-full object-cover rounded-full bg-white p-1 shadow-inner group-hover/logo:scale-105 transition-transform"
                 referrerPolicy="no-referrer"
                 animate={{
-                  rotate: [0, 2, -2, 0]
+                  rotate: [0, 1.5, -1.5, 0]
                 }}
                 transition={{
-                  duration: 5,
+                  duration: 6,
                   repeat: Infinity,
                   ease: 'easeInOut'
                 }}
-                whileHover={{ scale: 1.15, rotate: 5 }}
+                whileHover={{ scale: 1.1, rotate: 3 }}
               />
             ) : (
-              <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl sm:text-3xl shadow-sm">
-                {(brandSettings?.brandName || 'Z').charAt(0).toUpperCase()}
+              <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-3xl sm:text-4xl md:text-5xl shadow-inner border border-white/30 group-hover/logo:scale-105 transition-transform">
+                {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
               </div>
             )}
           </motion.div>
 
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="font-extrabold text-white text-2xl sm:text-3xl tracking-tight font-sans">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-3">
+              <h1 className="font-ai text-white text-3xl sm:text-4xl md:text-5xl lg:text-[48px] font-black uppercase tracking-[0.14em] select-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.3)] transition-all hover:scale-105 duration-200 cursor-default flex items-center">
                 {brandSettings.brandName}
               </h1>
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-ai font-bold bg-white/20 text-white border border-white/30 backdrop-blur-md tracking-widest uppercase shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                AI OS
+              </span>
             </div>
-            <p className="text-xs sm:text-sm text-pink-100 font-medium hidden sm:block mt-1">
-              {brandSettings.tagline || 'Multi-Location ERP, KRA ETR Compliance & Accounting Ledger'}
+            
+            {/* Clean White AI Circuit Line */}
+            <div className="flex items-center gap-1.5 opacity-80">
+              <div className="h-[2px] w-16 sm:w-24 bg-gradient-to-r from-white via-white/70 to-transparent rounded-full shadow-xs" />
+              <div className="h-1.5 w-1.5 bg-white rounded-full animate-ping" />
+              <div className="h-[2px] w-4 bg-white/40 rounded-full" />
+            </div>
+
+            <p className="text-xs sm:text-sm text-pink-100 font-medium hidden sm:block mt-1 font-sans">
+              {brandSettings.tagline || 'Autonomous Multi-Location ERP, KRA ETR Compliance & Accounting Ledger'}
             </p>
           </div>
         </div>
@@ -267,7 +286,7 @@ export const Header: React.FC = () => {
               onChange={e => setActiveLocation(e.target.value as LocationId)}
               className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer w-full truncate"
             >
-              {LOCATIONS.map(loc => (
+              {locations.map(loc => (
                 <option key={loc.id} value={loc.id} className="text-slate-900 font-medium">
                   {loc.name} {!loc.canSellDirectly ? '(POS Disabled)' : ''}
                 </option>
@@ -376,17 +395,29 @@ export const Header: React.FC = () => {
             <span className="hidden md:inline">Scan</span>
           </button>
 
-          {/* User Auth & PIN Login Button */}
+          {/* User Account Profile & Role Button */}
+          <button
+            onClick={() => setIsUserProfileModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer group"
+            title="Open Account Profile & Role Permissions"
+          >
+            <div className="w-5 h-5 rounded-lg bg-rose-500 text-white flex items-center justify-center font-black text-[10px] shadow-xs group-hover:scale-105 transition-transform">
+              {currentUser.name.charAt(0).toUpperCase()}
+            </div>
+            <span className="max-w-[100px] sm:max-w-[130px] truncate hidden md:inline">
+              {currentUser.name}
+            </span>
+          </button>
+
+          {/* User Auth & PIN Switch / Lock Button */}
           {posSession?.isUnlocked || isGoogleAdminAuthenticated ? (
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-300/50 text-emerald-100 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
-              title="Active User Session - Click to Switch or Lock"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-300/50 text-emerald-100 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+              title="Active User Session - Click to Switch User or Lock Terminal"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              <span className="max-w-[120px] truncate">
-                {posSession?.isUnlocked ? posSession.operatorName : adminUser?.displayName || 'Super Admin'}
-              </span>
+              <span className="hidden lg:inline text-[11px]">Active</span>
             </button>
           ) : (
             <button
@@ -395,7 +426,7 @@ export const Header: React.FC = () => {
               title="Login with Cashier PIN or Admin Google Account"
             >
               <KeyRound className="w-3.5 h-3.5 text-amber-300" />
-              <span>Login / Lock</span>
+              <span>Login</span>
             </button>
           )}
 
@@ -478,6 +509,7 @@ export const Header: React.FC = () => {
         onClose={() => setIsMailDrawerOpen(false)}
       />
       <BrandSettingsModal />
+      <UserProfileModal />
     </header>
   );
 };

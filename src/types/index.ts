@@ -1,14 +1,98 @@
-export type LocationId = 'main_store' | 'sales_shop' | 'store_1' | 'store_2';
+export type LocationId = string;
+
+export type LocationType = 
+  | 'Main Store' 
+  | 'Sales Shop' 
+  | 'Independent Branch' 
+  | 'Store 1 (Transfer Only)' 
+  | 'Store 2 (Transfer Only)'
+  | 'Warehouse / Depot'
+  | 'Franchise Outlet';
 
 export interface LocationInfo {
   id: LocationId;
+  code?: string;
   name: string;
-  type: 'Main Store' | 'Sales Shop' | 'Store 1 (Transfer Only)' | 'Store 2 (Transfer Only)';
+  type: LocationType;
   canSellDirectly: boolean;
   canFulfillOrders: boolean;
   canRequestRestock: boolean;
   address: string;
   phone: string;
+  managerName?: string;
+  managerPhone?: string;
+  managerEmail?: string;
+  isAutonomousFinancial?: boolean; // Runs on its own financial accounts, petty cash float, and independent P&L
+  openingFloat?: number; // Starting petty cash / float balance (KSh)
+  currentCashBalance?: number; // Current live petty cash / cash drawer balance (KSh)
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  mpesaTillNumber?: string;
+  monthlyBudget?: number;
+  status?: 'active' | 'inactive';
+  createdAt?: string;
+}
+
+export type BranchExpenseCategory = 
+  | 'Rent' 
+  | 'Utilities' 
+  | 'Staff Supplies' 
+  | 'Transport & Logistics' 
+  | 'Repairs & Maintenance' 
+  | 'Marketing' 
+  | 'Wages & Commissions' 
+  | 'Petty Cash Voucher' 
+  | 'Other';
+
+export interface BranchExpense {
+  id: string;
+  locationId: LocationId;
+  title: string;
+  amount: number;
+  category: BranchExpenseCategory;
+  paidVia: 'Cash Float' | 'Bank Transfer' | 'M-Pesa Till';
+  paidTo?: string;
+  receiptNo?: string;
+  notes?: string;
+  timestamp: string;
+  recordedBy: string;
+}
+
+export interface BranchFinancialSummary {
+  locationId: LocationId;
+  locationName: string;
+  locationCode: string;
+  locationType: LocationType;
+  isAutonomousFinancial: boolean;
+  grossRevenue: number;
+  vatLiability: number;
+  netRevenue: number;
+  costOfGoodsSold: number;
+  grossProfit: number;
+  totalExpenses: number;
+  netProfit: number;
+  profitMarginPercent: number;
+  currentCashFloat: number;
+  bankBalanceEstimate: number;
+  totalOrdersCount: number;
+  inventoryItemCount: number;
+  inventoryTotalValue: number;
+  pendingTransfersCount: number;
+}
+
+export interface BranchCashReconciliation {
+  id: string;
+  locationId: LocationId;
+  reconciledAt: string;
+  reconciledBy: string;
+  openingFloat: number;
+  cashSalesRecorded: number;
+  cashExpensesPaid: number;
+  expectedCashInDrawer: number;
+  actualCountedCash: number;
+  variance: number; // positive = surplus, negative = shortage
+  status: 'balanced' | 'surplus' | 'shortage';
+  notes?: string;
 }
 
 export type CategoryType = 'Dereck' | 'Fleece' | 'Yarns';
@@ -41,25 +125,38 @@ export type UserRole =
   | 'sales_shop_cashier'
   | 'store_1_attendant'
   | 'store_2_attendant'
+  | 'branch_manager'
+  | 'branch_cashier'
   | 'accountant';
 
 export interface POSOperator {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  kraPin?: string;
   pin: string; // 6-digit PIN code
   location: LocationId;
   role: UserRole;
+  status: 'active' | 'inactive';
+  avatarUrl?: string;
+  createdBy?: string;
   createdAt: string;
+  lastLoginAt?: string;
 }
 
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: UserRole;
   assignedLocation: LocationId;
   kraPin?: string;
+  pin?: string;
+  avatarUrl?: string;
+  status?: 'active' | 'inactive';
+  lastLoginAt?: string;
 }
 
 export interface POSCartItem {
@@ -241,4 +338,110 @@ export interface MailNotification {
 }
 
 export type AppMode = 'admin' | 'pos';
+
+export interface CFOAdvisorData {
+  executiveSummary: string;
+  financialHealthScore: number;
+  taxOptimizationPlan: string[];
+  workingCapitalActions: string[];
+  costRationalization: string[];
+  cashFlowProjection30Days: string;
+  statutoryDeadlinesAdvice: string;
+}
+
+export interface ForensicAuditFinding {
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  area: string;
+  finding: string;
+  remedy: string;
+}
+
+export interface ForensicAuditChecklist {
+  control: string;
+  status: 'VERIFIED' | 'ATTENTION' | 'FLAGGED';
+  note: string;
+}
+
+export interface ForensicAuditReport {
+  forensicScore: number;
+  auditOpinion: string;
+  anomalyFindings: ForensicAuditFinding[];
+  controlsChecklist: ForensicAuditChecklist[];
+  overallVerdict: string;
+}
+
+export interface BalanceSheetData {
+  currentAssets: {
+    cashAndEquivalents: number;
+    accountsReceivable: number;
+    inventoryAssetValue: number;
+    totalCurrentAssets: number;
+  };
+  fixedAssets: {
+    machineryAndFixtures: number;
+    equipmentAndDepots: number;
+    accumulatedDepreciation: number;
+    totalFixedAssets: number;
+  };
+  totalAssets: number;
+  currentLiabilities: {
+    vatLiabilityPayable: number;
+    payrollTaxPayable: number; // PAYE, NSSF, SHIF, Housing
+    supplierAccountsPayable: number;
+    totalCurrentLiabilities: number;
+  };
+  longTermLiabilities: {
+    termLoans: number;
+    totalLongTermLiabilities: number;
+  };
+  equity: {
+    ownersCapital: number;
+    retainedEarnings: number;
+    totalEquity: number;
+  };
+  totalLiabilitiesAndEquity: number;
+}
+
+export interface IncomeStatementData {
+  grossSalesRevenue: number;
+  salesDiscountsAndReturns: number;
+  netSalesRevenue: number;
+  costOfGoodsSold: number;
+  grossOperatingProfit: number;
+  grossMarginPercent: number;
+  operatingExpenses: {
+    rentAndLeases: number;
+    utilitiesAndPower: number;
+    salariesAndWages: number;
+    transportAndLogistics: number;
+    repairsAndSupplies: number;
+    statutoryTaxesAndLevies: number;
+    marketingAndOther: number;
+    totalOperatingExpenses: number;
+  };
+  ebitda: number; // Net Operating Profit before Tax
+  corporateTaxProvision: number; // 30% CIT provision
+  netIncomeAfterTax: number;
+  netMarginPercent: number;
+}
+
+export interface CashFlowStatementData {
+  operatingCashFlow: {
+    cashFromCustomers: number;
+    cashPaidToSuppliers: number;
+    cashPaidForExpenses: number;
+    netOperatingCashFlow: number;
+  };
+  investingCashFlow: {
+    equipmentPurchase: number;
+    netInvestingCashFlow: number;
+  };
+  financingCashFlow: {
+    capitalInjections: number;
+    ownersDrawings: number;
+    netFinancingCashFlow: number;
+  };
+  netChangeInCash: number;
+  closingCashPosition: number;
+}
 

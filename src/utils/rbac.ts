@@ -1,0 +1,310 @@
+import { UserRole, LocationId } from '../types';
+
+export interface RoleMetadata {
+  role: UserRole;
+  title: string;
+  shortLabel: string;
+  description: string;
+  badgeClass: string;
+  dotColor: string;
+  defaultLocation: LocationId;
+  allowedTabs: Array<
+    | 'dashboard'
+    | 'pos'
+    | 'catalog'
+    | 'transfers'
+    | 'ledger'
+    | 'etr'
+    | 'payroll'
+    | 'audit'
+    | 'gmail'
+    | 'operators'
+    | 'branches'
+  >;
+  permissions: {
+    canManageUsers: boolean;
+    canAccessCFOAdvisor: boolean;
+    canExecuteForensicAudit: boolean;
+    canManageGeneralLedger: boolean;
+    canDisbursePayroll: boolean;
+    canConfigureETR: boolean;
+    canDirectPOSSale: boolean;
+    canManageBranchExpenses: boolean;
+    canCreateLocations: boolean;
+    canAddProductBatches: boolean;
+    canDispatchTransfers: boolean;
+    canReceiveTransfers: boolean;
+  };
+}
+
+export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
+  admin: {
+    role: 'admin',
+    title: 'Super Administrator / Executive',
+    shortLabel: 'Executive Admin',
+    description: 'Master root authority across all multi-branch operations, KRA compliance, user creation, forensic audits, and general ledgers.',
+    badgeClass: 'bg-rose-500/20 text-rose-200 border-rose-400/40',
+    dotColor: 'bg-rose-400',
+    defaultLocation: 'main_store',
+    allowedTabs: [
+      'dashboard',
+      'branches',
+      'pos',
+      'catalog',
+      'transfers',
+      'ledger',
+      'etr',
+      'payroll',
+      'operators',
+      'audit',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: true,
+      canAccessCFOAdvisor: true,
+      canExecuteForensicAudit: true,
+      canManageGeneralLedger: true,
+      canDisbursePayroll: true,
+      canConfigureETR: true,
+      canDirectPOSSale: true,
+      canManageBranchExpenses: true,
+      canCreateLocations: true,
+      canAddProductBatches: true,
+      canDispatchTransfers: true,
+      canReceiveTransfers: true
+    }
+  },
+  branch_manager: {
+    role: 'branch_manager',
+    title: 'Autonomous Branch Manager',
+    shortLabel: 'Branch Manager',
+    description: 'Oversees local store operations, manages petty cash float and expense vouchers, reviews branch stock, and approves branch restock requests.',
+    badgeClass: 'bg-blue-500/20 text-blue-200 border-blue-400/40',
+    dotColor: 'bg-blue-400',
+    defaultLocation: 'sales_shop',
+    allowedTabs: [
+      'dashboard',
+      'branches',
+      'pos',
+      'catalog',
+      'transfers',
+      'ledger',
+      'etr',
+      'audit',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: false,
+      canAccessCFOAdvisor: false,
+      canExecuteForensicAudit: false,
+      canManageGeneralLedger: true,
+      canDisbursePayroll: false,
+      canConfigureETR: false,
+      canDirectPOSSale: true,
+      canManageBranchExpenses: true,
+      canCreateLocations: false,
+      canAddProductBatches: false,
+      canDispatchTransfers: true,
+      canReceiveTransfers: true
+    }
+  },
+  accountant: {
+    role: 'accountant',
+    title: 'Finance Manager & Tax Auditor',
+    shortLabel: 'Finance & Auditor',
+    description: 'Controls 3-statement financial accounting, General Ledger reconciliation, KRA VAT returns, petty cash audits, and payroll verification.',
+    badgeClass: 'bg-purple-500/20 text-purple-200 border-purple-400/40',
+    dotColor: 'bg-purple-400',
+    defaultLocation: 'main_store',
+    allowedTabs: [
+      'dashboard',
+      'ledger',
+      'etr',
+      'payroll',
+      'branches',
+      'audit',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: false,
+      canAccessCFOAdvisor: true,
+      canExecuteForensicAudit: true,
+      canManageGeneralLedger: true,
+      canDisbursePayroll: true,
+      canConfigureETR: true,
+      canDirectPOSSale: false,
+      canManageBranchExpenses: true,
+      canCreateLocations: false,
+      canAddProductBatches: false,
+      canDispatchTransfers: false,
+      canReceiveTransfers: false
+    }
+  },
+  sales_shop_cashier: {
+    role: 'sales_shop_cashier',
+    title: 'Retail POS Cashier',
+    shortLabel: 'POS Cashier',
+    description: 'Direct customer retail point-of-sale checkout, ETR invoice printing, held cart management, and inventory stock check.',
+    badgeClass: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40',
+    dotColor: 'bg-emerald-400',
+    defaultLocation: 'sales_shop',
+    allowedTabs: [
+      'pos',
+      'catalog',
+      'transfers',
+      'etr',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: false,
+      canAccessCFOAdvisor: false,
+      canExecuteForensicAudit: false,
+      canManageGeneralLedger: false,
+      canDisbursePayroll: false,
+      canConfigureETR: false,
+      canDirectPOSSale: true,
+      canManageBranchExpenses: false,
+      canCreateLocations: false,
+      canAddProductBatches: false,
+      canDispatchTransfers: false,
+      canReceiveTransfers: true
+    }
+  },
+  branch_cashier: {
+    role: 'branch_cashier',
+    title: 'Branch POS Cashier',
+    shortLabel: 'Branch Cashier',
+    description: 'Branch retail point-of-sale customer checkout, receipt issuance, and cash drawer sales recording.',
+    badgeClass: 'bg-teal-500/20 text-teal-200 border-teal-400/40',
+    dotColor: 'bg-teal-400',
+    defaultLocation: 'sales_shop',
+    allowedTabs: [
+      'pos',
+      'catalog',
+      'transfers',
+      'etr',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: false,
+      canAccessCFOAdvisor: false,
+      canExecuteForensicAudit: false,
+      canManageGeneralLedger: false,
+      canDisbursePayroll: false,
+      canConfigureETR: false,
+      canDirectPOSSale: true,
+      canManageBranchExpenses: false,
+      canCreateLocations: false,
+      canAddProductBatches: false,
+      canDispatchTransfers: false,
+      canReceiveTransfers: true
+    }
+  },
+  main_store_operator: {
+    role: 'main_store_operator',
+    title: 'Central Hub / Warehouse Operator',
+    shortLabel: 'Warehouse Operator',
+    description: 'Responsible for central inventory management, batch intake, bulk dispatching, and fulfilling restock requests.',
+    badgeClass: 'bg-amber-500/20 text-amber-200 border-amber-400/40',
+    dotColor: 'bg-amber-400',
+    defaultLocation: 'main_store',
+    allowedTabs: [
+      'catalog',
+      'transfers',
+      'pos',
+      'branches',
+      'audit',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: false,
+      canAccessCFOAdvisor: false,
+      canExecuteForensicAudit: false,
+      canManageGeneralLedger: false,
+      canDisbursePayroll: false,
+      canConfigureETR: false,
+      canDirectPOSSale: true,
+      canManageBranchExpenses: false,
+      canCreateLocations: false,
+      canAddProductBatches: true,
+      canDispatchTransfers: true,
+      canReceiveTransfers: true
+    }
+  },
+  store_1_attendant: {
+    role: 'store_1_attendant',
+    title: 'Store 1 Transfer Node Attendant',
+    shortLabel: 'Store 1 Node',
+    description: 'Transfer & fulfillment node operator. Manages rerouted customer order tickets and restock requests (direct POS disabled).',
+    badgeClass: 'bg-indigo-500/20 text-indigo-200 border-indigo-400/40',
+    dotColor: 'bg-indigo-400',
+    defaultLocation: 'store_1',
+    allowedTabs: [
+      'transfers',
+      'catalog',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: false,
+      canAccessCFOAdvisor: false,
+      canExecuteForensicAudit: false,
+      canManageGeneralLedger: false,
+      canDisbursePayroll: false,
+      canConfigureETR: false,
+      canDirectPOSSale: false,
+      canManageBranchExpenses: false,
+      canCreateLocations: false,
+      canAddProductBatches: false,
+      canDispatchTransfers: false,
+      canReceiveTransfers: true
+    }
+  },
+  store_2_attendant: {
+    role: 'store_2_attendant',
+    title: 'Store 2 Transfer Node Attendant',
+    shortLabel: 'Store 2 Node',
+    description: 'Transfer & fulfillment node operator. Manages rerouted customer order tickets and restock requests (direct POS disabled).',
+    badgeClass: 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40',
+    dotColor: 'bg-cyan-400',
+    defaultLocation: 'store_2',
+    allowedTabs: [
+      'transfers',
+      'catalog',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: false,
+      canAccessCFOAdvisor: false,
+      canExecuteForensicAudit: false,
+      canManageGeneralLedger: false,
+      canDisbursePayroll: false,
+      canConfigureETR: false,
+      canDirectPOSSale: false,
+      canManageBranchExpenses: false,
+      canCreateLocations: false,
+      canAddProductBatches: false,
+      canDispatchTransfers: false,
+      canReceiveTransfers: true
+    }
+  }
+};
+
+export const getRoleMetadata = (role: UserRole): RoleMetadata => {
+  return ROLE_DEFINITIONS[role] || ROLE_DEFINITIONS.admin;
+};
+
+export const hasPermission = (
+  role: UserRole,
+  permission: keyof RoleMetadata['permissions']
+): boolean => {
+  const metadata = getRoleMetadata(role);
+  return Boolean(metadata?.permissions?.[permission]);
+};
+
+export const isTabAllowedForRole = (
+  role: UserRole,
+  tabId: string
+): boolean => {
+  const metadata = getRoleMetadata(role);
+  return metadata.allowedTabs.includes(tabId as any);
+};

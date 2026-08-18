@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, UnitType } from '../../types';
-import { LOCATIONS } from '../../data/initialData';
 import {
   Layers,
   Search,
@@ -28,6 +27,7 @@ export const InventoryCatalog: React.FC = () => {
   const {
     products,
     orders,
+    locations,
     addProductBatch,
     requestRestock,
     updateProductPrice,

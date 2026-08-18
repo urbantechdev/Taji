@@ -9,43 +9,31 @@ import {
   PayrollRecord,
   ETRConfig,
   UserProfile,
-  POSOperator
+  POSOperator,
+  BranchExpense
 } from '../types';
 import tajiLogo from '../assets/images/taji_logo_1786034537873.jpg';
 
 export const INITIAL_POS_OPERATORS: POSOperator[] = [
   {
     id: 'op-super-admin',
-    name: 'Super Admin (Urban Interior)',
-    email: 'urbaninteriorkenya@gmail.com',
+    name: 'Executive Super Admin',
+    email: 'admin@taji.co.ke',
+    phone: '+254 700 111 000',
+    kraPin: 'P051982341Z',
     pin: '123456',
     location: 'main_store',
     role: 'admin',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'op-main-cashier',
-    name: 'Main Store Operator',
-    email: 'mainstore@urbaninterior.co.ke',
-    pin: '123456',
-    location: 'main_store',
-    role: 'main_store_operator',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'op-sales-cashier',
-    name: 'Sales Shop Cashier',
-    email: 'salesshop@urbaninterior.co.ke',
-    pin: '123456',
-    location: 'sales_shop',
-    role: 'sales_shop_cashier',
-    createdAt: new Date().toISOString()
+    status: 'active',
+    createdBy: 'System Root',
+    createdAt: '2026-01-01T00:00:00.000Z'
   }
 ];
 
 export const LOCATIONS: LocationInfo[] = [
   {
     id: 'main_store',
+    code: 'HUB-001',
     name: 'Main Store & Central Hub',
     type: 'Main Store',
     canSellDirectly: true,
@@ -53,9 +41,22 @@ export const LOCATIONS: LocationInfo[] = [
     canRequestRestock: false,
     address: 'Textile Hub, Block A1, Industrial Area, Nairobi',
     phone: '+254 700 111 000',
+    managerName: 'David K. Munene',
+    managerPhone: '+254 711 223 344',
+    managerEmail: 'david.munene@urbaninterior.co.ke',
+    isAutonomousFinancial: true,
+    openingFloat: 100000,
+    currentCashBalance: 145000,
+    bankAccountName: 'Urban Interior Hub Account - KCB',
+    bankAccountNumber: '1288920192',
+    mpesaTillNumber: '882910',
+    monthlyBudget: 350000,
+    status: 'active',
+    createdAt: '2026-01-15T08:00:00.000Z'
   },
   {
     id: 'sales_shop',
+    code: 'SHP-001',
     name: 'Sales Shop (Retail POS)',
     type: 'Sales Shop',
     canSellDirectly: true,
@@ -63,9 +64,45 @@ export const LOCATIONS: LocationInfo[] = [
     canRequestRestock: true,
     address: 'Biashara Street Plaza, Ground Floor, Nairobi',
     phone: '+254 700 222 000',
+    managerName: 'Mercy W. Chebet',
+    managerPhone: '+254 722 334 455',
+    managerEmail: 'mercy.chebet@urbaninterior.co.ke',
+    isAutonomousFinancial: true,
+    openingFloat: 50000,
+    currentCashBalance: 78500,
+    bankAccountName: 'Urban Interior Biashara Retail - Equity',
+    bankAccountNumber: '0912838192',
+    mpesaTillNumber: '993812',
+    monthlyBudget: 180000,
+    status: 'active',
+    createdAt: '2026-01-20T09:30:00.000Z'
+  },
+  {
+    id: 'branch_westlands',
+    code: 'BR-WST-02',
+    name: 'Westlands Flagship Branch',
+    type: 'Independent Branch',
+    canSellDirectly: true,
+    canFulfillOrders: true,
+    canRequestRestock: true,
+    address: 'Woodvale Grove, The Oval 2nd Floor, Westlands, Nairobi',
+    phone: '+254 700 555 111',
+    managerName: 'Brian O. Otieno',
+    managerPhone: '+254 733 445 566',
+    managerEmail: 'brian.otieno@urbaninterior.co.ke',
+    isAutonomousFinancial: true,
+    openingFloat: 60000,
+    currentCashBalance: 92400,
+    bankAccountName: 'Westlands Branch Operating Account - Stanbic',
+    bankAccountNumber: '0100998823',
+    mpesaTillNumber: '772911',
+    monthlyBudget: 220000,
+    status: 'active',
+    createdAt: '2026-03-01T10:00:00.000Z'
   },
   {
     id: 'store_1',
+    code: 'DEP-001',
     name: 'Store 1 (Transfer & Fulfillment Only)',
     type: 'Store 1 (Transfer Only)',
     canSellDirectly: false, // DIRECT POS DISABLED
@@ -73,9 +110,19 @@ export const LOCATIONS: LocationInfo[] = [
     canRequestRestock: true,
     address: 'Eastleigh Garment Center, Shop 14, Nairobi',
     phone: '+254 700 333 000',
+    managerName: 'Hassan A. Noor',
+    managerPhone: '+254 744 556 677',
+    managerEmail: 'hassan.noor@urbaninterior.co.ke',
+    isAutonomousFinancial: false,
+    openingFloat: 15000,
+    currentCashBalance: 12000,
+    monthlyBudget: 80000,
+    status: 'active',
+    createdAt: '2026-02-10T11:00:00.000Z'
   },
   {
     id: 'store_2',
+    code: 'DEP-002',
     name: 'Store 2 (Transfer & Fulfillment Only)',
     type: 'Store 2 (Transfer Only)',
     canSellDirectly: false, // DIRECT POS DISABLED
@@ -83,6 +130,122 @@ export const LOCATIONS: LocationInfo[] = [
     canRequestRestock: true,
     address: 'River Road Textile Mart, Unit 8, Nairobi',
     phone: '+254 700 444 000',
+    managerName: 'Grace N. Mutua',
+    managerPhone: '+254 755 667 788',
+    managerEmail: 'grace.mutua@urbaninterior.co.ke',
+    isAutonomousFinancial: false,
+    openingFloat: 15000,
+    currentCashBalance: 14500,
+    monthlyBudget: 80000,
+    status: 'active',
+    createdAt: '2026-02-15T11:00:00.000Z'
+  },
+];
+
+export const INITIAL_BRANCH_EXPENSES: BranchExpense[] = [
+  {
+    id: 'EXP-BR-001',
+    locationId: 'sales_shop',
+    title: 'Biashara Shop Monthly Rent Payment',
+    amount: 65000,
+    category: 'Rent',
+    paidVia: 'Bank Transfer',
+    paidTo: 'Biashara Plaza Properties Ltd',
+    receiptNo: 'REC-BIA-8921',
+    notes: 'Ground floor retail stall rent for August 2026',
+    timestamp: '2026-08-02T10:15:00.000Z',
+    recordedBy: 'Mercy W. Chebet'
+  },
+  {
+    id: 'EXP-BR-002',
+    locationId: 'sales_shop',
+    title: 'Shop Electricity & Kenya Power Token',
+    amount: 8500,
+    category: 'Utilities',
+    paidVia: 'M-Pesa Till',
+    paidTo: 'Kenya Power Prepaid',
+    receiptNo: 'KP-8829102',
+    notes: 'Token purchase meter #371928391',
+    timestamp: '2026-08-05T14:30:00.000Z',
+    recordedBy: 'Mercy W. Chebet'
+  },
+  {
+    id: 'EXP-BR-003',
+    locationId: 'sales_shop',
+    title: 'Staff Refreshments & Water Dispenser Refills',
+    amount: 3200,
+    category: 'Staff Supplies',
+    paidVia: 'Cash Float',
+    paidTo: 'Nairobi Water Express',
+    receiptNo: 'NWE-4412',
+    notes: '4 bottles 20L water + tea amenities',
+    timestamp: '2026-08-08T09:00:00.000Z',
+    recordedBy: 'Mercy W. Chebet'
+  },
+  {
+    id: 'EXP-BR-004',
+    locationId: 'branch_westlands',
+    title: 'Westlands Mall Premise Lease Deposit & Rent',
+    amount: 90000,
+    category: 'Rent',
+    paidVia: 'Bank Transfer',
+    paidTo: 'The Oval Management Group',
+    receiptNo: 'OV-99218',
+    notes: 'Oval 2nd floor retail lease August 2026',
+    timestamp: '2026-08-01T11:20:00.000Z',
+    recordedBy: 'Brian O. Otieno'
+  },
+  {
+    id: 'EXP-BR-005',
+    locationId: 'branch_westlands',
+    title: 'High Speed Fiber Internet & POS Backup UPS',
+    amount: 12500,
+    category: 'Utilities',
+    paidVia: 'M-Pesa Till',
+    paidTo: 'Safaricom Business Fiber',
+    receiptNo: 'SAF-FBR-8812',
+    notes: 'Dedicated 50Mbps business line + UPS battery replacement',
+    timestamp: '2026-08-04T16:45:00.000Z',
+    recordedBy: 'Brian O. Otieno'
+  },
+  {
+    id: 'EXP-BR-006',
+    locationId: 'branch_westlands',
+    title: 'Local Courier & Fabric Samples Delivery',
+    amount: 4500,
+    category: 'Transport & Logistics',
+    paidVia: 'Cash Float',
+    paidTo: 'Speedy Dispatch Riders',
+    receiptNo: 'SDR-3310',
+    notes: 'Urgent fabric swatch deliveries to clients in Lavington & Kilimani',
+    timestamp: '2026-08-11T13:10:00.000Z',
+    recordedBy: 'Brian O. Otieno'
+  },
+  {
+    id: 'EXP-BR-007',
+    locationId: 'main_store',
+    title: 'Industrial Area Warehouse Facility Lease',
+    amount: 140000,
+    category: 'Rent',
+    paidVia: 'Bank Transfer',
+    paidTo: 'Industrial Hub Warehousing Ltd',
+    receiptNo: 'IHW-7721',
+    notes: 'Central textile warehouse lease August 2026',
+    timestamp: '2026-08-01T09:00:00.000Z',
+    recordedBy: 'David K. Munene'
+  },
+  {
+    id: 'EXP-BR-008',
+    locationId: 'main_store',
+    title: 'Forklift Maintenance & Hydraulic Fluid Service',
+    amount: 18000,
+    category: 'Repairs & Maintenance',
+    paidVia: 'Bank Transfer',
+    paidTo: 'Heavy Equipment Services Kenya',
+    receiptNo: 'HES-1192',
+    notes: 'Quarterly overhaul of warehouse pallet stacker',
+    timestamp: '2026-08-07T15:20:00.000Z',
+    recordedBy: 'David K. Munene'
   },
 ];
 
@@ -859,11 +1022,13 @@ export const INITIAL_MAIL_NOTIFICATIONS = [
 ];
 
 export const CURRENT_USER: UserProfile = {
-
-  id: 'USR-001',
-  name: 'Dereck Mwangi',
-  email: 'dereck@textiles.co.ke',
+  id: 'op-super-admin',
+  name: 'Executive Super Admin',
+  email: 'admin@taji.co.ke',
+  phone: '+254 700 111 000',
   role: 'admin',
   assignedLocation: 'main_store',
-  kraPin: 'A008291039M'
+  kraPin: 'P051982341Z',
+  pin: '123456',
+  status: 'active'
 };

@@ -3,7 +3,6 @@ import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { InterStoreTransfer, LocationId, ProductBatch } from '../../types';
-import { LOCATIONS } from '../../data/initialData';
 import {
   ArrowLeftRight,
   Building,
@@ -28,6 +27,7 @@ import {
 export const InterStoreTransfers: React.FC = () => {
   const {
     transfers,
+    locations,
     dispatchRestockTransfer,
     createDirectDispatchTransfer,
     fulfillReroutedOrder,
@@ -302,8 +302,8 @@ export const InterStoreTransfers: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {filteredTransfers.map(trf => {
-              const fromLoc = LOCATIONS.find(l => l.id === trf.fromLocation);
-              const toLoc = LOCATIONS.find(l => l.id === trf.toLocation);
+              const fromLoc = locations.find(l => l.id === trf.fromLocation);
+              const toLoc = locations.find(l => l.id === trf.toLocation);
               const isRestock = trf.transferType === 'restock_free';
               const isPending = trf.status === 'pending_approval';
               const lineVal = trf.items.reduce((acc, i) => acc + i.quantity * i.unitCost, 0);
@@ -491,10 +491,9 @@ export const InterStoreTransfers: React.FC = () => {
                     }}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-rose-500"
                   >
-                    <option value="main_store">Main Store Central Hub</option>
-                    <option value="sales_shop">Sales Shop Retail Counter</option>
-                    <option value="store_1">Store 1 (Sub Depot)</option>
-                    <option value="store_2">Store 2 (Sub Depot)</option>
+                    {locations.map(l => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -507,10 +506,9 @@ export const InterStoreTransfers: React.FC = () => {
                     onChange={(e) => setDispatchTo(e.target.value as LocationId)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-rose-500"
                   >
-                    <option value="sales_shop">Sales Shop Retail Counter</option>
-                    <option value="store_1">Store 1 (Sub Depot)</option>
-                    <option value="store_2">Store 2 (Sub Depot)</option>
-                    <option value="main_store">Main Store Central Hub</option>
+                    {locations.map(l => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -521,7 +519,7 @@ export const InterStoreTransfers: React.FC = () => {
                 <div className="space-y-3 border-r border-slate-100 pr-0 md:pr-4">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-extrabold text-slate-800">
-                      Select Items at {LOCATIONS.find(l => l.id === dispatchFrom)?.name}:
+                      Select Items at {locations.find(l => l.id === dispatchFrom)?.name}:
                     </span>
                     <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
                       {availableSourceProducts.length} In-Stock Batches
@@ -816,11 +814,11 @@ export const InterStoreTransfers: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div>
                   <p className="text-slate-400 font-bold uppercase text-[9px]">Origin Store:</p>
-                  <p className="font-extrabold text-slate-900">{LOCATIONS.find(l => l.id === selectedWaybill.fromLocation)?.name}</p>
+                  <p className="font-extrabold text-slate-900">{locations.find(l => l.id === selectedWaybill.fromLocation)?.name}</p>
                 </div>
                 <div>
                   <p className="text-slate-400 font-bold uppercase text-[9px]">Destination Store:</p>
-                  <p className="font-extrabold text-slate-900">{LOCATIONS.find(l => l.id === selectedWaybill.toLocation)?.name}</p>
+                  <p className="font-extrabold text-slate-900">{locations.find(l => l.id === selectedWaybill.toLocation)?.name}</p>
                 </div>
                 <div>
                   <p className="text-slate-400 font-bold uppercase text-[9px]">Dispatcher:</p>

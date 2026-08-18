@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { NavTab } from './Sidebar';
 import { useERP } from '../../context/ERPContext';
-import { LOCATIONS } from '../../data/initialData';
 import { LocationId, UserRole } from '../../types';
 import { playClickSound, playPopupSound } from '../../utils/audio';
 import {
@@ -24,7 +23,8 @@ import {
   Lock,
   ShieldCheck,
   Store,
-  Warehouse
+  Warehouse,
+  Building2
 } from 'lucide-react';
 
 interface MobileBottomNavProps {
@@ -53,6 +53,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     setAppMode,
     activeLocation,
     setActiveLocation,
+    locations,
     activeRole,
     setActiveRole,
     products,
@@ -102,6 +103,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   ];
 
   const secondaryNav: { id: NavTab; label: string; icon: React.ReactNode; desc: string }[] = [
+    {
+      id: 'branches',
+      label: 'Autonomous Branches',
+      icon: <Building2 className="w-5 h-5 text-indigo-500" />,
+      desc: 'Branch P&L & Cash Floats'
+    },
     {
       id: 'ledger',
       label: 'Accounting Ledger',
@@ -218,7 +225,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   onChange={e => setActiveLocation(e.target.value as LocationId)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 truncate"
                 >
-                  {LOCATIONS.map(loc => (
+                  {locations.map(loc => (
                     <option key={loc.id} value={loc.id}>
                       {loc.name}
                     </option>

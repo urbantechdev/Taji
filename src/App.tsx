@@ -13,6 +13,7 @@ import { ETRModule } from './components/etr/ETRModule';
 import { HRPayrollModule } from './components/hr/HRPayrollModule';
 import { AuditLogsModule } from './components/audit/AuditLogsModule';
 import { POSOperatorManager } from './components/admin/POSOperatorManager';
+import { BranchManagementModule } from './components/branches/BranchManagementModule';
 import { GmailInbox } from './components/gmail/GmailInbox';
 import { ETRReceiptModal } from './components/common/ETRReceiptModal';
 import { QRScannerModal } from './components/common/QRScannerModal';
@@ -95,6 +96,7 @@ const ERPContent: React.FC = () => {
             ) : (
               <>
                 {activeTab === 'dashboard' && <AdminDashboard />}
+                {activeTab === 'branches' && <BranchManagementModule />}
                 {activeTab === 'pos' && <POSModule />}
                 {activeTab === 'catalog' && <InventoryCatalog />}
                 {activeTab === 'transfers' && <InterStoreTransfers />}

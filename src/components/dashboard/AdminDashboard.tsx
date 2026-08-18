@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { LOCATIONS } from '../../data/initialData';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import {
@@ -61,6 +60,7 @@ export const AdminDashboard: React.FC = () => {
     orders,
     transfers,
     ledger,
+    locations,
     brandSettings,
     requestRestock,
     dispatchRestockTransfer,
@@ -119,7 +119,7 @@ export const AdminDashboard: React.FC = () => {
   const pendingCount = pendingTransfers.length;
 
   // 4. Store-by-Store Comprehensive Accounting & Responsibility Data
-  const storeAccountabilityData = LOCATIONS.map(loc => {
+  const storeAccountabilityData = locations.map(loc => {
     const locStockUnits = products.reduce((acc, p) => acc + (p.locationStock[loc.id] || 0), 0);
     const locStockCostVal = products.reduce((acc, p) => acc + (p.locationStock[loc.id] || 0) * p.costPrice, 0);
     const locStockRetailVal = products.reduce((acc, p) => acc + (p.locationStock[loc.id] || 0) * p.unitPriceRetail, 0);
@@ -153,6 +153,9 @@ export const AdminDashboard: React.FC = () => {
     } else if (loc.id === 'store_2') {
       assignedRole = "Sub-Depot 2 Ticket Reroute Operator";
       operatorTitle = "Store 2 Attendant";
+    } else {
+      assignedRole = `${loc.name} Autonomous Branch Manager`;
+      operatorTitle = `${loc.name} Manager`;
     }
 
     return {
@@ -175,7 +178,7 @@ export const AdminDashboard: React.FC = () => {
   });
 
   // Stock Distribution Chart Data
-  const storeStockData = LOCATIONS.map(loc => {
+  const storeStockData = locations.map(loc => {
     const locValue = products.reduce((acc, p) => {
       const qty = p.locationStock[loc.id] || 0;
       return acc + qty * p.costPrice;
@@ -534,8 +537,8 @@ export const AdminDashboard: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {pendingTransfers.map(trf => {
-                    const fromLoc = LOCATIONS.find(l => l.id === trf.fromLocation);
-                    const toLoc = LOCATIONS.find(l => l.id === trf.toLocation);
+                    const fromLoc = locations.find(l => l.id === trf.fromLocation);
+                    const toLoc = locations.find(l => l.id === trf.toLocation);
                     const isReroute = trf.transferType === 'order_fulfillment_reroute';
 
                     return (
@@ -624,7 +627,7 @@ export const AdminDashboard: React.FC = () => {
           {expandedBlock === 'stock' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {LOCATIONS.map(loc => {
+                {locations.map(loc => {
                   const val = products.reduce((acc, p) => acc + (p.locationStock[loc.id] || 0) * p.costPrice, 0);
                   const totalUnits = products.reduce((acc, p) => acc + (p.locationStock[loc.id] || 0), 0);
                   const pct = totalStockValue > 0 ? (val / totalStockValue) * 100 : 0;
@@ -746,7 +749,7 @@ export const AdminDashboard: React.FC = () => {
                     <p className="text-xs text-slate-500 text-center py-4">No completed orders recorded yet.</p>
                   ) : (
                     orders.map(ord => {
-                      const loc = LOCATIONS.find(l => l.id === ord.fulfilledByLocation);
+                      const loc = locations.find(l => l.id === ord.fulfilledByLocation);
 
                       return (
                         <div key={ord.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 text-xs gap-3">
@@ -820,7 +823,7 @@ export const AdminDashboard: React.FC = () => {
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  {LOCATIONS.map(loc => (
+                  {locations.map(loc => (
                     <div key={loc.id} className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
                       <div className="space-y-0.5">
                         <p className="font-bold text-slate-900">{loc.name}</p>
@@ -1112,30 +1115,30 @@ export const AdminDashboard: React.FC = () => {
 
         </div>
 
-        {/* DEAD STOCK ALERT & STAGNANT INVENTORY CAPITAL RISK MONITOR */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl border border-purple-800 shadow-xl space-y-4 group">
-          <RightEdgeBlend variant="purple" />
+        {/* DEAD STOCK ALERT & STAGNANT INVENTORY CAPITAL RISK MONITOR - WHITE BACKGROUND */}
+        <div className="relative overflow-hidden bg-white text-slate-900 p-5 rounded-2xl border border-rose-200 shadow-sm space-y-4 group">
+          <RightEdgeBlend variant="sunset" />
           
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-800/80 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
-              <h3 className="font-extrabold text-white text-sm flex items-center gap-2">
-                <Flame className="w-5 h-5 text-amber-400 animate-pulse" />
+              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <Flame className="w-5 h-5 text-rose-600 animate-pulse" />
                 <span>Dead Stock Alert &amp; Capital Clearance Monitor ({deadStockItems.length} Batches)</span>
               </h3>
-              <p className="text-xs text-purple-200 mt-0.5">
-                Stagnant inventory batches with 0 sales in order history • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-extrabold">KSh {deadStockCapital.toLocaleString()}</strong>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Stagnant inventory batches with 0 sales in order history • Total Tied-Up Capital: <strong className="text-rose-700 font-mono font-extrabold">KSh {deadStockCapital.toLocaleString()}</strong>
               </p>
             </div>
 
-            <div className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-extrabold rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/40 shrink-0">
+            <div className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-extrabold rounded-full bg-rose-50 text-rose-800 border border-rose-200 shrink-0">
               {deadStockItems.length > 0 ? (
                 <>
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <span>{deadStockItems.length} Batches Stagnant</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>Zero Dead Stock</span>
                 </>
               )}
@@ -1143,7 +1146,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           {deadStockItems.length === 0 ? (
-            <div className="p-6 text-center text-purple-200 text-xs font-medium bg-purple-900/30 rounded-xl border border-purple-800">
+            <div className="p-6 text-center text-slate-500 text-xs font-medium bg-emerald-50/40 rounded-xl border border-emerald-200">
               High inventory turnover achieved! All catalog product batches have recorded active sales.
             </div>
           ) : (
@@ -1155,27 +1158,27 @@ export const AdminDashboard: React.FC = () => {
                 return (
                   <div
                     key={`dead-${p.id}`}
-                    className="p-3.5 bg-purple-900/40 border border-purple-700/60 rounded-xl space-y-2 hover:border-purple-500 transition-all"
+                    className="p-3.5 bg-slate-50/90 border border-slate-200 rounded-xl space-y-2 hover:bg-white hover:border-rose-300 hover:shadow-xs transition-all"
                   >
                     <div className="flex items-center gap-2.5">
                       <div
-                        className="w-4 h-4 rounded-full border border-white/20 shadow-xs shrink-0"
+                        className="w-4 h-4 rounded-full border border-slate-300 shadow-xs shrink-0"
                         style={{ backgroundColor: p.colorHex }}
                       />
                       <div className="min-w-0">
-                        <p className="font-extrabold text-white text-xs truncate">{p.name}</p>
-                        <p className="text-[10px] text-purple-300 font-mono">{p.sku} • {p.category}</p>
+                        <p className="font-extrabold text-slate-900 text-xs truncate">{p.name}</p>
+                        <p className="text-[10px] text-slate-500 font-mono">{p.sku} • {p.category}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-purple-800/80">
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/80">
                       <div>
-                        <span className="text-purple-300">Total Holding: </span>
-                        <strong className="text-white font-mono">{totalStock} {p.unit}</strong>
+                        <span className="text-slate-500">Total Holding: </span>
+                        <strong className="text-slate-900 font-mono font-bold">{totalStock} {p.unit}</strong>
                       </div>
                       <div>
-                        <span className="text-purple-300">Tied-Up Capital: </span>
-                        <strong className="text-amber-300 font-mono font-extrabold">KSh {capitalValue.toLocaleString()}</strong>
+                        <span className="text-slate-500">Tied-Up Capital: </span>
+                        <strong className="text-rose-700 font-mono font-extrabold">KSh {capitalValue.toLocaleString()}</strong>
                       </div>
                     </div>
                   </div>

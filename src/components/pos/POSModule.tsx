@@ -3,7 +3,6 @@ import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, LocationId } from '../../types';
-import { LOCATIONS } from '../../data/initialData';
 import { HeldCartsModal } from './HeldCartsModal';
 import { ProductDetailModal } from './ProductDetailModal';
 import { playClickSound, playPopupSound } from '../../utils/audio';
@@ -37,6 +36,7 @@ import {
 export const POSModule: React.FC = () => {
   const {
     activeLocation,
+    locations,
     products,
     cart,
     addToCart,
@@ -77,7 +77,7 @@ export const POSModule: React.FC = () => {
   const [transferFeedback, setTransferFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [transferSearch, setTransferSearch] = useState('');
 
-  const activeLocInfo = LOCATIONS.find(l => l.id === activeLocation);
+  const activeLocInfo = locations.find(l => l.id === activeLocation);
 
   // Filtered product catalog
   const filteredProducts = products.filter(p => {
@@ -121,7 +121,7 @@ export const POSModule: React.FC = () => {
       setTransferItems([{ batchId: products[0].id, quantity: 1 }]);
     }
     setTransferFromLocation(activeLocation || 'main_store');
-    const firstOther = LOCATIONS.find(l => l.id !== (activeLocation || 'main_store'))?.id || 'sales_shop';
+    const firstOther = locations.find(l => l.id !== (activeLocation || 'main_store'))?.id || 'sales_shop';
     setTransferToLocation(firstOther as LocationId);
     setTransferFeedback(null);
     setIsTransferModalOpen(true);
@@ -909,7 +909,7 @@ export const POSModule: React.FC = () => {
                   onChange={e => setTransferFromLocation(e.target.value as LocationId)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
                 >
-                  {LOCATIONS.map(loc => (
+                  {locations.map(loc => (
                     <option key={loc.id} value={loc.id}>
                       {loc.name} ({loc.type})
                     </option>
@@ -926,7 +926,7 @@ export const POSModule: React.FC = () => {
                   onChange={e => setTransferToLocation(e.target.value as LocationId)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
                 >
-                  {LOCATIONS.filter(l => l.id !== transferFromLocation).map(loc => (
+                  {locations.filter(l => l.id !== transferFromLocation).map(loc => (
                     <option key={loc.id} value={loc.id}>
                       {loc.name} ({loc.type})
                     </option>
@@ -962,7 +962,7 @@ export const POSModule: React.FC = () => {
                     const srcStock = p.locationStock[transferFromLocation] || 0;
                     return (
                       <option key={p.id} value={p.id}>
-                        {p.name} ({p.colorName}) - Avail at {LOCATIONS.find(l => l.id === transferFromLocation)?.name}: {srcStock} {p.unit}
+                        {p.name} ({p.colorName}) - Avail at {locations.find(l => l.id === transferFromLocation)?.name}: {srcStock} {p.unit}
                       </option>
                     );
                   })}

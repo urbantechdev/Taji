@@ -196,15 +196,17 @@ export const BrandSettingsModal: React.FC = () => {
             {/* Logo Preview & Upload Box */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Preview Box */}
-              <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col items-center justify-center text-center min-h-[90px]">
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center justify-center text-center min-h-[110px] shadow-xs">
                 {logoUrl ? (
-                  <img src={logoUrl} alt="Logo preview" className="max-h-16 max-w-full object-contain" />
+                  <div className="w-20 h-20 rounded-full border-2 border-pink-500/40 p-1 bg-slate-50 ring-4 ring-pink-50 flex items-center justify-center overflow-hidden">
+                    <img src={logoUrl} alt="Logo preview" className="w-full h-full object-cover rounded-full" />
+                  </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-1 text-slate-400">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-pink-500 flex items-center justify-center text-white font-black text-lg">
-                      {(brandName || 'Z').charAt(0).toUpperCase()}
+                  <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl shadow-sm border-2 border-white">
+                      {(brandName || 'T').charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-[10px] font-medium text-slate-400">Default Badge</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Default Logo Badge</span>
                   </div>
                 )}
               </div>

@@ -1,4 +1,6 @@
 import React from 'react';
+import { useERP } from '../../context/ERPContext';
+import { isTabAllowedForRole, getRoleMetadata } from '../../utils/rbac';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -9,7 +11,11 @@ import {
   Users,
   ClipboardList,
   Mail,
-  UserCheck
+  UserCheck,
+  Building2,
+  Shield,
+  User,
+  Settings
 } from 'lucide-react';
 
 export type NavTab =
@@ -22,7 +28,8 @@ export type NavTab =
   | 'payroll'
   | 'audit'
   | 'gmail'
-  | 'operators';
+  | 'operators'
+  | 'branches';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -30,11 +37,18 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const navItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
+  const { currentUser, setIsUserProfileModalOpen, locations } = useERP();
+
+  const allNavItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     {
       id: 'dashboard',
       label: 'Executive Dashboard',
       icon: <LayoutDashboard className="w-4 h-4" />,
+    },
+    {
+      id: 'branches',
+      label: 'Autonomous Branches',
+      icon: <Building2 className="w-4 h-4" />,
     },
     {
       id: 'pos',
@@ -83,6 +97,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
   ];
 
+  // RBAC Filter: Only show tabs permitted for the current user's role
+  const permittedNavItems = allNavItems.filter(item =>
+    isTabAllowedForRole(currentUser.role, item.id)
+  );
+
+  const roleMeta = getRoleMetadata(currentUser.role);
+  const userBranch = locations.find(l => l.id === currentUser.assignedLocation);
+
   return (
     <aside
       className="hidden md:flex w-full md:w-64 border-r border-slate-700/50 text-slate-200 flex-col shrink-0 transition-colors duration-300 bg-gradient-to-b from-[#242830] via-[#1a1d24] to-[#121418] shadow-2xl relative overflow-y-auto overflow-x-hidden group/sidebar h-full select-none z-20"
@@ -97,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
           <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
         </p>
         <nav className="space-y-1">
-          {navItems.map(item => {
+          {permittedNavItems.map(item => {
             const isActive = activeTab === item.id;
             return (
               <button
@@ -143,6 +165,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             );
           })}
         </nav>
+      </div>
+
+      {/* User Profile & Active Role Card in Sidebar Footer */}
+      <div className="p-3 m-3 bg-slate-800/80 border border-slate-700/80 rounded-2xl relative z-10 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-600 to-pink-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-md">
+              {currentUser.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
+              <span className={`inline-block px-1.5 py-0.2 rounded-md text-[9px] font-bold border ${roleMeta.badgeClass}`}>
+                {roleMeta.shortLabel}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsUserProfileModalOpen(true)}
+            className="p-1.5 bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer"
+            title="Open Account Profile Settings"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="pt-1.5 border-t border-slate-700/60 flex items-center justify-between text-[10px] text-slate-400">
+          <span className="truncate">{userBranch?.name || currentUser.assignedLocation}</span>
+          <span className="font-mono text-emerald-400 font-bold">● Active</span>
+        </div>
       </div>
     </aside>
   );

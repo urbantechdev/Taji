@@ -4,6 +4,9 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firesto
 import { auth, googleProvider, signInWithPopup, signOut, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   LocationId,
+  LocationInfo,
+  BranchExpense,
+  BranchFinancialSummary,
   UserRole,
   UserProfile,
   ProductBatch,
@@ -23,6 +26,7 @@ import {
 } from '../types';
 import {
   LOCATIONS,
+  INITIAL_BRANCH_EXPENSES,
   INITIAL_PRODUCTS,
   INITIAL_ORDERS,
   INITIAL_TRANSFERS,
@@ -76,6 +80,15 @@ interface ERPContextType {
   updateBrandSettings: (settings: Partial<BrandSettings>) => void;
 
   // Data Collections
+  locations: LocationInfo[];
+  addLocation: (branchData: Omit<LocationInfo, 'id'> & { id?: string; initialStockAllocations?: Record<string, number> }) => Promise<{ success: boolean; message: string; location?: LocationInfo }>;
+  updateLocation: (id: string, updates: Partial<LocationInfo>) => Promise<{ success: boolean; message: string }>;
+  deleteLocation: (id: string) => Promise<{ success: boolean; message: string }>;
+  branchExpenses: BranchExpense[];
+  addBranchExpense: (expense: Omit<BranchExpense, 'id' | 'timestamp' | 'recordedBy'>) => Promise<{ success: boolean; message: string; expenseId?: string }>;
+  deleteBranchExpense: (id: string) => Promise<{ success: boolean; message: string }>;
+  adjustBranchCashFloat: (locationId: string, adjustmentAmount: number, reason: string) => { success: boolean; message: string };
+  getBranchFinancialSummary: (locationId: string) => BranchFinancialSummary;
   products: ProductBatch[];
   orders: SaleOrder[];
   transfers: InterStoreTransfer[];
@@ -162,6 +175,9 @@ interface ERPContextType {
   recordAuditLog: (action: string, details: string) => void;
 
   // Active Modals & Utilities
+  isUserProfileModalOpen: boolean;
+  setIsUserProfileModalOpen: (open: boolean) => void;
+  updateCurrentUserProfile: (profileUpdates: Partial<UserProfile>) => Promise<{ success: boolean; message: string }>;
   selectedReceipt: SaleOrder | null;
   setSelectedReceipt: (order: SaleOrder | null) => void;
   isQRScannerOpen: boolean;
@@ -260,7 +276,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Firestore Sync for POS Operators
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
+
+  // Firestore Sync for POS Operators with legacy mock filter
   useEffect(() => {
     const path = 'pos_operators';
     try {
@@ -268,9 +286,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!snapshot.empty) {
           const loadedOps: POSOperator[] = [];
           snapshot.forEach((doc) => {
-            loadedOps.push(doc.data() as POSOperator);
+            const op = doc.data() as POSOperator;
+            // Cleanse obsolete mock operators that are not the root admin
+            if (op.id !== 'op-main-cashier' && op.id !== 'op-sales-cashier') {
+              loadedOps.push(op);
+            }
           });
-          setPosOperators(loadedOps);
+          if (loadedOps.length > 0) {
+            setPosOperators(loadedOps);
+          }
         }
       }, (error) => {
         console.warn('Firestore POS operators sync note (operating with local state):', error.message);
@@ -285,7 +309,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newOp: POSOperator = {
       ...opData,
       id: `op-${Date.now()}`,
-      createdAt: new Date().toISOString()
+      status: opData.status || 'active',
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser.name || 'Executive Admin'
     };
     setPosOperators(prev => [newOp, ...prev]);
 
@@ -295,8 +321,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Error saving operator to Firestore:', error);
     }
 
-    recordAuditLog('POS Operator Created', `Created operator ${newOp.name} (${newOp.email}) with 6-digit PIN for ${newOp.location}`);
-    return { success: true, message: `Operator ${newOp.name} created successfully!` };
+    recordAuditLog('User Operator Created', `Admin created ${newOp.role} user: ${newOp.name} (${newOp.email}) assigned to ${newOp.location}`);
+    return { success: true, message: `User ${newOp.name} (${newOp.role}) created successfully!` };
   };
 
   const updatePOSOperator = async (id: string, updates: Partial<Omit<POSOperator, 'id' | 'createdAt'>>) => {
@@ -310,49 +336,85 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     if (updatedOp) {
+      // If current user is this operator, sync currentUser profile
+      if (currentUser.id === id) {
+        setCurrentUser(prev => ({
+          ...prev,
+          name: updatedOp!.name,
+          email: updatedOp!.email,
+          phone: updatedOp!.phone || prev.phone,
+          kraPin: updatedOp!.kraPin || prev.kraPin,
+          role: updatedOp!.role,
+          assignedLocation: updatedOp!.location,
+          pin: updatedOp!.pin
+        }));
+        setActiveRoleState(updatedOp.role);
+        setActiveLocation(updatedOp.location);
+      }
+
       try {
         await setDoc(doc(db, 'pos_operators', id), updatedOp, { merge: true });
       } catch (error) {
         console.error('Error updating operator in Firestore:', error);
       }
-      recordAuditLog('POS Operator Updated', `Updated operator ${updatedOp.name} (${updatedOp.email})`);
-      return { success: true, message: `Operator ${updatedOp.name} updated successfully!` };
+      recordAuditLog('User Profile Updated', `Updated user credentials for ${updatedOp.name} (${updatedOp.role})`);
+      return { success: true, message: `User ${updatedOp.name} updated successfully!` };
     }
-    return { success: false, message: 'Operator not found.' };
+    return { success: false, message: 'User not found.' };
   };
 
   const deletePOSOperator = async (id: string) => {
+    const opToDelete = posOperators.find(o => o.id === id);
+    if (opToDelete?.role === 'admin' && posOperators.filter(o => o.role === 'admin').length <= 1) {
+      return { success: false, message: 'Cannot delete the primary root Executive Admin account.' };
+    }
+
     setPosOperators(prev => prev.filter(op => op.id !== id));
     try {
       await deleteDoc(doc(db, 'pos_operators', id));
     } catch (error) {
       console.error('Error deleting operator from Firestore:', error);
     }
-    recordAuditLog('POS Operator Deleted', `Deleted operator ID ${id}`);
-    return { success: true, message: 'Operator removed successfully.' };
+    recordAuditLog('User Operator Deleted', `Removed operator ID ${id} (${opToDelete?.name || ''})`);
+    return { success: true, message: 'User removed successfully.' };
+  };
+
+  const updateCurrentUserProfile = async (profileUpdates: Partial<UserProfile>) => {
+    const updated = { ...currentUser, ...profileUpdates };
+    setCurrentUser(updated);
+
+    if (currentUser.id) {
+      setPosOperators(prev => prev.map(op => {
+        if (op.id === currentUser.id) {
+          return {
+            ...op,
+            name: profileUpdates.name ?? op.name,
+            email: profileUpdates.email ?? op.email,
+            phone: profileUpdates.phone ?? op.phone,
+            kraPin: profileUpdates.kraPin ?? op.kraPin,
+            pin: profileUpdates.pin ?? op.pin,
+            location: profileUpdates.assignedLocation ?? op.location,
+            role: profileUpdates.role ?? op.role
+          };
+        }
+        return op;
+      }));
+    }
+
+    recordAuditLog('Profile Updated', `Account profile updated for ${updated.name} (${updated.role})`);
+    return { success: true, message: 'Profile details updated successfully.' };
   };
 
   const unlockPOSWithPin = (pin: string) => {
     const trimmedPin = pin.trim();
     if (!trimmedPin || trimmedPin.length !== 6) {
-      return { success: false, message: 'PIN code must be exactly 6 digits.' };
+      return { success: false, message: 'PIN code must be exactly 6 numeric digits.' };
     }
 
-    let matchedOp = posOperators.find(op => op.pin === trimmedPin);
-
-    if (!matchedOp && trimmedPin === '123456') {
-      matchedOp = {
-        id: 'op-default-123456',
-        name: 'Main Store Operator (123456)',
-        email: 'operator@urbaninterior.co.ke',
-        pin: '123456',
-        location: activeLocation,
-        role: 'main_store_operator',
-        createdAt: new Date().toISOString()
-      };
-    }
+    const matchedOp = posOperators.find(op => op.pin === trimmedPin);
 
     if (matchedOp) {
+      const now = new Date().toISOString();
       setPosSession({
         isUnlocked: true,
         operatorId: matchedOp.id,
@@ -362,16 +424,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         role: matchedOp.role
       });
       setActiveLocation(matchedOp.location);
-      recordAuditLog('POS PIN Login', `POS unlocked by ${matchedOp.name} (${matchedOp.location}) using 6-digit PIN`);
-      return { success: true, message: `Welcome ${matchedOp.name}! POS Unlocked.`, operator: matchedOp };
+      setActiveRoleState(matchedOp.role);
+      setCurrentUser({
+        id: matchedOp.id,
+        name: matchedOp.name,
+        email: matchedOp.email,
+        phone: matchedOp.phone || '+254 700 111 000',
+        role: matchedOp.role,
+        assignedLocation: matchedOp.location,
+        kraPin: matchedOp.kraPin || 'P051982341Z',
+        pin: matchedOp.pin,
+        status: matchedOp.status || 'active',
+        lastLoginAt: now
+      });
+
+      recordAuditLog('User Login Success', `${matchedOp.name} (${matchedOp.role}) unlocked session at ${matchedOp.location} via PIN`);
+      return { success: true, message: `Welcome ${matchedOp.name}! Logged in as ${matchedOp.role.replace(/_/g, ' ')}.`, operator: matchedOp };
     } else {
-      return { success: false, message: 'Invalid 6-digit PIN. Please enter a valid cashier PIN or default 123456.' };
+      return { success: false, message: 'Invalid 6-digit PIN code. Contact Super Admin if you need access credentials.' };
     }
   };
 
   const lockPOSSession = () => {
     setPosSession(null);
-    recordAuditLog('POS Session Locked', 'POS Terminal locked back to PIN prompt.');
+    recordAuditLog('Session Locked', `Active session locked for user ${currentUser.name}`);
   };
 
   // Brand Settings & Modals
@@ -393,6 +469,50 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       link.href = iconUrl;
     }
   }, [brandSettings.faviconUrl, brandSettings.logoUrl]);
+
+  // Dynamic Locations / Branches State with localStorage caching
+  const [locations, setLocations] = useState<LocationInfo[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_locations');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading saved locations from localStorage:', e);
+    }
+    return LOCATIONS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_locations', JSON.stringify(locations));
+    } catch (e) {
+      console.warn('Error saving locations to localStorage:', e);
+    }
+  }, [locations]);
+
+  // Branch Expenses State with localStorage caching
+  const [branchExpenses, setBranchExpenses] = useState<BranchExpense[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_branch_expenses');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading branch expenses from localStorage:', e);
+    }
+    return INITIAL_BRANCH_EXPENSES;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_branch_expenses', JSON.stringify(branchExpenses));
+    } catch (e) {
+      console.warn('Error saving branch expenses to localStorage:', e);
+    }
+  }, [branchExpenses]);
 
   // Core Data States
   const [products, setProducts] = useState<ProductBatch[]>(INITIAL_PRODUCTS);
@@ -557,6 +677,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else if (role === 'accountant') {
       assignedLoc = 'main_store';
       roleName = 'Faith Chebet (Accountant)';
+    } else if (role === 'branch_manager') {
+      assignedLoc = activeLocation || 'branch_westlands';
+      roleName = 'Brian O. Otieno (Branch Manager)';
+    } else if (role === 'branch_cashier') {
+      assignedLoc = activeLocation || 'branch_westlands';
+      roleName = 'Mercy Chebet (Branch Cashier)';
     }
 
     setActiveLocation(assignedLoc);
@@ -582,6 +708,272 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ipAddress: '192.168.1.100'
     };
     setAuditLogs(prev => [newLog, ...prev]);
+  };
+
+  // BRANCH MANAGEMENT & INDEPENDENT FINANCIAL OPERATIONS
+  const addLocation = async (branchData: Omit<LocationInfo, 'id'> & { id?: string; initialStockAllocations?: Record<string, number> }) => {
+    const rawId = branchData.id || `branch_${(branchData.code || branchData.name).toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now().toString().slice(-4)}`;
+    const branchId: LocationId = rawId.toLowerCase();
+
+    const newBranch: LocationInfo = {
+      ...branchData,
+      id: branchId,
+      code: branchData.code || `BR-${branchId.slice(0, 4).toUpperCase()}`,
+      status: branchData.status || 'active',
+      isAutonomousFinancial: branchData.isAutonomousFinancial ?? true,
+      openingFloat: branchData.openingFloat ?? 50000,
+      currentCashBalance: branchData.currentCashBalance ?? (branchData.openingFloat ?? 50000),
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. Add to locations state
+    setLocations(prev => [...prev, newBranch]);
+
+    // 2. Initialize stock allocation for all products at this new branch location
+    setProducts(prevProducts =>
+      prevProducts.map(p => ({
+        ...p,
+        locationStock: {
+          ...p.locationStock,
+          [branchId]: branchData.initialStockAllocations?.[p.id] ?? 0
+        }
+      }))
+    );
+
+    // 3. Create initial opening float ledger entry if opening float > 0
+    if (newBranch.openingFloat && newBranch.openingFloat > 0) {
+      const openingLedgerEntry: LedgerEntry = {
+        id: `LEDG-FLT-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        transactionRef: `CAP-INJ-${newBranch.code || branchId}`,
+        description: `Initial Opening Cash Float & Working Capital for ${newBranch.name}`,
+        debitAccount: `${newBranch.name} Cash Drawer & Float Account`,
+        creditAccount: 'Central Treasury / Capital Allocation',
+        amount: newBranch.openingFloat,
+        locationId: branchId,
+        category: 'Sales'
+      };
+      setLedger(prev => [openingLedgerEntry, ...prev]);
+    }
+
+    recordAuditLog(
+      'New Branch Created',
+      `Created autonomous branch "${newBranch.name}" (${newBranch.code}) | Autonomous Finances: ${newBranch.isAutonomousFinancial ? 'YES' : 'NO'} | Opening Float: KSh ${(newBranch.openingFloat || 0).toLocaleString()}`
+    );
+
+    playSuccessSound();
+    return {
+      success: true,
+      message: `Branch "${newBranch.name}" created successfully with independent operations and finances!`,
+      location: newBranch
+    };
+  };
+
+  const updateLocation = async (id: string, updates: Partial<LocationInfo>) => {
+    let updatedLoc: LocationInfo | undefined;
+    setLocations(prev =>
+      prev.map(loc => {
+        if (loc.id === id) {
+          updatedLoc = { ...loc, ...updates };
+          return updatedLoc;
+        }
+        return loc;
+      })
+    );
+
+    if (updatedLoc) {
+      recordAuditLog(
+        'Branch Profile Updated',
+        `Updated settings and financial parameters for branch "${updatedLoc.name}" (${updatedLoc.code || updatedLoc.id})`
+      );
+      return { success: true, message: `Branch "${updatedLoc.name}" updated successfully.` };
+    }
+    return { success: false, message: 'Branch not found.' };
+  };
+
+  const deleteLocation = async (id: string) => {
+    const locToDelete = locations.find(l => l.id === id);
+    if (!locToDelete) return { success: false, message: 'Branch not found.' };
+
+    if (id === 'main_store') {
+      return { success: false, message: 'Cannot delete the Main Store Central Hub.' };
+    }
+
+    setLocations(prev => prev.filter(l => l.id !== id));
+    if (activeLocation === id) {
+      setActiveLocation('main_store');
+    }
+
+    recordAuditLog(
+      'Branch Deactivated / Removed',
+      `Removed branch "${locToDelete.name}" (${locToDelete.code || locToDelete.id}) from network.`
+    );
+    return { success: true, message: `Branch "${locToDelete.name}" removed successfully.` };
+  };
+
+  const addBranchExpense = async (expenseData: Omit<BranchExpense, 'id' | 'timestamp' | 'recordedBy'>) => {
+    const loc = locations.find(l => l.id === expenseData.locationId);
+    const locName = loc?.name || expenseData.locationId;
+    const expId = `EXP-${Date.now().toString().slice(-6)}`;
+
+    const newExpense: BranchExpense = {
+      ...expenseData,
+      id: expId,
+      timestamp: new Date().toISOString(),
+      recordedBy: currentUser.name
+    };
+
+    // 1. Add to branchExpenses
+    setBranchExpenses(prev => [newExpense, ...prev]);
+
+    // 2. Add double-entry to Ledger
+    const expLedgerEntry: LedgerEntry = {
+      id: `LEDG-${expId}`,
+      timestamp: new Date().toISOString(),
+      transactionRef: expId,
+      description: `Branch Operating Expense: ${expenseData.title} (${expenseData.category}) - ${locName}`,
+      debitAccount: `${locName} Operating Expense (${expenseData.category})`,
+      creditAccount: `${locName} ${expenseData.paidVia}`,
+      amount: expenseData.amount,
+      locationId: expenseData.locationId,
+      category: 'Expense'
+    };
+    setLedger(prev => [expLedgerEntry, ...prev]);
+
+    // 3. Decrement cash drawer if paid via Cash Float
+    if (expenseData.paidVia === 'Cash Float') {
+      setLocations(prev =>
+        prev.map(l => {
+          if (l.id === expenseData.locationId) {
+            const current = l.currentCashBalance ?? l.openingFloat ?? 0;
+            return {
+              ...l,
+              currentCashBalance: Math.max(0, current - expenseData.amount)
+            };
+          }
+          return l;
+        })
+      );
+    }
+
+    recordAuditLog(
+      'Branch Expense Logged',
+      `Recorded KSh ${expenseData.amount.toLocaleString()} for "${expenseData.title}" (${expenseData.category}) at ${locName} paid via ${expenseData.paidVia}`
+    );
+
+    playSuccessSound();
+    return {
+      success: true,
+      message: `Expense of KSh ${expenseData.amount.toLocaleString()} successfully recorded for ${locName}!`,
+      expenseId: expId
+    };
+  };
+
+  const deleteBranchExpense = async (id: string) => {
+    setBranchExpenses(prev => prev.filter(e => e.id !== id));
+    setLedger(prev => prev.filter(l => l.transactionRef !== id));
+    return { success: true, message: 'Expense record deleted.' };
+  };
+
+  const adjustBranchCashFloat = (locationId: string, adjustmentAmount: number, reason: string) => {
+    const loc = locations.find(l => l.id === locationId);
+    if (!loc) return { success: false, message: 'Branch not found.' };
+
+    const previousBalance = loc.currentCashBalance ?? loc.openingFloat ?? 0;
+    const newBalance = previousBalance + adjustmentAmount;
+
+    setLocations(prev =>
+      prev.map(l => (l.id === locationId ? { ...l, currentCashBalance: newBalance } : l))
+    );
+
+    const adjLedgerEntry: LedgerEntry = {
+      id: `LEDG-ADJ-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString(),
+      transactionRef: `FLOAT-ADJ-${locationId}`,
+      description: `Cash Drawer Float Adjustment for ${loc.name}: ${reason}`,
+      debitAccount: adjustmentAmount >= 0 ? `${loc.name} Cash Drawer & Float` : 'Cash Shortage / Variance Expense',
+      creditAccount: adjustmentAmount >= 0 ? 'Central Treasury Cash Injection' : `${loc.name} Cash Drawer & Float`,
+      amount: Math.abs(adjustmentAmount),
+      locationId,
+      category: 'Expense'
+    };
+    setLedger(prev => [adjLedgerEntry, ...prev]);
+
+    recordAuditLog(
+      'Branch Cash Float Adjusted',
+      `Adjusted cash float for ${loc.name} by KSh ${adjustmentAmount >= 0 ? '+' : ''}${adjustmentAmount.toLocaleString()} (New Balance: KSh ${newBalance.toLocaleString()}) - Reason: ${reason}`
+    );
+
+    return { success: true, message: `Cash balance updated to KSh ${newBalance.toLocaleString()}` };
+  };
+
+  const getBranchFinancialSummary = (locationId: string): BranchFinancialSummary => {
+    const loc = locations.find(l => l.id === locationId) || {
+      id: locationId,
+      name: locationId,
+      code: locationId,
+      type: 'Independent Branch' as const,
+      isAutonomousFinancial: true,
+      canSellDirectly: true,
+      canFulfillOrders: true,
+      canRequestRestock: true,
+      address: '',
+      phone: ''
+    };
+
+    const branchOrders = orders.filter(
+      o => (o.fulfilledByLocation === locationId || o.originLocation === locationId) && o.status === 'completed'
+    );
+    const grossRevenue = branchOrders.reduce((sum, o) => sum + o.grandTotal, 0);
+    const vatLiability = branchOrders.reduce((sum, o) => sum + o.vatAmount, 0);
+    const netRevenue = grossRevenue - vatLiability;
+
+    const costOfGoodsSold = branchOrders.reduce((sum, o) => {
+      return sum + o.items.reduce((itemSum, item) => {
+        const prod = products.find(p => p.id === item.batchId);
+        return itemSum + (item.quantity * (prod?.costPrice || 0));
+      }, 0);
+    }, 0);
+
+    const grossProfit = netRevenue - costOfGoodsSold;
+    const branchExps = branchExpenses.filter(e => e.locationId === locationId);
+    const totalExpenses = branchExps.reduce((sum, e) => sum + e.amount, 0);
+    const netProfit = grossProfit - totalExpenses;
+    const profitMarginPercent = grossRevenue > 0 ? Number(((netProfit / grossRevenue) * 100).toFixed(1)) : 0;
+
+    const currentCashFloat = loc.currentCashBalance ?? loc.openingFloat ?? 0;
+    const bankBalanceEstimate = (loc.openingFloat || 0) + grossRevenue - totalExpenses;
+
+    const inventoryItemCount = products.reduce((sum, p) => sum + (p.locationStock[locationId] || 0), 0);
+    const inventoryTotalValue = products.reduce(
+      (sum, p) => sum + ((p.locationStock[locationId] || 0) * p.costPrice),
+      0
+    );
+    const pendingTransfersCount = transfers.filter(
+      t => (t.fromLocation === locationId || t.toLocation === locationId) && t.status === 'pending_approval'
+    ).length;
+
+    return {
+      locationId,
+      locationName: loc.name,
+      locationCode: loc.code || locationId,
+      locationType: loc.type,
+      isAutonomousFinancial: Boolean(loc.isAutonomousFinancial),
+      grossRevenue,
+      vatLiability,
+      netRevenue,
+      costOfGoodsSold,
+      grossProfit,
+      totalExpenses,
+      netProfit,
+      profitMarginPercent,
+      currentCashFloat,
+      bankBalanceEstimate,
+      totalOrdersCount: branchOrders.length,
+      inventoryItemCount,
+      inventoryTotalValue,
+      pendingTransfersCount
+    };
   };
 
   // CART OPERATIONS
@@ -646,7 +1038,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isQuotation: boolean = false
   ) => {
     // Check Store 1 and Store 2 restriction
-    const locInfo = LOCATIONS.find(l => l.id === activeLocation);
+    const locInfo = locations.find(l => l.id === activeLocation);
     if (!locInfo?.canSellDirectly && !isQuotation) {
       playAlertSound();
       return {
@@ -757,7 +1149,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setLedger(prev => [ledgerRev, ledgerVat, ...prev]);
 
-      // 3. Record Audit Log
+      // 3. Update branch cash balance if paid in cash
+      if (paymentMethod === 'Cash') {
+        setLocations(prevLocs =>
+          prevLocs.map(l => {
+            if (l.id === activeLocation) {
+              const current = l.currentCashBalance ?? l.openingFloat ?? 0;
+              return { ...l, currentCashBalance: current + grossTotal };
+            }
+            return l;
+          })
+        );
+      }
+
+      // 4. Record Audit Log
       recordAuditLog(
         'POS Sale Completed',
         `Issued ETR Receipt ${receiptNum} for KSh ${grossTotal.toLocaleString()} (${paymentMethod}) at ${locInfo?.name}`
@@ -792,6 +1197,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
+    const originLoc = locations.find(l => l.id === activeLocation);
     const newTransfer: InterStoreTransfer = {
       id: transferId,
       transferType: 'order_fulfillment_reroute',
@@ -799,7 +1205,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toLocation: targetLocation,
       requestedByOperator: currentUser.name,
       items: transferItems,
-      notes: `Purchase request routed from ${LOCATIONS.find(l => l.id === activeLocation)?.name} for customer: ${customerName}`,
+      notes: `Purchase request routed from ${originLoc?.name || activeLocation} for customer: ${customerName}`,
       status: 'pending_approval',
       requestedAt: new Date().toISOString()
     };
@@ -830,7 +1236,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `HOLD-${transferId}`,
       transferId,
       isTransferredSale: true,
-      note: `Transferred Order Ticket (${transferId}) from ${LOCATIONS.find(l => l.id === activeLocation)?.name}`,
+      note: `Transferred Order Ticket (${transferId}) from ${originLoc?.name || activeLocation}`,
       customerName,
       items: cartItemsForHeld,
       heldAt: new Date().toISOString(),
@@ -845,7 +1251,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const mailNotif: MailNotification = {
       id: `MAIL-${Date.now().toString().slice(-5)}`,
       title: 'New Purchase Order Ticket Rerouted',
-      message: `Purchase order ticket ${transferId} created at ${LOCATIONS.find(l => l.id === activeLocation)?.name} -> Rerouted to Main Store for customer ${customerName}.`,
+      message: `Purchase order ticket ${transferId} created at ${originLoc?.name || activeLocation} -> Rerouted to Main Store for customer ${customerName}.`,
       transferId,
       transferType: 'order_fulfillment_reroute',
       fromLocation: activeLocation,
@@ -859,7 +1265,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     recordAuditLog(
       'Order Reroute Ticket Created',
-      `Ticket ${transferId} created at ${LOCATIONS.find(l => l.id === activeLocation)?.name} -> Routed to Main Store for customer ${customerName}`
+      `Ticket ${transferId} created at ${originLoc?.name || activeLocation} -> Routed to Main Store for customer ${customerName}`
     );
 
     clearCart();
@@ -883,12 +1289,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
+    const activeLocName = locations.find(l => l.id === activeLocation)?.name || activeLocation;
     const newTransfer: InterStoreTransfer = {
       id: transferId,
       transferType: 'restock_free',
       fromLocation: 'main_store',
       toLocation: activeLocation,
-      requestedByOperator: `${currentUser.name} (${LOCATIONS.find(l => l.id === activeLocation)?.name})`,
+      requestedByOperator: `${currentUser.name} (${activeLocName})`,
       items: transferItems,
       notes,
       status: 'pending_approval',
@@ -901,7 +1308,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const mailNotif: MailNotification = {
       id: `MAIL-${Date.now().toString().slice(-5)}`,
       title: 'New Restock Request to Main Store',
-      message: `${LOCATIONS.find(l => l.id === activeLocation)?.name} requested zero-cost restock ${transferId} (${items.length} line items).`,
+      message: `${activeLocName} requested zero-cost restock ${transferId} (${items.length} line items).`,
       transferId,
       transferType: 'restock_free',
       fromLocation: 'main_store',
@@ -915,7 +1322,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     recordAuditLog(
       'Restock Request Issued',
-      `Restock request ${transferId} issued by ${LOCATIONS.find(l => l.id === activeLocation)?.name} to Main Store`
+      `Restock request ${transferId} issued by ${activeLocName} to Main Store`
     );
 
     playNotificationSound();
@@ -981,8 +1388,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     // 3. Ledger Entry: Double entry asset transfer at zero cost/cost valuation
-    const toLocName = LOCATIONS.find(l => l.id === trf.toLocation)?.name;
-    const fromLocName = LOCATIONS.find(l => l.id === trf.fromLocation)?.name;
+    const toLocName = locations.find(l => l.id === trf.toLocation)?.name || trf.toLocation;
+    const fromLocName = locations.find(l => l.id === trf.fromLocation)?.name || trf.fromLocation;
 
     const ledgerTransfer: LedgerEntry = {
       id: `LEDG-TRF-${Date.now().toString().slice(-6)}`,
@@ -1033,7 +1440,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentStock = prod.locationStock[fromLocation] || 0;
       if (currentStock < item.quantity) {
         playAlertSound();
-        const locName = LOCATIONS.find(l => l.id === fromLocation)?.name || fromLocation;
+        const locName = locations.find(l => l.id === fromLocation)?.name || fromLocation;
         return {
           success: false,
           message: `Insufficient stock at ${locName} for "${prod.name}". Available: ${currentStock} ${prod.unit}, Requested: ${item.quantity} ${prod.unit}`
@@ -1096,8 +1503,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Ledger Double-Entry Accounting
     const totalAssetVal = transferItems.reduce((acc, i) => acc + i.quantity * i.unitCost, 0);
-    const fromName = LOCATIONS.find(l => l.id === fromLocation)?.name;
-    const toName = LOCATIONS.find(l => l.id === toLocation)?.name;
+    const fromName = locations.find(l => l.id === fromLocation)?.name || fromLocation;
+    const toName = locations.find(l => l.id === toLocation)?.name || toLocation;
 
     const ledgerTransfer: LedgerEntry = {
       id: `LEDG-DISP-${Date.now().toString().slice(-6)}`,
@@ -1259,7 +1666,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 4. Add Order & Ledger entries
     setOrders(prev => [newOrder, ...prev]);
 
-    const originLocName = LOCATIONS.find(l => l.id === trf.fromLocation)?.name;
+    const originLocName = locations.find(l => l.id === trf.fromLocation)?.name || trf.fromLocation;
 
     const ledgerRev: LedgerEntry = {
       id: `LEDG-RR-${Date.now().toString().slice(-6)}`,
@@ -1471,6 +1878,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordAuditLog,
         selectedReceipt,
         setSelectedReceipt,
+        locations,
+        addLocation,
+        updateLocation,
+        deleteLocation,
+        branchExpenses,
+        addBranchExpense,
+        deleteBranchExpense,
+        adjustBranchCashFloat,
+        getBranchFinancialSummary,
         isQRScannerOpen,
         setIsQRScannerOpen,
         scannedResult,
@@ -1478,6 +1894,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleQRScan,
         isBrandSettingsModalOpen,
         setIsBrandSettingsModalOpen,
+        isUserProfileModalOpen,
+        setIsUserProfileModalOpen,
+        updateCurrentUserProfile,
         isAuthModalOpen,
         setIsAuthModalOpen,
         isMailDrawerOpen,
