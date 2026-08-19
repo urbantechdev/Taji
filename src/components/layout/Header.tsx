@@ -84,6 +84,13 @@ export const Header: React.FC = () => {
     m => !m.read && m.toLocation === currentStoreLocation && m.fromLocation !== currentStoreLocation
   ).length;
 
+  // Pending transfers that need to be received at currentStoreLocation (or all in admin mode)
+  const pendingTransfersToReceive = transfers.filter(
+    t => (t.status === 'pending_approval' || t.status === 'dispatched') && (isAdmin || t.toLocation === currentStoreLocation)
+  );
+  const pendingTransfersCount = pendingTransfersToReceive.length;
+  const totalMessageAlerts = unreadMails + pendingTransfersCount;
+
   const mainStoreLowCount = products.filter(p => p.locationStock.main_store <= p.minReorderLevel).length;
   const salesShopLowCount = products.filter(p => p.locationStock.sales_shop <= p.minReorderLevel).length;
 
@@ -350,22 +357,22 @@ export const Header: React.FC = () => {
             </button>
           )}
 
-          {/* Mail Notifications Inbox Button */}
+          {/* Mail & Pending Transfers Inbox Button */}
           <button
             onClick={() => setIsMailDrawerOpen(true)}
             className={`relative p-2 rounded-xl transition-all cursor-pointer ${
-              unreadMails > 0
+              totalMessageAlerts > 0
                 ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-bold animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
                 : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
             }`}
-            title="Store Mail & Transfer Notifications"
+            title={`Store Messages & Pending Transfers: ${pendingTransfersCount} transfer(s) pending to be received, ${unreadMails} message(s)`}
           >
-            <Mail className={`w-4 h-4 ${unreadMails > 0 ? 'animate-bounce text-slate-950' : ''}`} />
-            {unreadMails > 0 && (
+            <Mail className={`w-4 h-4 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
+            {totalMessageAlerts > 0 && (
               <>
                 <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white border-2 border-amber-300 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center animate-ping opacity-75" />
                 <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white border-2 border-amber-300 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md">
-                  {unreadMails}
+                  {totalMessageAlerts}
                 </span>
               </>
             )}

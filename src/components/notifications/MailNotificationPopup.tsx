@@ -23,12 +23,15 @@ export const MailNotificationPopup: React.FC = () => {
   const currentStoreLocation = posSession?.isUnlocked ? posSession.location : activeLocation;
 
   // STRICT RECIPIENT VISIBILITY RULE:
-  // If Main Store made the transfer -> Only show popup to whom the transfer has been made to.
-  // If a branch made the transfer -> Only show popup to Main Store (or destination branch) and NOT the sender branch.
+  // Show incoming notifications to target store.
+  // Also show direct operation confirmation popups (e.g. transfer received successfully).
   const isTargetRecipient = Boolean(
     activeToastNotification &&
-    currentStoreLocation === activeToastNotification.toLocation &&
-    currentStoreLocation !== activeToastNotification.fromLocation
+    (
+      activeToastNotification.toLocation === currentStoreLocation ||
+      activeToastNotification.toLocation === activeLocation ||
+      activeToastNotification.fromLocation === activeToastNotification.toLocation
+    )
   );
 
   useEffect(() => {

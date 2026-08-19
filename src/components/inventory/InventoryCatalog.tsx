@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, UnitType } from '../../types';
+import { ReceiveDeliveryModal } from './ReceiveDeliveryModal';
+import { CategoryIntakeModal } from './CategoryIntakeModal';
 import {
   Layers,
   Search,
@@ -20,7 +22,10 @@ import {
   Tag,
   ArrowRight,
   TrendingDown,
-  Zap
+  Zap,
+  Barcode,
+  Truck,
+  DollarSign
 } from 'lucide-react';
 
 export const InventoryCatalog: React.FC = () => {
@@ -32,6 +37,7 @@ export const InventoryCatalog: React.FC = () => {
     requestRestock,
     updateProductPrice,
     createDirectDispatchTransfer,
+    getTotalAssetValuation,
     setIsQRScannerOpen,
     handleQRScan
   } = useERP();
@@ -41,6 +47,9 @@ export const InventoryCatalog: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeBatchModal, setActiveBatchModal] = useState<ProductBatch | null>(null);
   const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
+  const [isReceiveDeliveryOpen, setIsReceiveDeliveryOpen] = useState(false);
+  const [isCategoryIntakeOpen, setIsCategoryIntakeOpen] = useState(false);
+  const [categoryIntakeCategory, setCategoryIntakeCategory] = useState<CategoryType>('Dereck');
 
   // Price Markdown Modal State for Dead Stock Clearance
   const [discountModalBatch, setDiscountModalBatch] = useState<ProductBatch | null>(null);
@@ -141,8 +150,30 @@ export const InventoryCatalog: React.FC = () => {
     setNewSku('');
   };
 
+  const totalAssetValuation = getTotalAssetValuation();
+
   return (
     <div className="space-y-6">
+
+      {/* Dynamic Asset Valuation Banner */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-4 rounded-2xl text-white shadow-md border border-rose-500/20">
+        <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Catalog Batches</span>
+          <span className="text-base sm:text-lg font-mono font-bold text-white">{products.length} Batches</span>
+        </div>
+        <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Physical Stock Units</span>
+          <span className="text-base sm:text-lg font-mono font-bold text-amber-400">{totalAssetValuation.totalUnits.toLocaleString()} units</span>
+        </div>
+        <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Cost Asset Valuation</span>
+          <span className="text-base sm:text-lg font-mono font-bold text-rose-300">KSh {totalAssetValuation.totalCostValuation.toLocaleString()}</span>
+        </div>
+        <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Retail Asset Valuation</span>
+          <span className="text-base sm:text-lg font-mono font-black text-emerald-400">KSh {totalAssetValuation.totalRetailValuation.toLocaleString()}</span>
+        </div>
+      </div>
       
       {/* Top Header & Search Controls */}
       <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 group">
@@ -156,17 +187,40 @@ export const InventoryCatalog: React.FC = () => {
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Exact Hex Color Codes (#E91E63 Crimson, #9C27B0 Plum, #00BCD4 Teal) &amp; QR Tracking for Dereck, Fleece, and Yarns
+              Exact Hex Color Codes (#E91E63 Crimson, #9C27B0 Plum, #00BCD4 Teal) &amp; Barcode / QR Tracking
             </p>
           </div>
 
-          <button
-            onClick={() => setIsAddBatchModalOpen(true)}
-            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            Add New Product Batch
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setCategoryIntakeCategory(selectedCategory !== 'All' ? selectedCategory : 'Dereck');
+                setIsCategoryIntakeOpen(true);
+              }}
+              className="px-4 py-2.5 bg-gradient-to-r from-rose-700 via-pink-700 to-rose-600 hover:from-rose-600 hover:to-pink-600 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102 ring-2 ring-rose-500/20"
+              title="Category Barcode Scanner Intake Mode for Fleeces, Dereec & Yarns"
+            >
+              <Barcode className="w-4 h-4 text-amber-300" />
+              <span>Category Intake (Yarns, Fleeces, Dereec)</span>
+            </button>
+
+            <button
+              onClick={() => setIsReceiveDeliveryOpen(true)}
+              className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Open Barcode Scanner Intake Mode for Delivery Manifests"
+            >
+              <Truck className="w-4 h-4 text-rose-400" />
+              <span>Receive Delivery</span>
+            </button>
+
+            <button
+              onClick={() => setIsAddBatchModalOpen(true)}
+              className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Batch</span>
+            </button>
+          </div>
         </div>
 
         {/* Filter Bar */}
@@ -182,9 +236,24 @@ export const InventoryCatalog: React.FC = () => {
                     : 'bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-700'
                 }`}
               >
-                {cat}
+                {cat === 'Dereck' ? 'Dereec (Dereck)' : cat === 'Fleece' ? 'Fleeces' : cat}
               </button>
             ))}
+
+            {/* Quick Category Scanner Shortcut for the currently filtered category */}
+            {selectedCategory !== 'All' && (
+              <button
+                onClick={() => {
+                  setCategoryIntakeCategory(selectedCategory);
+                  setIsCategoryIntakeOpen(true);
+                }}
+                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300/80 text-amber-900 text-xs font-black rounded-xl transition-all flex items-center gap-1 cursor-pointer ml-1 animate-fade-in shadow-xs"
+                title={`Initiate batch scanning intake for ${selectedCategory}`}
+              >
+                <Barcode className="w-3.5 h-3.5 text-amber-700" />
+                <span>Scan {selectedCategory === 'Dereck' ? 'Dereec' : selectedCategory} Intake</span>
+              </button>
+            )}
 
             <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" />
 
@@ -763,6 +832,19 @@ export const InventoryCatalog: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Receive Delivery Barcode Intake Modal */}
+      <ReceiveDeliveryModal
+        isOpen={isReceiveDeliveryOpen}
+        onClose={() => setIsReceiveDeliveryOpen(false)}
+      />
+
+      {/* Category-Specific Barcode Inventory Intake Modal (Fleeces, Dereec, Yarns) */}
+      <CategoryIntakeModal
+        isOpen={isCategoryIntakeOpen}
+        onClose={() => setIsCategoryIntakeOpen(false)}
+        initialCategory={categoryIntakeCategory}
+      />
 
     </div>
   );

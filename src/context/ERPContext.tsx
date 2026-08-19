@@ -22,7 +22,11 @@ import {
   BrandSettings,
   MailNotification,
   AppMode,
-  POSOperator
+  POSOperator,
+  DeliveryRecord,
+  DeliveryItem,
+  CategoryType,
+  UnitType
 } from '../types';
 import {
   LOCATIONS,
@@ -38,6 +42,7 @@ import {
   INITIAL_BRAND_SETTINGS,
   INITIAL_MAIL_NOTIFICATIONS,
   INITIAL_POS_OPERATORS,
+  INITIAL_DELIVERIES,
   CURRENT_USER
 } from '../data/initialData';
 import {
@@ -94,6 +99,7 @@ interface ERPContextType {
   orders: SaleOrder[];
   transfers: InterStoreTransfer[];
   ledger: LedgerEntry[];
+  addLedgerEntry: (entry: Omit<LedgerEntry, 'id' | 'timestamp'>) => { success: boolean; message: string; entryId?: string };
   auditLogs: AuditLog[];
   staff: StaffMember[];
   payroll: PayrollRecord[];
@@ -174,6 +180,61 @@ interface ERPContextType {
   updateETRConfig: (config: Partial<ETRConfig>) => void;
   generateMonthlyPayroll: (monthYear: string) => void;
   recordAuditLog: (action: string, details: string) => void;
+
+  // Deliveries, Barcode Intake & Dynamic Valuation Module
+  deliveries: DeliveryRecord[];
+  activeDeliveryId: string | null;
+  setActiveDeliveryId: (id: string | null) => void;
+  createDelivery: (deliveryData: Omit<DeliveryRecord, 'id' | 'createdAt' | 'totalScannedQty' | 'totalCostValuation' | 'totalRetailValuation'>) => { success: boolean; deliveryId: string; message: string };
+  startReceivingDelivery: (deliveryId: string) => void;
+  scanDeliveryBarcode: (deliveryId: string, scannedCode: string) => { success: boolean; isNewProduct: boolean; barcode: string; product?: ProductBatch; message: string };
+  autoCreateAndIntakeProduct: (
+    deliveryId: string,
+    newProductData: {
+      barcode: string;
+      name: string;
+      category: CategoryType;
+      subCategory?: string;
+      fiberComposition?: string;
+      colorName?: string;
+      colorHex?: string;
+      unit: UnitType;
+      costPrice: number;
+      unitPriceRetail: number;
+      unitPriceBulk?: number;
+      quantity: number;
+      minReorderLevel?: number;
+    }
+  ) => { success: boolean; product: ProductBatch; message: string };
+  completeDelivery: (deliveryId: string) => { success: boolean; message: string };
+  commitCategoryIntakeSession: (
+    category: CategoryType,
+    items: {
+      barcode: string;
+      name?: string;
+      quantity: number;
+      wholesalePrice: number;
+      retailPrice: number;
+      unit?: UnitType;
+      colorName?: string;
+      colorHex?: string;
+      fiberComposition?: string;
+    }[],
+    targetLocation: LocationId,
+    sessionNotes?: string
+  ) => {
+    success: boolean;
+    category?: CategoryType;
+    totalQtyAdded?: number;
+    totalCostValuationAdded?: number;
+    totalRetailValuationAdded?: number;
+    newTotalBusinessAssetCost?: number;
+    newTotalBusinessAssetRetail?: number;
+    newTotalUnits?: number;
+    targetLocationName?: string;
+    message: string;
+  };
+  getTotalAssetValuation: (locationId?: LocationId) => { totalCostValuation: number; totalRetailValuation: number; totalCostValue: number; totalRetailValue: number; totalUnits: number; totalBatches: number };
 
   // Active Modals & Utilities
   isUserProfileModalOpen: boolean;
@@ -607,6 +668,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
   const [payroll, setPayroll] = useState<PayrollRecord[]>(INITIAL_PAYROLL);
   const [etrConfig, setEtrConfig] = useState<ETRConfig>(INITIAL_ETR_CONFIG);
+
+  // Deliveries Intake & Barcode Scanning State
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_deliveries');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading deliveries from localStorage:', e);
+    }
+    return INITIAL_DELIVERIES;
+  });
+
+  const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>('DEL-2026-001');
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_deliveries', JSON.stringify(deliveries));
+    } catch (e) {
+      console.warn('Error saving deliveries to localStorage:', e);
+    }
+  }, [deliveries]);
 
   // Cart State
   const [cart, setCart] = useState<POSCartItem[]>([]);
@@ -1835,7 +1920,534 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // RECEIVE RESTOCK TRANSFER (Explicit alias for receiving restock stock into shop inventory)
   const receiveRestockTransfer = (transferId: string) => {
-    return dispatchRestockTransfer(transferId);
+    const res = dispatchRestockTransfer(transferId);
+    if (res.success) {
+      playSuccessSound();
+      const notif: MailNotification = {
+        id: `MAIL-REC-${Date.now().toString().slice(-5)}`,
+        title: 'Transfer Received Successfully ✓',
+        message: `Stock Transfer ${transferId} has been received into inventory successfully!`,
+        transferId,
+        transferType: 'restock_free',
+        fromLocation: activeLocation,
+        toLocation: activeLocation,
+        timestamp: new Date().toISOString(),
+        read: false,
+        itemCount: 1
+      };
+      setMailNotifications(prev => [notif, ...prev]);
+      setActiveToastNotification(notif);
+    }
+    return res;
+  };
+
+  // DELIVERIES & BARCODE INTAKE METHODS
+  const createDelivery = (
+    deliveryData: Omit<DeliveryRecord, 'id' | 'createdAt' | 'totalScannedQty' | 'totalCostValuation' | 'totalRetailValuation'>
+  ) => {
+    const deliveryId = `DEL-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+    const newDelivery: DeliveryRecord = {
+      ...deliveryData,
+      id: deliveryId,
+      status: 'pending',
+      totalScannedQty: 0,
+      totalCostValuation: 0,
+      totalRetailValuation: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    setDeliveries(prev => [newDelivery, ...prev]);
+    recordAuditLog('Delivery Manifest Created', `Registered delivery intake ${deliveryId} from ${deliveryData.supplierName} (${deliveryData.items.length} items)`);
+    playSuccessSound();
+    return { success: true, deliveryId, message: `Delivery manifest ${deliveryId} registered successfully.` };
+  };
+
+  const startReceivingDelivery = (deliveryId: string) => {
+    setActiveDeliveryId(deliveryId);
+    setDeliveries(prev =>
+      prev.map(d => (d.id === deliveryId && d.status === 'pending' ? { ...d, status: 'receiving' } : d))
+    );
+    recordAuditLog('Delivery Receiving Started', `Started active barcode intake mode for delivery ${deliveryId}`);
+  };
+
+  const scanDeliveryBarcode = (deliveryId: string, rawBarcode: string) => {
+    const code = rawBarcode.trim();
+    if (!code) {
+      return { success: false, isNewProduct: false, barcode: '', message: 'Empty barcode entered.' };
+    }
+
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    if (!delivery) {
+      return { success: false, isNewProduct: false, barcode: code, message: `Delivery ${deliveryId} not found.` };
+    }
+
+    // Match product by SKU, batch ID, barcode, or embedded QR code
+    const matchedProduct = products.find(p =>
+      p.sku.toLowerCase() === code.toLowerCase() ||
+      p.id.toLowerCase() === code.toLowerCase() ||
+      (p.barcode && p.barcode.toLowerCase() === code.toLowerCase()) ||
+      (p.qrCodeData && p.qrCodeData.includes(code))
+    );
+
+    if (!matchedProduct) {
+      playAlertSound();
+      // Gracefully trigger new product auto-creation prompt without throwing error
+      return {
+        success: false,
+        isNewProduct: true,
+        barcode: code,
+        message: `Unrecognized barcode "${code}". Auto-Product Creation Prompt opened.`
+      };
+    }
+
+    // Product is recognized! Increment stock for delivery's destination location
+    const destLoc = delivery.destinationLocation || 'main_store';
+    setProducts(prev =>
+      prev.map(p => {
+        if (p.id === matchedProduct.id) {
+          const currentLocStock = p.locationStock[destLoc] || 0;
+          return {
+            ...p,
+            locationStock: {
+              ...p.locationStock,
+              [destLoc]: currentLocStock + 1
+            }
+          };
+        }
+        return p;
+      })
+    );
+
+    // Update Delivery Manifest line items and dynamic asset valuations
+    setDeliveries(prev =>
+      prev.map(d => {
+        if (d.id === deliveryId) {
+          let itemFound = false;
+          const updatedItems = d.items.map(item => {
+            if (item.barcode.toLowerCase() === code.toLowerCase() || item.batchId === matchedProduct.id) {
+              itemFound = true;
+              const newScanned = item.scannedQty + 1;
+              return {
+                ...item,
+                scannedQty: newScanned,
+                scannedBarcodes: [...(item.scannedBarcodes || []), code]
+              };
+            }
+            return item;
+          });
+
+          if (!itemFound) {
+            updatedItems.push({
+              id: `DLI-${Date.now().toString().slice(-4)}`,
+              barcode: matchedProduct.sku,
+              batchId: matchedProduct.id,
+              productName: matchedProduct.name,
+              category: matchedProduct.category,
+              unit: matchedProduct.unit,
+              costPrice: matchedProduct.costPrice,
+              unitPriceRetail: matchedProduct.unitPriceRetail,
+              expectedQty: 1,
+              scannedQty: 1,
+              scannedBarcodes: [code]
+            });
+          }
+
+          const totalScanned = updatedItems.reduce((acc, it) => acc + it.scannedQty, 0);
+          const totalCostValuation = updatedItems.reduce((acc, it) => acc + it.scannedQty * it.costPrice, 0);
+          const totalRetailValuation = updatedItems.reduce((acc, it) => acc + it.scannedQty * it.unitPriceRetail, 0);
+
+          return {
+            ...d,
+            status: d.status === 'pending' ? 'receiving' : d.status,
+            items: updatedItems,
+            totalScannedQty: totalScanned,
+            totalCostValuation,
+            totalRetailValuation,
+            receivedByOperator: currentUser.name || 'Store Receiving Agent'
+          };
+        }
+        return d;
+      })
+    );
+
+    playAddToCartSound();
+    recordAuditLog(
+      'Delivery Barcode Scanned',
+      `Scanned +1 ${matchedProduct.unit} of ${matchedProduct.name} (${matchedProduct.sku}) for delivery ${deliveryId}`
+    );
+
+    return {
+      success: true,
+      isNewProduct: false,
+      barcode: code,
+      product: matchedProduct,
+      message: `Scanned: ${matchedProduct.name} (+1 ${matchedProduct.unit}) | Valuation Added: +KSh ${matchedProduct.costPrice.toLocaleString()}`
+    };
+  };
+
+  const autoCreateAndIntakeProduct = (
+    deliveryId: string,
+    newProductData: {
+      barcode: string;
+      name: string;
+      category: CategoryType;
+      subCategory?: string;
+      fiberComposition?: string;
+      colorName?: string;
+      colorHex?: string;
+      unit: UnitType;
+      costPrice: number;
+      unitPriceRetail: number;
+      unitPriceBulk?: number;
+      quantity: number;
+      minReorderLevel?: number;
+    }
+  ) => {
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    const destLoc = delivery?.destinationLocation || 'main_store';
+    const batchId = `BATCH-${(newProductData.category || 'GEN').slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+    const barcodeSku = newProductData.barcode.trim();
+
+    const createdProduct: ProductBatch = {
+      id: batchId,
+      sku: barcodeSku,
+      barcode: barcodeSku,
+      name: newProductData.name || `Textile Batch ${barcodeSku}`,
+      category: newProductData.category || 'Dereck',
+      subCategory: newProductData.subCategory || 'General Textile Intake',
+      fiberComposition: newProductData.fiberComposition || '100% Cotton Premium',
+      colorName: newProductData.colorName || 'Standard Color',
+      colorHex: newProductData.colorHex || '#B50044',
+      unit: newProductData.unit || 'meter',
+      unitPriceRetail: Number(newProductData.unitPriceRetail) || 1000,
+      unitPriceBulk: Number(newProductData.unitPriceBulk) || Math.round((newProductData.unitPriceRetail || 1000) * 0.8),
+      costPrice: Number(newProductData.costPrice) || 600,
+      locationStock: {
+        main_store: destLoc === 'main_store' ? newProductData.quantity : 0,
+        sales_shop: destLoc === 'sales_shop' ? newProductData.quantity : 0,
+        store_1: destLoc === 'store_1' ? newProductData.quantity : 0,
+        store_2: destLoc === 'store_2' ? newProductData.quantity : 0,
+        branch_westlands: destLoc === 'branch_westlands' ? newProductData.quantity : 0,
+        [destLoc]: newProductData.quantity
+      },
+      minReorderLevel: newProductData.minReorderLevel || 30,
+      qrCodeData: JSON.stringify({
+        sku: barcodeSku,
+        batch: batchId,
+        cat: newProductData.category,
+        unitPrice: newProductData.unitPriceRetail
+      }),
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+
+    // 1. Add to products catalog
+    setProducts(prev => [createdProduct, ...prev]);
+
+    // 2. Add to Delivery Record items & recalculate valuations
+    setDeliveries(prev =>
+      prev.map(d => {
+        if (d.id === deliveryId) {
+          const newItem: DeliveryItem = {
+            id: `DLI-AUTO-${Date.now().toString().slice(-4)}`,
+            barcode: barcodeSku,
+            batchId,
+            productName: createdProduct.name,
+            category: createdProduct.category,
+            unit: createdProduct.unit,
+            costPrice: createdProduct.costPrice,
+            unitPriceRetail: createdProduct.unitPriceRetail,
+            expectedQty: newProductData.quantity,
+            scannedQty: newProductData.quantity,
+            scannedBarcodes: [barcodeSku]
+          };
+
+          const updatedItems = [...d.items, newItem];
+          const totalScanned = updatedItems.reduce((acc, it) => acc + it.scannedQty, 0);
+          const totalCostValuation = updatedItems.reduce((acc, it) => acc + it.scannedQty * it.costPrice, 0);
+          const totalRetailValuation = updatedItems.reduce((acc, it) => acc + it.scannedQty * it.unitPriceRetail, 0);
+
+          return {
+            ...d,
+            status: 'receiving',
+            items: updatedItems,
+            totalScannedQty: totalScanned,
+            totalCostValuation,
+            totalRetailValuation,
+            receivedByOperator: currentUser.name || 'Store Receiving Agent'
+          };
+        }
+        return d;
+      })
+    );
+
+    playSuccessSound();
+    recordAuditLog(
+      'Product Auto-Created on Delivery',
+      `Auto-created product "${createdProduct.name}" (SKU: ${barcodeSku}) with ${newProductData.quantity} ${createdProduct.unit} intaked at ${destLoc}.`
+    );
+
+    return {
+      success: true,
+      product: createdProduct,
+      message: `Product "${createdProduct.name}" created and ${newProductData.quantity} ${createdProduct.unit} intaked successfully!`
+    };
+  };
+
+  const completeDelivery = (deliveryId: string) => {
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    if (!delivery) return { success: false, message: 'Delivery record not found.' };
+
+    const completedAt = new Date().toISOString();
+    const destLocName = locations.find(l => l.id === delivery.destinationLocation)?.name || delivery.destinationLocation;
+
+    setDeliveries(prev =>
+      prev.map(d =>
+        d.id === deliveryId
+          ? {
+              ...d,
+              status: 'completed',
+              completedAt,
+              receivedByOperator: currentUser.name || 'Receiving Agent'
+            }
+          : d
+      )
+    );
+
+    // Double-Entry Inventory Asset Valuation Ledger Entry
+    const ledgerEntry: LedgerEntry = {
+      id: `LEDG-DEL-${Date.now().toString().slice(-6)}`,
+      timestamp: completedAt,
+      transactionRef: deliveryId,
+      description: `Delivery Intake Goods Received Note (${delivery.supplierName}, Consignment ${delivery.consignmentNo}) -> ${destLocName}`,
+      debitAccount: `${destLocName} Inventory Asset`,
+      creditAccount: `Supplier Accounts Payable (${delivery.supplierName})`,
+      amount: delivery.totalCostValuation,
+      locationId: delivery.destinationLocation,
+      category: 'Inventory Revaluation'
+    };
+
+    setLedger(prev => [ledgerEntry, ...prev]);
+
+    recordAuditLog(
+      'Delivery Manifest Completed',
+      `Delivery ${deliveryId} (${delivery.totalScannedQty} units, Cost Valuation: KSh ${delivery.totalCostValuation.toLocaleString()}) completed and booked into ledger.`
+    );
+
+    playSuccessSound();
+    return {
+      success: true,
+      message: `Delivery ${deliveryId} successfully completed! KSh ${delivery.totalCostValuation.toLocaleString()} added to ${destLocName} inventory assets.`
+    };
+  };
+
+  const getTotalAssetValuation = (locationId?: LocationId) => {
+    let totalCostValuation = 0;
+    let totalRetailValuation = 0;
+    let totalUnits = 0;
+    const totalBatches = products.length;
+
+    products.forEach(prod => {
+      let qty = 0;
+      if (locationId) {
+        qty = Number(prod.locationStock[locationId]) || 0;
+      } else {
+        const stocks = Object.values(prod.locationStock) as number[];
+        qty = stocks.reduce((a: number, b: number) => a + (Number(b) || 0), 0);
+      }
+      totalUnits += qty;
+      totalCostValuation += qty * (prod.costPrice || 0);
+      totalRetailValuation += qty * (prod.unitPriceRetail || 0);
+    });
+
+    return {
+      totalCostValuation,
+      totalRetailValuation,
+      totalCostValue: totalCostValuation,
+      totalRetailValue: totalRetailValuation,
+      totalUnits,
+      totalBatches
+    };
+  };
+
+  // COMMIT CATEGORY-SPECIFIC INVENTORY INTAKE SESSION (Dereec, Fleeces, Yarns)
+  const commitCategoryIntakeSession = (
+    category: CategoryType,
+    items: {
+      barcode: string;
+      name?: string;
+      quantity: number;
+      wholesalePrice: number;
+      retailPrice: number;
+      unit?: UnitType;
+      colorName?: string;
+      colorHex?: string;
+      fiberComposition?: string;
+    }[],
+    targetLocation: LocationId,
+    sessionNotes?: string
+  ) => {
+    if (items.length === 0) {
+      return { success: false, message: 'No scanned items in intake session.' };
+    }
+
+    const now = new Date().toISOString();
+    let totalQtyAdded = 0;
+    let totalCostValuationAdded = 0;
+    let totalRetailValuationAdded = 0;
+
+    let updatedProducts = [...products];
+
+    items.forEach(item => {
+      const barcodeUpper = item.barcode.trim().toUpperCase();
+      const existingIndex = updatedProducts.findIndex(
+        p => (p.barcode && p.barcode.toUpperCase() === barcodeUpper) ||
+             (p.sku && p.sku.toUpperCase() === barcodeUpper) ||
+             p.id.toUpperCase() === barcodeUpper
+      );
+
+      const qty = Math.max(1, Number(item.quantity) || 1);
+      const wholesale = Number(item.wholesalePrice) || 0;
+      const retail = Number(item.retailPrice) || 0;
+
+      totalQtyAdded += qty;
+      totalCostValuationAdded += qty * wholesale;
+      totalRetailValuationAdded += qty * retail;
+
+      if (existingIndex >= 0) {
+        // Increment stock and optionally ensure pricing aligns
+        const existing = updatedProducts[existingIndex];
+        const currentLocStock = Number(existing.locationStock[targetLocation]) || 0;
+        updatedProducts[existingIndex] = {
+          ...existing,
+          costPrice: wholesale > 0 ? wholesale : existing.costPrice,
+          unitPriceRetail: retail > 0 ? retail : existing.unitPriceRetail,
+          locationStock: {
+            ...existing.locationStock,
+            [targetLocation]: currentLocStock + qty
+          }
+        };
+      } else {
+        // Auto-create product record under chosen category
+        const batchId = `BATCH-${category.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const sku = barcodeUpper;
+        const colorName = item.colorName || (category === 'Dereck' ? 'Royal Navy' : category === 'Fleece' ? 'Charcoal Heather' : 'Natural Ecru');
+        const colorHex = item.colorHex || (category === 'Dereck' ? '#1E3A8A' : category === 'Fleece' ? '#374151' : '#F3F4F6');
+        const unit = item.unit || (category === 'Yarns' ? 'kg' : 'meter');
+        const name = item.name || `${category} - ${colorName} (${sku})`;
+
+        const qrData = JSON.stringify({
+          sku,
+          batch: batchId,
+          cat: category,
+          color: colorHex,
+          unitPrice: retail,
+          costPrice: wholesale,
+          intakeAt: now
+        });
+
+        const newProd: ProductBatch = {
+          id: batchId,
+          sku,
+          barcode: barcodeUpper,
+          name,
+          category,
+          subCategory: `${category} Premium Stock`,
+          fiberComposition: item.fiberComposition || (category === 'Dereck' ? '100% Superfine Dereec Weave' : category === 'Fleece' ? 'Heavyweight Thermal Polar Fleece' : '100% Spun Acrylic Knitting Yarn'),
+          colorName,
+          colorHex,
+          unit,
+          unitPriceRetail: retail,
+          unitPriceBulk: wholesale > 0 ? Math.round(wholesale * 1.35) : retail,
+          costPrice: wholesale,
+          locationStock: {
+            main_store: targetLocation === 'main_store' ? qty : 0,
+            sales_shop: targetLocation === 'sales_shop' ? qty : 0,
+            store_1: targetLocation === 'store_1' ? qty : 0,
+            store_2: targetLocation === 'store_2' ? qty : 0,
+            [targetLocation]: qty
+          },
+          minReorderLevel: 25,
+          qrCodeData: qrData,
+          createdAt: now.split('T')[0]
+        };
+
+        updatedProducts = [newProd, ...updatedProducts];
+      }
+    });
+
+    setProducts(updatedProducts);
+
+    // Double-Entry Inventory Asset Valuation Ledger Entry
+    const targetLocName = locations.find(l => l.id === targetLocation)?.name || targetLocation;
+    const ledgerEntry: LedgerEntry = {
+      id: `LEDG-CAT-${Date.now().toString().slice(-6)}`,
+      timestamp: now,
+      transactionRef: `CAT-INTAKE-${category.toUpperCase()}-${Date.now().toString().slice(-4)}`,
+      description: `Category Barcode Intake: ${category} (${totalQtyAdded} units) -> ${targetLocName}${sessionNotes ? ` - ${sessionNotes}` : ''}`,
+      debitAccount: `${targetLocName} Inventory Asset`,
+      creditAccount: `Supplier Inward Stock Clearing`,
+      amount: totalCostValuationAdded,
+      locationId: targetLocation,
+      category: 'Inventory Revaluation'
+    };
+
+    setLedger(prev => [ledgerEntry, ...prev]);
+
+    recordAuditLog(
+      'Category Barcode Intake Completed',
+      `Category Intake for "${category}": ${totalQtyAdded} units added to ${targetLocName}. Cost Valuation Added: +KSh ${totalCostValuationAdded.toLocaleString()}, Retail Valuation Added: +KSh ${totalRetailValuationAdded.toLocaleString()}.`
+    );
+
+    // Calculate new total business asset value across all products
+    let newTotalBusinessAssetCost = 0;
+    let newTotalBusinessAssetRetail = 0;
+    let newTotalUnits = 0;
+
+    updatedProducts.forEach(prod => {
+      const stocks = Object.values(prod.locationStock) as number[];
+      const q = stocks.reduce((a: number, b: number) => a + (Number(b) || 0), 0);
+      newTotalUnits += q;
+      newTotalBusinessAssetCost += q * (prod.costPrice || 0);
+      newTotalBusinessAssetRetail += q * (prod.unitPriceRetail || 0);
+    });
+
+    playSuccessSound();
+
+    return {
+      success: true,
+      category,
+      totalQtyAdded,
+      totalCostValuationAdded,
+      totalRetailValuationAdded,
+      newTotalBusinessAssetCost,
+      newTotalBusinessAssetRetail,
+      newTotalUnits,
+      targetLocationName: targetLocName,
+      message: `Category Intake for ${category} successfully completed! Added ${totalQtyAdded} units. New Business Asset Value: KSh ${newTotalBusinessAssetCost.toLocaleString()} (Cost) / KSh ${newTotalBusinessAssetRetail.toLocaleString()} (Retail).`
+    };
+  };
+
+  // POST MANUAL JOURNAL VOUCHER / LEDGER ENTRY
+  const addLedgerEntry = (entryData: Omit<LedgerEntry, 'id' | 'timestamp'>) => {
+    const newEntry: LedgerEntry = {
+      ...entryData,
+      id: `LEDG-JRN-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString()
+    };
+
+    setLedger(prev => [newEntry, ...prev]);
+
+    recordAuditLog(
+      'Manual Journal Entry Posted',
+      `Journal Voucher: ${newEntry.description} (Debit: ${newEntry.debitAccount}, Credit: ${newEntry.creditAccount}, Amount: KSh ${newEntry.amount.toLocaleString()})`
+    );
+
+    playSuccessSound();
+    return {
+      success: true,
+      message: `Journal voucher ${newEntry.id} recorded successfully!`,
+      entryId: newEntry.id
+    };
   };
 
   // ADD NEW PRODUCT BATCH
@@ -1990,9 +2602,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         acceptPurchaseOrder,
         receiveRestockTransfer,
         addProductBatch,
+        addLedgerEntry,
         updateETRConfig,
         generateMonthlyPayroll,
         recordAuditLog,
+        deliveries,
+        activeDeliveryId,
+        setActiveDeliveryId,
+        createDelivery,
+        startReceivingDelivery,
+        scanDeliveryBarcode,
+        autoCreateAndIntakeProduct,
+        completeDelivery,
+        commitCategoryIntakeSession,
+        getTotalAssetValuation,
         selectedReceipt,
         setSelectedReceipt,
         locations,

@@ -101,7 +101,8 @@ export type UnitType = 'kg' | 'roll' | 'meter' | 'skein' | 'yard';
 
 export interface ProductBatch {
   id: string; // e.g. BATCH-2026-001
-  sku: string; // e.g. TFX-DRK-101
+  sku: string; // e.g. TFX-DRK-101 (Primary barcode / SKU identifier)
+  barcode?: string; // Optional dedicated UPC / EAN-13 barcode
   name: string;
   category: CategoryType;
   subCategory: string; // e.g. "Polar Fleece", "Acrylic Yarn", "Heavy Dereck Weave"
@@ -111,7 +112,7 @@ export interface ProductBatch {
   unit: UnitType;
   unitPriceRetail: number; // KSh or $ retail price per unit
   unitPriceBulk: number; // Bulk price per unit (for Main Store bulk sales)
-  costPrice: number; // Internal cost per unit
+  costPrice: number; // Internal cost per unit (for inventory valuation)
   locationStock: Record<LocationId, number>; // Stock per store location
   minReorderLevel: number; // Low stock threshold for automatic alert / request
   imageUrl?: string; // High-resolution product image URL
@@ -231,6 +232,53 @@ export interface InterStoreTransfer {
   customerOrderRef?: string; // If this transfer was spawned by Store 1/2 reroute
 }
 
+// Delivery Intake & Barcode Scanning Data Structures
+export type DeliveryStatus = 'pending' | 'receiving' | 'completed' | 'cancelled';
+
+export interface DeliveryItem {
+  id: string;
+  barcode: string; // SKU or barcode string
+  batchId?: string; // matched ProductBatch id
+  productName: string;
+  category: CategoryType;
+  unit: UnitType;
+  costPrice: number; // preset/entered unit cost price
+  unitPriceRetail: number; // preset/entered unit retail price
+  expectedQty?: number;
+  scannedQty: number;
+  scannedBarcodes?: string[];
+}
+
+export interface DeliveryRecord {
+  id: string; // e.g. "DEL-2026-001"
+  supplierName: string;
+  consignmentNo: string;
+  destinationLocation: LocationId;
+  status: DeliveryStatus;
+  items: DeliveryItem[];
+  notes?: string;
+  totalExpectedQty: number;
+  totalScannedQty: number;
+  totalCostValuation: number; // dynamic asset valuation at cost
+  totalRetailValuation: number; // dynamic asset valuation at retail
+  receivedByOperator?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export type LedgerCategory = 
+  | 'Sales' 
+  | 'Inter-Store Transfer' 
+  | 'Tax VAT' 
+  | 'Inventory Revaluation' 
+  | 'Expense'
+  | 'General Journal Voucher'
+  | 'Asset Purchase'
+  | 'Expense Payment'
+  | 'Inter-Store Cash Transfer'
+  | 'Tax Settlement'
+  | 'Owner Distribution';
+
 export interface LedgerEntry {
   id: string;
   timestamp: string;
@@ -240,7 +288,7 @@ export interface LedgerEntry {
   creditAccount: string;
   amount: number;
   locationId: LocationId;
-  category: 'Sales' | 'Inter-Store Transfer' | 'Tax VAT' | 'Inventory Revaluation' | 'Expense';
+  category: LedgerCategory;
 }
 
 export interface AuditLog {
@@ -299,6 +347,50 @@ export interface ETRConfig {
   companyPhone: string;
   companyEmail: string;
   receiptFooterMessage: string;
+}
+
+export interface ETIMSCreditNote {
+  id: string; // e.g. "CRN-2026-001"
+  originalInvoiceNo: string; // e.g. "INV-2026-8891"
+  originalCuSerial: string;
+  customerName: string;
+  customerKraPin?: string;
+  creditReason: 'Damaged Fabric Return' | 'Price Adjustment' | 'Order Cancellation' | 'Quantity Discrepancy';
+  originalAmount: number;
+  creditAmount: number; // gross credit
+  vatCredited: number; // 16% VAT credited
+  netCredited: number; // taxable net credited
+  issuedBy: string;
+  timestamp: string;
+  fiscalSignature: string;
+}
+
+export interface KRAInputVATClaim {
+  id: string;
+  supplierName: string;
+  supplierPin: string;
+  supplierCuInvoiceNo: string;
+  purchaseCategory: 'Raw Material (Yarn/Fleece/Dereck)' | 'Plant Machinery & Looms' | 'Factory Utilities' | 'Transport & Logistics';
+  purchaseDate: string;
+  taxableAmount: number;
+  vatClaimable: number; // 16% Input VAT
+  grossAmount: number;
+  etimsVerified: boolean;
+  status: 'Claimed' | 'Pending Verification';
+}
+
+export interface KRAWithholdingTaxRecord {
+  id: string;
+  entityName: string;
+  entityPin: string;
+  natureOfTransaction: 'Professional & Legal Fees (5%)' | 'Contractual / Transport Services (3%)' | 'Commercial Warehouse Rent (10%)' | 'Withholding VAT - WHVAT (2%)';
+  rate: number;
+  grossAmount: number;
+  whtAmount: number;
+  certificateNo: string;
+  direction: 'Withheld_By_Us_Payable' | 'Withheld_By_Customer_Receivable';
+  period: string;
+  settled: boolean;
 }
 
 export interface HeldCart {

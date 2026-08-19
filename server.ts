@@ -338,6 +338,41 @@ function getGeminiClient(): GoogleGenAI | null {
   });
 }
 
+// Resilient helper with multi-model fallback for high demand/503 spikes
+async function generateGeminiJSON(contents: string, systemInstruction: string): Promise<any | null> {
+  const ai = getGeminiClient();
+  if (!ai) return null;
+
+  const modelsToTry = ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  for (const model of modelsToTry) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents,
+        config: {
+          responseMimeType: 'application/json',
+          systemInstruction,
+        },
+      });
+
+      const responseText = response.text?.trim() || '';
+      if (responseText) {
+        try {
+          return JSON.parse(responseText);
+        } catch {
+          // If response is wrapped in markdown code fence
+          const cleaned = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+          return JSON.parse(cleaned);
+        }
+      }
+    } catch (err: any) {
+      // Gracefully continue to next model on 503 or transient overload
+      continue;
+    }
+  }
+  return null;
+}
+
 // AI Virtual CFO Strategic Analysis
 app.post('/api/ai/cfo-advisor', async (req, res) => {
   const {
@@ -386,30 +421,18 @@ Provide your response in JSON format with the following fields:
 }`;
 
   try {
-    const ai = getGeminiClient();
-    if (ai) {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.7-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          systemInstruction: 'You are an elite, pragmatic Kenyan Chief Financial Officer (CPA-K, FCA) providing autonomous, high-value corporate treasury and tax strategy to business owners.',
-        },
-      });
-
-      const responseText = response.text || '{}';
-      try {
-        const parsed = JSON.parse(responseText);
-        return res.json({ success: true, data: parsed });
-      } catch {
-        return res.json({ success: true, raw: responseText });
-      }
+    const aiData = await generateGeminiJSON(
+      prompt,
+      'You are an elite, pragmatic Kenyan Chief Financial Officer (CPA-K, FCA) providing autonomous, high-value corporate treasury and tax strategy to business owners.'
+    );
+    if (aiData) {
+      return res.json({ success: true, data: aiData });
     }
-  } catch (err: any) {
-    console.error('Gemini CFO Advisor Error:', err);
+  } catch (_err) {
+    // Proceed to deterministic fallback
   }
 
-  // Deterministic Fallback if API key unavailable
+  // Deterministic Fallback if API key unavailable or model demand spike
   const fallbackScore = revenue > expenses ? Math.min(95, Math.round(75 + ((revenue - expenses) / (revenue || 1)) * 20)) : 58;
   return res.json({
     success: true,
@@ -480,27 +503,15 @@ Return a JSON audit evaluation:
 }`;
 
   try {
-    const ai = getGeminiClient();
-    if (ai) {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.7-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          systemInstruction: 'You are a Senior Forensic Auditor (CFE, CIA) auditing enterprise ERP systems for fraud, internal control loopholes, and tax compliance.',
-        },
-      });
-
-      const responseText = response.text || '{}';
-      try {
-        const parsed = JSON.parse(responseText);
-        return res.json({ success: true, data: parsed });
-      } catch {
-        return res.json({ success: true, raw: responseText });
-      }
+    const aiData = await generateGeminiJSON(
+      prompt,
+      'You are a Senior Forensic Auditor (CFE, CIA) auditing enterprise ERP systems for fraud, internal control loopholes, and tax compliance.'
+    );
+    if (aiData) {
+      return res.json({ success: true, data: aiData });
     }
-  } catch (err: any) {
-    console.error('Gemini Forensic Audit Error:', err);
+  } catch (_err) {
+    // Proceed to deterministic fallback
   }
 
   // Fallback forensic analysis

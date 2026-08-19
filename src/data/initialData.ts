@@ -10,7 +10,8 @@ import {
   ETRConfig,
   UserProfile,
   POSOperator,
-  BranchExpense
+  BranchExpense,
+  DeliveryRecord
 } from '../types';
 import tajiLogo from '../assets/images/taji_logo_1786034537873.jpg';
 
@@ -1032,3 +1033,106 @@ export const CURRENT_USER: UserProfile = {
   pin: '123456',
   status: 'active'
 };
+
+export const INITIAL_DELIVERIES: DeliveryRecord[] = [
+  {
+    id: 'DEL-2026-001',
+    supplierName: 'Mombasa Coastal Textile Mills Ltd',
+    consignmentNo: 'MBS-TX-99412',
+    destinationLocation: 'main_store',
+    status: 'receiving',
+    items: [
+      {
+        id: 'DLI-001',
+        barcode: 'DRK-CRIMSON-220',
+        batchId: 'BATCH-DRK-001',
+        productName: 'Heavy Dereck Weave 220 GSM',
+        category: 'Dereck',
+        unit: 'meter',
+        costPrice: 650,
+        unitPriceRetail: 1250,
+        expectedQty: 100,
+        scannedQty: 60,
+        scannedBarcodes: ['DRK-CRIMSON-220']
+      },
+      {
+        id: 'DLI-002',
+        barcode: 'FLC-MIDNIGHT-350',
+        batchId: 'BATCH-FLC-002',
+        productName: 'Heavyweight Winter Polar Fleece',
+        category: 'Fleece',
+        unit: 'meter',
+        costPrice: 420,
+        unitPriceRetail: 850,
+        expectedQty: 80,
+        scannedQty: 35,
+        scannedBarcodes: ['FLC-MIDNIGHT-350']
+      }
+    ],
+    notes: 'Bulk consignment shipment from Mombasa container port depot. Inspect quality stamps.',
+    totalExpectedQty: 180,
+    totalScannedQty: 95,
+    totalCostValuation: 60 * 650 + 35 * 420,
+    totalRetailValuation: 60 * 1250 + 35 * 850,
+    receivedByOperator: 'Executive Super Admin',
+    createdAt: '2026-08-18T08:00:00.000Z'
+  },
+  {
+    id: 'DEL-2026-002',
+    supplierName: 'Eldoret Spun Yarn Importers Co.',
+    consignmentNo: 'ELD-YRN-4419',
+    destinationLocation: 'sales_shop',
+    status: 'pending',
+    items: [
+      {
+        id: 'DLI-003',
+        barcode: 'YRN-MUSTARD-500',
+        batchId: 'BATCH-YRN-001',
+        productName: 'Chunky Merino Wool Spun Yarn',
+        category: 'Yarns',
+        unit: 'skein',
+        costPrice: 280,
+        unitPriceRetail: 550,
+        expectedQty: 120,
+        scannedQty: 0,
+        scannedBarcodes: []
+      }
+    ],
+    notes: 'Direct branch replenishment for weekend knitting and apparel demand.',
+    totalExpectedQty: 120,
+    totalScannedQty: 0,
+    totalCostValuation: 0,
+    totalRetailValuation: 0,
+    createdAt: '2026-08-18T14:30:00.000Z'
+  },
+  {
+    id: 'DEL-2026-003',
+    supplierName: 'Nairobi Premium Fleeces Ltd',
+    consignmentNo: 'NBO-FLC-2201',
+    destinationLocation: 'main_store',
+    status: 'completed',
+    items: [
+      {
+        id: 'DLI-004',
+        barcode: 'FLC-ALPINE-300',
+        batchId: 'BATCH-FLC-001',
+        productName: 'Sherpa Micro Fleece Blanket Roll',
+        category: 'Fleece',
+        unit: 'meter',
+        costPrice: 480,
+        unitPriceRetail: 920,
+        expectedQty: 50,
+        scannedQty: 50,
+        scannedBarcodes: ['FLC-ALPINE-300']
+      }
+    ],
+    notes: 'Fully received and verified at Central Warehouse.',
+    totalExpectedQty: 50,
+    totalScannedQty: 50,
+    totalCostValuation: 24000,
+    totalRetailValuation: 46000,
+    receivedByOperator: 'David K. Munene',
+    createdAt: '2026-08-17T10:00:00.000Z',
+    completedAt: '2026-08-17T11:45:00.000Z'
+  }
+];
