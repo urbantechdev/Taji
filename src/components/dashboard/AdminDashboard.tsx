@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
+import { SalesTrendChart } from './SalesTrendChart';
 import {
   Smartphone,
   Banknote,
@@ -373,7 +374,7 @@ export const AdminDashboard: React.FC = () => {
               </p>
               <div className="flex items-center justify-between pt-1">
                 <p className="text-[11px] text-slate-500 font-medium">
-                  Across 4 Store Nodes
+                  Across {locations.length} Store Nodes
                 </p>
                 <span className="text-[10px] font-bold text-rose-600 flex items-center gap-0.5 group-hover:underline">
                   <span>{expandedBlock === 'stock' ? 'Hide Details' : 'Tap to expand'}</span>
@@ -842,6 +843,9 @@ export const AdminDashboard: React.FC = () => {
 
         </div>
       )}
+
+      {/* Interactive Sales Trend & Weekly Revenue Visualization */}
+      <SalesTrendChart />
 
       {/* Analytics Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

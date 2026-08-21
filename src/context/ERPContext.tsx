@@ -26,7 +26,13 @@ import {
   DeliveryRecord,
   DeliveryItem,
   CategoryType,
-  UnitType
+  UnitType,
+  TareProfile,
+  TareReconciliationRecord,
+  CloudSyncStatus,
+  CategoryPricingConfig,
+  DuplicateBarcodeAlertState,
+  MobileBarcodeScanOptions
 } from '../types';
 import {
   LOCATIONS,
@@ -43,6 +49,7 @@ import {
   INITIAL_MAIL_NOTIFICATIONS,
   INITIAL_POS_OPERATORS,
   INITIAL_DELIVERIES,
+  INITIAL_TARE_RECONCILIATION_LOGS,
   CURRENT_USER
 } from '../data/initialData';
 import {
@@ -52,6 +59,7 @@ import {
   playNotificationSound,
   playAlertSound
 } from '../utils/audio';
+import { calculateKenyaStatutoryDeductions } from '../utils/financeEngine';
 
 interface ERPContextType {
   // Navigation, Mode & Role Context
@@ -176,7 +184,27 @@ interface ERPContextType {
     transferId: string
   ) => { success: boolean; message: string };
 
-  addProductBatch: (newBatch: Omit<ProductBatch, 'id' | 'createdAt' | 'qrCodeData'>) => void;
+  addProductBatch: (newBatch: Omit<ProductBatch, 'id' | 'createdAt' | 'qrCodeData'>) => Promise<{ success: boolean; product: ProductBatch; message: string }>;
+  updateProductBatch: (batchId: string, updates: Partial<ProductBatch>) => Promise<{ success: boolean; message: string }>;
+  deleteProductBatch: (batchId: string) => Promise<{ success: boolean; message: string }>;
+  updateCategoryPrices: (
+    category: CategoryType,
+    priceUpdates: {
+      retailPrice?: number;
+      bulkPrice?: number;
+      costPrice?: number;
+      adjustmentType?: 'set_exact' | 'increase_percent' | 'decrease_percent' | 'markup_from_cost';
+      percentageValue?: number;
+    }
+  ) => Promise<{ success: boolean; updatedCount: number; message: string }>;
+  categoryPricingConfigs: Record<CategoryType, CategoryPricingConfig>;
+  categoryImages: Record<CategoryType, string>;
+  updateCategoryImage: (category: CategoryType, imageUrl: string, applyToAllBatches?: boolean) => Promise<{ success: boolean; message: string }>;
+  isProductImageModalOpen: boolean;
+  setIsProductImageModalOpen: (open: boolean) => void;
+  cloudSyncStatus: CloudSyncStatus;
+  lastCloudSync: Date | null;
+  syncCloudInventory: () => Promise<{ success: boolean; count: number; message: string }>;
   updateETRConfig: (config: Partial<ETRConfig>) => void;
   generateMonthlyPayroll: (monthYear: string) => void;
   recordAuditLog: (action: string, details: string) => void;
@@ -236,6 +264,19 @@ interface ERPContextType {
   };
   getTotalAssetValuation: (locationId?: LocationId) => { totalCostValuation: number; totalRetailValuation: number; totalCostValue: number; totalRetailValue: number; totalUnits: number; totalBatches: number };
 
+  // Dual-Weight Tare Governance & Balance Sheet Protection
+  tareReconciliationLogs: TareReconciliationRecord[];
+  updateProductTareProfile: (batchId: string, profile: TareProfile) => void;
+  addTareReconciliationRecord: (record: Omit<TareReconciliationRecord, 'id' | 'timestamp'>) => { success: boolean; id: string };
+  reconcileTareWithJournal: (recordId: string) => { success: boolean; message: string };
+  updateCartTare: (
+    batchId: string,
+    scaleGrossWeight: number,
+    tareDeduction: number,
+    netBillableWeight: number,
+    tareDescription?: string
+  ) => void;
+
   // Active Modals & Utilities
   isUserProfileModalOpen: boolean;
   setIsUserProfileModalOpen: (open: boolean) => void;
@@ -247,6 +288,20 @@ interface ERPContextType {
   setSelectedReceipt: (order: SaleOrder | null) => void;
   isQRScannerOpen: boolean;
   setIsQRScannerOpen: (open: boolean) => void;
+  isMobileBarcodeScannerOpen: boolean;
+  setIsMobileBarcodeScannerOpen: (open: boolean) => void;
+  duplicateAlertState: DuplicateBarcodeAlertState;
+  setDuplicateAlertState: React.Dispatch<React.SetStateAction<DuplicateBarcodeAlertState>>;
+  dismissDuplicateAlert: () => void;
+  scanToAddProduct: (
+    barcode: string,
+    options?: MobileBarcodeScanOptions
+  ) => Promise<{ success: boolean; isDuplicate: boolean; product?: ProductBatch; message: string }>;
+  restockExistingProduct: (
+    batchId: string,
+    additionalQuantity: number,
+    locationId: LocationId
+  ) => Promise<{ success: boolean; message: string }>;
   scannedResult: string | null;
   setScannedResult: (res: string | null) => void;
   handleQRScan: (qrString: string) => boolean;
@@ -659,8 +714,171 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [branchExpenses]);
 
-  // Core Data States
-  const [products, setProducts] = useState<ProductBatch[]>(INITIAL_PRODUCTS);
+  // Core Data States - with cloud Firestore synchronization & local resilience
+  const [products, setProducts] = useState<ProductBatch[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_products');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading products from localStorage:', e);
+    }
+    return INITIAL_PRODUCTS;
+  });
+
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('syncing');
+  const [lastCloudSync, setLastCloudSync] = useState<Date | null>(null);
+
+  // Category Pricing Configurations
+  const DEFAULT_CATEGORY_PRICING: Record<CategoryType, CategoryPricingConfig> = {
+    Dereck: {
+      category: 'Dereck',
+      defaultRetailPrice: 1200,
+      defaultBulkPrice: 950,
+      defaultCostPrice: 600,
+      marginPercentage: 100,
+      lastUpdated: new Date().toISOString()
+    },
+    Fleece: {
+      category: 'Fleece',
+      defaultRetailPrice: 1600,
+      defaultBulkPrice: 1350,
+      defaultCostPrice: 850,
+      marginPercentage: 88,
+      lastUpdated: new Date().toISOString()
+    },
+    Yarns: {
+      category: 'Yarns',
+      defaultRetailPrice: 850,
+      defaultBulkPrice: 680,
+      defaultCostPrice: 420,
+      marginPercentage: 102,
+      lastUpdated: new Date().toISOString()
+    }
+  };
+
+  // Master Product Category Images (Dereck, Fleece, Yarns)
+  const DEFAULT_CATEGORY_IMAGES: Record<CategoryType, string> = {
+    Dereck: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=800&q=80',
+    Fleece: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80',
+    Yarns: 'https://images.unsplash.com/photo-1606760227091-3dd850d97f1d?auto=format&fit=crop&w=800&q=80'
+  };
+
+  const [categoryImages, setCategoryImages] = useState<Record<CategoryType, string>>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_category_images');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Error reading category images from localStorage:', e);
+    }
+    return DEFAULT_CATEGORY_IMAGES;
+  });
+
+  const [isProductImageModalOpen, setIsProductImageModalOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_category_images', JSON.stringify(categoryImages));
+    } catch (e) {
+      console.warn('Error saving category images to localStorage:', e);
+    }
+  }, [categoryImages]);
+
+  // Firestore realtime listener for Category Images
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'category_images'), (snapshot) => {
+        if (!snapshot.empty) {
+          const loadedImgs = { ...DEFAULT_CATEGORY_IMAGES };
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data.category && data.imageUrl) {
+              loadedImgs[data.category as CategoryType] = data.imageUrl;
+            }
+          });
+          setCategoryImages(loadedImgs);
+        }
+      }, (err) => {
+        console.warn('Firestore category images listener:', err.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing Firestore category images sync:', e);
+    }
+  }, []);
+
+  const [categoryPricingConfigs, setCategoryPricingConfigs] = useState<Record<CategoryType, CategoryPricingConfig>>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_category_pricing');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Error reading category pricing configs from localStorage:', e);
+    }
+    return DEFAULT_CATEGORY_PRICING;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_products', JSON.stringify(products));
+    } catch (e) {
+      console.warn('Error saving products to localStorage:', e);
+    }
+  }, [products]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_category_pricing', JSON.stringify(categoryPricingConfigs));
+    } catch (e) {
+      console.warn('Error saving category pricing configs to localStorage:', e);
+    }
+  }, [categoryPricingConfigs]);
+
+  // Realtime Cloud Firestore Synchronization for Products (Accessible anywhere from phone, laptop, tablet)
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'products'), async (snapshot) => {
+        if (!snapshot.empty) {
+          const loaded: ProductBatch[] = [];
+          snapshot.forEach((docSnap) => {
+            const item = docSnap.data() as ProductBatch;
+            loaded.push(item);
+          });
+          if (loaded.length > 0) {
+            setProducts(loaded);
+            setCloudSyncStatus('synced');
+            setLastCloudSync(new Date());
+          }
+        } else {
+          // If Firestore is empty on initial bootstrap, auto-seed the initial catalog to Firestore
+          setCloudSyncStatus('syncing');
+          for (const p of INITIAL_PRODUCTS) {
+            try {
+              await setDoc(doc(db, 'products', p.id), p);
+            } catch (err) {
+              console.warn('Firestore initial seed product write:', err);
+            }
+          }
+          setCloudSyncStatus('synced');
+          setLastCloudSync(new Date());
+        }
+      }, (error) => {
+        console.warn('Firestore products listener notification (using local state fallback):', error.message);
+        setCloudSyncStatus('offline');
+      });
+
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing Firestore products sync listener:', e);
+      setCloudSyncStatus('offline');
+    }
+  }, []);
+
   const [orders, setOrders] = useState<SaleOrder[]>(INITIAL_ORDERS);
   const [transfers, setTransfers] = useState<InterStoreTransfer[]>(INITIAL_TRANSFERS);
   const [ledger, setLedger] = useState<LedgerEntry[]>(INITIAL_LEDGER);
@@ -668,6 +886,103 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
   const [payroll, setPayroll] = useState<PayrollRecord[]>(INITIAL_PAYROLL);
   const [etrConfig, setEtrConfig] = useState<ETRConfig>(INITIAL_ETR_CONFIG);
+
+  // Dual-Weight Tare Reconciliation Logs State
+  const [tareReconciliationLogs, setTareReconciliationLogs] = useState<TareReconciliationRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_tare_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading tare reconciliation logs from localStorage:', e);
+    }
+    return INITIAL_TARE_RECONCILIATION_LOGS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_tare_logs', JSON.stringify(tareReconciliationLogs));
+    } catch (e) {
+      console.warn('Error saving tare logs to localStorage:', e);
+    }
+  }, [tareReconciliationLogs]);
+
+  const updateProductTareProfile = (batchId: string, profile: TareProfile) => {
+    setProducts(prev =>
+      prev.map(p => (p.id === batchId ? { ...p, tareProfile: profile } : p))
+    );
+    recordAuditLog(
+      'Product Tare Profile Updated',
+      `Configured tare profile for batch ${batchId}: ${profile.packagingDescription || ''} (${profile.tareWeightPerUnit || 0}kg)`
+    );
+  };
+
+  const addTareReconciliationRecord = (record: Omit<TareReconciliationRecord, 'id' | 'timestamp'>) => {
+    const newRecord: TareReconciliationRecord = {
+      ...record,
+      id: `TARE-AUD-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString()
+    };
+    setTareReconciliationLogs(prev => [newRecord, ...prev]);
+    return { success: true, id: newRecord.id };
+  };
+
+  const reconcileTareWithJournal = (recordId: string) => {
+    const targetRecord = tareReconciliationLogs.find(r => r.id === recordId);
+    if (!targetRecord) return { success: false, message: 'Record not found' };
+
+    const journalId = `JRN-TARE-${Date.now().toString().slice(-5)}`;
+    const journalEntry: LedgerEntry = {
+      id: journalId,
+      timestamp: new Date().toISOString(),
+      transactionRef: targetRecord.orderId || targetRecord.consignmentId || targetRecord.id,
+      description: `Dual-Weight Tare Reconciliation Adjusting Journal for ${targetRecord.productName} (${targetRecord.tareWeightDeducted.toFixed(3)}kg tare)`,
+      debitAccount: '5120 - Tare & Packaging Variance Expense',
+      creditAccount: '1200 - Inventory Asset (Raw Materials & Finished Goods)',
+      amount: Number(targetRecord.varianceCostSaved.toFixed(2)) || 100,
+      locationId: targetRecord.locationId,
+      category: 'Adjustment'
+    };
+
+    setLedger(prev => [journalEntry, ...prev]);
+    setTareReconciliationLogs(prev =>
+      prev.map(r => (r.id === recordId ? { ...r, status: 'journal_posted' } : r))
+    );
+
+    recordAuditLog(
+      'Tare Adjusting Journal Posted',
+      `Posted balancing journal ${journalId} for Tare record ${recordId} (KSh ${journalEntry.amount})`
+    );
+
+    return { success: true, message: 'Adjusting Journal Entry successfully posted to General Ledger.' };
+  };
+
+  const updateCartTare = (
+    batchId: string,
+    scaleGrossWeight: number,
+    tareDeduction: number,
+    netBillableWeight: number,
+    tareDescription?: string
+  ) => {
+    setCart(prev =>
+      prev.map(item => {
+        if (item.batchId === batchId) {
+          return {
+            ...item,
+            scaleGrossWeight,
+            tareDeduction,
+            netBillableWeight,
+            quantity: netBillableWeight,
+            isTareApplied: true,
+            tareDescription: tareDescription || item.tareDescription
+          };
+        }
+        return item;
+      })
+    );
+  };
 
   // Deliveries Intake & Barcode Scanning State
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => {
@@ -1257,7 +1572,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unit: item.unit,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        totalPrice: item.unitPrice * item.quantity
+        totalPrice: item.unitPrice * item.quantity,
+        scaleGrossWeight: item.scaleGrossWeight,
+        tareDeduction: item.tareDeduction,
+        netBillableWeight: item.netBillableWeight,
+        isTareApplied: item.isTareApplied,
+        tareDescription: item.tareDescription
       })),
       subtotal,
       vatAmount,
@@ -1273,12 +1593,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     if (!isQuotation) {
-      // 1. Decrement Inventory stock at active location
+      // 1. Decrement Inventory stock at active location (using pure net billed weight)
       setProducts(prevProducts =>
         prevProducts.map(prod => {
           const cartItem = cart.find(c => c.batchId === prod.id);
           if (cartItem) {
             const currentStock = prod.locationStock[activeLocation] || 0;
+            // The item.quantity in cart is already the net billable weight when tare is applied
             return {
               ...prod,
               locationStock: {
@@ -1290,6 +1611,40 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return prod;
         })
       );
+
+      // 1b. Auto-Record Tare Reconciliation Audit Records for items with tare deduction
+      const tareItems = cart.filter(c => (c.tareDeduction && c.tareDeduction > 0) || c.scaleGrossWeight);
+      if (tareItems.length > 0) {
+        const newTareLogs: TareReconciliationRecord[] = tareItems.map((ti, idx) => {
+          const prod = products.find(p => p.id === ti.batchId);
+          const gross = ti.scaleGrossWeight ?? (ti.quantity + (ti.tareDeduction || 0));
+          const tare = ti.tareDeduction ?? 0;
+          const net = ti.netBillableWeight ?? ti.quantity;
+          const cost = prod?.costPrice ?? (ti.unitPrice * 0.6);
+          const savedValuation = tare * ti.unitPrice;
+
+          return {
+            id: `TARE-AUD-${Date.now().toString().slice(-5)}-${idx}`,
+            orderId,
+            type: 'pos_sale',
+            timestamp: new Date().toISOString(),
+            batchId: ti.batchId,
+            productName: ti.productName,
+            sku: prod?.sku || ti.batchId,
+            locationId: activeLocation,
+            grossWeight: gross,
+            tareWeightDeducted: tare,
+            netWeightBillable: net,
+            unitPrice: ti.unitPrice,
+            costPrice: cost,
+            varianceCostSaved: savedValuation,
+            notes: `POS Scale reading: ${gross.toFixed(3)}kg. Auto-deducted ${tare.toFixed(3)}kg tare (${ti.tareDescription || 'Core/Cone'}). Billed pure net: ${net.toFixed(3)}kg.`,
+            status: 'reconciled'
+          };
+        });
+
+        setTareReconciliationLogs(prev => [...newTareLogs, ...prev]);
+      }
 
       // 2. Add Ledger Entries (Double entry for revenue & VAT output tax)
       const ledgerRev: LedgerEntry = {
@@ -2140,8 +2495,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString().split('T')[0]
     };
 
-    // 1. Add to products catalog
+    // 1. Add to products catalog (Optimistic + Cloud sync)
     setProducts(prev => [createdProduct, ...prev]);
+
+    try {
+      setDoc(doc(db, 'products', batchId), createdProduct);
+    } catch (err) {
+      console.warn('Auto create product cloud sync error:', err);
+    }
 
     // 2. Add to Delivery Record items & recalculate valuations
     setDeliveries(prev =>
@@ -2377,6 +2738,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setProducts(updatedProducts);
 
+    // Synchronize newly added/updated products to Firestore
+    try {
+      setCloudSyncStatus('syncing');
+      updatedProducts.forEach(prod => {
+        setDoc(doc(db, 'products', prod.id), prod, { merge: true }).catch(e => console.warn(e));
+      });
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (err) {
+      console.warn('Category intake cloud sync error:', err);
+    }
+
     // Double-Entry Inventory Asset Valuation Ledger Entry
     const targetLocName = locations.find(l => l.id === targetLocation)?.name || targetLocation;
     const ledgerEntry: LedgerEntry = {
@@ -2450,8 +2823,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  // ADD NEW PRODUCT BATCH
-  const addProductBatch = (newBatch: Omit<ProductBatch, 'id' | 'createdAt' | 'qrCodeData'>) => {
+  // ADD NEW PRODUCT BATCH (With Global Firestore Sync & Multi-Device Propagation)
+  const addProductBatch = async (newBatch: Omit<ProductBatch, 'id' | 'createdAt' | 'qrCodeData'>) => {
     const batchId = `BATCH-${(newBatch.category || 'GEN').slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
     const qrData = JSON.stringify({
       sku: newBatch.sku,
@@ -2469,8 +2842,311 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       qrCodeData: qrData
     };
 
-    setProducts(prev => [created, ...prev]);
-    recordAuditLog('Product Catalog Added', `Added batch ${batchId} (${newBatch.name} - ${newBatch.colorName}) with hex ${newBatch.colorHex}`);
+    // Optimistic local update
+    setProducts(prev => [created, ...prev.filter(p => p.id !== batchId)]);
+
+    // Write to Firestore database for instant global sync
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'products', batchId), created);
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn('Firestore add product sync warning:', e);
+      setCloudSyncStatus('offline');
+    }
+
+    recordAuditLog('Product Catalog Added', `Added batch ${batchId} (${newBatch.name} - ${newBatch.colorName}) to global cloud database.`);
+    playSuccessSound();
+    return {
+      success: true,
+      product: created,
+      message: `Product "${created.name}" created and synced to cloud database!`
+    };
+  };
+
+  // UPDATE INVENTORY PRODUCT BATCH (Full Details, Multi-Store Stocks, Prices & Global Sync)
+  const updateProductBatch = async (batchId: string, updates: Partial<ProductBatch>) => {
+    let updatedProduct: ProductBatch | null = null;
+
+    setProducts(prev =>
+      prev.map(p => {
+        if (p.id === batchId) {
+          updatedProduct = {
+            ...p,
+            ...updates,
+            // Recompute QR data if prices/color change
+            qrCodeData: JSON.stringify({
+              sku: updates.sku || p.sku,
+              batch: p.id,
+              cat: updates.category || p.category,
+              color: updates.colorHex || p.colorHex,
+              unitPrice: updates.unitPriceRetail ?? p.unitPriceRetail,
+              comp: updates.fiberComposition || p.fiberComposition
+            })
+          };
+          return updatedProduct;
+        }
+        return p;
+      })
+    );
+
+    if (updatedProduct) {
+      try {
+        setCloudSyncStatus('syncing');
+        await setDoc(doc(db, 'products', batchId), updatedProduct, { merge: true });
+        setCloudSyncStatus('synced');
+        setLastCloudSync(new Date());
+      } catch (e: any) {
+        console.warn('Firestore update product sync warning:', e);
+        setCloudSyncStatus('offline');
+      }
+
+      recordAuditLog(
+        'Product Details Updated',
+        `Updated inventory product ${batchId} (${(updatedProduct as ProductBatch).name}) across all branches and cloud database.`
+      );
+      playSuccessSound();
+      return {
+        success: true,
+        message: `Product "${(updatedProduct as ProductBatch).name}" updated successfully and synced to cloud!`
+      };
+    }
+
+    return { success: false, message: 'Product item not found.' };
+  };
+
+  // DELETE INVENTORY PRODUCT BATCH
+  const deleteProductBatch = async (batchId: string) => {
+    const target = products.find(p => p.id === batchId);
+    setProducts(prev => prev.filter(p => p.id !== batchId));
+
+    try {
+      setCloudSyncStatus('syncing');
+      await deleteDoc(doc(db, 'products', batchId));
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn('Firestore delete product sync warning:', e);
+      setCloudSyncStatus('offline');
+    }
+
+    recordAuditLog('Product Removed', `Deleted product ${batchId} (${target?.name || ''}) from cloud inventory.`);
+    playSuccessSound();
+    return {
+      success: true,
+      message: `Product "${target?.name || batchId}" deleted from inventory.`
+    };
+  };
+
+  // BULK CATEGORY PRICING MANAGER (Adjust retail, bulk, cost or % markups for an entire category)
+  const updateCategoryPrices = async (
+    category: CategoryType,
+    priceUpdates: {
+      retailPrice?: number;
+      bulkPrice?: number;
+      costPrice?: number;
+      adjustmentType?: 'set_exact' | 'increase_percent' | 'decrease_percent' | 'markup_from_cost';
+      percentageValue?: number;
+    }
+  ) => {
+    const matchingProducts = products.filter(p => p.category === category);
+    if (matchingProducts.length === 0) {
+      return { success: false, updatedCount: 0, message: `No products found under category "${category}".` };
+    }
+
+    const updatedList: ProductBatch[] = [];
+
+    setProducts(prev =>
+      prev.map(p => {
+        if (p.category !== category) return p;
+
+        let newRetail = p.unitPriceRetail;
+        let newBulk = p.unitPriceBulk;
+        let newCost = p.costPrice;
+
+        if (priceUpdates.adjustmentType === 'set_exact') {
+          if (typeof priceUpdates.retailPrice === 'number' && priceUpdates.retailPrice > 0) {
+            newRetail = priceUpdates.retailPrice;
+          }
+          if (typeof priceUpdates.bulkPrice === 'number' && priceUpdates.bulkPrice > 0) {
+            newBulk = priceUpdates.bulkPrice;
+          }
+          if (typeof priceUpdates.costPrice === 'number' && priceUpdates.costPrice > 0) {
+            newCost = priceUpdates.costPrice;
+          }
+        } else if (priceUpdates.adjustmentType === 'increase_percent' && priceUpdates.percentageValue) {
+          const factor = 1 + priceUpdates.percentageValue / 100;
+          newRetail = Math.round(p.unitPriceRetail * factor);
+          newBulk = Math.round(p.unitPriceBulk * factor);
+        } else if (priceUpdates.adjustmentType === 'decrease_percent' && priceUpdates.percentageValue) {
+          const factor = Math.max(0.01, 1 - priceUpdates.percentageValue / 100);
+          newRetail = Math.round(p.unitPriceRetail * factor);
+          newBulk = Math.round(p.unitPriceBulk * factor);
+        } else if (priceUpdates.adjustmentType === 'markup_from_cost' && priceUpdates.percentageValue) {
+          const marginFactor = 1 + priceUpdates.percentageValue / 100;
+          newRetail = Math.round(p.costPrice * marginFactor);
+          newBulk = Math.round(p.costPrice * (1 + (priceUpdates.percentageValue * 0.75) / 100));
+        }
+
+        const updated: ProductBatch = {
+          ...p,
+          unitPriceRetail: newRetail,
+          unitPriceBulk: newBulk,
+          costPrice: newCost,
+          qrCodeData: JSON.stringify({
+            sku: p.sku,
+            batch: p.id,
+            cat: p.category,
+            color: p.colorHex,
+            unitPrice: newRetail,
+            comp: p.fiberComposition
+          })
+        };
+        updatedList.push(updated);
+        return updated;
+      })
+    );
+
+    // Update Category Pricing Configuration in state
+    setCategoryPricingConfigs(prev => ({
+      ...prev,
+      [category]: {
+        category,
+        defaultRetailPrice: priceUpdates.retailPrice || prev[category]?.defaultRetailPrice || 1200,
+        defaultBulkPrice: priceUpdates.bulkPrice || prev[category]?.defaultBulkPrice || 950,
+        defaultCostPrice: priceUpdates.costPrice || prev[category]?.defaultCostPrice || 600,
+        marginPercentage: priceUpdates.percentageValue || prev[category]?.marginPercentage || 50,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name || 'Admin'
+      }
+    }));
+
+    // Synchronize all updated products to Firestore in parallel for global access
+    try {
+      setCloudSyncStatus('syncing');
+      await Promise.all(
+        updatedList.map(prod => setDoc(doc(db, 'products', prod.id), prod, { merge: true }))
+      );
+      await setDoc(doc(db, 'category_pricing', category.toLowerCase()), {
+        category,
+        lastUpdated: new Date().toISOString(),
+        updatedCount: updatedList.length,
+        priceUpdates,
+        updatedBy: currentUser.name || 'Admin'
+      }, { merge: true });
+
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn('Firestore category prices sync warning:', e);
+      setCloudSyncStatus('offline');
+    }
+
+    recordAuditLog(
+      'Category Prices Bulk Updated',
+      `Updated prices for ${updatedList.length} products in category "${category}". Strategy: ${priceUpdates.adjustmentType || 'Custom'}`
+    );
+
+    playSuccessSound();
+    return {
+      success: true,
+      updatedCount: updatedList.length,
+      message: `Successfully updated prices for all ${updatedList.length} products in "${category}" and synchronized globally!`
+    };
+  };
+
+  // UPDATE MASTER CATEGORY PRODUCT IMAGE (Dereck, Fleece, Yarns)
+  const updateCategoryImage = async (
+    category: CategoryType,
+    imageUrl: string,
+    applyToAllBatches: boolean = true
+  ) => {
+    const cleanUrl = imageUrl.trim();
+    if (!cleanUrl) {
+      return { success: false, message: 'Image URL or file data is required.' };
+    }
+
+    setCategoryImages(prev => ({
+      ...prev,
+      [category]: cleanUrl
+    }));
+
+    // Persist category image metadata to Firestore
+    try {
+      await setDoc(doc(db, 'category_images', category), {
+        category,
+        imageUrl: cleanUrl,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name || 'Admin'
+      }, { merge: true });
+    } catch (err: any) {
+      console.warn('Firestore update category image warning:', err);
+    }
+
+    let updatedCount = 0;
+    if (applyToAllBatches) {
+      const updatedBatches: ProductBatch[] = [];
+      setProducts(prev =>
+        prev.map(p => {
+          if (p.category === category) {
+            updatedCount++;
+            const updated = { ...p, imageUrl: cleanUrl };
+            updatedBatches.push(updated);
+            return updated;
+          }
+          return p;
+        })
+      );
+
+      // Sync batch images to Firestore
+      try {
+        await Promise.all(
+          updatedBatches.map(prod =>
+            setDoc(doc(db, 'products', prod.id), { imageUrl: cleanUrl }, { merge: true })
+          )
+        );
+      } catch (err: any) {
+        console.warn('Firestore batch images update warning:', err);
+      }
+    }
+
+    recordAuditLog(
+      'Product Image Updated',
+      `Admin updated product image for "${category}" line.${applyToAllBatches ? ` Applied to ${updatedCount} inventory items.` : ''}`
+    );
+
+    playSuccessSound();
+    return {
+      success: true,
+      message: `Product image for "${category}" updated successfully!${applyToAllBatches ? ` Applied across ${updatedCount} batches.` : ''}`
+    };
+  };
+
+  // MANUAL CLOUD RE-SYNC
+  const syncCloudInventory = async () => {
+    setCloudSyncStatus('syncing');
+    try {
+      for (const prod of products) {
+        await setDoc(doc(db, 'products', prod.id), prod, { merge: true });
+      }
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+      playSuccessSound();
+      return {
+        success: true,
+        count: products.length,
+        message: `Successfully synchronized ${products.length} inventory products to cloud database!`
+      };
+    } catch (err: any) {
+      console.error('Error during manual cloud sync:', err);
+      setCloudSyncStatus('offline');
+      return {
+        success: false,
+        count: 0,
+        message: `Cloud sync notification: ${err.message || 'Check connection'}`
+      };
+    }
   };
 
   // ETR CONFIG UPDATE
@@ -2479,17 +3155,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recordAuditLog('ETR Settings Updated', 'Updated company tax details / CU serial number');
   };
 
-  // PAYROLL GENERATION
+  // PAYROLL GENERATION - 100% Dynamic Kenya Statutory Tax Engine (PAYE, NSSF, SHIF, Housing Levy)
   const generateMonthlyPayroll = (monthYear: string) => {
     const newRecords: PayrollRecord[] = staff.map((s, idx) => {
       const gross = s.basicSalary + s.allowances;
-      // KRA Standard Tax Brackets simulation
-      const paye = Math.round(gross * 0.25);
-      const nssf = 1080;
-      const nhif = 1300;
-      const housingLevy = Math.round(gross * 0.015);
-      const totalDeductions = paye + nssf + nhif + housingLevy;
-      const netPay = gross - totalDeductions;
+      const statutory = calculateKenyaStatutoryDeductions(gross);
 
       return {
         id: `PAY-${monthYear.replace(/\s+/g, '')}-${idx + 1}`,
@@ -2502,19 +3172,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         basicSalary: s.basicSalary,
         allowances: s.allowances,
         grossPay: gross,
-        payeTax: paye,
-        nssfDeduction: nssf,
-        nhifDeduction: nhif,
-        housingLevy,
-        totalDeductions,
-        netPay,
+        payeTax: statutory.payeTax,
+        nssfDeduction: statutory.totalNssf,
+        nhifDeduction: statutory.shifDeduction,
+        housingLevy: statutory.housingLevy,
+        totalDeductions: statutory.totalDeductions,
+        netPay: statutory.netPay,
         paymentStatus: 'Paid',
         generatedAt: new Date().toISOString()
       };
     });
 
     setPayroll(prev => [...newRecords, ...prev]);
-    recordAuditLog('Payroll Processed', `Generated monthly payroll for ${monthYear} covering ${staff.length} staff members.`);
+    recordAuditLog('Payroll Processed', `Generated statutory monthly payroll for ${monthYear} covering ${staff.length} staff members.`);
   };
 
   // QR SCANNER Handler
@@ -2602,6 +3272,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         acceptPurchaseOrder,
         receiveRestockTransfer,
         addProductBatch,
+        updateProductBatch,
+        deleteProductBatch,
+        updateCategoryPrices,
+        categoryPricingConfigs,
+        categoryImages,
+        updateCategoryImage,
+        isProductImageModalOpen,
+        setIsProductImageModalOpen,
+        cloudSyncStatus,
+        lastCloudSync,
+        syncCloudInventory,
         addLedgerEntry,
         updateETRConfig,
         generateMonthlyPayroll,
@@ -2616,6 +3297,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         completeDelivery,
         commitCategoryIntakeSession,
         getTotalAssetValuation,
+        tareReconciliationLogs,
+        updateProductTareProfile,
+        addTareReconciliationRecord,
+        reconcileTareWithJournal,
+        updateCartTare,
         selectedReceipt,
         setSelectedReceipt,
         locations,

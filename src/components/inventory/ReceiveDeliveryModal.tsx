@@ -21,7 +21,9 @@ import {
   Check,
   Building2,
   Calendar,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Scale,
+  ShieldCheck
 } from 'lucide-react';
 import { playAddToCartSound, playAlertSound, playClickSound, playSuccessSound } from '../../utils/audio';
 
@@ -68,6 +70,12 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
   const [newSupplier, setNewSupplier] = useState('');
   const [newWaybillRef, setNewWaybillRef] = useState('');
   const [newTargetLocation, setNewTargetLocation] = useState(activeLocation);
+
+  // Delivery Dual-Weight Scale Mode
+  const [isScaleIntakeMode, setIsScaleIntakeMode] = useState(false);
+  const [deliveryGrossWeight, setDeliveryGrossWeight] = useState<number>(0);
+  const [deliveryTareTarePerUnit, setDeliveryTarePerUnit] = useState<number>(0.050);
+  const [deliveryCoreUnits, setDeliveryCoreUnits] = useState<number>(1);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -350,6 +358,23 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickSound();
+                      setIsScaleIntakeMode(!isScaleIntakeMode);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 border transition-all cursor-pointer ${
+                      isScaleIntakeMode
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                    title="Toggle Gross Scale Weighing & Core Deduction Calculator"
+                  >
+                    <Scale className="w-3.5 h-3.5" />
+                    <span>{isScaleIntakeMode ? 'Scale Mode: Active' : 'Gross Scale Mode'}</span>
+                  </button>
+
                   <span className="text-[11px] font-bold text-slate-600">Scan Multiplier:</span>
                   <input
                     type="number"
@@ -361,6 +386,91 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
                   />
                 </div>
               </div>
+
+              {/* Delivery Gross-to-Net Scale Calculator Panel */}
+              {isScaleIntakeMode && (
+                <div className="p-3 bg-white rounded-xl border border-rose-200 shadow-xs space-y-2 animate-fade-in text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                    <span className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 text-rose-800">
+                      <Scale className="w-4 h-4 text-rose-600" />
+                      Receiving Scale (Gross to Pure Net Inventory Conversion)
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Avoid Balance Sheet inflation by deducting packaging cores
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Gross Weight from Scale (kg)</label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        min="0.001"
+                        value={deliveryGrossWeight || ''}
+                        onChange={(e) => setDeliveryGrossWeight(parseFloat(e.target.value) || 0)}
+                        placeholder="e.g. 52.500"
+                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Packaging Core Weight (kg/unit)</label>
+                      <input
+                        type="number"
+                        step="0.005"
+                        min="0.001"
+                        value={deliveryTareTarePerUnit}
+                        onChange={(e) => setDeliveryTarePerUnit(parseFloat(e.target.value) || 0.050)}
+                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Total Bobbins/Rolls Count</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={deliveryCoreUnits}
+                        onChange={(e) => setDeliveryCoreUnits(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const totalTare = deliveryTareTarePerUnit * deliveryCoreUnits;
+                    const calculatedNet = Math.max(0, deliveryGrossWeight - totalTare);
+                    return (
+                      <div className="p-2 bg-rose-50/60 rounded-lg border border-rose-200 flex items-center justify-between">
+                        <div className="text-[11px]">
+                          <span className="text-slate-600 block">Total Packaging Tare Deducted:</span>
+                          <span className="font-mono font-bold text-rose-700">
+                            -{totalTare.toFixed(3)} kg ({deliveryCoreUnits} cores @ {(deliveryTareTarePerUnit * 1000).toFixed(0)}g)
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-slate-600 text-[11px] block">Actual Net Stock to Record:</span>
+                          <span className="font-mono font-black text-emerald-700 text-sm">
+                            {calculatedNet.toFixed(3)} kg
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (calculatedNet > 0) {
+                              setScanQty(Number(calculatedNet.toFixed(3)));
+                              playSuccessSound();
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer flex items-center gap-1"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Use {calculatedNet.toFixed(2)} kg as Intake Qty</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* Main Barcode Scanner Input Form */}
               <form onSubmit={handleScanSubmit} className="flex gap-2">

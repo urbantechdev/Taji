@@ -6,7 +6,7 @@ import { playClickSound } from '../../utils/audio';
 import {
   LayoutDashboard,
   ShoppingCart,
-  Package,
+  Boxes,
   ArrowLeftRight,
   Receipt,
   FileSpreadsheet,
@@ -61,8 +61,8 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
     },
     {
       id: 'catalog',
-      label: 'Stock',
-      icon: Package,
+      label: 'Inventory',
+      icon: Boxes,
     },
     {
       id: 'transfers',

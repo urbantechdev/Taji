@@ -4,7 +4,13 @@ import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, UnitType } from '../../types';
 import { ReceiveDeliveryModal } from './ReceiveDeliveryModal';
 import { CategoryIntakeModal } from './CategoryIntakeModal';
+import { WeightReconciliationModule } from './WeightReconciliationModule';
+import { TareSettingsModal } from './TareSettingsModal';
+import { EditProductModal } from './EditProductModal';
+import { CategoryPricingModal } from './CategoryPricingModal';
+import { ProductImageManagerModal } from './ProductImageManagerModal';
 import {
+  Boxes,
   Layers,
   Search,
   Plus,
@@ -25,7 +31,13 @@ import {
   Zap,
   Barcode,
   Truck,
-  DollarSign
+  DollarSign,
+  Scale,
+  ShieldCheck,
+  Edit3,
+  Cloud,
+  CheckCircle,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export const InventoryCatalog: React.FC = () => {
@@ -36,20 +48,32 @@ export const InventoryCatalog: React.FC = () => {
     addProductBatch,
     requestRestock,
     updateProductPrice,
+    updateProductTareProfile,
     createDirectDispatchTransfer,
     getTotalAssetValuation,
     setIsQRScannerOpen,
-    handleQRScan
+    handleQRScan,
+    cloudSyncStatus,
+    lastCloudSync,
+    syncCloudInventory,
+    isProductImageModalOpen,
+    setIsProductImageModalOpen
   } = useERP();
 
+  const [activeInventoryTab, setActiveInventoryTab] = useState<'catalog' | 'weight_reconciliation'>('catalog');
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>('All');
   const [stockFilter, setStockFilter] = useState<'All' | 'main_store_low' | 'sales_shop_low' | 'dead_stock'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeBatchModal, setActiveBatchModal] = useState<ProductBatch | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductBatch | null>(null);
+  const [isCategoryPricingOpen, setIsCategoryPricingOpen] = useState(false);
+  const [tareSettingsProduct, setTareSettingsProduct] = useState<ProductBatch | null>(null);
   const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
   const [isReceiveDeliveryOpen, setIsReceiveDeliveryOpen] = useState(false);
   const [isCategoryIntakeOpen, setIsCategoryIntakeOpen] = useState(false);
   const [categoryIntakeCategory, setCategoryIntakeCategory] = useState<CategoryType>('Dereck');
+  const [isSyncingManual, setIsSyncingManual] = useState(false);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
 
   // Price Markdown Modal State for Dead Stock Clearance
   const [discountModalBatch, setDiscountModalBatch] = useState<ProductBatch | null>(null);
@@ -119,11 +143,11 @@ export const InventoryCatalog: React.FC = () => {
     return matchesCat && matchesQuery && matchesStock;
   });
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName || !newSku) return;
 
-    addProductBatch({
+    const res = await addProductBatch({
       sku: newSku.toUpperCase(),
       name: newName,
       category: newCategory,
@@ -145,6 +169,10 @@ export const InventoryCatalog: React.FC = () => {
     });
 
     setIsAddBatchModalOpen(false);
+    if (res?.message) {
+      setSyncToast(res.message);
+      setTimeout(() => setSyncToast(null), 3500);
+    }
     // Reset Form
     setNewName('');
     setNewSku('');
@@ -181,17 +209,94 @@ export const InventoryCatalog: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-rose-600" />
+              <Boxes className="w-5 h-5 text-rose-600" />
               <h2 className="font-bold text-slate-900 text-lg">
-                Textile Batch Catalog &amp; Color System
+                Multi-Store Inventory Management &amp; Catalog
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Exact Hex Color Codes (#E91E63 Crimson, #9C27B0 Plum, #00BCD4 Teal) &amp; Barcode / QR Tracking
+              Live Stock Levels, Barcode/QR Intake, Multi-Branch Valuation &amp; Markdown Clearance
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* View Tab Switcher */}
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveInventoryTab('catalog')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeInventoryTab === 'catalog'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Boxes className="w-3.5 h-3.5 text-rose-600" />
+                <span>Catalog Stock</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveInventoryTab('weight_reconciliation')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeInventoryTab === 'weight_reconciliation'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-rose-600'
+                }`}
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>Gross vs Net Reconciler</span>
+              </button>
+            </div>
+
+            {/* Cloud Database Global Sync Status */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
+              <span className={`w-2.5 h-2.5 rounded-full ${
+                cloudSyncStatus === 'synced' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' :
+                cloudSyncStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-slate-400'
+              }`} />
+              <div className="text-left hidden sm:block">
+                <span className="text-[10px] font-bold text-slate-800 flex items-center gap-1">
+                  <Cloud className="w-3 h-3 text-indigo-600" />
+                  {cloudSyncStatus === 'synced' ? 'Global Cloud: Live' : cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Local Cache'}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={isSyncingManual}
+                onClick={async () => {
+                  setIsSyncingManual(true);
+                  const res = await syncCloudInventory();
+                  setIsSyncingManual(false);
+                  setSyncToast(res.message);
+                  setTimeout(() => setSyncToast(null), 3000);
+                }}
+                className="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-900 transition-colors"
+                title="Force push/pull inventory items to Firestore cloud database"
+              >
+                <RefreshCw className={`w-3 h-3 ${isSyncingManual ? 'animate-spin text-indigo-600' : ''}`} />
+              </button>
+            </div>
+
+            {/* Product Images Manager Button */}
+            <button
+              onClick={() => setIsProductImageModalOpen(true)}
+              className="px-3.5 py-2.5 bg-gradient-to-r from-teal-900 via-emerald-800 to-teal-950 hover:from-teal-800 hover:to-emerald-900 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer border border-teal-700/50"
+              title="Manage Master Product Images for Dereck, Fleeces & Yarns with Cloud Sync"
+            >
+              <ImageIcon className="w-4 h-4 text-emerald-300" />
+              <span>Product Images</span>
+            </button>
+
+            {/* Category Pricing Manager Button */}
+            <button
+              onClick={() => setIsCategoryPricingOpen(true)}
+              className="px-3.5 py-2.5 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-950 hover:from-indigo-800 hover:to-indigo-900 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer border border-indigo-700/50"
+              title="Manage & Bulk Update Category Prices (Dereck, Fleece, Yarns) with Firestore Sync"
+            >
+              <DollarSign className="w-4 h-4 text-indigo-300" />
+              <span>Category Prices</span>
+            </button>
+
             <button
               onClick={() => {
                 setCategoryIntakeCategory(selectedCategory !== 'All' ? selectedCategory : 'Dereck');
@@ -201,7 +306,7 @@ export const InventoryCatalog: React.FC = () => {
               title="Category Barcode Scanner Intake Mode for Fleeces, Dereec & Yarns"
             >
               <Barcode className="w-4 h-4 text-amber-300" />
-              <span>Category Intake (Yarns, Fleeces, Dereec)</span>
+              <span>Category Intake</span>
             </button>
 
             <button
@@ -218,7 +323,7 @@ export const InventoryCatalog: React.FC = () => {
               className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Add New Batch</span>
+              <span>Add Batch</span>
             </button>
           </div>
         </div>
@@ -317,189 +422,215 @@ export const InventoryCatalog: React.FC = () => {
         </div>
       </div>
 
-      {/* Dead Stock Alert Banner */}
-      {stockFilter === 'dead_stock' && (
-        <div className="p-4 bg-gradient-to-r from-purple-950 via-indigo-900 to-slate-900 text-white rounded-2xl shadow-lg border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0">
-              <Flame className="w-5 h-5 animate-pulse text-amber-300" />
+      {/* Conditional Rendering: Catalog vs Gross-to-Net Weight Reconciliation Module */}
+      {activeInventoryTab === 'weight_reconciliation' ? (
+        <WeightReconciliationModule />
+      ) : (
+        <>
+          {/* Dead Stock Alert Banner */}
+          {stockFilter === 'dead_stock' && (
+            <div className="p-4 bg-gradient-to-r from-purple-950 via-indigo-900 to-slate-900 text-white rounded-2xl shadow-lg border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-300 shrink-0">
+                  <Flame className="w-5 h-5 animate-pulse text-amber-300" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-purple-100 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Dead Stock &amp; Stagnant Capital Clearance Hub</span>
+                  </h4>
+                  <p className="text-xs text-purple-200">
+                    {deadStockCount} inventory batches have recorded 0 sales • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-bold">KSh {deadStockCapital.toLocaleString()}</strong>
+                  </p>
+                </div>
+              </div>
+              <span className="text-[11px] font-mono font-bold bg-purple-500/30 border border-purple-400/40 text-purple-200 px-3 py-1 rounded-full shrink-0">
+                Capital Protection Mode
+              </span>
             </div>
-            <div>
-              <h4 className="font-extrabold text-sm text-purple-100 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Dead Stock &amp; Stagnant Capital Clearance Hub</span>
-              </h4>
-              <p className="text-xs text-purple-200">
-                {deadStockCount} inventory batches have recorded 0 sales • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-bold">KSh {deadStockCapital.toLocaleString()}</strong>
-              </p>
+          )}
+
+          {/* Product Catalog Table */}
+          <div className="relative overflow-hidden bg-white rounded-2xl border border-rose-100 shadow-xs group">
+            <RightEdgeBlend variant="rainbow" />
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-rose-50/60 border-b border-rose-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    <th className="p-4">Color &amp; Swatch</th>
+                    <th className="p-4">Product Batch / SKU</th>
+                    <th className="p-4">Category / Composition</th>
+                    <th className="p-4">Prices (KSh)</th>
+                    <th className="p-4 text-center">Main Store</th>
+                    <th className="p-4 text-center">Sales Shop</th>
+                    <th className="p-4 text-center">Store 1</th>
+                    <th className="p-4 text-center">Store 2</th>
+                    <th className="p-4 text-right">Batch QR &amp; Tare</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-sans">
+                  {filteredProducts.map(p => {
+                    const totalStock = (Object.values(p.locationStock) as number[]).reduce((a: number, b: number) => a + b, 0);
+
+                    return (
+                      <tr key={p.id} className="hover:bg-rose-50/30 transition-colors">
+                        
+                        {/* Color Swatch & Code */}
+                        <td className="p-4">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className="w-7 h-7 rounded-xl border border-slate-200 shadow-sm shrink-0"
+                              style={{ backgroundColor: p.colorHex }}
+                            />
+                            <div>
+                              <p className="font-bold text-slate-900 leading-tight">{p.colorName}</p>
+                              <p className="font-mono text-[10px] text-slate-500">{p.colorHex}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Product Name & SKU */}
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            {p.imageUrl ? (
+                              <img
+                                src={p.imageUrl}
+                                alt={p.name}
+                                className="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-xs shrink-0"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200">
+                                <Layers className="w-5 h-5 text-slate-400" />
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-bold text-slate-900">{p.name}</p>
+                              <p className="font-mono text-[10px] text-slate-500">{p.sku} • {p.id}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Fiber & Subcategory */}
+                        <td className="p-4">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 mb-0.5">
+                            {p.category} ({p.subCategory})
+                          </span>
+                          <p className="text-[11px] text-slate-500">{p.fiberComposition}</p>
+                        </td>
+
+                        {/* Prices */}
+                        <td className="p-4 font-mono">
+                          <p className="font-bold text-rose-700">Retail: {p.unitPriceRetail.toLocaleString()}</p>
+                          <p className="text-[10px] text-emerald-600">Bulk: {p.unitPriceBulk.toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-400">Cost: {p.costPrice.toLocaleString()}</p>
+                        </td>
+
+                        {/* Main Store Stock */}
+                        <td className="p-4 text-center font-mono">
+                          {p.locationStock.main_store <= p.minReorderLevel ? (
+                            <div className="flex flex-col items-center">
+                              <span className="font-bold text-rose-700">{p.locationStock.main_store} {p.unit}</span>
+                              <span className="inline-flex items-center gap-1 text-[9px] font-extrabold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full border border-rose-300 mt-1">
+                                <AlertTriangle className="w-2.5 h-2.5 text-rose-600 animate-bounce" />
+                                Low Hub (Min {p.minReorderLevel})
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-slate-800">{p.locationStock.main_store} {p.unit}</span>
+                          )}
+                        </td>
+
+                        {/* Sales Shop Stock */}
+                        <td className="p-4 text-center font-mono">
+                          {p.locationStock.sales_shop <= p.minReorderLevel ? (
+                            <div className="flex flex-col items-center">
+                              <span className="font-bold text-amber-800">{p.locationStock.sales_shop} {p.unit}</span>
+                              <span className="inline-flex items-center gap-1 text-[9px] font-extrabold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300 mt-1">
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-600 animate-bounce" />
+                                Low Shop (Min {p.minReorderLevel})
+                              </span>
+                              <button
+                                onClick={() => {
+                                  requestRestock(
+                                    [{ batchId: p.id, quantity: p.minReorderLevel * 2 }],
+                                    `Restock Request for ${p.name} at Sales Shop`
+                                  );
+                                }}
+                                className="mt-1 px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-bold rounded flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <RefreshCw className="w-2.5 h-2.5" />
+                                Request
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-slate-800">{p.locationStock.sales_shop} {p.unit}</span>
+                          )}
+                        </td>
+
+                        {/* Store 1 Stock */}
+                        <td className="p-4 text-center font-mono font-bold text-slate-800">
+                          {p.locationStock.store_1} {p.unit}
+                        </td>
+
+                        {/* Store 2 Stock */}
+                        <td className="p-4 text-center font-mono font-bold text-slate-800">
+                          {p.locationStock.store_2} {p.unit}
+                        </td>
+
+                        {/* QR Code & Edit Actions */}
+                        <td className="p-4 text-right space-y-1">
+                          <button
+                            onClick={() => setEditingProduct(p)}
+                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 w-full text-center cursor-pointer shadow-2xs"
+                            title="Edit Product, Stock Allocation & Prices (Global Cloud Sync)"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Edit Item</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveBatchModal(p)}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 text-[11px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer"
+                          >
+                            <QrCode className="w-3 h-3 text-rose-600" />
+                            <span>QR Tag</span>
+                          </button>
+
+                          {/* Tare Profile Configuration Button */}
+                          <button
+                            onClick={() => setTareSettingsProduct(p)}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer mt-1"
+                            title="Configure Tare & Packaging Weight Deductions"
+                          >
+                            <Scale className="w-3 h-3 text-amber-700" />
+                            <span>Tare: {p.tareProfile ? `${(p.tareProfile.tareWeightPerUnit * 1000).toFixed(0)}g` : 'Set Core'}</span>
+                          </button>
+
+                          {/* Dead Stock Flash Clearance Discount Button */}
+                          {deadStockProducts.some(dp => dp.id === p.id) && (
+                            <button
+                              onClick={() => {
+                                setDiscountModalBatch(p);
+                                setNewPromoPrice(Math.round(p.unitPriceRetail * 0.8));
+                              }}
+                              className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer mt-1"
+                            >
+                              <Zap className="w-3 h-3 text-amber-300 fill-amber-300" />
+                              <span>Flash Discount</span>
+                            </button>
+                          )}
+                        </td>
+
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
-          <span className="text-[11px] font-mono font-bold bg-purple-500/30 border border-purple-400/40 text-purple-200 px-3 py-1 rounded-full shrink-0">
-            Capital Protection Mode
-          </span>
-        </div>
+        </>
       )}
-
-      {/* Product Catalog Table */}
-      <div className="relative overflow-hidden bg-white rounded-2xl border border-rose-100 shadow-xs group">
-        <RightEdgeBlend variant="rainbow" />
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-rose-50/60 border-b border-rose-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className="p-4">Color &amp; Swatch</th>
-                <th className="p-4">Product Batch / SKU</th>
-                <th className="p-4">Category / Composition</th>
-                <th className="p-4">Prices (KSh)</th>
-                <th className="p-4 text-center">Main Store</th>
-                <th className="p-4 text-center">Sales Shop</th>
-                <th className="p-4 text-center">Store 1</th>
-                <th className="p-4 text-center">Store 2</th>
-                <th className="p-4 text-right">Batch QR</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs font-sans">
-              {filteredProducts.map(p => {
-                const totalStock = (Object.values(p.locationStock) as number[]).reduce((a: number, b: number) => a + b, 0);
-
-                return (
-                  <tr key={p.id} className="hover:bg-rose-50/30 transition-colors">
-                    
-                    {/* Color Swatch & Code */}
-                    <td className="p-4">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-7 h-7 rounded-xl border border-slate-200 shadow-sm shrink-0"
-                          style={{ backgroundColor: p.colorHex }}
-                        />
-                        <div>
-                          <p className="font-bold text-slate-900 leading-tight">{p.colorName}</p>
-                          <p className="font-mono text-[10px] text-slate-500">{p.colorHex}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Product Name & SKU */}
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        {p.imageUrl ? (
-                          <img
-                            src={p.imageUrl}
-                            alt={p.name}
-                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-xs shrink-0"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200">
-                            <Layers className="w-5 h-5 text-slate-400" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-bold text-slate-900">{p.name}</p>
-                          <p className="font-mono text-[10px] text-slate-500">{p.sku} • {p.id}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Fiber & Subcategory */}
-                    <td className="p-4">
-                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 mb-0.5">
-                        {p.category} ({p.subCategory})
-                      </span>
-                      <p className="text-[11px] text-slate-500">{p.fiberComposition}</p>
-                    </td>
-
-                    {/* Prices */}
-                    <td className="p-4 font-mono">
-                      <p className="font-bold text-rose-700">Retail: {p.unitPriceRetail.toLocaleString()}</p>
-                      <p className="text-[10px] text-emerald-600">Bulk: {p.unitPriceBulk.toLocaleString()}</p>
-                      <p className="text-[10px] text-slate-400">Cost: {p.costPrice.toLocaleString()}</p>
-                    </td>
-
-                    {/* Main Store Stock */}
-                    <td className="p-4 text-center font-mono">
-                      {p.locationStock.main_store <= p.minReorderLevel ? (
-                        <div className="flex flex-col items-center">
-                          <span className="font-bold text-rose-700">{p.locationStock.main_store} {p.unit}</span>
-                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full border border-rose-300 mt-1">
-                            <AlertTriangle className="w-2.5 h-2.5 text-rose-600 animate-bounce" />
-                            Low Hub (Min {p.minReorderLevel})
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="font-bold text-slate-800">{p.locationStock.main_store} {p.unit}</span>
-                      )}
-                    </td>
-
-                    {/* Sales Shop Stock */}
-                    <td className="p-4 text-center font-mono">
-                      {p.locationStock.sales_shop <= p.minReorderLevel ? (
-                        <div className="flex flex-col items-center">
-                          <span className="font-bold text-amber-800">{p.locationStock.sales_shop} {p.unit}</span>
-                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300 mt-1">
-                            <AlertTriangle className="w-2.5 h-2.5 text-amber-600 animate-bounce" />
-                            Low Shop (Min {p.minReorderLevel})
-                          </span>
-                          <button
-                            onClick={() => {
-                              requestRestock(
-                                [{ batchId: p.id, quantity: p.minReorderLevel * 2 }],
-                                `Restock Request for ${p.name} at Sales Shop`
-                              );
-                            }}
-                            className="mt-1 px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-bold rounded flex items-center gap-1 transition-colors cursor-pointer"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            Request
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="font-bold text-slate-800">{p.locationStock.sales_shop} {p.unit}</span>
-                      )}
-                    </td>
-
-                    {/* Store 1 Stock */}
-                    <td className="p-4 text-center font-mono font-bold text-slate-800">
-                      {p.locationStock.store_1} {p.unit}
-                    </td>
-
-                    {/* Store 2 Stock */}
-                    <td className="p-4 text-center font-mono font-bold text-slate-800">
-                      {p.locationStock.store_2} {p.unit}
-                    </td>
-
-                    {/* QR Code Trigger Button */}
-                    <td className="p-4 text-right space-y-1">
-                      <button
-                        onClick={() => setActiveBatchModal(p)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <QrCode className="w-3.5 h-3.5 text-rose-600" />
-                        View QR
-                      </button>
-
-                      {/* Dead Stock Flash Clearance Discount Button */}
-                      {deadStockProducts.some(dp => dp.id === p.id) && (
-                        <button
-                          onClick={() => {
-                            setDiscountModalBatch(p);
-                            setNewPromoPrice(Math.round(p.unitPriceRetail * 0.8));
-                          }}
-                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer mt-1"
-                        >
-                          <Zap className="w-3 h-3 text-amber-300 fill-amber-300" />
-                          <span>Flash Discount</span>
-                        </button>
-                      )}
-                    </td>
-
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       {/* BATCH QR CODE GENERATOR & TAG MODAL */}
       {activeBatchModal && (
@@ -845,6 +976,47 @@ export const InventoryCatalog: React.FC = () => {
         onClose={() => setIsCategoryIntakeOpen(false)}
         initialCategory={categoryIntakeCategory}
       />
+
+      {/* Tare & Packaging Profile Configuration Modal */}
+      {tareSettingsProduct && (
+        <TareSettingsModal
+          isOpen={!!tareSettingsProduct}
+          product={tareSettingsProduct}
+          onClose={() => setTareSettingsProduct(null)}
+          onSave={(updatedProduct) => {
+            if (updatedProduct.tareProfile) {
+              updateProductTareProfile(updatedProduct.id, updatedProduct.tareProfile);
+            }
+            setTareSettingsProduct(null);
+          }}
+        />
+      )}
+
+      {/* EDIT INVENTORY PRODUCT MODAL (With Global Firestore Sync) */}
+      {editingProduct && (
+        <EditProductModal
+          product={editingProduct}
+          onClose={() => setEditingProduct(null)}
+        />
+      )}
+
+      {/* CATEGORY PRICING BATCH MANAGER MODAL (With Global Firestore Sync) */}
+      {isCategoryPricingOpen && (
+        <CategoryPricingModal
+          onClose={() => setIsCategoryPricingOpen(false)}
+        />
+      )}
+
+      {/* MASTER PRODUCT IMAGE MANAGER MODAL (Dereck, Fleece, Yarns) */}
+      <ProductImageManagerModal />
+
+      {/* Floating Cloud Sync Toast Notification */}
+      {syncToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 border border-slate-700 text-xs font-semibold animate-in slide-in-from-bottom duration-200">
+          <CheckCircle className="w-4 h-4 text-emerald-400" />
+          <span>{syncToast}</span>
+        </div>
+      )}
 
     </div>
   );

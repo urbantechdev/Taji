@@ -11,7 +11,8 @@ import {
   ETIMSCreditNote,
   KRAInputVATClaim,
   KRAWithholdingTaxRecord,
-  PayrollRecord
+  PayrollRecord,
+  TareReconciliationRecord
 } from '../types';
 
 // Helper to trigger direct file download for CSV
@@ -1318,4 +1319,127 @@ export function exportUnifiedPayrollTaxPDF(payroll: PayrollRecord[], etrConfig: 
 
   doc.save(`KRA_Unified_Payroll_Statutory_${new Date().toISOString().split('T')[0]}.pdf`);
 }
+
+// --------------------------------------------------------------------------
+// 9. DUAL-WEIGHT & TARE RECONCILIATION AUDIT EXPORTS (CSV & PDF)
+// --------------------------------------------------------------------------
+
+export function exportTareWeightAuditScheduleCSV(
+  records: TareReconciliationRecord[],
+  locations: LocationInfo[],
+  etrConfig: ETRConfig
+) {
+  const headers = [
+    'Audit ID',
+    'Timestamp',
+    'Operation Type',
+    'Reference (Order/Consignment)',
+    'Product / SKU',
+    'Store Location',
+    'Gross Scale Weight (kg)',
+    'Tare Packaging Deducted (kg)',
+    'Billable Net Stock (kg)',
+    'Unit Cost (KSh)',
+    'Retail Unit Price (KSh)',
+    'Asset Valuation Protected (KSh)',
+    'Balance Sheet Journal Status'
+  ];
+
+  const rows = records.map(r => [
+    r.id,
+    new Date(r.timestamp).toLocaleString(),
+    r.type.toUpperCase(),
+    r.orderId || r.consignmentId || 'DIRECT_AUDIT',
+    `"${r.productName} (${r.sku})"`,
+    `"${locations.find(l => l.id === r.locationId)?.name || r.locationId}"`,
+    r.grossWeight.toFixed(3),
+    r.tareWeightDeducted.toFixed(3),
+    r.netWeightBillable.toFixed(3),
+    r.costPrice.toFixed(2),
+    r.unitPrice.toFixed(2),
+    r.varianceCostSaved.toFixed(2),
+    r.status.toUpperCase()
+  ]);
+
+  const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+  downloadCSV(`Dual_Weight_Tare_Reconciliation_${new Date().toISOString().split('T')[0]}.csv`, csv);
+}
+
+export function exportTareWeightAuditSchedulePDF(
+  records: TareReconciliationRecord[],
+  locations: LocationInfo[],
+  etrConfig: ETRConfig
+) {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 70, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DUAL-WEIGHT (GROSS vs NET) & INVENTORY BALANCE SHEET RECONCILIATION AUDIT', 40, 30);
+
+  doc.setFontSize(8.5);
+  doc.setTextColor(251, 113, 133);
+  doc.text(`Entity: ${etrConfig.companyName} | KRA PIN: ${etrConfig.taxPin} | Dual-Weight Tare Governance Framework`, 40, 48);
+
+  const totalGross = records.reduce((acc, r) => acc + r.grossWeight, 0);
+  const totalTare = records.reduce((acc, r) => acc + r.tareWeightDeducted, 0);
+  const totalNet = records.reduce((acc, r) => acc + r.netWeightBillable, 0);
+  const totalValuationProtected = records.reduce((acc, r) => acc + r.varianceCostSaved, 0);
+
+  const tableData = records.map((r, idx) => [
+    idx + 1,
+    new Date(r.timestamp).toLocaleDateString(),
+    r.orderId || r.consignmentId || 'DIRECT_AUDIT',
+    `${r.productName}\n(${r.sku})`,
+    locations.find(l => l.id === r.locationId)?.name?.split(' ')[0] || r.locationId,
+    `${r.grossWeight.toFixed(3)} kg`,
+    `${r.tareWeightDeducted.toFixed(3)} kg`,
+    `${r.netWeightBillable.toFixed(3)} kg`,
+    `KSh ${r.unitPrice.toLocaleString()}`,
+    `KSh ${r.varianceCostSaved.toLocaleString()}`,
+    r.status.toUpperCase()
+  ]);
+
+  autoTable(doc, {
+    startY: 85,
+    head: [['#', 'Date', 'Ref ID', 'Product & SKU', 'Location', 'Gross (Scale)', 'Tare Deducted', 'Net Stock Billed', 'Rate/kg', 'Valuation Saved', 'Ledger Status']],
+    body: tableData,
+    foot: [
+      [
+        'TOTAL',
+        `${records.length} Logs`,
+        '',
+        '',
+        '',
+        `${totalGross.toFixed(3)} kg`,
+        `${totalTare.toFixed(3)} kg`,
+        `${totalNet.toFixed(3)} kg`,
+        '',
+        `KSh ${totalValuationProtected.toLocaleString()}`,
+        'BALANCED'
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7, cellPadding: 3.5 }
+  });
+
+  // Footer explanation
+  const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : 500;
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    'Financial Note: Net stock deductions prevent phantom inventory shrinkage and ensure the Balance Sheet Inventory Asset exactly matches physical yarn/fabric without packaging distortion.',
+    40,
+    Math.min(finalY, doc.internal.pageSize.getHeight() - 20)
+  );
+
+  doc.save(`Dual_Weight_Tare_Audit_Schedule_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
 

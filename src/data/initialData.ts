@@ -11,7 +11,8 @@ import {
   UserProfile,
   POSOperator,
   BranchExpense,
-  DeliveryRecord
+  DeliveryRecord,
+  TareReconciliationRecord
 } from '../types';
 import tajiLogo from '../assets/images/taji_logo_1786034537873.jpg';
 
@@ -1136,3 +1137,79 @@ export const INITIAL_DELIVERIES: DeliveryRecord[] = [
     completedAt: '2026-08-17T11:45:00.000Z'
   }
 ];
+
+export const INITIAL_TARE_RECONCILIATION_LOGS: TareReconciliationRecord[] = [
+  {
+    id: 'TARE-AUD-001',
+    orderId: 'ORD-2026-88219',
+    type: 'pos_sale',
+    timestamp: '2026-08-19T14:22:00.000Z',
+    batchId: 'BATCH-YRN-201',
+    productName: 'High-Luster Acrylic Yarn 4-Ply',
+    sku: 'YRN-EMERALD-4PLY',
+    locationId: 'sales_shop',
+    grossWeight: 5.250,
+    tareWeightDeducted: 0.250,
+    netWeightBillable: 5.000,
+    unitPrice: 380,
+    costPrice: 180,
+    varianceCostSaved: 95.00,
+    notes: 'POS Scale Reading: 5.250 kg. Auto-deducted 5x 50g plastic cones.',
+    status: 'reconciled'
+  },
+  {
+    id: 'TARE-AUD-002',
+    orderId: 'ORD-2026-87910',
+    type: 'pos_sale',
+    timestamp: '2026-08-19T16:45:00.000Z',
+    batchId: 'BATCH-YRN-203',
+    productName: 'Velvet Chenille Soft Carpet Yarn',
+    sku: 'YRN-CHOCO-CHEN',
+    locationId: 'sales_shop',
+    grossWeight: 10.600,
+    tareWeightDeducted: 0.600,
+    netWeightBillable: 10.000,
+    unitPrice: 1350,
+    costPrice: 650,
+    varianceCostSaved: 810.00,
+    notes: 'Bulk retail yarn purchase. Deducted 12x 50g spools before invoicing.',
+    status: 'journal_posted'
+  },
+  {
+    id: 'TARE-AUD-003',
+    consignmentId: 'DEL-2026-001',
+    type: 'delivery_intake',
+    timestamp: '2026-08-18T10:10:00.000Z',
+    batchId: 'BATCH-FLC-101',
+    productName: 'Polar Fleece Ultra-Warm 300 GSM',
+    sku: 'FLC-NAVY-300',
+    locationId: 'main_store',
+    grossWeight: 154.500,
+    tareWeightDeducted: 4.500,
+    netWeightBillable: 150.000,
+    unitPrice: 850,
+    costPrice: 420,
+    varianceCostSaved: 1890.00,
+    notes: 'Supplier Manifest invoiced net fiber. Weighed Gross 154.5kg -> Ingested 150.0kg net into inventory asset account.',
+    status: 'reconciled'
+  },
+  {
+    id: 'TARE-AUD-004',
+    orderId: 'ORD-2026-86502',
+    type: 'pos_sale',
+    timestamp: '2026-08-17T11:30:00.000Z',
+    batchId: 'BATCH-DRK-001',
+    productName: 'Heavy Dereck Weave 220 GSM',
+    sku: 'DRK-CRIMSON-220',
+    locationId: 'main_store',
+    grossWeight: 25.700,
+    tareWeightDeducted: 0.700,
+    netWeightBillable: 25.000,
+    unitPrice: 1250,
+    costPrice: 650,
+    varianceCostSaved: 875.00,
+    notes: 'Deducted 2x 350g cylindrical rolling tubes for custom drapery order.',
+    status: 'journal_posted'
+  }
+];
+

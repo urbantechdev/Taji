@@ -36,7 +36,9 @@ import {
   ChevronUp,
   ChevronsUpDown,
   Barcode,
-  Scan
+  Scan,
+  Scale,
+  ShieldCheck
 } from 'lucide-react';
 
 export const POSModule: React.FC = () => {
@@ -57,7 +59,8 @@ export const POSModule: React.FC = () => {
     heldCarts,
     holdCurrentCart,
     setIsMailDrawerOpen,
-    mailNotifications
+    mailNotifications,
+    updateCartTare
   } = useERP();
 
   const unreadMails = mailNotifications.filter(m => !m.isRead).length;
@@ -75,6 +78,12 @@ export const POSModule: React.FC = () => {
   const [isQuotation, setIsQuotation] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCartExpanded, setIsCartExpanded] = useState(false);
+
+  // Active Tare Scale Modal / In-Line Drawer State
+  const [activeTareItemBatchId, setActiveTareItemBatchId] = useState<string | null>(null);
+  const [tareInputGrossWeight, setTareInputGrossWeight] = useState<number>(0);
+  const [tareInputCoreCount, setTareInputCoreCount] = useState<number>(1);
+  const [tareInputCustomPerUnit, setTareInputCustomPerUnit] = useState<number>(0.050);
 
   // Product Quick View Modal State
   const [selectedViewProduct, setSelectedViewProduct] = useState<ProductBatch | null>(null);
@@ -647,62 +656,201 @@ export const POSModule: React.FC = () => {
                   isCartExpanded ? 'max-h-[460px]' : 'max-h-[210px]'
                 }`}
               >
-                {cart.map(item => (
-                  <div
-                    key={item.batchId}
-                    className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3.5 h-3.5 rounded-full border border-white shadow-xs shrink-0"
-                          style={{ backgroundColor: item.colorHex }}
-                        />
-                        <div>
-                          <p className="font-bold text-slate-900 text-xs leading-tight">
-                            {item.productName}
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            {item.colorName} • KSh {item.unitPrice.toLocaleString()} / {item.unit}
-                          </p>
+                {cart.map(item => {
+                  const prod = products.find(p => p.id === item.batchId);
+                  const isTareOpen = activeTareItemBatchId === item.batchId;
+                  const defaultTareKg = prod?.tareProfile?.tareWeightPerUnit ?? (prod?.category === 'Yarns' ? 0.050 : 0.250);
+
+                  return (
+                    <div
+                      key={item.batchId}
+                      className={`p-3 rounded-xl border transition-all space-y-2 ${
+                        item.isTareApplied
+                          ? 'bg-rose-50/50 border-rose-200'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3.5 h-3.5 rounded-full border border-white shadow-xs shrink-0"
+                            style={{ backgroundColor: item.colorHex }}
+                          />
+                          <div>
+                            <p className="font-bold text-slate-900 text-xs leading-tight">
+                              {item.productName}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              {item.colorName} • KSh {item.unitPrice.toLocaleString()} / {item.unit}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playClickSound();
+                              if (isTareOpen) {
+                                setActiveTareItemBatchId(null);
+                              } else {
+                                setActiveTareItemBatchId(item.batchId);
+                                setTareInputGrossWeight(item.scaleGrossWeight ?? item.quantity);
+                                setTareInputCoreCount(1);
+                                setTareInputCustomPerUnit(defaultTareKg);
+                              }
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition-all cursor-pointer ${
+                              item.isTareApplied
+                                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                : isTareOpen
+                                ? 'bg-slate-900 text-white border-slate-900'
+                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                            }`}
+                            title="Dual-Weight Scale & Tare Deduction Calculator"
+                          >
+                            <Scale className="w-3 h-3" />
+                            <span>{item.isTareApplied ? 'Tare Applied' : 'Scale / Tare'}</span>
+                          </button>
+
+                          <button
+                            onClick={() => removeFromCart(item.batchId)}
+                            className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
-                      <button
-                        onClick={() => removeFromCart(item.batchId)}
-                        className="text-slate-400 hover:text-rose-600 p-1"
-                        title="Remove item"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
 
-                    {/* Quantity Controls & Line Total */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                      <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg p-1">
-                        <button
-                          onClick={() => updateCartQuantity(item.batchId, item.quantity - 1)}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="font-black font-mono text-sm px-2.5 min-w-[30px] text-center text-slate-900">
-                          {item.quantity}
+                      {/* Tare Applied Tag */}
+                      {item.isTareApplied && item.tareDeduction && item.tareDeduction > 0 && (
+                        <div className="px-2.5 py-1 bg-white border border-rose-200 rounded-lg text-[10px] text-rose-950 flex items-center justify-between font-mono">
+                          <span>Gross: <strong className="text-amber-900">{item.scaleGrossWeight?.toFixed(3)}kg</strong></span>
+                          <span>Tare: <strong className="text-rose-700">-{item.tareDeduction.toFixed(3)}kg</strong></span>
+                          <span>Net Billed: <strong className="text-emerald-700 font-black">{item.netBillableWeight?.toFixed(3)}kg</strong></span>
+                        </div>
+                      )}
+
+                      {/* In-Line Tare Scale Drawer */}
+                      {isTareOpen && (
+                        <div className="p-3 bg-white rounded-xl border border-rose-300 shadow-xs space-y-2.5 animate-fade-in text-xs">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span className="font-bold text-slate-900 text-[11px] flex items-center gap-1">
+                              <Scale className="w-3.5 h-3.5 text-rose-600" />
+                              Gross-to-Net Scale Deductor
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              {prod?.tareProfile?.packagingDescription || 'Standard Core'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Scale Gross (kg)</label>
+                              <input
+                                type="number"
+                                step="0.001"
+                                min="0.001"
+                                value={tareInputGrossWeight || ''}
+                                onChange={(e) => setTareInputGrossWeight(parseFloat(e.target.value) || 0)}
+                                placeholder="e.g. 5.250"
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Cores / Cones Qty</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={tareInputCoreCount}
+                                onChange={(e) => setTareInputCoreCount(Math.max(1, parseInt(e.target.value) || 1))}
+                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Calculated Pure Net Preview */}
+                          {(() => {
+                            const totalTare = tareInputCustomPerUnit * tareInputCoreCount;
+                            const calculatedNet = Math.max(0, tareInputGrossWeight - totalTare);
+                            return (
+                              <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-[11px]">
+                                <div>
+                                  <span className="text-slate-500 text-[10px] block">Tare Deducted</span>
+                                  <span className="font-mono font-bold text-rose-700">
+                                    - {totalTare.toFixed(3)} kg ({tareInputCoreCount}x {(tareInputCustomPerUnit * 1000).toFixed(0)}g)
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-slate-500 text-[10px] block">Net Billable Stock</span>
+                                  <span className="font-mono font-black text-emerald-700 text-xs">
+                                    {calculatedNet.toFixed(3)} kg
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          <div className="flex items-center justify-end gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setActiveTareItemBatchId(null)}
+                              className="px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playSuccessSound();
+                                const totalTare = tareInputCustomPerUnit * tareInputCoreCount;
+                                const calculatedNet = Math.max(0, tareInputGrossWeight - totalTare);
+                                updateCartTare(
+                                  item.batchId,
+                                  tareInputGrossWeight,
+                                  totalTare,
+                                  calculatedNet,
+                                  `${tareInputCoreCount}x ${(tareInputCustomPerUnit * 1000).toFixed(0)}g Cones`
+                                );
+                                setActiveTareItemBatchId(null);
+                              }}
+                              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] rounded-lg shadow-xs cursor-pointer flex items-center gap-1"
+                            >
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>Apply Net Weight</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Quantity Controls & Line Total */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                        <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg p-1">
+                          <button
+                            onClick={() => updateCartQuantity(item.batchId, Math.max(0.1, Number((item.quantity - 1).toFixed(3))))}
+                            className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="font-black font-mono text-sm px-2.5 min-w-[30px] text-center text-slate-900">
+                            {typeof item.quantity === 'number' ? item.quantity.toFixed(item.unit === 'meter' || item.unit === 'kg' ? 2 : 0) : item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateCartQuantity(item.batchId, Number((item.quantity + 1).toFixed(3)))}
+                            className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-[10px] text-slate-500 uppercase font-bold">{item.unit}</span>
+                        </div>
+
+                        <span className="font-mono font-black text-slate-900 text-sm sm:text-base">
+                          KSh {(item.unitPrice * item.quantity).toLocaleString()}
                         </span>
-                        <button
-                          onClick={() => updateCartQuantity(item.batchId, item.quantity + 1)}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="text-[10px] text-slate-500 uppercase font-bold">{item.unit}</span>
                       </div>
-
-                      <span className="font-mono font-black text-slate-900 text-sm sm:text-base">
-                        KSh {(item.unitPrice * item.quantity).toLocaleString()}
-                      </span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

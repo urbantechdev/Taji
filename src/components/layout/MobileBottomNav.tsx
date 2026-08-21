@@ -6,7 +6,7 @@ import { playClickSound, playPopupSound } from '../../utils/audio';
 import {
   LayoutDashboard,
   ShoppingCart,
-  Layers,
+  Boxes,
   ArrowLeftRight,
   BookOpenCheck,
   Receipt,
@@ -94,8 +94,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     },
     {
       id: 'catalog',
-      label: 'Catalog',
-      icon: <Layers className="w-5 h-5" />
+      label: 'Inventory',
+      icon: <Boxes className="w-5 h-5" />
     },
     {
       id: 'transfers',

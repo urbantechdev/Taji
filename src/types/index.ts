@@ -99,6 +99,82 @@ export type CategoryType = 'Dereck' | 'Fleece' | 'Yarns';
 
 export type UnitType = 'kg' | 'roll' | 'meter' | 'skein' | 'yard';
 
+export type CloudSyncStatus = 'synced' | 'syncing' | 'offline';
+
+export interface CategoryPricingConfig {
+  category: CategoryType;
+  defaultRetailPrice: number;
+  defaultBulkPrice: number;
+  defaultCostPrice: number;
+  marginPercentage?: number;
+  lastUpdated?: string;
+  updatedBy?: string;
+}
+
+export interface CategoryImageConfig {
+  category: CategoryType;
+  imageUrl: string;
+  label: string;
+  description: string;
+  lastUpdated?: string;
+  updatedBy?: string;
+}
+
+export interface DuplicateBarcodeAlertState {
+  isOpen: boolean;
+  barcode: string;
+  existingProduct: ProductBatch | null;
+  scannedAt: string;
+  scannedCategory?: CategoryType;
+  targetLocation?: LocationId;
+  message: string;
+}
+
+export interface MobileBarcodeScanOptions {
+  category?: CategoryType;
+  locationId?: LocationId;
+  quantity?: number;
+  unit?: UnitType;
+  costPrice?: number;
+  retailPrice?: number;
+  bulkPrice?: number;
+  name?: string;
+  colorName?: string;
+  colorHex?: string;
+  fiberComposition?: string;
+}
+
+export type TareCalculationType = 'fixed_tare' | 'percentage_tare' | 'none';
+
+export interface TareProfile {
+  tareWeightPerUnit: number; // Tare per unit in kg (e.g., 0.050 kg = 50g plastic cone / 0.250 kg = cardboard roll core)
+  tareType: TareCalculationType; // 'fixed_tare' | 'percentage_tare' | 'none'
+  tarePercent?: number; // percentage tare (e.g. 2.5%)
+  packagingDescription?: string; // e.g. "Plastic Yarn Cone 50g", "Cardboard Fleece Core 250g"
+  packagingCost?: number; // cost of cone/container (KSh)
+  isTareDeductedAtPOS?: boolean; // Whether POS automatically adjusts weight before pricing
+}
+
+export interface TareReconciliationRecord {
+  id: string;
+  orderId?: string;
+  consignmentId?: string;
+  type: 'pos_sale' | 'delivery_intake' | 'manual_audit_adjustment';
+  timestamp: string;
+  batchId: string;
+  productName: string;
+  sku: string;
+  locationId: LocationId;
+  grossWeight: number; // Gross weight on scale (kg)
+  tareWeightDeducted: number; // Tare packaging weight removed (kg)
+  netWeightBillable: number; // Pure stock net weight decremented from balance sheet (kg)
+  unitPrice: number;
+  costPrice: number;
+  varianceCostSaved: number; // Financial over/under valuation avoided
+  notes?: string;
+  status: 'reconciled' | 'variance_adjusted' | 'journal_posted';
+}
+
 export interface ProductBatch {
   id: string; // e.g. BATCH-2026-001
   sku: string; // e.g. TFX-DRK-101 (Primary barcode / SKU identifier)
@@ -117,6 +193,7 @@ export interface ProductBatch {
   minReorderLevel: number; // Low stock threshold for automatic alert / request
   imageUrl?: string; // High-resolution product image URL
   qrCodeData: string; // Embedded QR payload string
+  tareProfile?: TareProfile; // Dual-weight Tare Configuration
   createdAt: string;
 }
 
@@ -171,6 +248,11 @@ export interface POSCartItem {
   quantity: number;
   isBulk: boolean;
   availableStock: number;
+  scaleGrossWeight?: number; // Gross weight on scale (kg)
+  tareDeduction?: number; // Deducted packaging tare (kg)
+  netBillableWeight?: number; // Resulting pure stock net weight
+  isTareApplied?: boolean;
+  tareDescription?: string;
 }
 
 export type OrderStatus = 'completed' | 'routed_to_main' | 'routed_to_shop' | 'cancelled';
@@ -192,6 +274,10 @@ export interface SaleOrder {
     quantity: number;
     unitPrice: number;
     totalPrice: number;
+    scaleGrossWeight?: number;
+    tareDeduction?: number;
+    netBillableWeight?: number;
+    tareDescription?: string;
   }[];
   subtotal: number;
   vatAmount: number; // 16% VAT
@@ -277,7 +363,10 @@ export type LedgerCategory =
   | 'Expense Payment'
   | 'Inter-Store Cash Transfer'
   | 'Tax Settlement'
-  | 'Owner Distribution';
+  | 'Owner Distribution'
+  | 'Tare Variance Adjustment'
+  | 'Inventory Variance'
+  | 'Adjustment';
 
 export interface LedgerEntry {
   id: string;

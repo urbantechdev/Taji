@@ -4,7 +4,7 @@ import { isTabAllowedForRole, getRoleMetadata } from '../../utils/rbac';
 import {
   LayoutDashboard,
   ShoppingCart,
-  Layers,
+  Boxes,
   ArrowLeftRight,
   BookOpenCheck,
   Receipt,
@@ -37,7 +37,11 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { currentUser, setIsUserProfileModalOpen, locations } = useERP();
+  const { currentUser, setIsUserProfileModalOpen, locations, products } = useERP();
+
+  const lowStockCount = products.filter(
+    p => (p.locationStock?.main_store <= p.minReorderLevel) || (p.locationStock?.sales_shop <= p.minReorderLevel)
+  ).length;
 
   const allNavItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     {
@@ -57,8 +61,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'catalog',
-      label: 'Product Catalog',
-      icon: <Layers className="w-4 h-4" />,
+      label: 'Inventory Management',
+      icon: <Boxes className="w-4 h-4" />,
+      badge: lowStockCount > 0 ? `${lowStockCount} Low` : undefined
     },
     {
       id: 'transfers',
