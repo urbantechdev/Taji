@@ -9,6 +9,7 @@ import { TareSettingsModal } from './TareSettingsModal';
 import { EditProductModal } from './EditProductModal';
 import { CategoryPricingModal } from './CategoryPricingModal';
 import { ProductImageManagerModal } from './ProductImageManagerModal';
+import { BulkBarcodeGeneratorModal } from './BulkBarcodeGeneratorModal';
 import {
   Boxes,
   Layers,
@@ -30,6 +31,7 @@ import {
   TrendingDown,
   Zap,
   Barcode,
+  Camera,
   Truck,
   DollarSign,
   Scale,
@@ -52,6 +54,7 @@ export const InventoryCatalog: React.FC = () => {
     createDirectDispatchTransfer,
     getTotalAssetValuation,
     setIsQRScannerOpen,
+    setIsMobileBarcodeScannerOpen,
     handleQRScan,
     cloudSyncStatus,
     lastCloudSync,
@@ -68,6 +71,8 @@ export const InventoryCatalog: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<ProductBatch | null>(null);
   const [isCategoryPricingOpen, setIsCategoryPricingOpen] = useState(false);
   const [tareSettingsProduct, setTareSettingsProduct] = useState<ProductBatch | null>(null);
+  const [isBulkBarcodeGeneratorOpen, setIsBulkBarcodeGeneratorOpen] = useState(false);
+  const [bulkBarcodePreselectedId, setBulkBarcodePreselectedId] = useState<string | undefined>(undefined);
   const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);
   const [isReceiveDeliveryOpen, setIsReceiveDeliveryOpen] = useState(false);
   const [isCategoryIntakeOpen, setIsCategoryIntakeOpen] = useState(false);
@@ -83,6 +88,7 @@ export const InventoryCatalog: React.FC = () => {
   // New Batch Form State
   const [newName, setNewName] = useState('');
   const [newSku, setNewSku] = useState('');
+  const [newBarcode, setNewBarcode] = useState('');
   const [newCategory, setNewCategory] = useState<CategoryType>('Dereck');
   const [newSubCategory, setNewSubCategory] = useState('');
   const [newComposition, setNewComposition] = useState('100% Cotton');
@@ -149,6 +155,7 @@ export const InventoryCatalog: React.FC = () => {
 
     const res = await addProductBatch({
       sku: newSku.toUpperCase(),
+      barcode: newBarcode.trim() ? newBarcode.trim().toUpperCase() : newSku.toUpperCase(),
       name: newName,
       category: newCategory,
       subCategory: newSubCategory || `${newCategory} Specialty`,
@@ -176,6 +183,7 @@ export const InventoryCatalog: React.FC = () => {
     // Reset Form
     setNewName('');
     setNewSku('');
+    setNewBarcode('');
   };
 
   const totalAssetValuation = getTotalAssetValuation();
@@ -295,6 +303,30 @@ export const InventoryCatalog: React.FC = () => {
             >
               <DollarSign className="w-4 h-4 text-indigo-300" />
               <span>Category Prices</span>
+            </button>
+
+            {/* Bulk Barcode & QR Label Generator Button */}
+            <button
+              onClick={() => {
+                setBulkBarcodePreselectedId(undefined);
+                setIsBulkBarcodeGeneratorOpen(true);
+              }}
+              className="px-3.5 py-2.5 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-600 text-white font-extrabold text-xs rounded-xl shadow-md shadow-orange-950/20 transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102 border border-amber-400/40"
+              title="Generate, Preview and Print Bulk Product Barcodes & QR Sticker Sheets"
+            >
+              <Barcode className="w-4 h-4 text-amber-200" />
+              <span>Bulk Barcodes</span>
+            </button>
+
+            {/* Mobile Camera Barcode Scanner Trigger (Instant Add) */}
+            <button
+              onClick={() => setIsMobileBarcodeScannerOpen(true)}
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-900/20 transition-all flex items-center gap-2 cursor-pointer hover:scale-102 border border-emerald-400/40"
+              title="Activate Phone Camera Barcode Scanner to Add Products Instantly"
+            >
+              <Camera className="w-4 h-4 text-emerald-200 animate-pulse" />
+              <Barcode className="w-4 h-4 text-white" />
+              <span>Scan to Add</span>
             </button>
 
             <button
@@ -597,6 +629,19 @@ export const InventoryCatalog: React.FC = () => {
                             <span>QR Tag</span>
                           </button>
 
+                          {/* Print Single/Bulk Barcode Label Trigger */}
+                          <button
+                            onClick={() => {
+                              setBulkBarcodePreselectedId(p.id);
+                              setIsBulkBarcodeGeneratorOpen(true);
+                            }}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer"
+                            title="Generate and print printable barcode stickers for this item"
+                          >
+                            <Barcode className="w-3 h-3 text-amber-600" />
+                            <span>Barcode Tag</span>
+                          </button>
+
                           {/* Tare Profile Configuration Button */}
                           <button
                             onClick={() => setTareSettingsProduct(p)}
@@ -745,6 +790,19 @@ export const InventoryCatalog: React.FC = () => {
                   />
                 </div>
                 <div>
+                  <label className="font-bold text-slate-700 block mb-1">Barcode (EAN-13 / Code128):</label>
+                  <input
+                    type="text"
+                    value={newBarcode}
+                    onChange={e => setNewBarcode(e.target.value)}
+                    placeholder="Scan or enter barcode (e.g. 616400012345)"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="font-bold text-slate-700 block mb-1">Category:</label>
                   <select
                     value={newCategory}
@@ -755,6 +813,16 @@ export const InventoryCatalog: React.FC = () => {
                     <option value="Fleece">Fleece</option>
                     <option value="Yarns">Yarns</option>
                   </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Subcategory / Line:</label>
+                  <input
+                    type="text"
+                    value={newSubCategory}
+                    onChange={e => setNewSubCategory(e.target.value)}
+                    placeholder="e.g. Heavy Suiting Line"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
                 </div>
               </div>
 
@@ -1009,6 +1077,16 @@ export const InventoryCatalog: React.FC = () => {
 
       {/* MASTER PRODUCT IMAGE MANAGER MODAL (Dereck, Fleece, Yarns) */}
       <ProductImageManagerModal />
+
+      {/* BULK PRODUCT BARCODE & QR LABEL GENERATOR MODAL */}
+      <BulkBarcodeGeneratorModal
+        isOpen={isBulkBarcodeGeneratorOpen}
+        onClose={() => {
+          setIsBulkBarcodeGeneratorOpen(false);
+          setBulkBarcodePreselectedId(undefined);
+        }}
+        preselectedBatchId={bulkBarcodePreselectedId}
+      />
 
       {/* Floating Cloud Sync Toast Notification */}
       {syncToast && (

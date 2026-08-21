@@ -880,7 +880,29 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const [orders, setOrders] = useState<SaleOrder[]>(INITIAL_ORDERS);
-  const [transfers, setTransfers] = useState<InterStoreTransfer[]>(INITIAL_TRANSFERS);
+  const [transfers, setTransfers] = useState<InterStoreTransfer[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_transfers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Ensure no legacy mock pending transfers linger
+          return parsed.map((t: InterStoreTransfer) => t.id === 'TRF-2026-003' ? { ...t, status: 'fulfilled' as const } : t);
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading transfers from localStorage:', e);
+    }
+    return INITIAL_TRANSFERS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_transfers', JSON.stringify(transfers));
+    } catch (e) {
+      console.warn('Error saving transfers to localStorage:', e);
+    }
+  }, [transfers]);
   const [ledger, setLedger] = useState<LedgerEntry[]>(INITIAL_LEDGER);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
   const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
@@ -1012,14 +1034,49 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cart, setCart] = useState<POSCartItem[]>([]);
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
 
-  // Mail / Transfer Notifications State
-  const [mailNotifications, setMailNotifications] = useState<MailNotification[]>(INITIAL_MAIL_NOTIFICATIONS);
+  // Mail / Transfer Notifications State - only real notifications from real triggers
+  const [mailNotifications, setMailNotifications] = useState<MailNotification[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_mail_notifications');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Cleanse legacy mock notification IDs
+          return parsed.filter((m: MailNotification) => m.id !== 'MAIL-001' && m.id !== 'MAIL-002');
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading mail notifications from localStorage:', e);
+    }
+    return INITIAL_MAIL_NOTIFICATIONS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_mail_notifications', JSON.stringify(mailNotifications));
+    } catch (e) {
+      console.warn('Error saving mail notifications to localStorage:', e);
+    }
+  }, [mailNotifications]);
+
   const [activeToastNotification, setActiveToastNotification] = useState<MailNotification | null>(null);
 
   // Modals
   const [selectedReceipt, setSelectedReceipt] = useState<SaleOrder | null>(null);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [isMobileBarcodeScannerOpen, setIsMobileBarcodeScannerOpen] = useState(false);
+  const [duplicateAlertState, setDuplicateAlertState] = useState<DuplicateBarcodeAlertState>({
+    isOpen: false,
+    barcode: '',
+    existingProduct: null,
+    scannedAt: '',
+    message: ''
+  });
   const [scannedResult, setScannedResult] = useState<string | null>(null);
+
+  const dismissDuplicateAlert = () => {
+    setDuplicateAlertState(prev => ({ ...prev, isOpen: false }));
+  };
 
   const updateBrandSettings = (newSettings: Partial<BrandSettings>) => {
     setBrandSettings(prev => ({ ...prev, ...newSettings }));
@@ -3187,6 +3244,184 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recordAuditLog('Payroll Processed', `Generated statutory monthly payroll for ${monthYear} covering ${staff.length} staff members.`);
   };
 
+  // SCAN TO ADD PRODUCT WITH ZERO REPETITION AND INSTANT DUPLICATE ALERT
+  const scanToAddProduct = async (
+    barcode: string,
+    options?: MobileBarcodeScanOptions
+  ): Promise<{ success: boolean; isDuplicate: boolean; product?: ProductBatch; message: string }> => {
+    const cleanBarcode = barcode.trim();
+    if (!cleanBarcode) {
+      return { success: false, isDuplicate: false, message: 'Invalid barcode or QR payload.' };
+    }
+
+    // Check for exact barcode duplicate or existing batch ID / SKU match
+    const existing = products.find(p => 
+      (p.barcode && p.barcode.trim().toLowerCase() === cleanBarcode.toLowerCase()) ||
+      (p.id && p.id.trim().toLowerCase() === cleanBarcode.toLowerCase()) ||
+      (p.sku && p.sku.trim().toLowerCase() === cleanBarcode.toLowerCase())
+    );
+
+    if (existing) {
+      playAlertSound();
+      const alertMsg = `Duplicate Barcode Detected! Product "${existing.name}" (${existing.colorName || existing.category}) is already registered in the system with barcode "${cleanBarcode}".`;
+      
+      setDuplicateAlertState({
+        isOpen: true,
+        barcode: cleanBarcode,
+        existingProduct: existing,
+        scannedAt: new Date().toISOString(),
+        scannedCategory: options?.category || existing.category,
+        targetLocation: options?.locationId || activeLocation,
+        message: alertMsg
+      });
+
+      recordAuditLog(
+        'Duplicate Barcode Scan Blocked',
+        `Blocked attempt to register duplicate barcode "${cleanBarcode}" for existing product ${existing.id} (${existing.name}).`
+      );
+
+      return {
+        success: false,
+        isDuplicate: true,
+        product: existing,
+        message: alertMsg
+      };
+    }
+
+    // Item does not exist -> Create and instantly add product into system with zero repetition
+    const selectedCategory: CategoryType = options?.category || 'Dereck';
+    const targetLocation: LocationId = options?.locationId || activeLocation;
+    const qty = Number(options?.quantity) || (selectedCategory === 'Yarns' ? 10 : 50);
+    const unit: UnitType = options?.unit || (selectedCategory === 'Yarns' ? 'kg' : 'meter');
+
+    const defaultPricing = categoryPricingConfigs[selectedCategory] || DEFAULT_CATEGORY_PRICING[selectedCategory];
+    const retailP = options?.retailPrice ?? defaultPricing.defaultRetailPrice;
+    const bulkP = options?.bulkPrice ?? defaultPricing.defaultBulkPrice;
+    const costP = options?.costPrice ?? defaultPricing.defaultCostPrice;
+
+    // Generate unique batch ID and product name
+    const batchId = `BATCH-${selectedCategory.slice(0, 3).toUpperCase()}-${cleanBarcode.slice(-4) || Math.floor(100 + Math.random() * 900)}`;
+    const prodName = options?.name?.trim() || `${selectedCategory} Fabric - Roll #${cleanBarcode.slice(-4) || '101'}`;
+    const color = options?.colorName?.trim() || 'Midnight Classic';
+    const colorHex = options?.colorHex || '#1e293b';
+    const fiber = options?.fiberComposition || (selectedCategory === 'Dereck' ? '65% Poly / 35% Viscose' : selectedCategory === 'Fleece' ? '100% Anti-Pill Polyester' : '100% High-Bulk Acrylic');
+    const subCat = selectedCategory === 'Dereck' ? 'Superfine Dereec Weave' : selectedCategory === 'Fleece' ? 'Polar Thermal Fleece' : 'High-Bulk Acrylic Yarn';
+    const imgUrl = categoryImages[selectedCategory] || DEFAULT_CATEGORY_IMAGES[selectedCategory];
+
+    const initialStockMap: Record<LocationId, number> = {
+      main_store: 0,
+      sales_shop: 0,
+      eastleigh_wholesale: 0,
+      parklands_store: 0
+    };
+    initialStockMap[targetLocation] = qty;
+
+    const qrData = JSON.stringify({
+      sku: `SKU-${cleanBarcode}`,
+      batch: batchId,
+      cat: selectedCategory,
+      color: colorHex,
+      unitPrice: retailP,
+      comp: fiber
+    });
+
+    const newProduct: ProductBatch = {
+      id: batchId,
+      sku: `SKU-${cleanBarcode}`,
+      barcode: cleanBarcode,
+      name: prodName,
+      category: selectedCategory,
+      subCategory: subCat,
+      unit,
+      unitPriceRetail: retailP,
+      unitPriceBulk: bulkP,
+      costPrice: costP,
+      colorName: color,
+      colorHex: colorHex,
+      fiberComposition: fiber,
+      imageUrl: imgUrl,
+      locationStock: initialStockMap,
+      createdAt: new Date().toISOString().split('T')[0],
+      qrCodeData: qrData,
+      minReorderLevel: 15
+    };
+
+    // Optimistic local update
+    setProducts(prev => [newProduct, ...prev]);
+
+    // Global Cloud Firestore Sync
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'products', batchId), newProduct);
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (err: any) {
+      console.warn('Firestore instant barcode product sync warning:', err);
+      setCloudSyncStatus('offline');
+    }
+
+    recordAuditLog(
+      'Product Added via Barcode Scanner',
+      `Mobile barcode scanner registered new product "${newProduct.name}" (${newProduct.category}, ${qty} ${unit}) with barcode "${cleanBarcode}" at ${targetLocation}.`
+    );
+
+    playSuccessSound();
+
+    return {
+      success: true,
+      isDuplicate: false,
+      product: newProduct,
+      message: `Product "${newProduct.name}" registered instantly in system with barcode ${cleanBarcode}!`
+    };
+  };
+
+  // RESTOCK EXISTING PRODUCT WHEN DUPLICATE SCANNED (OPTIONAL ACTION)
+  const restockExistingProduct = async (
+    batchId: string,
+    additionalQuantity: number,
+    locationId: LocationId
+  ) => {
+    const target = products.find(p => p.id === batchId);
+    if (!target) return { success: false, message: 'Product not found.' };
+
+    const currentLocStock = Number(target.locationStock[locationId]) || 0;
+    const newLocStock = currentLocStock + additionalQuantity;
+
+    const updatedStockMap = {
+      ...target.locationStock,
+      [locationId]: newLocStock
+    };
+
+    const updatedProd: ProductBatch = {
+      ...target,
+      locationStock: updatedStockMap
+    };
+
+    setProducts(prev => prev.map(p => p.id === batchId ? updatedProd : p));
+
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'products', batchId), { locationStock: updatedStockMap }, { merge: true });
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn('Firestore restock update warning:', e);
+    }
+
+    recordAuditLog(
+      'Product Restocked via Barcode',
+      `Added +${additionalQuantity} ${target.unit} to batch ${target.id} (${target.name}) at ${locationId}. New stock: ${newLocStock} ${target.unit}.`
+    );
+
+    playSuccessSound();
+    dismissDuplicateAlert();
+
+    return {
+      success: true,
+      message: `Restocked ${additionalQuantity} ${target.unit} of "${target.name}". Total at location: ${newLocStock} ${target.unit}.`
+    };
+  };
+
   // QR SCANNER Handler
   const handleQRScan = (qrString: string) => {
     try {
@@ -3315,6 +3550,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getBranchFinancialSummary,
         isQRScannerOpen,
         setIsQRScannerOpen,
+        isMobileBarcodeScannerOpen,
+        setIsMobileBarcodeScannerOpen,
+        duplicateAlertState,
+        setDuplicateAlertState,
+        dismissDuplicateAlert,
+        scanToAddProduct,
+        restockExistingProduct,
         scannedResult,
         setScannedResult,
         handleQRScan,

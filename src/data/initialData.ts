@@ -12,7 +12,8 @@ import {
   POSOperator,
   BranchExpense,
   DeliveryRecord,
-  TareReconciliationRecord
+  TareReconciliationRecord,
+  MailNotification
 } from '../types';
 import tajiLogo from '../assets/images/taji_logo_1786034537873.jpg';
 
@@ -732,6 +733,7 @@ export const INITIAL_TRANSFERS: InterStoreTransfer[] = [
     fromLocation: 'main_store',
     toLocation: 'store_2',
     requestedByOperator: 'Grace Wanjiku (Store 2)',
+    fulfilledByOperator: 'Dereck Mwangi (Main Store)',
     items: [
       {
         batchId: 'BATCH-YRN-202',
@@ -748,9 +750,11 @@ export const INITIAL_TRANSFERS: InterStoreTransfer[] = [
         unitCost: 720,
       }
     ],
-    notes: 'Low stock threshold triggered at Store 2',
-    status: 'pending_approval',
-    requestedAt: '2026-08-05T05:30:00Z'
+    notes: 'Zero-cost restock completed',
+    status: 'fulfilled',
+    requestedAt: '2026-08-05T05:30:00Z',
+    dispatchedAt: '2026-08-05T06:00:00Z',
+    fulfilledAt: '2026-08-05T06:30:00Z'
   }
 ];
 
@@ -996,32 +1000,7 @@ export const INITIAL_BRAND_SETTINGS = {
   faviconUrl: ''
 };
 
-export const INITIAL_MAIL_NOTIFICATIONS = [
-  {
-    id: 'MAIL-001',
-    title: 'Restock Request Received at Main Store',
-    message: 'Store 2 (Grace Wanjiku) requested a zero-cost restock for 20 skeins Merino Wool & 15kg Sherpa Fleece.',
-    transferId: 'TRF-2026-003',
-    transferType: 'restock_free' as const,
-    fromLocation: 'store_2' as const,
-    toLocation: 'main_store' as const,
-    timestamp: '2026-08-05T05:30:00Z',
-    read: false,
-    itemCount: 2
-  },
-  {
-    id: 'MAIL-002',
-    title: 'Rerouted Purchase Order Ticket',
-    message: 'Store 1 (David Ochieng) routed customer order ticket TRF-2026-002 to Main Store for 50kg Polar Fleece.',
-    transferId: 'TRF-2026-002',
-    transferType: 'order_fulfillment_reroute' as const,
-    fromLocation: 'store_1' as const,
-    toLocation: 'main_store' as const,
-    timestamp: '2026-08-04T10:30:00Z',
-    read: true,
-    itemCount: 1
-  }
-];
+export const INITIAL_MAIL_NOTIFICATIONS: MailNotification[] = [];
 
 export const CURRENT_USER: UserProfile = {
   id: 'op-super-admin',

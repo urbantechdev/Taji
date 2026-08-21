@@ -19,6 +19,8 @@ import {
   Building,
   UserCheck,
   QrCode,
+  Barcode,
+  Camera,
   Settings,
   Lock,
   ShieldCheck,
@@ -61,6 +63,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     setIsMailDrawerOpen,
     setIsBrandSettingsModalOpen,
     setIsQRScannerOpen,
+    setIsMobileBarcodeScannerOpen,
     setIsAuthModalOpen,
     posSession,
     lockPOSSession,
@@ -260,7 +263,19 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Quick Action Tools
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
+                {/* Barcode Scanner (Camera Instant Add) */}
+                <button
+                  onClick={() => {
+                    setIsMobileBarcodeScannerOpen(true);
+                    setIsMoreMenuOpen(false);
+                  }}
+                  className="flex flex-col items-center justify-center p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl hover:bg-emerald-100 transition-colors shadow-xs group"
+                >
+                  <Camera className="w-5 h-5 text-emerald-700 group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] font-black text-emerald-950 mt-1">Barcode</span>
+                </button>
+
                 {/* Inbox Notifications */}
                 <button
                   onClick={() => {

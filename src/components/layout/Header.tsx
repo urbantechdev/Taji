@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { UserRole, LocationId } from '../../types';
 import { MailInboxDrawer } from '../notifications/MailInboxDrawer';
@@ -10,6 +10,8 @@ import {
   Store,
   Warehouse,
   QrCode,
+  Barcode,
+  Camera,
   ArrowLeftRight,
   ShieldAlert,
   UserCheck,
@@ -26,7 +28,15 @@ import {
   ShieldCheck,
   Volume2,
   VolumeX,
-  User
+  User,
+  ChevronDown,
+  Check,
+  Briefcase,
+  Shield,
+  CreditCard,
+  MapPin,
+  Boxes,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -41,6 +51,7 @@ export const Header: React.FC = () => {
     transfers,
     products,
     setIsQRScannerOpen,
+    setIsMobileBarcodeScannerOpen,
     brandSettings,
     setIsBrandSettingsModalOpen,
     mailNotifications,
@@ -60,6 +71,10 @@ export const Header: React.FC = () => {
   } = useERP();
 
   const [soundOn, setSoundOn] = useState<boolean>(true);
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState<boolean>(false);
+  const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState<boolean>(false);
+  const locationDropdownRef = useRef<HTMLDivElement>(null);
+  const roleDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSoundOn(isSoundEnabled());
@@ -71,6 +86,32 @@ export const Header: React.FC = () => {
     };
     window.addEventListener('zamoda-sound-changed', handleSoundChange);
     return () => window.removeEventListener('zamoda-sound-changed', handleSoundChange);
+  }, []);
+
+  // Click outside and escape key handling to auto-close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
+        setIsLocationDropdownOpen(false);
+      }
+      if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
+        setIsRoleDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsLocationDropdownOpen(false);
+        setIsRoleDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const handleToggleSound = () => {
@@ -94,14 +135,92 @@ export const Header: React.FC = () => {
   const mainStoreLowCount = products.filter(p => p.locationStock.main_store <= p.minReorderLevel).length;
   const salesShopLowCount = products.filter(p => p.locationStock.sales_shop <= p.minReorderLevel).length;
 
-  const roles: { role: UserRole; label: string; location: LocationId }[] = [
-    { role: 'admin', label: 'Admin / Executive', location: 'main_store' },
-    { role: 'main_store_operator', label: 'Main Store Operator', location: 'main_store' },
-    { role: 'sales_shop_cashier', label: 'Sales Shop Cashier', location: 'sales_shop' },
-    { role: 'store_1_attendant', label: 'Store 1 Attendant', location: 'store_1' },
-    { role: 'store_2_attendant', label: 'Store 2 Attendant', location: 'store_2' },
-    { role: 'accountant', label: 'Accountant', location: 'main_store' },
+  const roleOptions: {
+    role: UserRole;
+    title: string;
+    badge: string;
+    description: string;
+    color: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [
+    {
+      role: 'admin',
+      title: 'Executive Super Admin',
+      badge: 'Full Root Access',
+      description: 'Global inventory, financial reports, settings & audit logs',
+      color: 'from-pink-500 to-rose-600',
+      icon: ShieldCheck
+    },
+    {
+      role: 'branch_manager',
+      title: 'Branch Manager',
+      badge: 'Operations Hub',
+      description: 'Branch stock control, operator approvals & shift reports',
+      color: 'from-indigo-500 to-blue-600',
+      icon: Briefcase
+    },
+    {
+      role: 'main_store_operator',
+      title: 'Main Store Logistics',
+      badge: 'Central Warehouse',
+      description: 'Stock intake, dual-tare calibration & transfer dispatches',
+      color: 'from-emerald-500 to-teal-600',
+      icon: Warehouse
+    },
+    {
+      role: 'sales_shop_cashier',
+      title: 'Sales Shop Cashier',
+      badge: 'Direct Retail POS',
+      description: 'Fast barcode checkout, cash drawer & M-Pesa receipts',
+      color: 'from-amber-500 to-orange-600',
+      icon: ShoppingBag
+    },
+    {
+      role: 'store_1_attendant',
+      title: 'Store 1 Attendant',
+      badge: 'Transfer Depot',
+      description: 'Stock reception verification and branch inventory audits',
+      color: 'from-cyan-500 to-blue-500',
+      icon: Store
+    },
+    {
+      role: 'store_2_attendant',
+      title: 'Store 2 Attendant',
+      badge: 'Transfer Depot',
+      description: 'Stock receipt reconciliation and restock request initiation',
+      color: 'from-teal-500 to-emerald-500',
+      icon: Store
+    },
+    {
+      role: 'accountant',
+      title: 'Financial Accountant',
+      badge: 'Ledger & Audit',
+      description: 'Double-entry ledger, VAT reporting & KRA compliance',
+      color: 'from-purple-500 to-violet-600',
+      icon: FileSpreadsheet
+    }
   ];
+
+  const getRoleShortLabel = (role: UserRole) => {
+    if (role === 'admin') return 'Super Admin';
+    if (role === 'branch_manager') return 'Manager';
+    if (role === 'main_store_operator') return 'Warehouse';
+    if (role === 'sales_shop_cashier') return 'Cashier';
+    if (role === 'store_1_attendant') return 'Store 1';
+    if (role === 'store_2_attendant') return 'Store 2';
+    if (role === 'accountant') return 'Accountant';
+    return role;
+  };
+
+  const getLocationShortLabel = (locId: LocationId) => {
+    if (locId === 'main_store') return 'Main Hub';
+    if (locId === 'sales_shop') return 'Sales Shop';
+    if (locId === 'branch_westlands') return 'Westlands';
+    if (locId === 'store_1') return 'Store 1';
+    if (locId === 'store_2') return 'Store 2';
+    const loc = locations.find(l => l.id === locId);
+    return loc ? loc.name.split(' ')[0] : locId;
+  };
 
   // Dynamic header background style & class based on brand selection (solid #B50044 pink, no gradients)
   const headerBgClass =
@@ -136,7 +255,7 @@ export const Header: React.FC = () => {
 
   return (
     <header
-      className={`${headerBgClass} text-white sticky top-0 z-30 relative shadow-lg transition-colors duration-300 overflow-visible`}
+      className={`${headerBgClass} text-white sticky top-0 z-40 relative shadow-lg transition-colors duration-300 overflow-visible`}
       style={headerStyle}
     >
       {/* Glass Light Reflection Sheen Custom CSS Animations */}
@@ -258,77 +377,294 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* Center / Right Action Bar Controls (Hidden on Mobile, accessible in Mobile Bottom Nav) */}
-        <div className="hidden md:flex flex-wrap items-center gap-2">
+        {/* Center / Right Action Bar Controls - Icons with Short Names */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 relative z-40">
           
-          {/* Mode Switcher: Admin has access to all menus, regular users are locked to POS */}
+          {/* Mode Switcher: Admin / POS Toggle */}
           {isAdmin ? (
-            <div className="bg-black/20 p-1 rounded-2xl flex items-center gap-1 border border-white/20 backdrop-blur-xs">
+            <div className="bg-black/25 p-1 rounded-xl sm:rounded-2xl flex items-center gap-1 border border-white/20 backdrop-blur-md shadow-inner">
               <button
-                onClick={() => setAppMode('admin')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                onClick={() => {
+                  playClickSound();
+                  setAppMode('admin');
+                }}
+                className={`px-2.5 py-1.5 rounded-lg sm:rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   appMode === 'admin'
-                    ? 'bg-white text-pink-700 shadow-sm'
+                    ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
+                title="Switch to Admin Dashboard"
+                aria-label="Admin Dashboard"
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Admin Dashboard</span>
-                <span className="sm:hidden">Admin</span>
+                <span className="text-xs">Admin</span>
               </button>
 
               <button
-                onClick={() => setAppMode('pos')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                onClick={() => {
+                  playClickSound();
+                  setAppMode('pos');
+                }}
+                className={`px-2.5 py-1.5 rounded-lg sm:rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   appMode === 'pos'
-                    ? 'bg-white text-pink-700 shadow-sm'
+                    ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
+                title="Switch to POS Terminal"
+                aria-label="POS Terminal"
               >
                 <ShoppingBag className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">POS Terminal</span>
-                <span className="sm:hidden">POS</span>
+                <span className="text-xs">POS</span>
               </button>
             </div>
           ) : (
-            <div className="bg-white/15 px-3 py-1.5 rounded-xl text-xs font-black text-white flex items-center gap-1.5 border border-white/20 backdrop-blur-xs">
+            <div
+              className="px-3 py-1.5 bg-white/15 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-xs flex items-center gap-1.5 text-xs font-bold"
+              title="POS Terminal (Staff Mode Active)"
+            >
               <ShoppingBag className="w-3.5 h-3.5 text-pink-200" />
-              <span>POS Terminal (Staff Counter)</span>
+              <span>POS</span>
             </div>
           )}
 
-          {/* Location Selector */}
-          <div className="flex items-center gap-1 bg-white/10 border border-white/20 rounded-xl px-2 py-1 backdrop-blur-xs max-w-[125px] sm:max-w-[150px]">
-            <Building className="w-3.5 h-3.5 text-pink-100 shrink-0" />
-            <select
-              value={activeLocation}
-              onChange={e => setActiveLocation(e.target.value as LocationId)}
-              disabled={!isAdmin}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer w-full truncate disabled:opacity-80"
+          {/* Location / Shop Selector (Wide Modern White Dropdown) */}
+          <div className="relative" ref={locationDropdownRef}>
+            <button
+              onClick={() => {
+                playClickSound();
+                setIsLocationDropdownOpen(prev => !prev);
+                setIsRoleDropdownOpen(false);
+              }}
+              className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
+                isLocationDropdownOpen
+                  ? 'bg-white text-pink-900 border-white shadow-md font-bold'
+                  : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+              }`}
+              title={`Active Branch: ${activeLocInfo?.name || 'All Branches'} (Click to switch branch)`}
+              aria-label="Active Branch Location"
+              aria-expanded={isLocationDropdownOpen}
             >
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id} className="text-slate-900 font-medium">
-                  {loc.name} {!loc.canSellDirectly ? '(POS Disabled)' : ''}
-                </option>
-              ))}
-            </select>
+              <Building className={`w-3.5 h-3.5 transition-transform shrink-0 ${isLocationDropdownOpen ? 'text-pink-700 scale-110' : 'text-white group-hover:scale-110'}`} />
+              <span className="text-xs font-bold max-w-[70px] sm:max-w-[100px] truncate">
+                {getLocationShortLabel(activeLocation)}
+              </span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
+                  isLocationDropdownOpen ? 'rotate-180 text-pink-700' : 'text-white/70 group-hover:text-white'
+                }`}
+              />
+            </button>
+
+            {/* Modern Animated Location Dropdown Menu (Wide + Clean White Theme) */}
+            <AnimatePresence>
+              {isLocationDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-[320px] sm:w-[390px] md:w-[430px] bg-white border border-slate-200/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.3)] p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
+                >
+                  <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-pink-100 text-pink-700 flex items-center justify-center border border-pink-200">
+                        <Building className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Branch & Location Hub</p>
+                        <p className="text-[11px] text-slate-500 font-medium">Switch active stock inventory & POS checkout</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2.5 py-1 bg-white text-slate-700 rounded-full border border-slate-200 shadow-2xs">
+                      {locations.length} Stores
+                    </span>
+                  </div>
+
+                  <div className="py-1 space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                    {locations.map(loc => {
+                      const isSelected = loc.id === activeLocation;
+                      const stockInLocation = products.reduce((acc, p) => acc + (p.locationStock[loc.id] || 0), 0);
+                      const isHub = loc.type === 'Main Store';
+                      const isRetail = loc.canSellDirectly;
+
+                      return (
+                        <button
+                          key={loc.id}
+                          onClick={() => {
+                            playClickSound();
+                            setActiveLocation(loc.id as LocationId);
+                            setIsLocationDropdownOpen(false);
+                          }}
+                          disabled={!isAdmin && loc.id !== currentStoreLocation}
+                          className={`w-full text-left p-3 rounded-xl transition-all flex items-center justify-between group cursor-pointer border ${
+                            isSelected
+                              ? 'bg-pink-50/90 border-pink-400 text-pink-950 shadow-xs ring-1 ring-pink-500/20'
+                              : 'bg-white hover:bg-slate-50 border-slate-200/80 hover:border-slate-300 text-slate-800 shadow-2xs'
+                          } ${!isAdmin && loc.id !== currentStoreLocation ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                                isHub
+                                  ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                  : isRetail
+                                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                  : 'bg-blue-100 text-blue-700 border-blue-200'
+                              }`}
+                            >
+                              {isHub ? <Warehouse className="w-4.5 h-4.5" /> : <Store className="w-4.5 h-4.5" />}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-slate-900 truncate">{loc.name}</span>
+                                {loc.code && (
+                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">
+                                    {loc.code}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2.5 mt-1">
+                                <span
+                                  className={`text-[10px] font-bold flex items-center gap-1.5 ${
+                                    loc.canSellDirectly ? 'text-emerald-700' : 'text-amber-700'
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-2 h-2 rounded-full ${
+                                      loc.canSellDirectly ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                                    }`}
+                                  />
+                                  {loc.canSellDirectly ? 'POS Active' : 'Transfer Hub'}
+                                </span>
+                                <span className="text-[10px] font-semibold text-slate-500">
+                                  • {stockInLocation.toLocaleString()} in stock
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isSelected ? (
+                            <div className="w-6 h-6 rounded-full bg-pink-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            </div>
+                          ) : (
+                            <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-slate-300 transition-colors shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Role Switcher (Admin Only) */}
+          {/* Staff Role Switcher (Wide Modern White Dropdown - Admin Only) */}
           {isAdmin && (
-            <div className="flex items-center gap-1 bg-white/10 border border-white/20 rounded-xl px-2 py-1 backdrop-blur-xs max-w-[125px] sm:max-w-[150px]">
-              <UserCheck className="w-3.5 h-3.5 text-pink-100 shrink-0" />
-              <select
-                value={activeRole}
-                onChange={e => setActiveRole(e.target.value as UserRole)}
-                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer w-full truncate"
+            <div className="relative" ref={roleDropdownRef}>
+              <button
+                onClick={() => {
+                  playClickSound();
+                  setIsRoleDropdownOpen(prev => !prev);
+                  setIsLocationDropdownOpen(false);
+                }}
+                className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
+                  isRoleDropdownOpen
+                    ? 'bg-white text-indigo-900 border-white shadow-md font-bold'
+                    : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                }`}
+                title={`Simulate Staff Role: ${roleOptions.find(r => r.role === activeRole)?.title || activeRole} (Click to switch role)`}
+                aria-label="Simulate Staff Role"
+                aria-expanded={isRoleDropdownOpen}
               >
-                {roles.map(r => (
-                  <option key={r.role} value={r.role} className="text-slate-900 font-medium">
-                    {r.label}
-                  </option>
-                ))}
-              </select>
+                <UserCheck className={`w-3.5 h-3.5 transition-transform shrink-0 ${isRoleDropdownOpen ? 'text-indigo-700 scale-110' : 'text-white group-hover:scale-110'}`} />
+                <span className="text-xs font-bold max-w-[65px] truncate">
+                  {getRoleShortLabel(activeRole)}
+                </span>
+                <ChevronDown
+                  className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
+                    isRoleDropdownOpen ? 'rotate-180 text-indigo-700' : 'text-white/70 group-hover:text-white'
+                  }`}
+                />
+              </button>
+
+              {/* Modern Animated Role Dropdown Menu (Wide + Clean White Theme) */}
+              <AnimatePresence>
+                {isRoleDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                    className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-[320px] sm:w-[390px] md:w-[430px] bg-white border border-slate-200/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.3)] p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
+                  >
+                    <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Staff Role Simulation</p>
+                          <p className="text-[11px] text-slate-500 font-medium">Test role-specific workflows, permissions & views</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200 shadow-2xs">
+                        Admin Tool
+                      </span>
+                    </div>
+
+                    <div className="py-1 space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                      {roleOptions.map(r => {
+                        const isSelected = r.role === activeRole;
+                        const IconComponent = r.icon;
+
+                        return (
+                          <button
+                            key={r.role}
+                            onClick={() => {
+                              playClickSound();
+                              setActiveRole(r.role);
+                              setIsRoleDropdownOpen(false);
+                            }}
+                            className={`w-full text-left p-3 rounded-xl transition-all flex items-center justify-between group cursor-pointer border ${
+                              isSelected
+                                ? 'bg-indigo-50/90 border-indigo-400 text-indigo-950 shadow-xs ring-1 ring-indigo-500/20'
+                                : 'bg-white hover:bg-slate-50 border-slate-200/80 hover:border-slate-300 text-slate-800 shadow-2xs'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-gradient-to-br ${r.color} text-white shadow-xs`}
+                              >
+                                <IconComponent className="w-4.5 h-4.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-black text-slate-900 truncate">{r.title}</span>
+                                  <span className="text-[9px] px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold border border-slate-200">
+                                    {r.badge}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 group-hover:text-slate-600 truncate mt-0.5 leading-snug">
+                                  {r.description}
+                                </p>
+                              </div>
+                            </div>
+
+                            {isSelected ? (
+                              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              </div>
+                            ) : (
+                              <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-slate-300 transition-colors shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
@@ -336,57 +672,85 @@ export const Header: React.FC = () => {
           {isAdmin && mainStoreLowCount > 0 && (
             <button
               onClick={() => setAppMode('admin')}
-              className="hidden lg:flex items-center gap-1.5 bg-rose-500/25 hover:bg-rose-500/40 text-rose-100 border border-rose-400/50 rounded-xl px-2.5 py-1.5 backdrop-blur-xs text-xs font-bold cursor-pointer transition-all shadow-xs group"
-              title={`Main Store Hub Low Stock Alert: ${mainStoreLowCount} item(s) below reorder level`}
+              className="relative px-2.5 py-1.5 bg-rose-500/30 hover:bg-rose-500/50 text-rose-100 border border-rose-400/50 rounded-xl backdrop-blur-md cursor-pointer transition-all shadow-xs group flex items-center gap-1.5"
+              title={`Main Store Low Stock Alert: ${mainStoreLowCount} item(s) below reorder level`}
+              aria-label="Main Store Low Stock Alert"
             >
-              <Warehouse className="w-4 h-4 text-rose-300 group-hover:scale-110 transition-transform" />
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-              <span className="font-mono bg-rose-600/90 px-1.5 py-0.5 rounded-md text-[11px] text-white font-bold">{mainStoreLowCount}</span>
+              <Warehouse className="w-3.5 h-3.5 text-rose-200 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold text-white">Hub</span>
+              <span className="bg-rose-600 border border-white text-white font-mono font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
+                {mainStoreLowCount}
+              </span>
             </button>
           )}
 
           {isAdmin && salesShopLowCount > 0 && (
             <button
               onClick={() => setAppMode('admin')}
-              className="hidden lg:flex items-center gap-1.5 bg-amber-500/25 hover:bg-amber-500/40 text-amber-100 border border-amber-400/50 rounded-xl px-2.5 py-1.5 backdrop-blur-xs text-xs font-bold cursor-pointer transition-all shadow-xs group"
+              className="relative px-2.5 py-1.5 bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 border border-amber-400/50 rounded-xl backdrop-blur-md cursor-pointer transition-all shadow-xs group flex items-center gap-1.5"
               title={`Sales Shop Retail Low Stock Alert: ${salesShopLowCount} item(s) below reorder level`}
+              aria-label="Sales Shop Retail Low Stock Alert"
             >
-              <Store className="w-4 h-4 text-amber-300 group-hover:scale-110 transition-transform" />
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-              <span className="font-mono bg-amber-600/90 px-1.5 py-0.5 rounded-md text-[11px] text-white font-bold">{salesShopLowCount}</span>
+              <Store className="w-3.5 h-3.5 text-amber-200 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold text-white">Shop</span>
+              <span className="bg-amber-600 border border-white text-white font-mono font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
+                {salesShopLowCount}
+              </span>
             </button>
           )}
 
           {/* Mail & Pending Transfers Inbox Button */}
           <button
             onClick={() => setIsMailDrawerOpen(true)}
-            className={`relative p-2 rounded-xl transition-all cursor-pointer ${
+            className={`relative px-2.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
               totalMessageAlerts > 0
-                ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-bold animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
+                ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-black animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
                 : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
             }`}
             title={`Store Messages & Pending Transfers: ${pendingTransfersCount} transfer(s) pending to be received, ${unreadMails} message(s)`}
+            aria-label="Messages and Transfer Notifications"
           >
-            <Mail className={`w-4 h-4 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
+            <Mail className={`w-3.5 h-3.5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
+            <span>Inbox</span>
             {totalMessageAlerts > 0 && (
-              <>
-                <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white border-2 border-amber-300 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center animate-ping opacity-75" />
-                <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white border-2 border-amber-300 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md">
-                  {totalMessageAlerts}
-                </span>
-              </>
+              <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
+                {totalMessageAlerts}
+              </span>
             )}
           </button>
 
-          {/* Sound Effects Audio Mute / Unmute Toggle */}
+          {/* Mobile Phone Barcode Scanner */}
+          <button
+            onClick={() => setIsMobileBarcodeScannerOpen(true)}
+            className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl shadow-md shadow-emerald-950/20 transition-all cursor-pointer border border-emerald-400/50 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+            title="Scan Product Barcodes with Phone / Camera to Add Products Instantly"
+            aria-label="Camera Barcode Scanner"
+          >
+            <Camera className="w-3.5 h-3.5 text-emerald-200 group-hover:scale-110 transition-transform" />
+            <span>Barcode</span>
+          </button>
+
+          {/* Batch QR Scanner */}
+          <button
+            onClick={() => setIsQRScannerOpen(true)}
+            className="px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-slate-700 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+            title="Open Batch QR Scanner"
+            aria-label="QR Code Scanner"
+          >
+            <QrCode className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
+            <span>QR</span>
+          </button>
+
+          {/* Sound Effects Audio Mute / Unmute Toggle (Icon-Only) */}
           <button
             onClick={handleToggleSound}
-            className={`p-2 border rounded-xl transition-all cursor-pointer ${
+            className={`p-2.5 border rounded-xl transition-all cursor-pointer flex items-center justify-center ${
               soundOn
                 ? 'bg-white/15 hover:bg-white/25 border-white/30 text-white shadow-xs'
-                : 'bg-black/30 hover:bg-black/40 border-white/10 text-white/50'
+                : 'bg-black/30 hover:bg-black/40 border-white/10 text-white/60'
             }`}
             title={soundOn ? 'Sound Effects: Enabled (Click to mute)' : 'Sound Effects: Muted (Click to enable)'}
+            aria-label="Toggle Sound Effects"
           >
             {soundOn ? (
               <Volume2 className="w-4 h-4 text-emerald-300" />
@@ -395,50 +759,42 @@ export const Header: React.FC = () => {
             )}
           </button>
 
-          {/* Brand Settings Gear Button (Admin only) */}
+          {/* Brand Settings Gear Button (Icon-Only - Admin only) */}
           {isAdmin && (
             <button
               onClick={() => {
                 playClickSound();
                 setIsBrandSettingsModalOpen(true);
               }}
-              className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-colors cursor-pointer"
-              title="Brand Color & Logo Settings"
+              className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95"
+              title="Brand Color, Identity & Logo Settings"
+              aria-label="Brand Settings"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform" />
             </button>
           )}
 
-          {/* QR Scanner Trigger */}
-          <button
-            onClick={() => setIsQRScannerOpen(true)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
-            title="Open Batch QR Scanner"
-          >
-            <QrCode className="w-3.5 h-3.5 text-pink-400" />
-            <span className="hidden md:inline">Scan</span>
-          </button>
-
-          {/* User Account Profile Icon Button */}
+          {/* Executive User Account Profile (Icon-Only) */}
           <button
             onClick={() => setIsUserProfileModalOpen(true)}
-            className="p-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group relative"
-            title={`Account Profile: ${currentUser.name} (${currentUser.role})`}
+            className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group flex items-center justify-center hover:scale-105 active:scale-95"
+            title={`Executive Account Profile: ${currentUser.name} (${currentUser.role})`}
+            aria-label="Executive Profile"
           >
             <User className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
           </button>
 
-          {/* Lock Session Terminal Button */}
+          {/* Lock Session Terminal Button (Icon-Only) */}
           <button
             onClick={() => {
               playClickSound();
               lockPlatform();
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95"
+            className="p-2.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center group"
             title="Lock POS & Terminal Session Immediately"
+            aria-label="Lock Terminal Session"
           >
-            <Lock className="w-3.5 h-3.5 text-rose-300" />
-            <span className="hidden lg:inline text-[11px]">Lock Terminal</span>
+            <Lock className="w-4 h-4 text-rose-300 group-hover:scale-110 transition-transform" />
           </button>
 
         </div>

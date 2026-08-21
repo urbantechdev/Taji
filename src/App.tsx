@@ -17,6 +17,8 @@ import { BranchManagementModule } from './components/branches/BranchManagementMo
 import { GmailInbox } from './components/gmail/GmailInbox';
 import { ETRReceiptModal } from './components/common/ETRReceiptModal';
 import { QRScannerModal } from './components/common/QRScannerModal';
+import { MobileBarcodeScannerModal } from './components/common/MobileBarcodeScannerModal';
+import { DuplicateBarcodeAlertModal } from './components/common/DuplicateBarcodeAlertModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { PlatformLockScreen } from './components/auth/PlatformLockScreen';
 import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
@@ -137,6 +139,8 @@ const ERPContent: React.FC = () => {
       <MailNotificationPopup />
       <ETRReceiptModal />
       <QRScannerModal />
+      <MobileBarcodeScannerModal />
+      <DuplicateBarcodeAlertModal />
       <AuthModal />
 
     </div>
