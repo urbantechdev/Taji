@@ -1201,6 +1201,136 @@ export function exportKRAWithholdingTaxPDF(records: KRAWithholdingTaxRecord[], e
   doc.save(`KRA_Withholding_Tax_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
+/**
+ * 1-Click Official KRA Form WHT-Cert (5% Withholding Tax Certificate)
+ * Issued under Section 35(5) of the Income Tax Act (Cap 470 Laws of Kenya)
+ */
+export function exportKRAWithholdingTaxCertificatePDF(record: KRAWithholdingTaxRecord, etrConfig: ETRConfig) {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+
+  // Header Banner - KRA Official Gold & Dark Slate
+  doc.setFillColor(15, 23, 42); // Slate 900
+  doc.rect(0, 0, 595, 80, 'F');
+  
+  // Gold accent bar
+  doc.setFillColor(180, 83, 9); // KRA Gold
+  doc.rect(0, 80, 595, 4, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('KENYA REVENUE AUTHORITY', 40, 32);
+
+  doc.setFontSize(10.5);
+  doc.setTextColor(251, 191, 36); // Amber 400
+  doc.text('CERTIFICATE OF WITHHOLDING TAX DEDUCTION (SECTION 35 INCOME TAX ACT)', 40, 50);
+
+  doc.setFontSize(8);
+  doc.setTextColor(203, 213, 225); // Slate 300
+  doc.text(`Official e-Certificate Serial: ${record.certificateNo || 'KRA-WHT-5%-PENDING'} | Tax Period: ${record.period}`, 40, 66);
+
+  // Certificate Box
+  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(40, 100, 515, 110, 8, 8, 'FD');
+
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'bold');
+  doc.text('WITHHOLDING AGENT (PAYER) DETAILS:', 55, 120);
+  doc.text('WITHHOLDEE (BENEFICIARY / SUPPLIER) DETAILS:', 310, 120);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  
+  // Agent Details
+  doc.text(`Name: ${etrConfig.companyName}`, 55, 138);
+  doc.text(`KRA PIN: ${etrConfig.taxPin}`, 55, 153);
+  doc.text(`Address: ${etrConfig.companyAddress}`, 55, 168);
+  doc.text(`Status: Authorized KRA Withholding Agent`, 55, 183);
+
+  // Withholdee Details
+  doc.text(`Name: ${record.entityName}`, 310, 138);
+  doc.text(`KRA PIN: ${record.entityPin}`, 310, 153);
+  doc.text(`Nature of Supply: ${record.natureOfTransaction}`, 310, 168);
+  doc.text(`Settlement: ${record.settled ? 'REMITTED TO KRA' : 'PENDING 20TH REMITTANCE'}`, 310, 183);
+
+  // Financial Schedule Table
+  const netPaid = record.grossAmount - record.whtAmount;
+  const ratePct = `${(record.rate * 100).toFixed(1)}%`;
+
+  autoTable(doc, {
+    startY: 225,
+    head: [['Line Description', 'Statutory Rate', 'Gross Invoiced (KSh)', '5% WHT Deducted (KSh)', 'Net Paid / Offset (KSh)']],
+    body: [
+      [
+        record.natureOfTransaction,
+        ratePct,
+        record.grossAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        record.whtAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        netPaid.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ]
+    ],
+    foot: [
+      [
+        'STATUTORY TOTALS',
+        ratePct,
+        record.grossAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        record.whtAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        netPaid.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [180, 83, 9], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 5 }
+  });
+
+  // Statutory Certification Notice
+  const finalY = (doc as any).lastAutoTable?.finalY || 310;
+  
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(254, 243, 199); // Amber 50
+  doc.roundedRect(40, finalY + 15, 515, 75, 6, 6, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(146, 64, 14); // Amber 800
+  doc.text('KRA STATUTORY DECLARATION & CERTIFICATE VALIDITY NOTICE:', 55, finalY + 32);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(120, 53, 15);
+  doc.text(
+    'This is to certify that tax of the amount shown above has been deducted at source under Section 35 of the Income Tax Act.',
+    55,
+    finalY + 46
+  );
+  doc.text(
+    'The tax deducted will be/has been paid to the Commissioner of Domestic Taxes on or before the 20th day of the following month.',
+    55,
+    finalY + 58
+  );
+  doc.text(
+    `The Withholdee may use this official Certificate (PIN: ${record.entityPin}, Cert: ${record.certificateNo}) to claim income tax credits on iTax.`,
+    55,
+    finalY + 70
+  );
+
+  // Electronic Fiscal Signing
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Authorized Officer Signature / Fiscal Seal:`, 40, finalY + 115);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Finance Controller, ${etrConfig.companyName} | KRA TIMS Signed: ${new Date().toLocaleDateString('en-KE')}`, 40, finalY + 128);
+
+  doc.save(`KRA_WHT_Certificate_${record.certificateNo || record.id}.pdf`);
+}
+
 // --------------------------------------------------------------------------
 // 12. CORPORATE INCOME TAX (CIT 30%) PROVISION & INSTALLMENT CALENDAR
 // --------------------------------------------------------------------------

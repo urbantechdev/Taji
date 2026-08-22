@@ -122,9 +122,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     },
     {
       id: 'etr',
-      label: 'KRA ETR Compliance',
+      label: 'Billing & Invoices',
       icon: <Receipt className="w-5 h-5 text-pink-500" />,
-      desc: 'TIMS receipts & VAT 16%'
+      desc: 'Invoices, receipts & quotes'
     },
     {
       id: 'payroll',

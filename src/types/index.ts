@@ -199,6 +199,7 @@ export interface ProductBatch {
 
 export type UserRole = 
   | 'admin'
+  | 'hr_manager'
   | 'main_store_operator'
   | 'sales_shop_cashier'
   | 'store_1_attendant'
@@ -290,6 +291,11 @@ export interface SaleOrder {
   timestamp: string;
   isRerouted: boolean;
   isQuotation?: boolean;
+  wht5Applied?: boolean;
+  whtRate?: number; // 0.05 for 5% WHT
+  whtAmount?: number; // KSh deducted
+  whtCertificateNo?: string;
+  netReceivableAmount?: number;
 }
 
 export type TransferType = 'restock_free' | 'order_fulfillment_reroute';
@@ -356,6 +362,7 @@ export type LedgerCategory =
   | 'Sales' 
   | 'Inter-Store Transfer' 
   | 'Tax VAT' 
+  | 'Withholding Tax 5%'
   | 'Inventory Revaluation' 
   | 'Expense'
   | 'General Journal Voucher'
@@ -404,6 +411,13 @@ export interface StaffMember {
   basicSalary: number;
   allowances: number;
   joinedDate: string;
+  email?: string;
+  phone?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  mpesaNumber?: string;
+  status?: 'active' | 'suspended' | 'on_leave';
+  onboardedBy?: string;
 }
 
 export interface PayrollRecord {
@@ -468,18 +482,33 @@ export interface KRAInputVATClaim {
   status: 'Claimed' | 'Pending Verification';
 }
 
+export type WHTTransactionNature = 
+  | 'Professional, Legal & Audit Fees (5%)' 
+  | 'Management & Consultancy Fees (5%)' 
+  | 'Training, Agency & Commissions (5%)' 
+  | 'Contractual & Technical Services (5%)' 
+  | 'B2B Customer Invoiced Sales (5% Credit)' 
+  | 'Contractual / Transport Services (3%)' 
+  | 'Commercial Warehouse Rent (10%)' 
+  | 'Withholding VAT - WHVAT (2%)'
+  | string;
+
 export interface KRAWithholdingTaxRecord {
   id: string;
   entityName: string;
   entityPin: string;
-  natureOfTransaction: 'Professional & Legal Fees (5%)' | 'Contractual / Transport Services (3%)' | 'Commercial Warehouse Rent (10%)' | 'Withholding VAT - WHVAT (2%)';
+  natureOfTransaction: WHTTransactionNature;
   rate: number;
   grossAmount: number;
   whtAmount: number;
+  netPayable?: number;
   certificateNo: string;
   direction: 'Withheld_By_Us_Payable' | 'Withheld_By_Customer_Receivable';
   period: string;
   settled: boolean;
+  prnNumber?: string;
+  issueDate?: string;
+  notes?: string;
 }
 
 export interface HeldCart {

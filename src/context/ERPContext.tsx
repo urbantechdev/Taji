@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore';
 import { auth, googleProvider, signInWithPopup, signOut, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   LocationId,
@@ -32,7 +32,8 @@ import {
   CloudSyncStatus,
   CategoryPricingConfig,
   DuplicateBarcodeAlertState,
-  MobileBarcodeScanOptions
+  MobileBarcodeScanOptions,
+  KRAWithholdingTaxRecord
 } from '../types';
 import {
   LOCATIONS,
@@ -50,6 +51,7 @@ import {
   INITIAL_POS_OPERATORS,
   INITIAL_DELIVERIES,
   INITIAL_TARE_RECONCILIATION_LOGS,
+  INITIAL_WHT_RECORDS,
   CURRENT_USER
 } from '../data/initialData';
 import {
@@ -57,7 +59,9 @@ import {
   playTrashSound,
   playSuccessSound,
   playNotificationSound,
-  playAlertSound
+  playAlertSound,
+  playBarcodeScanBeep,
+  playScannerErrorBeep
 } from '../utils/audio';
 import { calculateKenyaStatutoryDeductions } from '../utils/financeEngine';
 
@@ -139,8 +143,21 @@ interface ERPContextType {
     paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque',
     customerName?: string,
     customerKraPin?: string,
-    isQuotation?: boolean
+    isQuotation?: boolean,
+    applyWHT5?: boolean,
+    whtCertificateNo?: string
   ) => { success: boolean; orderId?: string; message?: string };
+  convertQuotationToInvoice: (
+    quotationId: string,
+    paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque',
+    applyWHT5?: boolean,
+    whtCertificateNo?: string
+  ) => { success: boolean; message: string; order?: SaleOrder };
+
+  // 5% Withholding Tax (WHT & WHVAT) Engine
+  whtRecords: KRAWithholdingTaxRecord[];
+  addWithholdingTaxRecord: (record: Omit<KRAWithholdingTaxRecord, 'id'>) => { success: boolean; message: string; recordId: string };
+  settleWithholdingTaxRecord: (id: string, prnNumber?: string) => { success: boolean; message: string };
 
   createOrderRerouteTicket: (
     items: { batchId: string; quantity: number }[],
@@ -187,6 +204,8 @@ interface ERPContextType {
   addProductBatch: (newBatch: Omit<ProductBatch, 'id' | 'createdAt' | 'qrCodeData'>) => Promise<{ success: boolean; product: ProductBatch; message: string }>;
   updateProductBatch: (batchId: string, updates: Partial<ProductBatch>) => Promise<{ success: boolean; message: string }>;
   deleteProductBatch: (batchId: string) => Promise<{ success: boolean; message: string }>;
+  deleteMultipleProducts: (batchIds: string[]) => Promise<{ success: boolean; count: number; deletedProducts?: ProductBatch[]; message: string }>;
+  restoreProductBatch: (product: ProductBatch) => Promise<{ success: boolean; message: string }>;
   updateCategoryPrices: (
     category: CategoryType,
     priceUpdates: {
@@ -207,6 +226,9 @@ interface ERPContextType {
   syncCloudInventory: () => Promise<{ success: boolean; count: number; message: string }>;
   updateETRConfig: (config: Partial<ETRConfig>) => void;
   generateMonthlyPayroll: (monthYear: string) => void;
+  addStaffMember: (staffData: Omit<StaffMember, 'id' | 'employeeNo' | 'joinedDate'> & { employeeNo?: string; joinedDate?: string }) => StaffMember;
+  updateStaffMember: (id: string, updates: Partial<StaffMember>) => void;
+  deleteStaffMember: (id: string) => void;
   recordAuditLog: (action: string, details: string) => void;
 
   // Deliveries, Barcode Intake & Dynamic Valuation Module
@@ -305,12 +327,15 @@ interface ERPContextType {
   scannedResult: string | null;
   setScannedResult: (res: string | null) => void;
   handleQRScan: (qrString: string) => boolean;
+  playBarcodeScanBeep: (loud?: boolean) => void;
+  playScannerErrorBeep: () => void;
   isBrandSettingsModalOpen: boolean;
   setIsBrandSettingsModalOpen: (open: boolean) => void;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   isMailDrawerOpen: boolean;
   setIsMailDrawerOpen: (open: boolean) => void;
+  purgeAllMockData: () => Promise<{ success: boolean; message: string }>;
 }
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
@@ -698,7 +723,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_branch_expenses');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((e: BranchExpense) => !e.id.startsWith('EXP-BR-'));
+        }
       }
     } catch (e) {
       console.warn('Error reading branch expenses from localStorage:', e);
@@ -720,7 +747,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_products');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p: ProductBatch) => !p.id.startsWith('BATCH-DRK-') && !p.id.startsWith('BATCH-FLC-') && !p.id.startsWith('BATCH-YRN-'));
+        }
       }
     } catch (e) {
       console.warn('Error reading products from localStorage:', e);
@@ -847,23 +876,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const loaded: ProductBatch[] = [];
           snapshot.forEach((docSnap) => {
             const item = docSnap.data() as ProductBatch;
-            loaded.push(item);
-          });
-          if (loaded.length > 0) {
-            setProducts(loaded);
-            setCloudSyncStatus('synced');
-            setLastCloudSync(new Date());
-          }
-        } else {
-          // If Firestore is empty on initial bootstrap, auto-seed the initial catalog to Firestore
-          setCloudSyncStatus('syncing');
-          for (const p of INITIAL_PRODUCTS) {
-            try {
-              await setDoc(doc(db, 'products', p.id), p);
-            } catch (err) {
-              console.warn('Firestore initial seed product write:', err);
+            // Cleanse legacy mock batches from Firestore sync
+            if (!item.id.startsWith('BATCH-DRK-') && !item.id.startsWith('BATCH-FLC-') && !item.id.startsWith('BATCH-YRN-')) {
+              loaded.push(item);
             }
-          }
+          });
+          setProducts(loaded);
+          setCloudSyncStatus('synced');
+          setLastCloudSync(new Date());
+        } else {
+          setProducts([]);
           setCloudSyncStatus('synced');
           setLastCloudSync(new Date());
         }
@@ -879,15 +901,36 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const [orders, setOrders] = useState<SaleOrder[]>(INITIAL_ORDERS);
+  const [orders, setOrders] = useState<SaleOrder[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((o: SaleOrder) => !o.id.startsWith('ORD-2026-88'));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading orders from localStorage:', e);
+    }
+    return INITIAL_ORDERS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_orders', JSON.stringify(orders));
+    } catch (e) {
+      console.warn('Error saving orders to localStorage:', e);
+    }
+  }, [orders]);
+
   const [transfers, setTransfers] = useState<InterStoreTransfer[]>(() => {
     try {
       const saved = localStorage.getItem('urban_interior_transfers');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Ensure no legacy mock pending transfers linger
-          return parsed.map((t: InterStoreTransfer) => t.id === 'TRF-2026-003' ? { ...t, status: 'fulfilled' as const } : t);
+          return parsed.filter((t: InterStoreTransfer) => !t.id.startsWith('TRF-2026-00'));
         }
       }
     } catch (e) {
@@ -903,10 +946,99 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Error saving transfers to localStorage:', e);
     }
   }, [transfers]);
-  const [ledger, setLedger] = useState<LedgerEntry[]>(INITIAL_LEDGER);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
-  const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
-  const [payroll, setPayroll] = useState<PayrollRecord[]>(INITIAL_PAYROLL);
+
+  const [ledger, setLedger] = useState<LedgerEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_ledger');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((l: LedgerEntry) => !l.id.startsWith('LED-'));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading ledger from localStorage:', e);
+    }
+    return INITIAL_LEDGER;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_ledger', JSON.stringify(ledger));
+    } catch (e) {
+      console.warn('Error saving ledger to localStorage:', e);
+    }
+  }, [ledger]);
+
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_audit_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((a: AuditLog) => !a.id.startsWith('AUD-'));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading audit logs from localStorage:', e);
+    }
+    return INITIAL_AUDIT_LOGS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_audit_logs', JSON.stringify(auditLogs));
+    } catch (e) {
+      console.warn('Error saving audit logs to localStorage:', e);
+    }
+  }, [auditLogs]);
+
+  const [staff, setStaff] = useState<StaffMember[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_staff');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((s: StaffMember) => !s.id.startsWith('STAFF-'));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading staff from localStorage:', e);
+    }
+    return INITIAL_STAFF;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_staff', JSON.stringify(staff));
+    } catch (e) {
+      console.warn('Error saving staff to localStorage:', e);
+    }
+  }, [staff]);
+
+  const [payroll, setPayroll] = useState<PayrollRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_payroll');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p: PayrollRecord) => !p.id.startsWith('PAY-2026-08'));
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading payroll from localStorage:', e);
+    }
+    return INITIAL_PAYROLL;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_payroll', JSON.stringify(payroll));
+    } catch (e) {
+      console.warn('Error saving payroll to localStorage:', e);
+    }
+  }, [payroll]);
+
   const [etrConfig, setEtrConfig] = useState<ETRConfig>(INITIAL_ETR_CONFIG);
 
   // Dual-Weight Tare Reconciliation Logs State
@@ -915,7 +1047,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_tare_logs');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((t: TareReconciliationRecord) => !t.id.startsWith('TARE-2026-00'));
+        }
       }
     } catch (e) {
       console.warn('Error reading tare reconciliation logs from localStorage:', e);
@@ -930,6 +1064,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Error saving tare logs to localStorage:', e);
     }
   }, [tareReconciliationLogs]);
+
+  // 5% Withholding Tax (WHT & WHVAT) Records State
+  const [whtRecords, setWhtRecords] = useState<KRAWithholdingTaxRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_wht_records');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading WHT records from localStorage:', e);
+    }
+    return INITIAL_WHT_RECORDS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_wht_records', JSON.stringify(whtRecords));
+    } catch (e) {
+      console.warn('Error saving WHT records to localStorage:', e);
+    }
+  }, [whtRecords]);
 
   const updateProductTareProfile = (batchId: string, profile: TareProfile) => {
     setProducts(prev =>
@@ -1006,13 +1164,90 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  // 5% WITHHOLDING TAX (WHT & WHVAT) METHODS
+  const addWithholdingTaxRecord = (recordData: Omit<KRAWithholdingTaxRecord, 'id'>) => {
+    const newId = `WHT-${Date.now().toString().slice(-6)}`;
+    const certNo = recordData.certificateNo || `KRA-WHT-5%-${Date.now().toString().slice(-4)}`;
+    const netPayable = recordData.netPayable ?? Number((recordData.grossAmount - recordData.whtAmount).toFixed(2));
+    
+    const created: KRAWithholdingTaxRecord = {
+      ...recordData,
+      id: newId,
+      certificateNo: certNo,
+      netPayable,
+      issueDate: recordData.issueDate || new Date().toISOString().split('T')[0]
+    };
+
+    setWhtRecords(prev => [created, ...prev]);
+
+    // Auto post double entry journal entry to ensure general ledger synchronization
+    if (created.direction === 'Withheld_By_Us_Payable') {
+      const jEntry: LedgerEntry = {
+        id: `LEDG-WHT-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        transactionRef: `WHT-DED-${newId}`,
+        description: `5% Withholding Tax Deduction: ${created.entityName} (${created.natureOfTransaction})`,
+        debitAccount: 'Professional, Legal & Consultancy Expense',
+        creditAccount: 'KRA Withholding Tax 5% Payable',
+        amount: created.whtAmount,
+        locationId: activeLocation,
+        category: 'Withholding Tax 5%'
+      };
+      setLedger(prev => [jEntry, ...prev]);
+    } else {
+      const jEntry: LedgerEntry = {
+        id: `LEDG-WHT-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        transactionRef: `WHT-REC-${newId}`,
+        description: `5% Withholding Tax Credit Receivable: ${created.entityName} (Cert: ${certNo})`,
+        debitAccount: 'Advance Withholding Tax Credits (5%)',
+        creditAccount: 'Accounts Receivable (Trade Debtors)',
+        amount: created.whtAmount,
+        locationId: activeLocation,
+        category: 'Withholding Tax 5%'
+      };
+      setLedger(prev => [jEntry, ...prev]);
+    }
+
+    recordAuditLog(
+      '5% Withholding Tax Recorded',
+      `Registered ${created.direction}: ${created.entityName} - Gross: KSh ${created.grossAmount.toLocaleString()}, WHT: KSh ${created.whtAmount.toLocaleString()} (${(created.rate * 100).toFixed(1)}%), Cert: ${certNo}`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      message: `Withholding Tax record ${created.id} (Cert: ${certNo}) registered successfully!`,
+      recordId: created.id
+    };
+  };
+
+  const settleWithholdingTaxRecord = (id: string, prnNumber?: string) => {
+    setWhtRecords(prev => prev.map(r => {
+      if (r.id === id) {
+        return {
+          ...r,
+          settled: true,
+          prnNumber: prnNumber || r.prnNumber || `PRN-${Date.now().toString().slice(-6)}-KRA`
+        };
+      }
+      return r;
+    }));
+
+    recordAuditLog('Withholding Tax Remitted', `Remitted WHT voucher ${id} to KRA. PRN: ${prnNumber || 'Confirmed'}`);
+    playSuccessSound();
+    return { success: true, message: `Withholding Tax ${id} marked as remitted to KRA!` };
+  };
+
   // Deliveries Intake & Barcode Scanning State
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => {
     try {
       const saved = localStorage.getItem('urban_interior_deliveries');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((d: DeliveryRecord) => !d.id.startsWith('DEL-2026-00'));
+        }
       }
     } catch (e) {
       console.warn('Error reading deliveries from localStorage:', e);
@@ -1020,7 +1255,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_DELIVERIES;
   });
 
-  const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>('DEL-2026-001');
+  const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -1576,7 +1811,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque',
     customerName: string = 'Walk-in Retail Customer',
     customerKraPin: string = '',
-    isQuotation: boolean = false
+    isQuotation: boolean = false,
+    applyWHT5: boolean = false,
+    whtCertificateNo: string = ''
   ) => {
     // Check Store 1 and Store 2 restriction
     const locInfo = locations.find(l => l.id === activeLocation);
@@ -1610,6 +1847,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const subtotal = Number((grossTotal / (1 + etrConfig.vatRate)).toFixed(2));
     const vatAmount = Number((grossTotal - subtotal).toFixed(2));
 
+    // 5% Withholding Tax calculations
+    const whtRate = 0.05;
+    const whtAmount = applyWHT5 ? Number((grossTotal * whtRate).toFixed(2)) : 0;
+    const netReceivableAmount = applyWHT5 ? Number((grossTotal - whtAmount).toFixed(2)) : grossTotal;
+    const whtCertNumber = applyWHT5 ? (whtCertificateNo || `KRA-WHT-5%-${Date.now().toString().slice(-6)}`) : undefined;
+
     const receiptNum = `ETR-${Math.floor(1000 + Math.random() * 9000)}-${orders.length + 1}`;
     const orderId = `ORD-2026-${Math.floor(10000 + Math.random() * 90000)}`;
 
@@ -1639,6 +1882,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subtotal,
       vatAmount,
       grandTotal: grossTotal,
+      wht5Applied: applyWHT5,
+      whtRate: applyWHT5 ? whtRate : undefined,
+      whtAmount: applyWHT5 ? whtAmount : undefined,
+      whtCertificateNo: whtCertNumber,
+      netReceivableAmount: applyWHT5 ? netReceivableAmount : undefined,
       paymentMethod,
       paymentReference: `${(paymentMethod || 'CSH').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`,
       status: 'completed',
@@ -1703,20 +1951,72 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setTareReconciliationLogs(prev => [...newTareLogs, ...prev]);
       }
 
-      // 2. Add Ledger Entries (Double entry for revenue & VAT output tax)
-      const ledgerRev: LedgerEntry = {
-        id: `LEDG-${Date.now().toString().slice(-6)}`,
-        timestamp: new Date().toISOString(),
-        transactionRef: orderId,
-        description: `POS Retail Sale Revenue at ${locInfo?.name} (${paymentMethod})`,
-        debitAccount: `${paymentMethod} Cash Account`,
-        creditAccount: `Sales Revenue (${locInfo?.name})`,
-        amount: grossTotal,
-        locationId: activeLocation,
-        category: 'Sales'
-      };
+      // 1c. If 5% WHT is applied, register receivable tax credit record
+      if (applyWHT5 && whtAmount > 0) {
+        const newWhtRecord: KRAWithholdingTaxRecord = {
+          id: `WHT-POS-${Date.now().toString().slice(-6)}`,
+          entityName: customerName || 'B2B Client',
+          entityPin: customerKraPin || 'P051982341Z',
+          natureOfTransaction: 'B2B Customer Invoiced Sales (5% Credit)',
+          rate: 0.05,
+          grossAmount: grossTotal,
+          whtAmount,
+          netPayable: netReceivableAmount,
+          certificateNo: whtCertNumber || `KRA-WHT-5%-${Date.now().toString().slice(-4)}`,
+          direction: 'Withheld_By_Customer_Receivable',
+          period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          settled: true,
+          issueDate: new Date().toISOString().split('T')[0],
+          notes: `Auto-recorded from POS Sale Order ${orderId} (${receiptNum})`
+        };
+        setWhtRecords(prev => [newWhtRecord, ...prev]);
+      }
 
-      const ledgerVat: LedgerEntry = {
+      // 2. Add Ledger Entries (Double entry for revenue, 5% WHT credits, and VAT output tax)
+      const entriesToPost: LedgerEntry[] = [];
+
+      if (applyWHT5 && whtAmount > 0) {
+        // Net Cash/Bank collected
+        entriesToPost.push({
+          id: `LEDG-${Date.now().toString().slice(-6)}`,
+          timestamp: new Date().toISOString(),
+          transactionRef: orderId,
+          description: `POS Retail Sale Net Proceeds (${paymentMethod}) [5% WHT Deducted by Customer]`,
+          debitAccount: `${paymentMethod} Cash Account`,
+          creditAccount: `Sales Revenue (${locInfo?.name})`,
+          amount: netReceivableAmount,
+          locationId: activeLocation,
+          category: 'Sales'
+        });
+
+        // 5% Advance Withholding Tax Credit
+        entriesToPost.push({
+          id: `LEDG-WHT-${Date.now().toString().slice(-6)}`,
+          timestamp: new Date().toISOString(),
+          transactionRef: orderId,
+          description: `5% Advance Withholding Tax Credit (KRA Cert: ${whtCertNumber})`,
+          debitAccount: 'Advance Withholding Tax Credits (5%)',
+          creditAccount: `Sales Revenue (${locInfo?.name})`,
+          amount: whtAmount,
+          locationId: activeLocation,
+          category: 'Withholding Tax 5%'
+        });
+      } else {
+        entriesToPost.push({
+          id: `LEDG-${Date.now().toString().slice(-6)}`,
+          timestamp: new Date().toISOString(),
+          transactionRef: orderId,
+          description: `POS Retail Sale Revenue at ${locInfo?.name} (${paymentMethod})`,
+          debitAccount: `${paymentMethod} Cash Account`,
+          creditAccount: `Sales Revenue (${locInfo?.name})`,
+          amount: grossTotal,
+          locationId: activeLocation,
+          category: 'Sales'
+        });
+      }
+
+      // 16% Output VAT entry
+      entriesToPost.push({
         id: `LEDG-VAT-${Date.now().toString().slice(-6)}`,
         timestamp: new Date().toISOString(),
         transactionRef: orderId,
@@ -1726,17 +2026,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         amount: vatAmount,
         locationId: activeLocation,
         category: 'Tax VAT'
-      };
+      });
 
-      setLedger(prev => [ledgerRev, ledgerVat, ...prev]);
+      setLedger(prev => [...entriesToPost, ...prev]);
 
       // 3. Update branch cash balance if paid in cash
       if (paymentMethod === 'Cash') {
+        const cashIncrement = applyWHT5 ? netReceivableAmount : grossTotal;
         setLocations(prevLocs =>
           prevLocs.map(l => {
             if (l.id === activeLocation) {
               const current = l.currentCashBalance ?? l.openingFloat ?? 0;
-              return { ...l, currentCashBalance: current + grossTotal };
+              return { ...l, currentCashBalance: current + cashIncrement };
             }
             return l;
           })
@@ -1746,7 +2047,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 4. Record Audit Log
       recordAuditLog(
         'POS Sale Completed',
-        `Issued ETR Receipt ${receiptNum} for KSh ${grossTotal.toLocaleString()} (${paymentMethod}) at ${locInfo?.name}`
+        `Issued ETR Receipt ${receiptNum} for KSh ${grossTotal.toLocaleString()} (Net Collected: KSh ${netReceivableAmount.toLocaleString()}${applyWHT5 ? ', 5% WHT Withheld' : ''}) via ${paymentMethod} at ${locInfo?.name}`
       );
     } else {
       recordAuditLog('Proforma Quotation Created', `Generated KSh ${grossTotal.toLocaleString()} quotation for ${customerName}`);
@@ -1758,6 +2059,183 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart([]);
 
     return { success: true, orderId };
+  };
+
+  // CONVERT PROFORMA QUOTATION TO OFFICIAL TAX INVOICE & ETR RECEIPT
+  const convertQuotationToInvoice = (
+    quotationId: string,
+    paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque',
+    applyWHT5: boolean = false,
+    whtCertificateNo: string = ''
+  ) => {
+    const existingQuotation = orders.find(o => o.id === quotationId);
+    if (!existingQuotation) {
+      playAlertSound();
+      return { success: false, message: 'Quotation document not found.' };
+    }
+
+    const fulfillLoc = existingQuotation.fulfilledByLocation || activeLocation;
+    const locInfo = locations.find(l => l.id === fulfillLoc);
+
+    // 1. Check stock availability across the quotation items
+    for (const item of existingQuotation.items) {
+      const prod = products.find(p => p.id === item.batchId);
+      const locStock = prod?.locationStock[fulfillLoc] || 0;
+      if (locStock < item.quantity) {
+        playAlertSound();
+        return {
+          success: false,
+          message: `Insufficient stock for ${item.productName} at ${locInfo?.name || fulfillLoc}. Available: ${locStock} ${item.unit}.`
+        };
+      }
+    }
+
+    // 2. Decrement physical stock
+    setProducts(prevProducts =>
+      prevProducts.map(prod => {
+        const orderItem = existingQuotation.items.find(i => i.batchId === prod.id);
+        if (orderItem) {
+          const currentStock = prod.locationStock[fulfillLoc] || 0;
+          return {
+            ...prod,
+            locationStock: {
+              ...prod.locationStock,
+              [fulfillLoc]: Math.max(0, currentStock - orderItem.quantity)
+            }
+          };
+        }
+        return prod;
+      })
+    );
+
+    // 3. 5% WHT and Financial breakdown
+    const grossTotal = existingQuotation.grandTotal;
+    const subtotal = Number((grossTotal / (1 + etrConfig.vatRate)).toFixed(2));
+    const vatAmount = Number((grossTotal - subtotal).toFixed(2));
+
+    const whtRate = 0.05;
+    const whtAmount = applyWHT5 ? Number((grossTotal * whtRate).toFixed(2)) : 0;
+    const netReceivableAmount = applyWHT5 ? Number((grossTotal - whtAmount).toFixed(2)) : grossTotal;
+    const whtCertNumber = applyWHT5 ? (whtCertificateNo || `KRA-WHT-5%-${Date.now().toString().slice(-6)}`) : undefined;
+
+    // 4. Update the order into a completed Tax Invoice
+    const updatedOrder: SaleOrder = {
+      ...existingQuotation,
+      isQuotation: false,
+      status: 'completed',
+      paymentMethod,
+      paymentReference: `${paymentMethod.slice(0, 3).toUpperCase()}-CNV-${Date.now().toString().slice(-4)}`,
+      timestamp: new Date().toISOString(),
+      wht5Applied: applyWHT5,
+      whtRate: applyWHT5 ? whtRate : undefined,
+      whtAmount: applyWHT5 ? whtAmount : undefined,
+      whtCertificateNo: whtCertNumber,
+      netReceivableAmount: applyWHT5 ? netReceivableAmount : undefined,
+      subtotal,
+      vatAmount
+    };
+
+    // 5. Post Ledger Entries
+    const entriesToPost: LedgerEntry[] = [];
+    if (applyWHT5 && whtAmount > 0) {
+      entriesToPost.push({
+        id: `LEDG-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        transactionRef: updatedOrder.id,
+        description: `Quotation Converted to Invoice (${paymentMethod}) [5% WHT Deducted by Client]`,
+        debitAccount: `${paymentMethod} Cash Account`,
+        creditAccount: `Sales Revenue (${locInfo?.name})`,
+        amount: netReceivableAmount,
+        locationId: fulfillLoc,
+        category: 'Sales'
+      });
+
+      entriesToPost.push({
+        id: `LEDG-WHT-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        transactionRef: updatedOrder.id,
+        description: `5% Advance Withholding Tax Credit (KRA Cert: ${whtCertNumber})`,
+        debitAccount: 'Advance Withholding Tax Credits (5%)',
+        creditAccount: `Sales Revenue (${locInfo?.name})`,
+        amount: whtAmount,
+        locationId: fulfillLoc,
+        category: 'Withholding Tax 5%'
+      });
+
+      const newWhtRecord: KRAWithholdingTaxRecord = {
+        id: `WHT-POS-${Date.now().toString().slice(-6)}`,
+        entityName: existingQuotation.customerName || 'B2B Client',
+        entityPin: existingQuotation.customerKraPin || 'P051982341Z',
+        natureOfTransaction: 'B2B Customer Invoiced Sales (5% Credit)',
+        rate: 0.05,
+        grossAmount: grossTotal,
+        whtAmount,
+        netPayable: netReceivableAmount,
+        certificateNo: whtCertNumber || `KRA-WHT-5%-${Date.now().toString().slice(-4)}`,
+        direction: 'Withheld_By_Customer_Receivable',
+        period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        settled: true,
+        issueDate: new Date().toISOString().split('T')[0],
+        notes: `Converted from Quotation ${existingQuotation.id} to ETR Receipt ${existingQuotation.receiptNumber}`
+      };
+      setWhtRecords(prev => [newWhtRecord, ...prev]);
+    } else {
+      entriesToPost.push({
+        id: `LEDG-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        transactionRef: updatedOrder.id,
+        description: `Quotation Converted to Tax Invoice at ${locInfo?.name} (${paymentMethod})`,
+        debitAccount: `${paymentMethod} Cash Account`,
+        creditAccount: `Sales Revenue (${locInfo?.name})`,
+        amount: grossTotal,
+        locationId: fulfillLoc,
+        category: 'Sales'
+      });
+    }
+
+    // 16% Output VAT entry
+    entriesToPost.push({
+      id: `LEDG-VAT-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString(),
+      transactionRef: updatedOrder.id,
+      description: `KRA 16% Output VAT Liability for Receipt ${updatedOrder.receiptNumber}`,
+      debitAccount: `Sales Revenue (${locInfo?.name})`,
+      creditAccount: `KRA Output VAT Liability`,
+      amount: vatAmount,
+      locationId: fulfillLoc,
+      category: 'Tax VAT'
+    });
+
+    setLedger(prev => [...entriesToPost, ...prev]);
+
+    // Update Cash Balance if paid in Cash
+    if (paymentMethod === 'Cash') {
+      const cashIncrement = applyWHT5 ? netReceivableAmount : grossTotal;
+      setLocations(prevLocs =>
+        prevLocs.map(l => {
+          if (l.id === fulfillLoc) {
+            const current = l.currentCashBalance ?? l.openingFloat ?? 0;
+            return { ...l, currentCashBalance: current + cashIncrement };
+          }
+          return l;
+        })
+      );
+    }
+
+    setOrders(prev => prev.map(o => (o.id === quotationId ? updatedOrder : o)));
+    setSelectedReceipt(updatedOrder);
+    playSuccessSound();
+
+    recordAuditLog(
+      'Quotation Converted to Invoice',
+      `Converted Quotation ${quotationId} to Official Tax Invoice ${updatedOrder.receiptNumber} for KSh ${grossTotal.toLocaleString()} via ${paymentMethod}`
+    );
+
+    return {
+      success: true,
+      message: `Quotation ${quotationId} successfully converted into Official Tax Invoice & ETR Receipt ${updatedOrder.receiptNumber}!`,
+      order: updatedOrder
+    };
   };
 
   // ROUTE ORDER TICKET (From Store 1 / Store 2 or Out-of-Stock Sales Shop -> Main Store)
@@ -2988,11 +3466,59 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCloudSyncStatus('offline');
     }
 
-    recordAuditLog('Product Removed', `Deleted product ${batchId} (${target?.name || ''}) from cloud inventory.`);
+    recordAuditLog('Product Removed', `Deleted product ${batchId} (${target?.name || ''} - SKU: ${target?.sku || ''}) from cloud inventory.`);
     playSuccessSound();
     return {
       success: true,
       message: `Product "${target?.name || batchId}" deleted from inventory.`
+    };
+  };
+
+  // DELETE MULTIPLE PRODUCTS (Instant Bulk Delete)
+  const deleteMultipleProducts = async (batchIds: string[]) => {
+    if (!batchIds.length) return { success: false, count: 0, message: 'No products selected for deletion.' };
+    const targets = products.filter(p => batchIds.includes(p.id));
+    setProducts(prev => prev.filter(p => !batchIds.includes(p.id)));
+
+    try {
+      setCloudSyncStatus('syncing');
+      await Promise.all(batchIds.map(id => deleteDoc(doc(db, 'products', id))));
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn('Firestore bulk delete products sync warning:', e);
+      setCloudSyncStatus('offline');
+    }
+
+    recordAuditLog('Products Bulk Removed', `Deleted ${targets.length} products (${targets.map(t => t.sku).join(', ')}) from cloud inventory.`);
+    playSuccessSound();
+    return {
+      success: true,
+      count: targets.length,
+      deletedProducts: targets,
+      message: `Successfully deleted ${targets.length} product(s) from inventory.`
+    };
+  };
+
+  // RESTORE PRODUCT BATCH (For Instant Undo)
+  const restoreProductBatch = async (product: ProductBatch) => {
+    setProducts(prev => [product, ...prev.filter(p => p.id !== product.id)]);
+
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'products', product.id), product);
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn('Firestore restore product sync warning:', e);
+      setCloudSyncStatus('offline');
+    }
+
+    recordAuditLog('Product Restored', `Restored product ${product.id} (${product.name} - SKU: ${product.sku}) to cloud inventory.`);
+    playSuccessSound();
+    return {
+      success: true,
+      message: `Product "${product.name}" successfully restored.`
     };
   };
 
@@ -3244,6 +3770,57 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recordAuditLog('Payroll Processed', `Generated statutory monthly payroll for ${monthYear} covering ${staff.length} staff members.`);
   };
 
+  // STAFF ONBOARDING & PERSONNEL MANAGEMENT (Admin & HR)
+  const addStaffMember = (
+    staffData: Omit<StaffMember, 'id' | 'employeeNo' | 'joinedDate'> & { employeeNo?: string; joinedDate?: string }
+  ): StaffMember => {
+    const nextNum = staff.length + 1;
+    const autoEmpNo = staffData.employeeNo?.trim() || `EMP-2026-${nextNum.toString().padStart(3, '0')}`;
+    const autoId = `STAFF-${Date.now()}-${nextNum}`;
+    const joined = staffData.joinedDate || new Date().toISOString().split('T')[0];
+
+    const newStaff: StaffMember = {
+      id: autoId,
+      employeeNo: autoEmpNo,
+      name: staffData.name.trim(),
+      role: staffData.role,
+      locationId: staffData.locationId,
+      idNumber: staffData.idNumber || '',
+      kraPin: (staffData.kraPin || '').toUpperCase().trim(),
+      nssfNo: staffData.nssfNo || '',
+      nhifNo: staffData.nhifNo || '',
+      basicSalary: Number(staffData.basicSalary) || 0,
+      allowances: Number(staffData.allowances) || 0,
+      joinedDate: joined,
+      email: staffData.email?.trim() || '',
+      phone: staffData.phone?.trim() || '',
+      bankAccountName: staffData.bankAccountName?.trim() || '',
+      bankAccountNumber: staffData.bankAccountNumber?.trim() || '',
+      mpesaNumber: staffData.mpesaNumber?.trim() || staffData.phone?.trim() || '',
+      status: staffData.status || 'active',
+      onboardedBy: currentUser.name || 'Executive Admin'
+    };
+
+    setStaff(prev => [newStaff, ...prev]);
+    recordAuditLog(
+      'Staff Onboarded',
+      `Onboarded ${newStaff.name} (${newStaff.employeeNo}) as ${newStaff.role} by ${currentUser.name || 'HR/Admin'}`
+    );
+
+    return newStaff;
+  };
+
+  const updateStaffMember = (id: string, updates: Partial<StaffMember>) => {
+    setStaff(prev => prev.map(s => (s.id === id ? { ...s, ...updates } : s)));
+    recordAuditLog('Staff Updated', `Updated personnel records for staff ID ${id}`);
+  };
+
+  const deleteStaffMember = (id: string) => {
+    const target = staff.find(s => s.id === id);
+    setStaff(prev => prev.filter(s => s.id !== id));
+    recordAuditLog('Staff Offboarded', `Removed staff member ${target?.name || id} from active directory`);
+  };
+
   // SCAN TO ADD PRODUCT WITH ZERO REPETITION AND INSTANT DUPLICATE ALERT
   const scanToAddProduct = async (
     barcode: string,
@@ -3365,7 +3942,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       `Mobile barcode scanner registered new product "${newProduct.name}" (${newProduct.category}, ${qty} ${unit}) with barcode "${cleanBarcode}" at ${targetLocation}.`
     );
 
-    playSuccessSound();
+    playBarcodeScanBeep(true);
 
     return {
       success: true,
@@ -3422,30 +3999,111 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  // QR SCANNER Handler
+  // QR SCANNER Handler (Enhanced Multi-Format Parser & Resolver)
   const handleQRScan = (qrString: string) => {
+    const raw = (qrString || '').trim();
+    if (!raw) return false;
+
+    let matchedProd: ProductBatch | undefined;
+
     try {
-      const parsed = JSON.parse(qrString);
-      if (parsed.batch) {
-        const prod = products.find(p => p.id === parsed.batch || p.sku === parsed.sku);
-        if (prod) {
-          addToCart(prod, 1);
-          setScannedResult(`Scanned & added ${prod.name} (${prod.colorName}) to cart!`);
-          recordAuditLog('QR Code Scanned', `Scanned QR Code for ${prod.sku}`);
-          return true;
-        }
-      }
+      const parsed = JSON.parse(raw);
+      const targetBatchId = parsed.batch || parsed.id || parsed.batchId;
+      const targetSku = parsed.sku || parsed.barcode;
+
+      matchedProd = products.find(p => 
+        (targetBatchId && (p.id.toLowerCase() === String(targetBatchId).toLowerCase())) ||
+        (targetSku && (p.sku.toLowerCase() === String(targetSku).toLowerCase() || (p.barcode && p.barcode.toLowerCase() === String(targetSku).toLowerCase())))
+      );
     } catch {
-      // Raw SKU fallback check
-      const prod = products.find(p => p.sku === qrString || p.id === qrString);
-      if (prod) {
-        addToCart(prod, 1);
-        setScannedResult(`Scanned SKU ${prod.sku}: Added ${prod.name} to cart!`);
-        return true;
-      }
+      // Non-JSON plain text fallback
     }
-    setScannedResult(`QR Code decoded: ${qrString}. Product matching batch/SKU not found.`);
+
+    if (!matchedProd) {
+      // Try direct match across SKU, ID, Barcode, or embedded QR token
+      matchedProd = products.find(p => 
+        p.sku.toLowerCase() === raw.toLowerCase() ||
+        p.id.toLowerCase() === raw.toLowerCase() ||
+        (p.barcode && p.barcode.toLowerCase() === raw.toLowerCase()) ||
+        (p.qrCodeData && p.qrCodeData.includes(raw)) ||
+        p.name.toLowerCase().includes(raw.toLowerCase())
+      );
+    }
+
+    if (matchedProd) {
+      addToCart(matchedProd, 1);
+      setScannedResult(`Scanned & added ${matchedProd.name} (${matchedProd.colorName || matchedProd.sku}) to cart!`);
+      recordAuditLog('QR Code Scanned', `Scanned QR Code for ${matchedProd.sku} (${matchedProd.name})`);
+      playBarcodeScanBeep(true);
+      return true;
+    }
+
+    setScannedResult(`QR Code decoded: "${raw}". Product matching batch/SKU not found in active inventory.`);
+    playScannerErrorBeep();
     return false;
+  };
+
+  // Purge All Mock and Demo Data Engine
+  const purgeAllMockData = async () => {
+    try {
+      const keysToClear = [
+        'urban_interior_products',
+        'urban_interior_orders',
+        'urban_interior_transfers',
+        'urban_interior_ledger',
+        'urban_interior_branch_expenses',
+        'urban_interior_deliveries',
+        'urban_interior_tare_logs',
+        'urban_interior_staff',
+        'urban_interior_payroll',
+        'urban_interior_mail_notifications',
+        'urban_interior_locations',
+        'urban_interior_audit_logs',
+        'urban_interior_held_carts'
+      ];
+      keysToClear.forEach(k => {
+        try {
+          localStorage.removeItem(k);
+        } catch (e) {
+          console.warn('Error clearing key:', k, e);
+        }
+      });
+
+      setProducts([]);
+      setOrders([]);
+      setTransfers([]);
+      setLedger([]);
+      setBranchExpenses([]);
+      setDeliveries([]);
+      setTareReconciliationLogs([]);
+      setStaff([]);
+      setPayroll([]);
+      setAuditLogs([]);
+      setMailNotifications([]);
+      setCart([]);
+      setHeldCarts([]);
+      setActiveDeliveryId(null);
+      setLocations(LOCATIONS);
+
+      // Cleanse legacy mock batches from Firestore if any exist
+      try {
+        const snap = await getDocs(collection(db, 'products'));
+        for (const docSnap of snap.docs) {
+          const docId = docSnap.id;
+          if (docId.startsWith('BATCH-DRK-') || docId.startsWith('BATCH-FLC-') || docId.startsWith('BATCH-YRN-') || docId.startsWith('BATCH-MOCK')) {
+            await deleteDoc(doc(db, 'products', docId));
+          }
+        }
+      } catch (err) {
+        console.warn('Firestore mock product cleanup notice:', err);
+      }
+
+      playSuccessSound();
+      return { success: true, message: 'All mock figures and records have been purged. Database is clean for production.' };
+    } catch (err: any) {
+      console.error('Error during data purge:', err);
+      return { success: false, message: err.message || 'Failed to purge mock data.' };
+    }
   };
 
   return (
@@ -3498,6 +4156,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationRead,
         clearNotifications,
         processPOSCheckout,
+        convertQuotationToInvoice,
         createOrderRerouteTicket,
         requestRestock,
         dispatchRestockTransfer,
@@ -3509,6 +4168,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addProductBatch,
         updateProductBatch,
         deleteProductBatch,
+        deleteMultipleProducts,
+        restoreProductBatch,
         updateCategoryPrices,
         categoryPricingConfigs,
         categoryImages,
@@ -3521,6 +4182,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addLedgerEntry,
         updateETRConfig,
         generateMonthlyPayroll,
+        addStaffMember,
+        updateStaffMember,
+        deleteStaffMember,
         recordAuditLog,
         deliveries,
         activeDeliveryId,
@@ -3537,6 +4201,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addTareReconciliationRecord,
         reconcileTareWithJournal,
         updateCartTare,
+        whtRecords,
+        addWithholdingTaxRecord,
+        settleWithholdingTaxRecord,
         selectedReceipt,
         setSelectedReceipt,
         locations,
@@ -3560,6 +4227,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         scannedResult,
         setScannedResult,
         handleQRScan,
+        playBarcodeScanBeep,
+        playScannerErrorBeep,
         isBrandSettingsModalOpen,
         setIsBrandSettingsModalOpen,
         isUserProfileModalOpen,
@@ -3571,7 +4240,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthModalOpen,
         setIsAuthModalOpen,
         isMailDrawerOpen,
-        setIsMailDrawerOpen
+        setIsMailDrawerOpen,
+        purgeAllMockData
       }}
     >
       {children}

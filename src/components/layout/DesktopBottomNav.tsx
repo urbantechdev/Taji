@@ -72,7 +72,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
     },
     {
       id: 'etr',
-      label: 'ETR',
+      label: 'Billing',
       icon: Receipt,
     },
     {

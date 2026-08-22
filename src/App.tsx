@@ -103,7 +103,7 @@ const ERPContent: React.FC = () => {
 
         {/* Dynamic View Area (The only area that scrolls up and down) */}
         <div className="flex-1 h-full overflow-y-auto overflow-x-hidden min-h-0 flex flex-col justify-between">
-          <main className="p-3 sm:p-5 md:p-8 max-w-7xl mx-auto w-full space-y-6 pb-28 md:pb-36">
+          <main className="p-3 sm:p-5 md:p-6 lg:p-8 max-w-[1680px] mx-auto w-full space-y-6 pb-28 md:pb-36">
             {!isAdmin || appMode === 'pos' ? (
               <POSModule />
             ) : (

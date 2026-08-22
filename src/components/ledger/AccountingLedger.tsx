@@ -29,6 +29,7 @@ import {
   exportKRAInputVatClaimCSV,
   exportKRAWithholdingTaxPDF,
   exportKRAWithholdingTaxCSV,
+  exportKRAWithholdingTaxCertificatePDF,
   exportCorporateIncomeTaxComputationPDF,
   exportUnifiedPayrollTaxPDF,
   downloadCSV
@@ -80,7 +81,8 @@ import {
   HelpCircle,
   FileCheck,
   Calculator,
-  RotateCcw
+  RotateCcw,
+  X
 } from 'lucide-react';
 
 type LedgerTab = 
@@ -93,7 +95,7 @@ type LedgerTab =
   | 'bank_reconciliation';
 
 export const AccountingLedger: React.FC = () => {
-  const { ledger, orders, locations, products, branchExpenses, payroll, etrConfig } = useERP();
+  const { ledger, orders, locations, products, branchExpenses, payroll, etrConfig, whtRecords, addWithholdingTaxRecord, settleWithholdingTaxRecord } = useERP();
   const [activeSubTab, setActiveSubTab] = useState<LedgerTab>('cfo_advisory');
   const [selectedLocation, setSelectedLocation] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -205,61 +207,71 @@ export const AccountingLedger: React.FC = () => {
   const [creditReason, setCreditReason] = useState<ETIMSCreditNote['creditReason']>('Damaged Fabric Return');
   const [creditAmountValue, setCreditAmountValue] = useState<string>('');
 
-  // Withholding Tax records
-  const [whtRecords, setWhtRecords] = useState<KRAWithholdingTaxRecord[]>([
-    {
-      id: 'WHT-2026-01',
-      entityName: 'Otieno & Co Certified Auditors',
-      entityPin: 'P051449102X',
-      natureOfTransaction: 'Professional & Legal Fees (5%)',
-      rate: 0.05,
-      grossAmount: 60000,
-      whtAmount: 3000,
-      certificateNo: 'KRA-WHT-2026-8819',
-      direction: 'Withheld_By_Us_Payable',
+  // Withholding Tax interactive modal state
+  const [isWHTModalOpen, setIsWHTModalOpen] = useState(false);
+  const [newWHTEntityName, setNewWHTEntityName] = useState('');
+  const [newWHTEntityPin, setNewWHTEntityPin] = useState('');
+  const [newWHTNature, setNewWHTNature] = useState<KRAWithholdingTaxRecord['natureOfTransaction']>('Professional, Legal & Audit Fees (5%)');
+  const [newWHTGrossAmount, setNewWHTGrossAmount] = useState<string>('');
+  const [newWHTDirection, setNewWHTDirection] = useState<'Withheld_By_Us_Payable' | 'Withheld_By_Customer_Receivable'>('Withheld_By_Us_Payable');
+  const [newWHTCertNo, setNewWHTCertNo] = useState('');
+  const [newWHTNotes, setNewWHTNotes] = useState('');
+  const [whtSuccessMessage, setWhtSuccessMessage] = useState<string | null>(null);
+
+  // Settle WHT modal state
+  const [settlingWHTRecord, setSettlingWHTRecord] = useState<KRAWithholdingTaxRecord | null>(null);
+  const [settlePRNNumber, setSettlePRNNumber] = useState('');
+
+  // Handle Add WHT Record
+  const handleCreateWHTRecord = (e: React.FormEvent) => {
+    e.preventDefault();
+    const gross = parseFloat(newWHTGrossAmount);
+    if (!gross || gross <= 0 || !newWHTEntityName) return;
+
+    let rate = 0.05;
+    if (newWHTNature.includes('10%')) rate = 0.10;
+    else if (newWHTNature.includes('3%')) rate = 0.03;
+    else if (newWHTNature.includes('2%')) rate = 0.02;
+    else if (newWHTNature.includes('5%')) rate = 0.05;
+
+    const whtAmt = Number((gross * rate).toFixed(2));
+
+    const record: KRAWithholdingTaxRecord = {
+      id: `WHT-2026-${String(whtRecords.length + 1).padStart(2, '0')}`,
+      entityName: newWHTEntityName,
+      entityPin: newWHTEntityPin.toUpperCase(),
+      natureOfTransaction: newWHTNature,
+      rate,
+      grossAmount: gross,
+      whtAmount: whtAmt,
+      certificateNo: newWHTCertNo || `KRA-WHT-${Date.now().toString().slice(-6)}`,
+      direction: newWHTDirection,
       period: 'August 2026',
-      settled: false
-    },
-    {
-      id: 'WHT-2026-02',
-      entityName: 'Bungoma Industrial Transporters',
-      entityPin: 'P051893112Y',
-      natureOfTransaction: 'Contractual / Transport Services (3%)',
-      rate: 0.03,
-      grossAmount: 45000,
-      whtAmount: 1350,
-      certificateNo: 'KRA-WHT-2026-8820',
-      direction: 'Withheld_By_Us_Payable',
-      period: 'August 2026',
-      settled: false
-    },
-    {
-      id: 'WHT-2026-03',
-      entityName: 'Commercial Property Warehouse Ltd',
-      entityPin: 'P051772199Z',
-      natureOfTransaction: 'Commercial Warehouse Rent (10%)',
-      rate: 0.10,
-      grossAmount: 85000,
-      whtAmount: 8500,
-      certificateNo: 'KRA-WHT-2026-8821',
-      direction: 'Withheld_By_Us_Payable',
-      period: 'August 2026',
-      settled: false
-    },
-    {
-      id: 'WHT-2026-04',
-      entityName: 'Apex Textiles Corporate Client',
-      entityPin: 'P051998822A',
-      natureOfTransaction: 'Withholding VAT - WHVAT (2%)',
-      rate: 0.02,
-      grossAmount: 120000,
-      whtAmount: 2400,
-      certificateNo: 'KRA-WHVAT-2026-9011',
-      direction: 'Withheld_By_Customer_Receivable',
-      period: 'August 2026',
-      settled: true
-    }
-  ]);
+      settled: false,
+      notes: newWHTNotes
+    };
+
+    addWithholdingTaxRecord(record);
+    setIsWHTModalOpen(false);
+    setNewWHTEntityName('');
+    setNewWHTEntityPin('');
+    setNewWHTGrossAmount('');
+    setNewWHTCertNo('');
+    setNewWHTNotes('');
+    setWhtSuccessMessage(`5% Withholding Tax Voucher ${record.id} successfully created and posted to general ledger.`);
+    setTimeout(() => setWhtSuccessMessage(null), 4000);
+  };
+
+  // Handle Settle WHT
+  const handleConfirmSettleWHT = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settlingWHTRecord || !settlePRNNumber) return;
+    settleWithholdingTaxRecord(settlingWHTRecord.id, settlePRNNumber);
+    setSettlingWHTRecord(null);
+    setSettlePRNNumber('');
+    setWhtSuccessMessage(`WHT liability ${settlingWHTRecord.id} successfully marked as remitted to KRA.`);
+    setTimeout(() => setWhtSuccessMessage(null), 4000);
+  };
 
   // Handle KRA PIN Validation
   const handleValidatePin = (pinToTest: string) => {
@@ -473,18 +485,20 @@ export const AccountingLedger: React.FC = () => {
     <div className="space-y-6">
       
       {/* Top Header */}
-      <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <BookOpenCheck className="w-5 h-5 text-rose-600" />
-              <h2 className="font-bold text-slate-900 text-lg">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+              <BookOpenCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-extrabold text-slate-900 text-lg tracking-tight">
                 Autonomous Finance Manager &amp; Accounting Engine
               </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Self-balancing double-entry ledger, live 3-statement financial modeling (Balance Sheet, P&amp;L, Cash Flow), and statutory KRA eTIMS compliance.
+              </p>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Complete self-balancing double-entry ledger, live 3-statement financial modeling (Balance Sheet, P&amp;L, Cash Flow), Audited Trial Balance, and 1-click CSV/PDF exports.
-            </p>
           </div>
 
           {/* Master Export Toolbar */}
@@ -509,16 +523,16 @@ export const AccountingLedger: React.FC = () => {
 
             <button
               onClick={() => setIsJournalModalOpen(true)}
-              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Post Journal Voucher</span>
             </button>
           </div>
         </div>
 
         {/* Sub Navigation Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-3 border-t border-slate-100 pb-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-3 border-t border-slate-100 pb-1 scrollbar-thin">
           <button
             onClick={() => setActiveSubTab('cfo_advisory')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
@@ -528,7 +542,7 @@ export const AccountingLedger: React.FC = () => {
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            Virtual CFO Intelligence
+            <span>Virtual CFO Intelligence</span>
           </button>
 
           <button
@@ -540,7 +554,7 @@ export const AccountingLedger: React.FC = () => {
             }`}
           >
             <Scale className="w-3.5 h-3.5" />
-            General Ledger &amp; Trial Balance
+            <span>General Ledger &amp; Trial Balance</span>
           </button>
 
           <button
@@ -552,7 +566,7 @@ export const AccountingLedger: React.FC = () => {
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
-            Live Balance Sheet
+            <span>Live Balance Sheet</span>
           </button>
 
           <button
@@ -564,7 +578,7 @@ export const AccountingLedger: React.FC = () => {
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
-            Income Statement (P&amp;L)
+            <span>Income Statement (P&amp;L)</span>
           </button>
 
           <button
@@ -576,7 +590,7 @@ export const AccountingLedger: React.FC = () => {
             }`}
           >
             <Wallet className="w-3.5 h-3.5" />
-            Cash Flow Statement
+            <span>Cash Flow Statement</span>
           </button>
 
           <button
@@ -588,7 +602,7 @@ export const AccountingLedger: React.FC = () => {
             }`}
           >
             <Receipt className="w-3.5 h-3.5" />
-            KRA Tax &amp; iTax Compliance
+            <span>KRA Tax &amp; iTax Compliance</span>
           </button>
 
           <button
@@ -600,7 +614,7 @@ export const AccountingLedger: React.FC = () => {
             }`}
           >
             <CreditCard className="w-3.5 h-3.5" />
-            Bank &amp; M-Pesa Reconciliation
+            <span>Bank &amp; M-Pesa Reconciliation</span>
           </button>
         </div>
       </div>
@@ -2052,23 +2066,102 @@ export const AccountingLedger: React.FC = () => {
           )}
 
           {/* ------------------------------------------------------------- */}
-          {/* SUB-VIEW 4: WITHHOLDING TAX (WHT & WHVAT) */}
+          {/* SUB-VIEW 4: WITHHOLDING TAX (WHT 5% & STATUTORY DEDUCTIONS) */}
           {/* ------------------------------------------------------------- */}
           {kraTaxView === 'wht_ledger' && (
             <div className="space-y-6">
+              {whtSuccessMessage && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{whtSuccessMessage}</span>
+                  </div>
+                  <button onClick={() => setWhtSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-800 text-xs font-bold">×</button>
+                </div>
+              )}
+
+              {/* 5% WHT KPI Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-bold">5% WHT Professional / Audit</span>
+                    <span className="px-2 py-0.5 bg-rose-50 text-rose-700 font-mono text-[10px] font-bold rounded">Payable</span>
+                  </div>
+                  <div className="text-xl font-black font-mono text-rose-700">
+                    KSh {whtRecords
+                      .filter(r => r.direction === 'Withheld_By_Us_Payable' && r.rate === 0.05)
+                      .reduce((acc, r) => acc + r.whtAmount, 0)
+                      .toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-[11px] text-slate-400">Withheld from consultants &amp; legal fees</p>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-bold">5% B2B Sales Tax Credits</span>
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-mono text-[10px] font-bold rounded">Receivable</span>
+                  </div>
+                  <div className="text-xl font-black font-mono text-emerald-700">
+                    KSh {whtRecords
+                      .filter(r => r.direction === 'Withheld_By_Customer_Receivable')
+                      .reduce((acc, r) => acc + r.whtAmount, 0)
+                      .toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-[11px] text-slate-400">Withheld by corporate clients at checkout</p>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-bold">Total WHT Payable to KRA</span>
+                    <span className="px-2 py-0.5 bg-amber-50 text-amber-800 font-mono text-[10px] font-bold rounded">Due 20th</span>
+                  </div>
+                  <div className="text-xl font-black font-mono text-slate-900">
+                    KSh {whtRecords
+                      .filter(r => r.direction === 'Withheld_By_Us_Payable')
+                      .reduce((acc, r) => acc + r.whtAmount, 0)
+                      .toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-[11px] text-slate-400">Unsettled: {whtRecords.filter(r => r.direction === 'Withheld_By_Us_Payable' && !r.settled).length} vouchers</p>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-bold">Net WHT Credit Offset</span>
+                    <span className="px-2 py-0.5 bg-sky-50 text-sky-800 font-mono text-[10px] font-bold rounded">CIT / VAT</span>
+                  </div>
+                  {(() => {
+                    const receivable = whtRecords.filter(r => r.direction === 'Withheld_By_Customer_Receivable').reduce((acc, r) => acc + r.whtAmount, 0);
+                    const payable = whtRecords.filter(r => r.direction === 'Withheld_By_Us_Payable').reduce((acc, r) => acc + r.whtAmount, 0);
+                    return (
+                      <div className="text-xl font-black font-mono text-sky-700">
+                        KSh {receivable.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                    );
+                  })()}
+                  <p className="text-[11px] text-slate-400">Eligible to offset annual Corporate Tax</p>
+                </div>
+              </div>
+
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                   <div>
-                    <h4 className="font-bold text-slate-900 text-sm">Withholding Tax (WHT) &amp; Withholding VAT (WHVAT) Schedule</h4>
-                    <p className="text-xs text-slate-500">Autonomous tracking of taxes withheld at source (5% professional fees, 10% rent, 3% contracts, 2% WHVAT).</p>
+                    <h4 className="font-bold text-slate-900 text-sm">Withholding Tax (WHT 5% &amp; Statutory Deductions) Schedule</h4>
+                    <p className="text-xs text-slate-500">Automated tracking of 5% withholding tax on professional fees and corporate B2B sales tax credits.</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setIsWHTModalOpen(true)}
+                      className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Register 5% WHT Voucher</span>
+                    </button>
                     <button
                       onClick={() => exportKRAWithholdingTaxPDF(whtRecords, etrConfig)}
                       className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <FileDown className="w-4 h-4 text-sky-400" />
-                      <span>Export WHT PDF</span>
+                      <span>Export Schedule PDF</span>
                     </button>
                     <button
                       onClick={() => exportKRAWithholdingTaxCSV(whtRecords, etrConfig)}
@@ -2092,6 +2185,8 @@ export const AccountingLedger: React.FC = () => {
                         <th className="p-3 text-right">Rate</th>
                         <th className="p-3 text-right">WHT Amount</th>
                         <th className="p-3 text-center">Certificate No</th>
+                        <th className="p-3 text-center">Settlement</th>
+                        <th className="p-3 text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono">
@@ -2105,7 +2200,10 @@ export const AccountingLedger: React.FC = () => {
                             <div className="font-bold text-slate-900 font-sans">{wht.entityName}</div>
                             <div className="text-[10px] text-slate-500">{wht.entityPin}</div>
                           </td>
-                          <td className="p-3 font-sans text-slate-700">{wht.natureOfTransaction}</td>
+                          <td className="p-3 font-sans text-slate-700">
+                            <span className="font-medium">{wht.natureOfTransaction}</span>
+                            {wht.notes && <div className="text-[10px] text-slate-400 italic">{wht.notes}</div>}
+                          </td>
                           <td className="p-3">
                             {wht.direction === 'Withheld_By_Us_Payable' ? (
                               <span className="px-2 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-bold rounded-full">
@@ -2123,6 +2221,38 @@ export const AccountingLedger: React.FC = () => {
                             KSh {wht.whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </td>
                           <td className="p-3 text-center text-slate-600 font-semibold">{wht.certificateNo || 'Pending'}</td>
+                          <td className="p-3 text-center">
+                            {wht.settled ? (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
+                                Remitted / PRN {wht.remittedPRN || 'Synced'}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full">
+                                Pending Remittance
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => exportKRAWithholdingTaxCertificatePDF(wht, etrConfig)}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-sans font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                                title="Download Official KRA WHT Certificate"
+                              >
+                                <FileDown className="w-3 h-3 text-rose-600" />
+                                <span>Cert</span>
+                              </button>
+                              {wht.direction === 'Withheld_By_Us_Payable' && !wht.settled && (
+                                <button
+                                  onClick={() => setSettlingWHTRecord(wht)}
+                                  className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-sans font-bold transition-colors cursor-pointer"
+                                  title="Mark as paid to KRA with Payment Registration Number (PRN)"
+                                >
+                                  Remit
+                                </button>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2736,6 +2866,242 @@ export const AccountingLedger: React.FC = () => {
         isOpen={isJournalModalOpen}
         onClose={() => setIsJournalModalOpen(false)}
       />
+
+      {/* Register 5% Withholding Tax Voucher Modal */}
+      {isWHTModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-rose-100 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Percent className="w-5 h-5 text-rose-600" />
+                <h3 className="font-bold text-slate-900 text-base">
+                  Register 5% Withholding Tax Voucher
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsWHTModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateWHTRecord} className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Accounting Direction &amp; Tax Purpose:
+                </label>
+                <select
+                  value={newWHTDirection}
+                  onChange={e => setNewWHTDirection(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                >
+                  <option value="Withheld_By_Us_Payable">
+                    Payable to KRA: We withheld from Supplier/Consultant (Due 20th)
+                  </option>
+                  <option value="Withheld_By_Customer_Receivable">
+                    Receivable Tax Credit: Corporate B2B Client withheld from us (Tax Asset)
+                  </option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Entity / Company Name:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newWHTEntityName}
+                    onChange={e => setNewWHTEntityName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    placeholder="e.g. Kipchoge Legal Partners"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Entity KRA PIN:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newWHTEntityPin}
+                    onChange={e => setNewWHTEntityPin(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    placeholder="e.g. P051449102X"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Nature of Transaction &amp; Statutory Rate:
+                </label>
+                <select
+                  value={newWHTNature}
+                  onChange={e => setNewWHTNature(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                >
+                  <option value="Professional, Legal & Audit Fees (5%)">
+                    5% - Professional, Legal, Audit & Consultancy Fees
+                  </option>
+                  <option value="Contractual / Transport Services (3%)">
+                    3% - Contractual, Sub-contracting & Transport Services
+                  </option>
+                  <option value="Commercial Warehouse Rent (10%)">
+                    10% - Commercial Building & Warehouse Rent
+                  </option>
+                  <option value="Withholding VAT - WHVAT (2%)">
+                    2% - Withholding VAT (WHVAT Section 42A)
+                  </option>
+                  <option value="Management & Training Services (5%)">
+                    5% - Management & Training Services
+                  </option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Gross Invoiced Amount (KSh):
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    required
+                    value={newWHTGrossAmount}
+                    onChange={e => setNewWHTGrossAmount(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    placeholder="e.g. 50000"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    WHT Certificate / Exemption No:
+                  </label>
+                  <input
+                    type="text"
+                    value={newWHTCertNo}
+                    onChange={e => setNewWHTCertNo(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    placeholder="e.g. KRA-WHT-2026-9021"
+                  />
+                </div>
+              </div>
+
+              {newWHTGrossAmount && parseFloat(newWHTGrossAmount) > 0 && (
+                <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 font-mono text-xs space-y-1">
+                  <div className="flex justify-between text-slate-700">
+                    <span>Gross Invoice:</span>
+                    <span className="font-bold">KSh {parseFloat(newWHTGrossAmount).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700 font-bold">
+                    <span>WHT Deduction (5% Statutory Rate):</span>
+                    <span>
+                      KSh {(parseFloat(newWHTGrossAmount) * (newWHTNature.includes('10%') ? 0.10 : newWHTNature.includes('3%') ? 0.03 : newWHTNature.includes('2%') ? 0.02 : 0.05)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-emerald-800 font-bold border-t border-rose-200/60 pt-1">
+                    <span>Net Settlement Amount:</span>
+                    <span>
+                      KSh {(parseFloat(newWHTGrossAmount) * (1 - (newWHTNature.includes('10%') ? 0.10 : newWHTNature.includes('3%') ? 0.03 : newWHTNature.includes('2%') ? 0.02 : 0.05))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Notes / Audit Reference:
+                </label>
+                <input
+                  type="text"
+                  value={newWHTNotes}
+                  onChange={e => setNewWHTNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  placeholder="e.g. August 2026 External Audit Tax Provision"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsWHTModalOpen(false)}
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition-colors"
+                >
+                  Register &amp; Post Ledger
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Settle WHT / Enter KRA PRN Modal */}
+      {settlingWHTRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-amber-100 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+                <h3 className="font-bold text-slate-900 text-base">
+                  Mark WHT Remitted to KRA
+                </h3>
+              </div>
+              <button
+                onClick={() => setSettlingWHTRecord(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmSettleWHT} className="space-y-3.5 text-xs">
+              <p className="text-slate-600">
+                Confirm payment for voucher <strong>{settlingWHTRecord.id}</strong> ({settlingWHTRecord.entityName}) for <strong>KSh {settlingWHTRecord.whtAmount.toLocaleString()}</strong>.
+              </p>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  KRA Payment Registration Number (PRN / E-Slip No):
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={settlePRNNumber}
+                  onChange={e => setSettlePRNNumber(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  placeholder="e.g. 26082200019283"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSettlingWHTRecord(null)}
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow transition-colors"
+                >
+                  Confirm Remittance
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

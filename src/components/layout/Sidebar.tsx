@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'etr',
-      label: 'KRA ETR Compliance',
+      label: 'Billing & Invoices',
       icon: <Receipt className="w-4 h-4" />,
     },
     {

@@ -23,6 +23,7 @@ export interface RoleMetadata {
   >;
   permissions: {
     canManageUsers: boolean;
+    canManageStaff: boolean;
     canAccessCFOAdvisor: boolean;
     canExecuteForensicAudit: boolean;
     canManageGeneralLedger: boolean;
@@ -61,6 +62,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     ],
     permissions: {
       canManageUsers: true,
+      canManageStaff: true,
       canAccessCFOAdvisor: true,
       canExecuteForensicAudit: true,
       canManageGeneralLedger: true,
@@ -72,6 +74,38 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canAddProductBatches: true,
       canDispatchTransfers: true,
       canReceiveTransfers: true
+    }
+  },
+  hr_manager: {
+    role: 'hr_manager',
+    title: 'Human Resources & People Operations Manager',
+    shortLabel: 'HR Manager',
+    description: 'Autonomous employee onboarding, personnel records, KRA statutory compliance (PAYE, NSSF, SHIF, Housing Levy), and monthly staff payroll.',
+    badgeClass: 'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/40',
+    dotColor: 'bg-fuchsia-400',
+    defaultLocation: 'main_store',
+    allowedTabs: [
+      'dashboard',
+      'payroll',
+      'branches',
+      'operators',
+      'audit',
+      'gmail'
+    ],
+    permissions: {
+      canManageUsers: true,
+      canManageStaff: true,
+      canAccessCFOAdvisor: false,
+      canExecuteForensicAudit: false,
+      canManageGeneralLedger: false,
+      canDisbursePayroll: true,
+      canConfigureETR: false,
+      canDirectPOSSale: false,
+      canManageBranchExpenses: true,
+      canCreateLocations: false,
+      canAddProductBatches: false,
+      canDispatchTransfers: false,
+      canReceiveTransfers: false
     }
   },
   branch_manager: {
@@ -95,6 +129,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     ],
     permissions: {
       canManageUsers: false,
+      canManageStaff: false,
       canAccessCFOAdvisor: false,
       canExecuteForensicAudit: false,
       canManageGeneralLedger: true,
@@ -127,6 +162,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     ],
     permissions: {
       canManageUsers: false,
+      canManageStaff: false,
       canAccessCFOAdvisor: true,
       canExecuteForensicAudit: true,
       canManageGeneralLedger: true,
@@ -157,6 +193,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     ],
     permissions: {
       canManageUsers: false,
+      canManageStaff: false,
       canAccessCFOAdvisor: false,
       canExecuteForensicAudit: false,
       canManageGeneralLedger: false,
@@ -187,6 +224,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     ],
     permissions: {
       canManageUsers: false,
+      canManageStaff: false,
       canAccessCFOAdvisor: false,
       canExecuteForensicAudit: false,
       canManageGeneralLedger: false,
@@ -218,6 +256,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     ],
     permissions: {
       canManageUsers: false,
+      canManageStaff: false,
       canAccessCFOAdvisor: false,
       canExecuteForensicAudit: false,
       canManageGeneralLedger: false,
@@ -246,6 +285,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     ],
     permissions: {
       canManageUsers: false,
+      canManageStaff: false,
       canAccessCFOAdvisor: false,
       canExecuteForensicAudit: false,
       canManageGeneralLedger: false,
@@ -274,6 +314,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     ],
     permissions: {
       canManageUsers: false,
+      canManageStaff: false,
       canAccessCFOAdvisor: false,
       canExecuteForensicAudit: false,
       canManageGeneralLedger: false,

@@ -290,6 +290,97 @@ export function playTrashSound() {
   }
 }
 
+/**
+ * Play a loud, crisp laser barcode / QR scanner beep
+ * Modeled after industrial Honeywell / Zebra Symbol POS laser scanners
+ * High-frequency punchy 2750 Hz tone with instantaneous attack and clear acoustic presence
+ */
+export function playBarcodeScanBeep(loud: boolean = true) {
+  if (!isSoundEnabled()) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+    const peakGain = loud ? 0.45 : 0.25;
+
+    // Primary High-Pitch Piercing Carrier (2750 Hz - Standard POS Scanner Frequency)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(2750, now);
+
+    // Instantaneous attack (2ms), full sustained volume, rapid clean release (85ms)
+    gain1.gain.setValueAtTime(0.001, now);
+    gain1.gain.linearRampToValueAtTime(peakGain, now + 0.003);
+    gain1.gain.setValueAtTime(peakGain, now + 0.065);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+
+    // Harmonic Texture (Triangle wave at 2750 Hz for rich tactile acoustic punch)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(2750, now);
+
+    gain2.gain.setValueAtTime(0.001, now);
+    gain2.gain.linearRampToValueAtTime(peakGain * 0.4, now + 0.003);
+    gain2.gain.setValueAtTime(peakGain * 0.4, now + 0.065);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.095);
+
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+
+    osc1.stop(now + 0.1);
+    osc2.stop(now + 0.1);
+  } catch {
+    // Ignore audio error gracefully
+  }
+}
+
+/**
+ * Play an alert error buzz for invalid/unrecognized barcode scans
+ * 2 rapid, low-pitched harsh buzzes (300Hz sawtooth)
+ */
+export function playScannerErrorBeep() {
+  if (!isSoundEnabled()) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  try {
+    const now = ctx.currentTime;
+
+    [0, 0.11].forEach(offset => {
+      const startTime = now + offset;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(320, startTime);
+      osc.frequency.linearRampToValueAtTime(220, startTime + 0.08);
+
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.linearRampToValueAtTime(0.35, startTime + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.09);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.095);
+    });
+  } catch {
+    // Ignore audio error gracefully
+  }
+}
+
 // Backward compatibility alias for ringing notification chime
 export function playRingingChime() {
   playNotificationSound();

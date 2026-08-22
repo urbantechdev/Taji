@@ -39,7 +39,9 @@ import {
   Edit3,
   Cloud,
   CheckCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Trash2,
+  Undo2
 } from 'lucide-react';
 
 export const InventoryCatalog: React.FC = () => {
@@ -48,6 +50,10 @@ export const InventoryCatalog: React.FC = () => {
     orders,
     locations,
     addProductBatch,
+    updateProductBatch,
+    deleteProductBatch,
+    deleteMultipleProducts,
+    restoreProductBatch,
     requestRestock,
     updateProductPrice,
     updateProductTareProfile,
@@ -84,6 +90,17 @@ export const InventoryCatalog: React.FC = () => {
   const [discountModalBatch, setDiscountModalBatch] = useState<ProductBatch | null>(null);
   const [newPromoPrice, setNewPromoPrice] = useState<number>(1000);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+
+  // Instant Product Deletion & Bulk Management State
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [productToDelete, setProductToDelete] = useState<ProductBatch | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [undoNotification, setUndoNotification] = useState<{
+    message: string;
+    products: ProductBatch[];
+    timeoutId: any;
+  } | null>(null);
 
   // New Batch Form State
   const [newName, setNewName] = useState('');
@@ -186,49 +203,147 @@ export const InventoryCatalog: React.FC = () => {
     setNewBarcode('');
   };
 
+  // Handle Single Product Instant Delete
+  const handleInstantDeleteProduct = async (product: ProductBatch) => {
+    setProductToDelete(null);
+    const res = await deleteProductBatch(product.id);
+    
+    // Clear from selection if selected
+    setSelectedProductIds(prev => prev.filter(id => id !== product.id));
+
+    // Setup Undo notification
+    if (undoNotification?.timeoutId) {
+      clearTimeout(undoNotification.timeoutId);
+    }
+    const timeoutId = setTimeout(() => {
+      setUndoNotification(null);
+    }, 8000);
+
+    setUndoNotification({
+      message: `Deleted "${product.name}" (${product.sku}) from inventory.`,
+      products: [product],
+      timeoutId
+    });
+
+    if (res?.message) {
+      setSyncToast(res.message);
+      setTimeout(() => setSyncToast(null), 3000);
+    }
+  };
+
+  // Handle Bulk Instant Delete
+  const handleBulkInstantDelete = async () => {
+    if (selectedProductIds.length === 0) return;
+    setShowBulkDeleteModal(false);
+    setIsBulkDeleting(true);
+    
+    const targets = products.filter(p => selectedProductIds.includes(p.id));
+    const res = await deleteMultipleProducts(selectedProductIds);
+    setIsBulkDeleting(false);
+    setSelectedProductIds([]);
+
+    // Setup Undo notification
+    if (undoNotification?.timeoutId) {
+      clearTimeout(undoNotification.timeoutId);
+    }
+    const timeoutId = setTimeout(() => {
+      setUndoNotification(null);
+    }, 8000);
+
+    setUndoNotification({
+      message: `Deleted ${targets.length} product(s) from inventory.`,
+      products: targets,
+      timeoutId
+    });
+
+    if (res?.message) {
+      setSyncToast(res.message);
+      setTimeout(() => setSyncToast(null), 3000);
+    }
+  };
+
+  // Handle Undo / Restore
+  const handleUndo = async () => {
+    if (!undoNotification || !undoNotification.products.length) return;
+    clearTimeout(undoNotification.timeoutId);
+    const prodsToRestore = [...undoNotification.products];
+    setUndoNotification(null);
+
+    for (const prod of prodsToRestore) {
+      await restoreProductBatch(prod);
+    }
+
+    setSyncToast(`Restored ${prodsToRestore.length} product(s) back to inventory.`);
+    setTimeout(() => setSyncToast(null), 3000);
+  };
+
+  const toggleSelectProduct = (id: string) => {
+    setSelectedProductIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const isAllFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => selectedProductIds.includes(p.id));
+
+  const toggleSelectAllFiltered = () => {
+    if (isAllFilteredSelected) {
+      const filteredIds = new Set(filteredProducts.map(p => p.id));
+      setSelectedProductIds(prev => prev.filter(id => !filteredIds.has(id)));
+    } else {
+      const filteredIds = filteredProducts.map(p => p.id);
+      setSelectedProductIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
   const totalAssetValuation = getTotalAssetValuation();
 
   return (
     <div className="space-y-6">
 
       {/* Dynamic Asset Valuation Banner */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-4 rounded-2xl text-white shadow-md border border-rose-500/20">
-        <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-4 sm:p-5 rounded-2xl text-white shadow-md border border-rose-500/20">
+        <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl hover:bg-white/10 transition-colors">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Catalog Batches</span>
-          <span className="text-base sm:text-lg font-mono font-bold text-white">{products.length} Batches</span>
+          <span className="text-base sm:text-xl font-mono font-bold text-white mt-0.5 block">{products.length} Batches</span>
         </div>
-        <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+        <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl hover:bg-white/10 transition-colors">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Physical Stock Units</span>
-          <span className="text-base sm:text-lg font-mono font-bold text-amber-400">{totalAssetValuation.totalUnits.toLocaleString()} units</span>
+          <span className="text-base sm:text-xl font-mono font-bold text-amber-400 mt-0.5 block">{totalAssetValuation.totalUnits.toLocaleString()} units</span>
         </div>
-        <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Cost Asset Valuation</span>
-          <span className="text-base sm:text-lg font-mono font-bold text-rose-300">KSh {totalAssetValuation.totalCostValuation.toLocaleString()}</span>
+        <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl hover:bg-white/10 transition-colors">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Cost Valuation</span>
+          <span className="text-base sm:text-xl font-mono font-bold text-rose-300 mt-0.5 block">KSh {totalAssetValuation.totalCostValuation.toLocaleString()}</span>
         </div>
-        <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Retail Asset Valuation</span>
-          <span className="text-base sm:text-lg font-mono font-black text-emerald-400">KSh {totalAssetValuation.totalRetailValuation.toLocaleString()}</span>
+        <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl hover:bg-white/10 transition-colors">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Retail Valuation</span>
+          <span className="text-base sm:text-xl font-mono font-black text-emerald-400 mt-0.5 block">KSh {totalAssetValuation.totalRetailValuation.toLocaleString()}</span>
         </div>
       </div>
       
       {/* Top Header & Search Controls */}
-      <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 group">
+      <div className="relative overflow-hidden bg-white p-4 sm:p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 group">
         <RightEdgeBlend variant="sunset" />
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        
+        {/* Title & View Switcher Row */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <Boxes className="w-5 h-5 text-rose-600" />
-              <h2 className="font-bold text-slate-900 text-lg">
-                Multi-Store Inventory Management &amp; Catalog
-              </h2>
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+                <Boxes className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-extrabold text-slate-900 text-lg tracking-tight">
+                  Multi-Store Inventory Management &amp; Catalog
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Live Stock Levels, Barcode/QR Intake, Multi-Branch Valuation &amp; Markdown Clearance
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Live Stock Levels, Barcode/QR Intake, Multi-Branch Valuation &amp; Markdown Clearance
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {/* View Tab Switcher */}
+          {/* View Tab Switcher & Primary Action */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
               <button
                 type="button"
@@ -256,113 +371,129 @@ export const InventoryCatalog: React.FC = () => {
               </button>
             </div>
 
-            {/* Cloud Database Global Sync Status */}
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs">
-              <span className={`w-2.5 h-2.5 rounded-full ${
-                cloudSyncStatus === 'synced' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' :
-                cloudSyncStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-slate-400'
-              }`} />
-              <div className="text-left hidden sm:block">
-                <span className="text-[10px] font-bold text-slate-800 flex items-center gap-1">
-                  <Cloud className="w-3 h-3 text-indigo-600" />
-                  {cloudSyncStatus === 'synced' ? 'Global Cloud: Live' : cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Local Cache'}
-                </span>
-              </div>
-              <button
-                type="button"
-                disabled={isSyncingManual}
-                onClick={async () => {
-                  setIsSyncingManual(true);
-                  const res = await syncCloudInventory();
-                  setIsSyncingManual(false);
-                  setSyncToast(res.message);
-                  setTimeout(() => setSyncToast(null), 3000);
-                }}
-                className="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-900 transition-colors"
-                title="Force push/pull inventory items to Firestore cloud database"
-              >
-                <RefreshCw className={`w-3 h-3 ${isSyncingManual ? 'animate-spin text-indigo-600' : ''}`} />
-              </button>
-            </div>
-
-            {/* Product Images Manager Button */}
-            <button
-              onClick={() => setIsProductImageModalOpen(true)}
-              className="px-3.5 py-2.5 bg-gradient-to-r from-teal-900 via-emerald-800 to-teal-950 hover:from-teal-800 hover:to-emerald-900 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer border border-teal-700/50"
-              title="Manage Master Product Images for Dereck, Fleeces & Yarns with Cloud Sync"
-            >
-              <ImageIcon className="w-4 h-4 text-emerald-300" />
-              <span>Product Images</span>
-            </button>
-
-            {/* Category Pricing Manager Button */}
-            <button
-              onClick={() => setIsCategoryPricingOpen(true)}
-              className="px-3.5 py-2.5 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-950 hover:from-indigo-800 hover:to-indigo-900 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer border border-indigo-700/50"
-              title="Manage & Bulk Update Category Prices (Dereck, Fleece, Yarns) with Firestore Sync"
-            >
-              <DollarSign className="w-4 h-4 text-indigo-300" />
-              <span>Category Prices</span>
-            </button>
-
-            {/* Bulk Barcode & QR Label Generator Button */}
-            <button
-              onClick={() => {
-                setBulkBarcodePreselectedId(undefined);
-                setIsBulkBarcodeGeneratorOpen(true);
-              }}
-              className="px-3.5 py-2.5 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-600 text-white font-extrabold text-xs rounded-xl shadow-md shadow-orange-950/20 transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102 border border-amber-400/40"
-              title="Generate, Preview and Print Bulk Product Barcodes & QR Sticker Sheets"
-            >
-              <Barcode className="w-4 h-4 text-amber-200" />
-              <span>Bulk Barcodes</span>
-            </button>
-
-            {/* Mobile Camera Barcode Scanner Trigger (Instant Add) */}
-            <button
-              onClick={() => setIsMobileBarcodeScannerOpen(true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-900/20 transition-all flex items-center gap-2 cursor-pointer hover:scale-102 border border-emerald-400/40"
-              title="Activate Phone Camera Barcode Scanner to Add Products Instantly"
-            >
-              <Camera className="w-4 h-4 text-emerald-200 animate-pulse" />
-              <Barcode className="w-4 h-4 text-white" />
-              <span>Scan to Add</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setCategoryIntakeCategory(selectedCategory !== 'All' ? selectedCategory : 'Dereck');
-                setIsCategoryIntakeOpen(true);
-              }}
-              className="px-4 py-2.5 bg-gradient-to-r from-rose-700 via-pink-700 to-rose-600 hover:from-rose-600 hover:to-pink-600 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102 ring-2 ring-rose-500/20"
-              title="Category Barcode Scanner Intake Mode for Fleeces, Dereec & Yarns"
-            >
-              <Barcode className="w-4 h-4 text-amber-300" />
-              <span>Category Intake</span>
-            </button>
-
-            <button
-              onClick={() => setIsReceiveDeliveryOpen(true)}
-              className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Open Barcode Scanner Intake Mode for Delivery Manifests"
-            >
-              <Truck className="w-4 h-4 text-rose-400" />
-              <span>Receive Delivery</span>
-            </button>
-
             <button
               onClick={() => setIsAddBatchModalOpen(true)}
-              className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Add Batch</span>
             </button>
           </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
+        {/* Organized Action Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 bg-slate-50/70 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 p-3 sm:p-4 rounded-b-2xl">
+          {/* Cloud Database Global Sync Status */}
+          <div className="flex items-center gap-2 bg-white border border-slate-200/90 px-3 py-1.5 rounded-xl shadow-2xs">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+              cloudSyncStatus === 'synced' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' :
+              cloudSyncStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-slate-400'
+            }`} />
+            <div className="text-left hidden sm:block">
+              <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                <Cloud className="w-3.5 h-3.5 text-indigo-600" />
+                {cloudSyncStatus === 'synced' ? 'Cloud: Live' : cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Local Cache'}
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={isSyncingManual}
+              onClick={async () => {
+                setIsSyncingManual(true);
+                const res = await syncCloudInventory();
+                setIsSyncingManual(false);
+                setSyncToast(res.message);
+                setTimeout(() => setSyncToast(null), 3000);
+              }}
+              className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+              title="Force push/pull inventory items to Firestore cloud database"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingManual ? 'animate-spin text-indigo-600' : ''}`} />
+            </button>
+          </div>
+
+          {/* Master Catalog Tools & Scanners */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Catalog Pricing & Images Group */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 p-1 rounded-xl">
+              <button
+                onClick={() => setIsProductImageModalOpen(true)}
+                className="px-2.5 py-1.5 hover:bg-teal-50 text-teal-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Manage Master Product Images for Dereck, Fleeces & Yarns"
+              >
+                <ImageIcon className="w-3.5 h-3.5 text-teal-600" />
+                <span>Images</span>
+              </button>
+
+              <button
+                onClick={() => setIsCategoryPricingOpen(true)}
+                className="px-2.5 py-1.5 hover:bg-indigo-50 text-indigo-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Manage & Bulk Update Category Prices (Dereck, Fleece, Yarns)"
+              >
+                <DollarSign className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Prices</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setBulkBarcodePreselectedId(undefined);
+                  setIsBulkBarcodeGeneratorOpen(true);
+                }}
+                className="px-2.5 py-1.5 hover:bg-amber-50 text-amber-900 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Generate, Preview and Print Bulk Product Barcodes & QR Sticker Sheets"
+              >
+                <Barcode className="w-3.5 h-3.5 text-amber-600" />
+                <span>Bulk Barcodes</span>
+              </button>
+            </div>
+
+            {/* Scanner Controls Group */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 p-1 rounded-xl">
+              <button
+                onClick={() => setIsQRScannerOpen(true)}
+                className="px-2.5 py-1.5 hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Open Live Product Batch QR Code & Barcode Scanner"
+              >
+                <QrCode className="w-3.5 h-3.5 text-pink-600" />
+                <span>Batch QR</span>
+              </button>
+
+              <button
+                onClick={() => setIsMobileBarcodeScannerOpen(true)}
+                className="px-2.5 py-1.5 hover:bg-emerald-50 text-emerald-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Activate Phone Camera Barcode Scanner to Add Products Instantly"
+              >
+                <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Scan to Add</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setCategoryIntakeCategory(selectedCategory !== 'All' ? selectedCategory : 'Dereck');
+                  setIsCategoryIntakeOpen(true);
+                }}
+                className="px-2.5 py-1.5 hover:bg-pink-50 text-pink-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Category Barcode Scanner Intake Mode for Fleeces, Dereec & Yarns"
+              >
+                <Barcode className="w-3.5 h-3.5 text-pink-600" />
+                <span>Intake Mode</span>
+              </button>
+
+              <button
+                onClick={() => setIsReceiveDeliveryOpen(true)}
+                className="px-2.5 py-1.5 hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Open Barcode Scanner Intake Mode for Delivery Manifests"
+              >
+                <Truck className="w-3.5 h-3.5 text-slate-600" />
+                <span>Delivery</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Bar & Search */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {(['All', 'Dereck', 'Fleece', 'Yarns'] as const).map(cat => (
               <button
                 key={cat}
@@ -441,13 +572,13 @@ export const InventoryCatalog: React.FC = () => {
             </button>
           </div>
 
-          <div className="relative w-full md:w-72">
+          <div className="relative w-full lg:w-72">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search by SKU, color name, or fiber..."
+              placeholder="Search SKU, color, or fiber..."
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
             />
           </div>
@@ -476,9 +607,23 @@ export const InventoryCatalog: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <span className="text-[11px] font-mono font-bold bg-purple-500/30 border border-purple-400/40 text-purple-200 px-3 py-1 rounded-full shrink-0">
-                Capital Protection Mode
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                {deadStockCount > 0 && (
+                  <button
+                    onClick={() => {
+                      const deadIds = deadStockProducts.map(p => p.id);
+                      setSelectedProductIds(deadIds);
+                    }}
+                    className="px-3 py-1.5 bg-purple-800/80 hover:bg-purple-700 text-purple-100 text-xs font-bold rounded-xl border border-purple-400/30 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Select All Dead Stock ({deadStockCount})</span>
+                  </button>
+                )}
+                <span className="text-[11px] font-mono font-bold bg-purple-500/30 border border-purple-400/40 text-purple-200 px-3 py-1 rounded-full shrink-0">
+                  Capital Protection Mode
+                </span>
+              </div>
             </div>
           )}
 
@@ -489,6 +634,15 @@ export const InventoryCatalog: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-rose-50/60 border-b border-rose-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    <th className="p-4 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllFilteredSelected}
+                        onChange={toggleSelectAllFiltered}
+                        title="Select All Filtered Products"
+                        className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
+                      />
+                    </th>
                     <th className="p-4">Color &amp; Swatch</th>
                     <th className="p-4">Product Batch / SKU</th>
                     <th className="p-4">Category / Composition</th>
@@ -497,16 +651,29 @@ export const InventoryCatalog: React.FC = () => {
                     <th className="p-4 text-center">Sales Shop</th>
                     <th className="p-4 text-center">Store 1</th>
                     <th className="p-4 text-center">Store 2</th>
-                    <th className="p-4 text-right">Batch QR &amp; Tare</th>
+                    <th className="p-4 text-right">Actions &amp; QR</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-sans">
                   {filteredProducts.map(p => {
                     const totalStock = (Object.values(p.locationStock) as number[]).reduce((a: number, b: number) => a + b, 0);
+                    const isSelected = selectedProductIds.includes(p.id);
 
                     return (
-                      <tr key={p.id} className="hover:bg-rose-50/30 transition-colors">
-                        
+                      <tr
+                        key={p.id}
+                        className={`transition-colors ${isSelected ? 'bg-rose-50/70' : 'hover:bg-rose-50/30'}`}
+                      >
+                        {/* Checkbox */}
+                        <td className="p-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectProduct(p.id)}
+                            className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
+                          />
+                        </td>
+
                         {/* Color Swatch & Code */}
                         <td className="p-4">
                           <div className="flex items-center gap-2.5">
@@ -610,61 +777,75 @@ export const InventoryCatalog: React.FC = () => {
                           {p.locationStock.store_2} {p.unit}
                         </td>
 
-                        {/* QR Code & Edit Actions */}
-                        <td className="p-4 text-right space-y-1">
-                          <button
-                            onClick={() => setEditingProduct(p)}
-                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 w-full text-center cursor-pointer shadow-2xs"
-                            title="Edit Product, Stock Allocation & Prices (Global Cloud Sync)"
-                          >
-                            <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Edit Item</span>
-                          </button>
+                        {/* Actions: Edit, Delete, QR, Barcode, Tare */}
+                        <td className="p-3 text-right">
+                          <div className="flex flex-col gap-1 w-40 ml-auto">
+                            <div className="grid grid-cols-2 gap-1">
+                              <button
+                                onClick={() => setEditingProduct(p)}
+                                className="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                                title="Edit Product, Stock Allocation & Prices"
+                              >
+                                <Edit3 className="w-3 h-3 text-indigo-600" />
+                                <span>Edit</span>
+                              </button>
 
-                          <button
-                            onClick={() => setActiveBatchModal(p)}
-                            className="px-2.5 py-1 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 text-[11px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer"
-                          >
-                            <QrCode className="w-3 h-3 text-rose-600" />
-                            <span>QR Tag</span>
-                          </button>
+                              <button
+                                onClick={() => setProductToDelete(p)}
+                                className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                                title="Instant Delete Product from Inventory"
+                              >
+                                <Trash2 className="w-3 h-3 text-rose-600" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
 
-                          {/* Print Single/Bulk Barcode Label Trigger */}
-                          <button
-                            onClick={() => {
-                              setBulkBarcodePreselectedId(p.id);
-                              setIsBulkBarcodeGeneratorOpen(true);
-                            }}
-                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer"
-                            title="Generate and print printable barcode stickers for this item"
-                          >
-                            <Barcode className="w-3 h-3 text-amber-600" />
-                            <span>Barcode Tag</span>
-                          </button>
+                            <div className="grid grid-cols-3 gap-1">
+                              <button
+                                onClick={() => setActiveBatchModal(p)}
+                                className="px-1.5 py-1 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 text-[10px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-0.5 cursor-pointer"
+                                title="View & Print Product QR Code Tag"
+                              >
+                                <QrCode className="w-3 h-3 text-rose-600" />
+                                <span>QR</span>
+                              </button>
 
-                          {/* Tare Profile Configuration Button */}
-                          <button
-                            onClick={() => setTareSettingsProduct(p)}
-                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer mt-1"
-                            title="Configure Tare & Packaging Weight Deductions"
-                          >
-                            <Scale className="w-3 h-3 text-amber-700" />
-                            <span>Tare: {p.tareProfile ? `${(p.tareProfile.tareWeightPerUnit * 1000).toFixed(0)}g` : 'Set Core'}</span>
-                          </button>
+                              <button
+                                onClick={() => {
+                                  setBulkBarcodePreselectedId(p.id);
+                                  setIsBulkBarcodeGeneratorOpen(true);
+                                }}
+                                className="px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-0.5 cursor-pointer"
+                                title="Generate and print barcode stickers"
+                              >
+                                <Barcode className="w-3 h-3 text-amber-600" />
+                                <span>Bar</span>
+                              </button>
 
-                          {/* Dead Stock Flash Clearance Discount Button */}
-                          {deadStockProducts.some(dp => dp.id === p.id) && (
-                            <button
-                              onClick={() => {
-                                setDiscountModalBatch(p);
-                                setNewPromoPrice(Math.round(p.unitPriceRetail * 0.8));
-                              }}
-                              className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1 w-full text-center cursor-pointer mt-1"
-                            >
-                              <Zap className="w-3 h-3 text-amber-300 fill-amber-300" />
-                              <span>Flash Discount</span>
-                            </button>
-                          )}
+                              <button
+                                onClick={() => setTareSettingsProduct(p)}
+                                className="px-1.5 py-1 bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-0.5 cursor-pointer"
+                                title="Configure Tare & Packaging Weight"
+                              >
+                                <Scale className="w-3 h-3 text-amber-700" />
+                                <span>Tare</span>
+                              </button>
+                            </div>
+
+                            {/* Dead Stock Flash Clearance Discount Button */}
+                            {deadStockProducts.some(dp => dp.id === p.id) && (
+                              <button
+                                onClick={() => {
+                                  setDiscountModalBatch(p);
+                                  setNewPromoPrice(Math.round(p.unitPriceRetail * 0.8));
+                                }}
+                                className="w-full px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <Zap className="w-3 h-3 text-amber-300 fill-amber-300" />
+                                <span>Flash Discount</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                       </tr>
@@ -749,8 +930,20 @@ export const InventoryCatalog: React.FC = () => {
 
             <div className="flex items-center gap-2 pt-4">
               <button
+                onClick={() => {
+                  const target = activeBatchModal;
+                  setActiveBatchModal(null);
+                  setProductToDelete(target);
+                }}
+                className="px-3 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Instant Delete this product from inventory"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span>Delete Batch</span>
+              </button>
+              <button
                 onClick={() => window.print()}
-                className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 Print Batch Tag
@@ -1078,7 +1271,7 @@ export const InventoryCatalog: React.FC = () => {
       {/* MASTER PRODUCT IMAGE MANAGER MODAL (Dereck, Fleece, Yarns) */}
       <ProductImageManagerModal />
 
-      {/* BULK PRODUCT BARCODE & QR LABEL GENERATOR MODAL */}
+      {/* Master Bulk Barcode & QR Label Generator Modal */}
       <BulkBarcodeGeneratorModal
         isOpen={isBulkBarcodeGeneratorOpen}
         onClose={() => {
@@ -1088,8 +1281,264 @@ export const InventoryCatalog: React.FC = () => {
         preselectedBatchId={bulkBarcodePreselectedId}
       />
 
+      {/* SINGLE PRODUCT INSTANT DELETE CONFIRMATION MODAL */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-rose-100 text-rose-700 rounded-xl">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Instant Delete Product
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Permanently remove batch from cloud database &amp; branch stock
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setProductToDelete(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Product Details Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl border border-slate-300 shadow-sm shrink-0 flex items-center justify-center"
+                  style={{ backgroundColor: productToDelete.colorHex }}
+                />
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-bold text-slate-900 text-sm truncate">
+                    {productToDelete.name}
+                  </h4>
+                  <p className="font-mono text-xs text-slate-500">
+                    SKU: <span className="text-slate-800 font-bold">{productToDelete.sku}</span> • {productToDelete.category}
+                  </p>
+                </div>
+              </div>
+
+              {/* Stock Breakdown */}
+              <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-200 font-mono text-[11px] text-center">
+                <div className="bg-white p-1.5 rounded-lg border border-slate-100">
+                  <span className="text-[9px] text-slate-400 block">Main Store</span>
+                  <span className="font-bold text-slate-800">{productToDelete.locationStock.main_store}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded-lg border border-slate-100">
+                  <span className="text-[9px] text-slate-400 block">Sales Shop</span>
+                  <span className="font-bold text-slate-800">{productToDelete.locationStock.sales_shop}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded-lg border border-slate-100">
+                  <span className="text-[9px] text-slate-400 block">Store 1</span>
+                  <span className="font-bold text-slate-800">{productToDelete.locationStock.store_1}</span>
+                </div>
+                <div className="bg-white p-1.5 rounded-lg border border-slate-100">
+                  <span className="text-[9px] text-slate-400 block">Store 2</span>
+                  <span className="font-bold text-slate-800">{productToDelete.locationStock.store_2}</span>
+                </div>
+              </div>
+
+              {/* Total Stock & Valuation */}
+              {(() => {
+                const totalUnits = (Object.values(productToDelete.locationStock) as number[]).reduce((a, b) => a + b, 0);
+                return (
+                  <div className="flex justify-between items-center text-xs pt-1 text-slate-600 font-mono">
+                    <span>Total Units: <strong>{totalUnits} {productToDelete.unit}</strong></span>
+                    <span>Tied Cost: <strong className="text-rose-700">KSh {(totalUnits * productToDelete.costPrice).toLocaleString()}</strong></span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[11px] leading-relaxed">
+                Instant delete will sync to Firestore and remove this item from POS lookups and warehouse inventory. An <strong>Undo</strong> button will remain active for 8 seconds.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setProductToDelete(null)}
+                className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleInstantDeleteProduct(productToDelete)}
+                className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Instant Delete Now</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BULK INSTANT DELETE MODAL */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-rose-100 text-rose-700 rounded-xl">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Bulk Instant Delete
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Permanently delete {selectedProductIds.length} selected products
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {(() => {
+              const selectedItems = products.filter(p => selectedProductIds.includes(p.id));
+              const totalUnits = selectedItems.reduce((acc, p) => {
+                const sum = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
+                return acc + sum;
+              }, 0);
+              const totalCostVal = selectedItems.reduce((acc, p) => {
+                const sum = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
+                return acc + (sum * p.costPrice);
+              }, 0);
+
+              return (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                  <div className="flex justify-between text-slate-700">
+                    <span>Selected Items:</span>
+                    <span className="font-bold font-mono text-slate-900">{selectedItems.length} Batches</span>
+                  </div>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Total Physical Units:</span>
+                    <span className="font-bold font-mono text-slate-900">{totalUnits.toLocaleString()} units</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700 border-t border-slate-200 pt-1.5 font-bold">
+                    <span>Total Cost Value:</span>
+                    <span className="font-mono">KSh {totalCostVal.toLocaleString()}</span>
+                  </div>
+
+                  <div className="max-h-32 overflow-y-auto space-y-1 pt-2 border-t border-slate-200 divide-y divide-slate-100">
+                    {selectedItems.map(item => (
+                      <div key={item.id} className="flex items-center justify-between text-[11px] text-slate-600 pt-1">
+                        <span className="truncate pr-2">{item.name} ({item.sku})</span>
+                        <span className="font-mono text-[10px] shrink-0 text-slate-400">{item.category}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[11px] leading-relaxed">
+                All selected items will be deleted instantly across all stores. You can restore them with the <strong>Undo</strong> button immediately after deletion.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkInstantDelete}
+                disabled={isBulkDeleting}
+                className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isBulkDeleting ? 'Deleting...' : `Delete All ${selectedProductIds.length} Items`}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING BULK SELECTION ACTION BAR */}
+      {selectedProductIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-rose-500/30 flex items-center gap-4 animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-rose-600 text-white font-mono font-bold text-xs flex items-center justify-center shadow-xs">
+              {selectedProductIds.length}
+            </span>
+            <span className="text-xs font-bold text-slate-200">
+              Products Selected
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-700" />
+
+          <button
+            onClick={() => setShowBulkDeleteModal(true)}
+            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Instant Delete ({selectedProductIds.length})</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedProductIds([])}
+            className="px-2.5 py-1.5 text-slate-400 hover:text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* FLOATING UNDO RESTORE TOAST NOTIFICATION */}
+      {undoNotification && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-rose-500/40 text-xs font-semibold animate-in slide-in-from-bottom duration-200 max-w-md">
+          <div className="p-1.5 bg-rose-500/20 text-rose-400 rounded-lg shrink-0">
+            <Trash2 className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-slate-100 truncate">{undoNotification.message}</p>
+            <p className="text-[10px] text-slate-400">Available to restore for 8s</p>
+          </div>
+          <button
+            onClick={handleUndo}
+            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            <span>Undo</span>
+          </button>
+          <button
+            onClick={() => {
+              if (undoNotification.timeoutId) clearTimeout(undoNotification.timeoutId);
+              setUndoNotification(null);
+            }}
+            className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Floating Cloud Sync Toast Notification */}
-      {syncToast && (
+      {syncToast && !undoNotification && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 border border-slate-700 text-xs font-semibold animate-in slide-in-from-bottom duration-200">
           <CheckCircle className="w-4 h-4 text-emerald-400" />
           <span>{syncToast}</span>

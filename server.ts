@@ -433,7 +433,37 @@ Provide your response in JSON format with the following fields:
   }
 
   // Deterministic Fallback if API key unavailable or model demand spike
-  const fallbackScore = revenue > expenses ? Math.min(95, Math.round(75 + ((revenue - expenses) / (revenue || 1)) * 20)) : 58;
+  const isFreshAccount = (!revenue || revenue === 0) && (!inventoryValue || inventoryValue === 0) && (!expenses || expenses === 0);
+  
+  if (isFreshAccount) {
+    return res.json({
+      success: true,
+      data: {
+        executiveSummary: 'Autonomous Treasury engine is fully active and clean. The system is ready for fresh inventory receiving, POS sales orders, and expense entries.',
+        financialHealthScore: 100,
+        taxOptimizationPlan: [
+          'Ensure all incoming supplier purchase invoices have verified KRA PINs and ETR Control Unit serial numbers.',
+          'Generate electronic delivery notes for inter-store transfers to establish legitimate input VAT deductibility.',
+          'Schedule automated VAT-3 return generation before the 20th of every month.'
+        ],
+        workingCapitalActions: [
+          'Conduct initial stock intake to establish baseline inventory asset valuation across all store nodes.',
+          'Set reorder thresholds on high-velocity items to prevent stockouts while optimizing working capital.',
+          'Maintain separate cash float allocations for each branch point-of-sale terminal.'
+        ],
+        costRationalization: [
+          'Monitor fixed monthly overheads (rents, utility rates) against branch sales targets.',
+          'Utilize centralized bulk purchasing for core raw materials to maximize supplier volume discounts.'
+        ],
+        cashFlowProjection30Days: 'Fresh financial ledger initialized. Cash flow projections will calibrate dynamically as real sales and expenditure transactions are posted.',
+        statutoryDeadlinesAdvice: 'Kenya statutory schedules: KRA VAT by the 20th; Staff PAYE, NSSF Tier I/II, SHIF (2.75%), and Housing Levy (1.5%) due by the 9th of each subsequent month.'
+      }
+    });
+  }
+
+  const fallbackScore = revenue > expenses ? Math.min(95, Math.round(75 + ((revenue - expenses) / (revenue || 1)) * 20)) : 65;
+  const categoriesList = Array.isArray(topCategories) && topCategories.length > 0 ? topCategories.join(', ') : 'active product lines';
+
   return res.json({
     success: true,
     data: {
@@ -442,18 +472,18 @@ Provide your response in JSON format with the following fields:
       taxOptimizationPlan: [
         `Reconcile KSh ${(vatLiability * 0.4).toLocaleString()} in raw material input VAT claims before filing the monthly KRA VAT-3 return by the 20th.`,
         'Ensure all inter-branch inventory movements carry electronic delivery notes to preserve input tax deductibility.',
-        'Track wear-and-tear capital allowances on textile cutting and winding machinery to offset Corporate Income Tax (CIT 30%).'
+        'Track wear-and-tear capital allowances on machinery and equipment to offset Corporate Income Tax (CIT 30%).'
       ],
       workingCapitalActions: [
-        'Shift purchasing cycles for high-turnover Dereck rolls to just-in-time replenishment from main store depot.',
-        'Implement dynamic bulk discounting on slow-moving yarn colors to convert trapped stock into liquid working cash.',
-        'Maintain a minimum operating liquidity reserve equal to 45 days of payroll and branch rents.'
+        `Shift purchasing cycles for high-turnover products (${categoriesList}) to just-in-time replenishment from main store depot.`,
+        'Implement dynamic promotional pricing on slower-moving batches to convert inventory into liquid cash.',
+        'Maintain a minimum operating liquidity reserve equal to 45 days of payroll and branch operational expenses.'
       ],
       costRationalization: [
-        'Consolidate multi-store courier dispatches into unified bi-weekly transfer routes to reduce transport overhead by 18%.',
+        'Consolidate multi-store courier dispatches into unified route schedules to reduce transport overhead.',
         'Review store utility tariffs and implement automated closing procedures to cut branch electricity costs.'
       ],
-      cashFlowProjection30Days: `Projected net cash accretion of +KSh ${Math.round(netProfit * 1.1).toLocaleString()} over the next 30 days based on current order velocity and branch expense caps.`,
+      cashFlowProjection30Days: `Projected net cash flow of KSh ${Math.round(netProfit * 1.05).toLocaleString()} over the next 30 days based on live transaction velocity and expense controls.`,
       statutoryDeadlinesAdvice: 'Reserve 16% Output VAT and statutory payroll deductions (PAYE, NSSF Tier I/II, SHIF 2.75%, Housing Levy 1.5%) in a dedicated sub-ledger before month-end.'
     }
   });

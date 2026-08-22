@@ -121,10 +121,10 @@ export function generateLiveBalanceSheet(
 
   const totalCurrentAssets = estimatedCashAndBank + accountsReceivable + inventoryAssetValue;
 
-  // 2. Fixed Assets (Depot fixtures, textile cutting machinery, ETR hardware, vehicles)
-  const machineryAndFixtures = 850000;
-  const equipmentAndDepots = 1200000;
-  const accumulatedDepreciation = 310000;
+  // 2. Fixed Assets (Depot fixtures, textile machinery, ETR hardware)
+  const machineryAndFixtures = 0;
+  const equipmentAndDepots = 0;
+  const accumulatedDepreciation = 0;
   const totalFixedAssets = machineryAndFixtures + equipmentAndDepots - accumulatedDepreciation;
 
   const totalAssets = totalCurrentAssets + totalFixedAssets;
@@ -132,15 +132,15 @@ export function generateLiveBalanceSheet(
   // 3. Current Liabilities
   const vatLiabilityPayable = orders.reduce((acc, o) => acc + o.vatAmount, 0);
   const payrollTaxPayable = payroll.reduce((acc, p) => acc + p.payeTax + p.nssfDeduction + p.nhifDeduction + p.housingLevy, 0);
-  const supplierAccountsPayable = inventoryAssetValue * 0.18; // 18% supplier credit line
+  const supplierAccountsPayable = 0;
   const totalCurrentLiabilities = vatLiabilityPayable + payrollTaxPayable + supplierAccountsPayable;
 
   // 4. Long-Term Liabilities
-  const termLoans = 450000;
+  const termLoans = 0;
   const totalLongTermLiabilities = termLoans;
 
   // 5. Equity
-  const ownersCapital = 2500000;
+  const ownersCapital = 0;
   const retainedEarnings = Math.max(0, totalAssets - (totalCurrentLiabilities + totalLongTermLiabilities) - ownersCapital);
   const totalEquity = ownersCapital + retainedEarnings;
 
@@ -200,21 +200,17 @@ export function generateLiveIncomeStatement(
     });
   });
 
-  if (costOfGoodsSold === 0 && netSalesRevenue > 0) {
-    costOfGoodsSold = netSalesRevenue * 0.58; // 58% typical textile COGS
-  }
-
   const grossOperatingProfit = Math.max(0, netSalesRevenue - costOfGoodsSold);
   const grossMarginPercent = netSalesRevenue > 0 ? (grossOperatingProfit / netSalesRevenue) * 100 : 0;
 
-  // Operating Expenses Breakdown
-  const rentAndLeases = branchExpenses.filter(e => e.category === 'Rent').reduce((acc, e) => acc + e.amount, 0) || 120000;
-  const utilitiesAndPower = branchExpenses.filter(e => e.category === 'Utilities').reduce((acc, e) => acc + e.amount, 0) || 28500;
-  const salariesAndWages = payroll.reduce((acc, p) => acc + p.grossPay, 0) || 185000;
-  const transportAndLogistics = branchExpenses.filter(e => e.category === 'Transport & Logistics').reduce((acc, e) => acc + e.amount, 0) || 34200;
-  const repairsAndSupplies = branchExpenses.filter(e => e.category === 'Staff Supplies' || e.category === 'Repairs & Maintenance').reduce((acc, e) => acc + e.amount, 0) || 19800;
+  // Operating Expenses Breakdown - Pure live totals without mock minimums
+  const rentAndLeases = branchExpenses.filter(e => e.category === 'Rent').reduce((acc, e) => acc + e.amount, 0);
+  const utilitiesAndPower = branchExpenses.filter(e => e.category === 'Utilities').reduce((acc, e) => acc + e.amount, 0);
+  const salariesAndWages = payroll.reduce((acc, p) => acc + p.grossPay, 0);
+  const transportAndLogistics = branchExpenses.filter(e => e.category === 'Transport & Logistics').reduce((acc, e) => acc + e.amount, 0);
+  const repairsAndSupplies = branchExpenses.filter(e => e.category === 'Staff Supplies' || e.category === 'Repairs & Maintenance').reduce((acc, e) => acc + e.amount, 0);
   const statutoryTaxesAndLevies = payroll.reduce((acc, p) => acc + p.housingLevy, 0);
-  const marketingAndOther = branchExpenses.filter(e => e.category === 'Marketing' || e.category === 'Petty Cash Voucher' || e.category === 'Other').reduce((acc, e) => acc + e.amount, 0) || 15000;
+  const marketingAndOther = branchExpenses.filter(e => e.category === 'Marketing' || e.category === 'Petty Cash Voucher' || e.category === 'Other').reduce((acc, e) => acc + e.amount, 0);
 
   const totalOperatingExpenses =
     rentAndLeases +
@@ -261,16 +257,16 @@ export function generateLiveCashFlowStatement(
   incomeStatement: IncomeStatementData,
   balanceSheet: BalanceSheetData
 ): CashFlowStatementData {
-  const cashFromCustomers = incomeStatement.grossSalesRevenue * 0.95;
-  const cashPaidToSuppliers = incomeStatement.costOfGoodsSold * 0.88;
+  const cashFromCustomers = incomeStatement.grossSalesRevenue;
+  const cashPaidToSuppliers = incomeStatement.costOfGoodsSold;
   const cashPaidForExpenses = incomeStatement.operatingExpenses.totalOperatingExpenses;
   const netOperatingCashFlow = cashFromCustomers - cashPaidToSuppliers - cashPaidForExpenses;
 
-  const equipmentPurchase = 45000;
+  const equipmentPurchase = 0;
   const netInvestingCashFlow = -equipmentPurchase;
 
   const capitalInjections = 0;
-  const ownersDrawings = Math.max(0, incomeStatement.netIncomeAfterTax * 0.30);
+  const ownersDrawings = 0;
   const netFinancingCashFlow = capitalInjections - ownersDrawings;
 
   const netChangeInCash = netOperatingCashFlow + netInvestingCashFlow + netFinancingCashFlow;
@@ -376,10 +372,10 @@ export function generateBankBatchPaymentCSV(payroll: PayrollRecord[]) {
   const rows = payroll.map(p => [
     `"${p.staffName.replace(/"/g, '""')}"`,
     p.employeeNo,
-    'Safaricom M-Pesa / KCB Bank',
-    `2547${Math.floor(10000000 + Math.random() * 89999999)}`,
+    'Safaricom M-Pesa / Bank Disbursal',
+    p.employeeNo,
     p.netPay,
-    `Taji Salary ${p.monthYear}`,
+    `Salary ${p.monthYear}`,
     'APPROVED_FOR_DISBURSAL'
   ]);
 

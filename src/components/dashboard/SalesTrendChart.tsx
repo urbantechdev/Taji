@@ -50,20 +50,17 @@ export const SalesTrendChart: React.FC = () => {
   // Compute Weekly Day-by-Day comparison (Mon-Sun)
   const weeklyDayData = useMemo(() => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const now = new Date();
 
     // Group filtered orders by recent days
     // Map past 7 days as Current Week, past 8-14 days as Previous Week
     const data = days.map((dayName, index) => {
-      // Find orders matching this day index
-      // Using deterministic matching based on order createdAt or synthetic historical baseline
       let currentRevenue = 0;
       let currentOrdersCount = 0;
       let currentVat = 0;
       let previousRevenue = 0;
       let previousOrdersCount = 0;
 
-      filteredOrders.forEach((o, oIdx) => {
+      filteredOrders.forEach((o) => {
         const orderDate = new Date(o.createdAt);
         const dayOfWeek = (orderDate.getDay() + 6) % 7; // Convert 0 (Sun) -> 6, 1 (Mon) -> 0
 
@@ -72,34 +69,14 @@ export const SalesTrendChart: React.FC = () => {
           currentRevenue += o.grandTotal;
           currentOrdersCount += 1;
           currentVat += o.vatAmount;
-        } else if ((dayOfWeek + 2) % 7 === index) {
-          // Add variation for previous week calculation
-          previousRevenue += o.grandTotal * 0.88;
-          previousOrdersCount += 1;
         }
       });
-
-      // If no live order exists for this day yet, ensure a realistic comparative baseline from actual store orders
-      if (currentRevenue === 0) {
-        const baseFactor = [18500, 24200, 31000, 28400, 42500, 56000, 38000][index];
-        const locationMultiplier = selectedLocation === 'all' ? 1 : selectedLocation === 'sales_shop' ? 0.6 : 0.4;
-        currentRevenue = Math.round(baseFactor * locationMultiplier);
-        currentOrdersCount = Math.max(2, Math.round(currentRevenue / 4200));
-        currentVat = Math.round(currentRevenue * 0.16 / 1.16);
-      }
-
-      if (previousRevenue === 0) {
-        const prevFactor = [16200, 21000, 29500, 26000, 39000, 51000, 34500][index];
-        const locationMultiplier = selectedLocation === 'all' ? 1 : selectedLocation === 'sales_shop' ? 0.6 : 0.4;
-        previousRevenue = Math.round(prevFactor * locationMultiplier);
-        previousOrdersCount = Math.max(2, Math.round(previousRevenue / 4000));
-      }
 
       return {
         day: dayName,
         currentWeek: currentRevenue,
         previousWeek: previousRevenue,
-        currentNetSales: Math.round(currentRevenue - currentVat),
+        currentNetSales: Math.max(0, Math.round(currentRevenue - currentVat)),
         vatCollected: currentVat,
         orderCount: currentOrdersCount,
         prevOrderCount: previousOrdersCount
@@ -107,7 +84,7 @@ export const SalesTrendChart: React.FC = () => {
     });
 
     return data;
-  }, [filteredOrders, selectedLocation]);
+  }, [filteredOrders]);
 
   // Compute 4-Week Month-to-Date Trend Data
   const fourWeekData = useMemo(() => {
@@ -115,9 +92,10 @@ export const SalesTrendChart: React.FC = () => {
     const totalOrderRev = filteredOrders.reduce((sum, o) => sum + o.grandTotal, 0);
 
     return weeks.map((w, idx) => {
-      const scale = [0.82, 0.91, 0.96, 1.08][idx];
-      const rev = Math.round((totalOrderRev > 0 ? totalOrderRev * 0.28 : 220000) * scale);
-      const target = Math.round(rev * 1.05);
+      // Allocate real total order revenue proportionally or 0 if no orders
+      const scale = [0.2, 0.25, 0.25, 0.3][idx];
+      const rev = totalOrderRev > 0 ? Math.round(totalOrderRev * scale) : 0;
+      const target = totalOrderRev > 0 ? Math.round(rev * 1.1) : 0;
       const net = Math.round(rev / 1.16);
       const vat = rev - net;
 
@@ -127,7 +105,7 @@ export const SalesTrendChart: React.FC = () => {
         target: target,
         netSales: net,
         vatAmount: vat,
-        growth: idx === 0 ? '+4.2%' : `+${(4.5 + idx * 2.8).toFixed(1)}%`
+        growth: totalOrderRev > 0 ? '+0.0%' : '0.0%'
       };
     });
   }, [filteredOrders]);

@@ -70,6 +70,8 @@ export const POSModule: React.FC = () => {
   const [customerName, setCustomerName] = useState('Walk-in Customer');
   const [customerKraPin, setCustomerKraPin] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque'>('M-Pesa');
+  const [applyWHT5, setApplyWHT5] = useState(false);
+  const [whtCertificateNo, setWhtCertificateNo] = useState('');
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isRerouteModalOpen, setIsRerouteModalOpen] = useState(false);
   const [isHeldCartsModalOpen, setIsHeldCartsModalOpen] = useState(false);
@@ -166,11 +168,13 @@ export const POSModule: React.FC = () => {
   // Handle Checkout
   const handleCheckoutSubmit = () => {
     setCheckoutError(null);
-    const res = processPOSCheckout(paymentMethod, customerName, customerKraPin, isQuotation);
+    const res = processPOSCheckout(paymentMethod, customerName, customerKraPin, isQuotation, applyWHT5, whtCertificateNo);
     if (!res.success) {
       setCheckoutError(res.message || 'Checkout failed.');
     } else {
       setIsCheckoutModalOpen(false);
+      setApplyWHT5(false);
+      setWhtCertificateNo('');
     }
   };
 
@@ -1105,11 +1109,70 @@ export const POSModule: React.FC = () => {
                 </label>
               </div>
 
+              {/* 5% Withholding Tax (WHT) Toggle Section */}
+              <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200/90 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="applyWHT5"
+                      checked={applyWHT5}
+                      onChange={e => setApplyWHT5(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                    <label htmlFor="applyWHT5" className="text-xs font-bold text-amber-950 cursor-pointer select-none">
+                      Apply 5% Withholding Tax (WHT Credit)
+                    </label>
+                  </div>
+                  <span className="px-2 py-0.5 bg-amber-200/70 text-amber-900 rounded font-mono text-[10px] font-bold">
+                    KRA 5%
+                  </span>
+                </div>
+
+                {applyWHT5 && (
+                  <div className="space-y-2 pt-1.5 border-t border-amber-200/70">
+                    <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                      For registered corporate/B2B clients withholding 5% tax at source. Registers advance tax credit in ledger.
+                    </p>
+                    <div>
+                      <label className="text-[11px] font-bold text-amber-900 block mb-0.5">
+                        Client WHT Certificate No. (Optional):
+                      </label>
+                      <input
+                        type="text"
+                        value={whtCertificateNo}
+                        onChange={e => setWhtCertificateNo(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono uppercase focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        placeholder="e.g. KRA-WHT-2026-9921"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-xs space-y-2">
                 <div className="flex justify-between font-black text-slate-900 items-baseline">
-                  <span className="text-sm uppercase font-extrabold text-slate-700">Grand Total Payable:</span>
-                  <span className="text-rose-700 font-mono text-3xl sm:text-4xl font-black tracking-tight">KSh {totalGross.toLocaleString()}</span>
+                  <span className="text-xs uppercase font-extrabold text-slate-700">
+                    {applyWHT5 ? 'Net Amount Collectible:' : 'Grand Total Payable:'}
+                  </span>
+                  <span className="text-rose-700 font-mono text-3xl sm:text-4xl font-black tracking-tight">
+                    KSh {(applyWHT5 ? totalGross - Number((totalGross * 0.05).toFixed(2)) : totalGross).toLocaleString()}
+                  </span>
                 </div>
+
+                {applyWHT5 && (
+                  <div className="bg-white/90 p-2.5 rounded-xl border border-rose-200 space-y-1 text-[11px] text-slate-700 font-medium">
+                    <div className="flex justify-between">
+                      <span>Gross Invoice Value:</span>
+                      <span className="font-mono font-bold text-slate-900">KSh {totalGross.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-amber-800 font-semibold">
+                      <span>Less 5% Withholding Tax (WHT):</span>
+                      <span className="font-mono font-bold">- KSh {Number((totalGross * 0.05).toFixed(2)).toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
+
                 <p className="text-[11px] text-slate-600 font-medium border-t border-rose-200/60 pt-1.5 flex justify-between items-center">
                   <span>Includes 16% KRA VAT: <strong className="font-mono text-slate-900 font-bold">KSh {vatAmount.toLocaleString()}</strong></span>
                   <span className="bg-white px-2 py-0.5 rounded border border-rose-200 text-[10px] font-mono font-bold text-rose-800">PIN: {etrConfig.taxPin}</span>
