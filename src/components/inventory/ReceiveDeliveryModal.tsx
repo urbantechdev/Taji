@@ -91,7 +91,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
 
   const currentDelivery = deliveries.find(d => d.id === selectedDeliveryId) || deliveries[0];
   const globalAssetVal = getTotalAssetValuation();
-  const locationAssetVal = getTotalAssetValuation(currentDelivery?.targetLocation || activeLocation);
+  const locationAssetVal = getTotalAssetValuation(currentDelivery?.destinationLocation || activeLocation);
 
   const handleSelectDelivery = (id: string) => {
     playClickSound();
@@ -112,7 +112,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
     if (!code) return;
 
     setFeedbackMsg(null);
-    const result = scanDeliveryBarcode(selectedDeliveryId, code, scanQty);
+    const result = scanDeliveryBarcode(selectedDeliveryId, code);
 
     if (result.isNewProduct) {
       playAlertSound();
@@ -126,7 +126,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
       playAddToCartSound();
       setFeedbackMsg({
         type: 'success',
-        text: `Scanned & Received: ${result.productName} (+${result.scannedQty} units)`
+        text: `Scanned & Received: ${result.product?.name || code} (+${scanQty} units)`
       });
       setBarcodeInput('');
       barcodeInputRef.current?.focus();
@@ -184,8 +184,10 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
 
     const res = createDelivery({
       supplierName: newSupplier,
-      waybillNumber: newWaybillRef || `WB-${Date.now().toString().slice(-6)}`,
-      targetLocation: newTargetLocation,
+      consignmentNo: newWaybillRef || `WB-${Date.now().toString().slice(-6)}`,
+      destinationLocation: newTargetLocation,
+      status: 'receiving',
+      totalExpectedQty: 0,
       items: [],
       notes: 'Direct Barcode Intake Manifest'
     });
@@ -303,7 +305,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {deliveries.map(del => {
                 const isSelected = del.id === selectedDeliveryId;
-                const locName = locations.find(l => l.id === del.targetLocation)?.name || del.targetLocation;
+                const locName = locations.find(l => l.id === del.destinationLocation)?.name || del.destinationLocation;
 
                 return (
                   <button
@@ -352,7 +354,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
                       Active Intake Scanner Mode ({currentDelivery.id})
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      Destination Depot: <strong>{locations.find(l => l.id === currentDelivery.targetLocation)?.name}</strong> • Supplier: <strong>{currentDelivery.supplierName}</strong>
+                      Destination Depot: <strong>{locations.find(l => l.id === currentDelivery.destinationLocation)?.name}</strong> • Supplier: <strong>{currentDelivery.supplierName}</strong>
                     </p>
                   </div>
                 </div>
@@ -507,7 +509,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
                     type="button"
                     onClick={() => {
                       setBarcodeInput(p.barcode || p.sku);
-                      scanDeliveryBarcode(selectedDeliveryId, p.barcode || p.sku, scanQty);
+                      scanDeliveryBarcode(selectedDeliveryId, p.barcode || p.sku);
                       playAddToCartSound();
                       setFeedbackMsg({
                         type: 'success',
@@ -711,10 +713,10 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
                             KSh {it.costPrice.toLocaleString()}
                           </td>
                           <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
-                            KSh {it.retailPrice.toLocaleString()}
+                            KSh {it.unitPriceRetail.toLocaleString()}
                           </td>
                           <td className="py-2 px-3 text-right font-mono font-black text-slate-900">
-                            KSh {(it.retailPrice * it.scannedQty).toLocaleString()}
+                            KSh {(it.unitPriceRetail * it.scannedQty).toLocaleString()}
                           </td>
                         </tr>
                       ))}

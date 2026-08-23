@@ -605,37 +605,37 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
 
           {/* STATUTORY SUMMARY METRICS */}
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1 card-hover-effect">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Gross Wages</span>
               <p className="text-base font-black font-mono text-slate-900">KSh {totalGrossPayroll.toLocaleString()}</p>
               <span className="text-[10px] text-slate-500">{displayRecords.length} Active Records</span>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1 card-hover-effect">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">KRA PAYE Tax</span>
               <p className="text-base font-black font-mono text-rose-700">KSh {totalPayeRemittance.toLocaleString()}</p>
               <span className="text-[10px] text-rose-600 font-semibold">Due 9th of month</span>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1 card-hover-effect">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Housing Levy (3%)</span>
               <p className="text-base font-black font-mono text-amber-700">KSh {totalHousingLevy.toLocaleString()}</p>
               <span className="text-[10px] text-amber-600 font-semibold">1.5% Staff + 1.5% Co.</span>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1 card-hover-effect">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NSSF Pension</span>
               <p className="text-base font-black font-mono text-slate-800">KSh {totalNssfRemittance.toLocaleString()}</p>
               <span className="text-[10px] text-slate-500">Tier I + II + Match</span>
             </div>
 
-            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+            <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1 card-hover-effect">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SHIF (2.75%)</span>
               <p className="text-base font-black font-mono text-slate-800">KSh {totalShifRemittance.toLocaleString()}</p>
               <span className="text-[10px] text-slate-500">Health Scheme</span>
             </div>
 
-            <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 shadow-xs space-y-1">
+            <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 shadow-xs space-y-1 card-hover-effect">
               <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Net Payable</span>
               <p className="text-base font-black font-mono text-emerald-900">KSh {totalNetSalaries.toLocaleString()}</p>
               <span className="text-[10px] text-emerald-700 font-bold">100% Calculated</span>

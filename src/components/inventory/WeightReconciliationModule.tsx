@@ -658,7 +658,7 @@ export const WeightReconciliationModule: React.FC = () => {
                         {tare.packagingDescription || 'Standard Core'}
                       </td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-rose-700">
-                        {tare.tareWeightPerUnit ? `${(tare.tareWeightPerUnit * 1000).toFixed(0)}g (${tare.tareWeightPerUnit} kg)` : `${tare.tarePercent}%`}
+                        {tare.tareWeightPerUnit ? `${(tare.tareWeightPerUnit * 1000).toFixed(0)}g (${tare.tareWeightPerUnit} kg)` : ('tarePercent' in tare && (tare as any).tarePercent ? `${(tare as any).tarePercent}%` : '0g')}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-slate-700">
                         KSh {tare.packagingCost || 0}

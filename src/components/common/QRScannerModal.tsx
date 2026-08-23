@@ -3,7 +3,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useERP } from '../../context/ERPContext';
 import { ProductBatch, LocationId } from '../../types';
 import ReflectionOverlay from './ReflectionOverlay';
-import { playBarcodeScanBeep, playScannerErrorBeep } from '../../utils/audio';
+import { playBarcodeScanBeep, playScannerErrorBeep, playSuccessSound, playAlertSound } from '../../utils/audio';
 import {
   X,
   QrCode,
@@ -43,10 +43,7 @@ export const QRScannerModal: React.FC = () => {
     setScannedResult,
     updateProductBatch,
     scanToAddProduct,
-    recordAuditLog,
-    playSuccessSound,
-    playAlertSound,
-    setActiveTab
+    recordAuditLog
   } = useERP();
 
   // Scanner Operating Modes
@@ -429,7 +426,6 @@ export const QRScannerModal: React.FC = () => {
   // Navigate to Inventory Catalog View
   const handleNavigateToCatalog = () => {
     setIsQRScannerOpen(false);
-    setActiveTab('inventory');
   };
 
   if (!isQRScannerOpen) return null;

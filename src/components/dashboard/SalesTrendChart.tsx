@@ -61,7 +61,7 @@ export const SalesTrendChart: React.FC = () => {
       let previousOrdersCount = 0;
 
       filteredOrders.forEach((o) => {
-        const orderDate = new Date(o.createdAt);
+        const orderDate = new Date(o.timestamp);
         const dayOfWeek = (orderDate.getDay() + 6) % 7; // Convert 0 (Sun) -> 6, 1 (Mon) -> 0
 
         // If order matches this day of week

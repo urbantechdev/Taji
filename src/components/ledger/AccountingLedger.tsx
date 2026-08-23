@@ -665,7 +665,7 @@ export const AccountingLedger: React.FC = () => {
                       cfoData?.taxOptimizationPlan || [],
                       cfoData?.workingCapitalActions || []
                     )}
-                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                    className="px-3.5 py-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md btn-hover-lift"
                   >
                     <FileDown className="w-4 h-4" />
                     <span>Download CFO PDF</span>
@@ -674,7 +674,7 @@ export const AccountingLedger: React.FC = () => {
                   <button
                     onClick={runCFOAdvisor}
                     disabled={isLoadingCFO}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 btn-hover-lift"
                   >
                     <RefreshCw className={`w-4 h-4 text-rose-400 ${isLoadingCFO ? 'animate-spin' : ''}`} />
                     <span>{isLoadingCFO ? 'Re-evaluating...' : 'Recalculate Health'}</span>
@@ -684,7 +684,7 @@ export const AccountingLedger: React.FC = () => {
 
               {/* Health Score & Quick Metrics */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80 flex items-center gap-4">
+                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80 flex items-center gap-4 card-hover-effect">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex flex-col items-center justify-center text-white shadow-lg shrink-0">
                     <span className="text-xl font-black">{cfoData?.financialHealthScore || 92}</span>
                     <span className="text-[9px] font-bold tracking-wider uppercase opacity-80">/ 100</span>
@@ -696,7 +696,7 @@ export const AccountingLedger: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80">
+                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80 card-hover-effect">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Live Operating Margin</span>
                   <p className="text-lg font-black font-mono text-white mt-1">
                     {incomeStatement.grossSalesRevenue > 0 ? ((incomeStatement.netIncomeAfterTax / incomeStatement.grossSalesRevenue) * 100).toFixed(1) : '0'}%
@@ -704,7 +704,7 @@ export const AccountingLedger: React.FC = () => {
                   <span className="text-[10px] text-emerald-400">KSh {incomeStatement.netIncomeAfterTax.toLocaleString()} Net After Tax</span>
                 </div>
 
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80">
+                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80 card-hover-effect">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Working Capital Runway</span>
                   <p className="text-lg font-black font-mono text-amber-400 mt-1">
                     ~{Math.max(45, Math.round((balanceSheet.currentAssets.cashAndEquivalents / (incomeStatement.operatingExpenses.totalOperatingExpenses / 30 || 1))))} Days
@@ -712,7 +712,7 @@ export const AccountingLedger: React.FC = () => {
                   <span className="text-[10px] text-slate-400">Cash: KSh {balanceSheet.currentAssets.cashAndEquivalents.toLocaleString()}</span>
                 </div>
 
-                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80">
+                <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80 card-hover-effect">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Inventory Asset</span>
                   <p className="text-lg font-black font-mono text-white mt-1">
                     KSh {balanceSheet.currentAssets.inventoryAssetValue.toLocaleString()}
@@ -723,7 +723,7 @@ export const AccountingLedger: React.FC = () => {
 
               {/* Executive Summary */}
               {cfoData?.executiveSummary && (
-                <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/60 text-xs text-slate-200 leading-relaxed font-sans">
+                <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/60 text-xs text-slate-200 leading-relaxed font-sans card-hover-effect">
                   <span className="font-bold text-amber-300 mr-2 uppercase tracking-wide text-[11px]">CFO Executive Verdict:</span>
                   {cfoData.executiveSummary}
                 </div>
@@ -735,7 +735,59 @@ export const AccountingLedger: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             
             {/* Pillar 1: Tax Optimization & KRA Strategy */}
-            <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3">
+            <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3 card-hover-effect">
+              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Automated Tax Optimization</h4>
+                  <p className="text-[10px] text-slate-500">Zero-penalty KRA mitigation rules</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                {(cfoData?.taxOptimizationPlan || [
+                  'Reconcile raw material input VAT claims before filing the monthly KRA VAT-3 return by the 20th.',
+                  'Maintain digital transfer delivery notes for inter-store stock movements to support audit trails.',
+                  'Utilize capital allowances on cutting machinery to reduce taxable corporate income (CIT 30%).'
+                ]).map((tip, idx) => (
+                  <div key={idx} className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/60 text-slate-700 flex items-start gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{tip}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pillar 2: Working Capital & Stock Turnover */}
+            <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3 card-hover-effect">
+              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+                <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Working Capital Acceleration</h4>
+                  <p className="text-[10px] text-slate-500">Unlocking trapped inventory cash</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                {(cfoData?.workingCapitalActions || [
+                  'Automate replenishment of high-velocity Dereck weaves to avoid stockouts at retail shops.',
+                  'Bundle slower-moving yarn skeins into multi-roll promotional packages for instant cash generation.',
+                  'Maintain a 45-day emergency liquidity reserve in separate operational sub-account.'
+                ]).map((action, idx) => (
+                  <div key={idx} className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/60 text-slate-700 flex items-start gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{action}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pillar 3: Cost Rationalization & 30-Day Outlook */}
+            <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3 card-hover-effect">
               <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
                 <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
                   <Receipt className="w-4 h-4" />
@@ -1604,7 +1656,7 @@ export const AccountingLedger: React.FC = () => {
                 <span>VAT-3 iTax CSV</span>
               </button>
               <button
-                onClick={() => exportETIMSInvoiceAuditSchedulePDF(orders, creditNotes, etrConfig)}
+                onClick={() => exportETIMSInvoiceAuditSchedulePDF(orders, etrConfig, creditNotes)}
                 className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
                 title="Download eTIMS Electronic Invoice Master Register"
               >
@@ -1763,7 +1815,7 @@ export const AccountingLedger: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-slate-600">
                       <div>Taxpayer PIN: <strong className="text-slate-900">{etrConfig.taxPin || 'P051982341Z'}</strong></div>
-                      <div>Business Name: <strong className="text-slate-900">{etrConfig.businessName}</strong></div>
+                      <div>Business Name: <strong className="text-slate-900">{etrConfig.companyName}</strong></div>
                       <div>Control Unit Serial: <strong className="text-slate-900">{etrConfig.cuSerialNumber}</strong></div>
                     </div>
                   </div>
@@ -1870,7 +1922,7 @@ export const AccountingLedger: React.FC = () => {
                       <span>Issue eTIMS Credit Note</span>
                     </button>
                     <button
-                      onClick={() => exportETIMSInvoiceAuditSchedulePDF(orders, creditNotes, etrConfig)}
+                      onClick={() => exportETIMSInvoiceAuditSchedulePDF(orders, etrConfig, creditNotes)}
                       className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <FileDown className="w-4 h-4 text-emerald-400" />
@@ -1944,7 +1996,7 @@ export const AccountingLedger: React.FC = () => {
                               <div className="text-[10px] text-slate-400 font-sans">ID: {order.id}</div>
                             </td>
                             <td className="p-3 text-[11px] text-slate-600 font-sans">
-                              {new Date(order.createdAt).toLocaleDateString()} {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(order.timestamp).toLocaleDateString()} {new Date(order.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </td>
                             <td className="p-3">
                               <div className="font-bold text-slate-900 font-sans">{order.customerName || 'Retail Walk-in Customer'}</div>
@@ -2224,7 +2276,7 @@ export const AccountingLedger: React.FC = () => {
                           <td className="p-3 text-center">
                             {wht.settled ? (
                               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
-                                Remitted / PRN {wht.remittedPRN || 'Synced'}
+                                Remitted / PRN {wht.prnNumber || 'Synced'}
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full">
@@ -2390,15 +2442,15 @@ export const AccountingLedger: React.FC = () => {
                       {payroll.map(p => (
                         <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="p-3">
-                            <div className="font-bold text-slate-900 font-sans">{p.name}</div>
+                            <div className="font-bold text-slate-900 font-sans">{p.staffName}</div>
                             <div className="text-[10px] text-slate-500 font-sans">{p.role}</div>
                           </td>
-                          <td className="p-3 text-slate-700 font-semibold">{p.kraPin || 'A009823411Z'}</td>
-                          <td className="p-3 text-right font-bold text-slate-900">KSh {p.grossSalary.toLocaleString()}</td>
-                          <td className="p-3 text-right text-slate-700">KSh {p.nssf.toLocaleString()}</td>
-                          <td className="p-3 text-right text-slate-700">KSh {p.nhif.toLocaleString()}</td>
+                          <td className="p-3 text-slate-700 font-semibold">EMP: {p.employeeNo}</td>
+                          <td className="p-3 text-right font-bold text-slate-900">KSh {p.grossPay.toLocaleString()}</td>
+                          <td className="p-3 text-right text-slate-700">KSh {p.nssfDeduction.toLocaleString()}</td>
+                          <td className="p-3 text-right text-slate-700">KSh {p.nhifDeduction.toLocaleString()}</td>
                           <td className="p-3 text-right text-slate-700">KSh {p.housingLevy.toLocaleString()}</td>
-                          <td className="p-3 text-right font-bold text-rose-700">KSh {p.paye.toLocaleString()}</td>
+                          <td className="p-3 text-right font-bold text-rose-700">KSh {p.payeTax.toLocaleString()}</td>
                           <td className="p-3 text-right font-bold text-emerald-800">KSh {p.netPay.toLocaleString()}</td>
                         </tr>
                       ))}
@@ -2407,19 +2459,19 @@ export const AccountingLedger: React.FC = () => {
                       <tr className="bg-slate-900 text-white font-bold">
                         <td colSpan={2} className="p-3 font-sans text-xs">TOTAL STATUTORY MONTHLY DEDUCTIONS:</td>
                         <td className="p-3 text-right font-mono">
-                          KSh {payroll.reduce((acc, p) => acc + p.grossSalary, 0).toLocaleString()}
+                          KSh {payroll.reduce((acc, p) => acc + p.grossPay, 0).toLocaleString()}
                         </td>
                         <td className="p-3 text-right font-mono text-slate-300">
-                          KSh {payroll.reduce((acc, p) => acc + p.nssf, 0).toLocaleString()}
+                          KSh {payroll.reduce((acc, p) => acc + p.nssfDeduction, 0).toLocaleString()}
                         </td>
                         <td className="p-3 text-right font-mono text-slate-300">
-                          KSh {payroll.reduce((acc, p) => acc + p.nhif, 0).toLocaleString()}
+                          KSh {payroll.reduce((acc, p) => acc + p.nhifDeduction, 0).toLocaleString()}
                         </td>
                         <td className="p-3 text-right font-mono text-slate-300">
                           KSh {payroll.reduce((acc, p) => acc + p.housingLevy, 0).toLocaleString()}
                         </td>
                         <td className="p-3 text-right font-mono text-amber-400">
-                          KSh {payroll.reduce((acc, p) => acc + p.paye, 0).toLocaleString()}
+                          KSh {payroll.reduce((acc, p) => acc + p.payeTax, 0).toLocaleString()}
                         </td>
                         <td className="p-3 text-right font-mono text-emerald-400">
                           KSh {payroll.reduce((acc, p) => acc + p.netPay, 0).toLocaleString()}

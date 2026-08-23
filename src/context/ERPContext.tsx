@@ -33,7 +33,9 @@ import {
   CategoryPricingConfig,
   DuplicateBarcodeAlertState,
   MobileBarcodeScanOptions,
-  KRAWithholdingTaxRecord
+  KRAWithholdingTaxRecord,
+  DocumentType,
+  OrderStatus
 } from '../types';
 import {
   LOCATIONS,
@@ -153,6 +155,50 @@ interface ERPContextType {
     applyWHT5?: boolean,
     whtCertificateNo?: string
   ) => { success: boolean; message: string; order?: SaleOrder };
+
+  // Billing Document Engine (Invoices, Quotations, Proformas, Receipts, Delivery Notes, Credit Notes)
+  createBillingDocument: (docData: {
+    documentType: DocumentType;
+    locationId: LocationId;
+    customerName: string;
+    customerKraPin?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    customerAddress?: string;
+    deliveryAddress?: string;
+    driverName?: string;
+    driverPhone?: string;
+    vehicleRegistration?: string;
+    dispatchDate?: string;
+    packageCount?: number;
+    deliveryNotes?: string;
+    items: {
+      batchId: string;
+      productName: string;
+      category: CategoryType;
+      unit: UnitType;
+      quantity: number;
+      unitPrice: number;
+      scaleGrossWeight?: number;
+      tareDeduction?: number;
+      netBillableWeight?: number;
+      tareDescription?: string;
+    }[];
+    paymentMethod?: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque' | 'Credit/On Account';
+    paymentReference?: string;
+    discountAmount?: number;
+    applyWHT5?: boolean;
+    whtCertificateNo?: string;
+    dueDate?: string;
+    validityDays?: number;
+    notes?: string;
+    termsAndConditions?: string;
+    deductInventory?: boolean;
+    originalInvoiceNumber?: string;
+    creditReason?: string;
+  }) => { success: boolean; message: string; order?: SaleOrder };
+  deleteBillingDocument: (documentId: string) => { success: boolean; message: string };
+  updateBillingDocumentStatus: (documentId: string, updates: Partial<SaleOrder>) => { success: boolean; message: string };
 
   // 5% Withholding Tax (WHT & WHVAT) Engine
   whtRecords: KRAWithholdingTaxRecord[];
@@ -2238,6 +2284,307 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  // CREATE CUSTOM BILLING DOCUMENT (INVOICE, QUOTATION, PROFORMA, RECEIPT, DELIVERY NOTE, CREDIT NOTE)
+  const createBillingDocument = (docData: {
+    documentType: DocumentType;
+    locationId: LocationId;
+    customerName: string;
+    customerKraPin?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    customerAddress?: string;
+    deliveryAddress?: string;
+    driverName?: string;
+    driverPhone?: string;
+    vehicleRegistration?: string;
+    dispatchDate?: string;
+    packageCount?: number;
+    deliveryNotes?: string;
+    items: {
+      batchId: string;
+      productName: string;
+      category: CategoryType;
+      unit: UnitType;
+      quantity: number;
+      unitPrice: number;
+      scaleGrossWeight?: number;
+      tareDeduction?: number;
+      netBillableWeight?: number;
+      tareDescription?: string;
+    }[];
+    paymentMethod?: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque' | 'Credit/On Account';
+    paymentReference?: string;
+    discountAmount?: number;
+    applyWHT5?: boolean;
+    whtCertificateNo?: string;
+    dueDate?: string;
+    validityDays?: number;
+    notes?: string;
+    termsAndConditions?: string;
+    deductInventory?: boolean;
+    originalInvoiceNumber?: string;
+    creditReason?: string;
+  }) => {
+    const rawNumber = Math.floor(1000 + Math.random() * 9000);
+    const codeMap: Record<DocumentType, string> = {
+      invoice: 'INV',
+      quotation: 'QUO',
+      proforma: 'PRO',
+      receipt: 'RCP',
+      delivery_note: 'DEL',
+      credit_note: 'CRN'
+    };
+    const prefix = codeMap[docData.documentType] || 'DOC';
+    const docId = `${prefix}-2026-${rawNumber}`;
+    const receiptNumber = `KRA-${prefix}-${rawNumber}`;
+
+    const isQuotation = docData.documentType === 'quotation' || docData.documentType === 'proforma';
+    const isDelivery = docData.documentType === 'delivery_note';
+    const isCredit = docData.documentType === 'credit_note';
+
+    // Calculate line items and totals
+    const formattedItems = docData.items.map(item => ({
+      batchId: item.batchId,
+      productName: item.productName,
+      category: item.category,
+      unit: item.unit,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.quantity * item.unitPrice,
+      scaleGrossWeight: item.scaleGrossWeight,
+      tareDeduction: item.tareDeduction,
+      netBillableWeight: item.netBillableWeight,
+      tareDescription: item.tareDescription
+    }));
+
+    const rawSubtotal = formattedItems.reduce((sum, it) => sum + it.totalPrice, 0);
+    const discount = Math.min(docData.discountAmount || 0, rawSubtotal);
+    const taxableAmount = Math.max(0, rawSubtotal - discount);
+    const vatAmount = Math.round(taxableAmount * 0.16 * 100) / 100;
+    const grandTotal = isDelivery ? 0 : Math.round((taxableAmount + vatAmount) * 100) / 100;
+
+    let whtAmount = 0;
+    let netReceivableAmount = grandTotal;
+    if (docData.applyWHT5 && grandTotal > 0) {
+      whtAmount = Math.round(taxableAmount * 0.05 * 100) / 100;
+      netReceivableAmount = Math.max(0, grandTotal - whtAmount);
+    }
+
+    const payMethod = docData.paymentMethod || (isQuotation ? 'Bank Transfer' : 'M-Pesa');
+    const fulfillLoc = docData.locationId || activeLocation;
+    const locInfo = locations.find(l => l.id === fulfillLoc);
+
+    const initialStatus: OrderStatus = isDelivery
+      ? 'dispatched'
+      : isQuotation
+      ? 'pending'
+      : 'completed';
+
+    const newDoc: SaleOrder = {
+      id: docId,
+      receiptNumber,
+      documentType: docData.documentType,
+      etrDevicePin: etrConfig.taxPin,
+      cuSerialNumber: etrConfig.cuSerialNumber,
+      originLocation: fulfillLoc,
+      fulfilledByLocation: fulfillLoc,
+      customerName: docData.customerName || 'Walk-in Client',
+      customerKraPin: docData.customerKraPin,
+      customerPhone: docData.customerPhone,
+      customerEmail: docData.customerEmail,
+      customerAddress: docData.customerAddress,
+      deliveryAddress: docData.deliveryAddress || docData.customerAddress,
+      driverName: docData.driverName,
+      driverPhone: docData.driverPhone,
+      vehicleRegistration: docData.vehicleRegistration,
+      dispatchDate: docData.dispatchDate || new Date().toISOString().split('T')[0],
+      packageCount: docData.packageCount || docData.items.length,
+      deliveryNotes: docData.deliveryNotes,
+      items: formattedItems,
+      subtotal: taxableAmount,
+      vatAmount,
+      grandTotal,
+      discountAmount: discount,
+      paymentMethod: payMethod,
+      paymentReference: docData.paymentReference,
+      status: initialStatus,
+      operatorId: currentUser.id,
+      operatorName: currentUser.name,
+      timestamp: new Date().toISOString(),
+      dueDate: docData.dueDate,
+      validityDays: docData.validityDays || 30,
+      isRerouted: false,
+      isQuotation,
+      originalInvoiceNumber: docData.originalInvoiceNumber,
+      creditReason: docData.creditReason,
+      wht5Applied: docData.applyWHT5,
+      whtRate: docData.applyWHT5 ? 0.05 : undefined,
+      whtAmount: docData.applyWHT5 ? whtAmount : undefined,
+      whtCertificateNo: docData.whtCertificateNo,
+      netReceivableAmount,
+      notes: docData.notes,
+      termsAndConditions: docData.termsAndConditions
+    };
+
+    // Deduct stock if requested or for active Tax Invoices/Receipts
+    const shouldDeductStock = docData.deductInventory ?? (docData.documentType === 'invoice' || docData.documentType === 'receipt');
+    if (shouldDeductStock && formattedItems.length > 0) {
+      setProducts(prevProducts =>
+        prevProducts.map(prod => {
+          const matchedItem = formattedItems.find(it => it.batchId === prod.id);
+          if (matchedItem) {
+            const locStock = prod.locationStock ? (prod.locationStock[fulfillLoc] ?? 0) : 0;
+            const updatedStock = Math.max(0, locStock - matchedItem.quantity);
+            return {
+              ...prod,
+              locationStock: {
+                ...(prod.locationStock || {}),
+                [fulfillLoc]: updatedStock
+              }
+            };
+          }
+          return prod;
+        })
+      );
+    }
+
+    // Ledger posting for financial documents
+    if (!isQuotation && !isDelivery && grandTotal > 0) {
+      const entriesToPost: LedgerEntry[] = [];
+
+      if (isCredit) {
+        // Reverse Revenue & VAT for Credit Note
+        entriesToPost.push({
+          id: `LEDG-CRN-${Date.now().toString().slice(-6)}`,
+          timestamp: new Date().toISOString(),
+          transactionRef: docId,
+          description: `eTIMS Credit Note Adjustment (${docData.creditReason || 'Price Adjustment'}) - #${receiptNumber}`,
+          debitAccount: `Sales Returns & Allowances`,
+          creditAccount: `${payMethod} Cash Account`,
+          amount: grandTotal,
+          locationId: fulfillLoc,
+          category: 'Sales'
+        });
+      } else {
+        // Invoice / Receipt
+        entriesToPost.push({
+          id: `LEDG-${Date.now().toString().slice(-6)}`,
+          timestamp: new Date().toISOString(),
+          transactionRef: docId,
+          description: `${docData.documentType.toUpperCase()} Issue at ${locInfo?.name} (${payMethod}) - Ref: #${receiptNumber}`,
+          debitAccount: `${payMethod} Cash Account`,
+          creditAccount: `Sales Revenue (${locInfo?.name})`,
+          amount: docData.applyWHT5 ? netReceivableAmount : grandTotal,
+          locationId: fulfillLoc,
+          category: 'Sales'
+        });
+
+        if (docData.applyWHT5 && whtAmount > 0) {
+          entriesToPost.push({
+            id: `LEDG-WHT-${Date.now().toString().slice(-6)}`,
+            timestamp: new Date().toISOString(),
+            transactionRef: docId,
+            description: `5% Advance Withholding Tax Credit (Cert: ${docData.whtCertificateNo || 'Pending'})`,
+            debitAccount: 'Advance Withholding Tax Credits (5%)',
+            creditAccount: `Sales Revenue (${locInfo?.name})`,
+            amount: whtAmount,
+            locationId: fulfillLoc,
+            category: 'Withholding Tax 5%'
+          });
+
+          const newWhtRecord: KRAWithholdingTaxRecord = {
+            id: `WHT-${Date.now().toString().slice(-6)}`,
+            entityName: docData.customerName || 'B2B Client',
+            entityPin: docData.customerKraPin || 'P051982341Z',
+            natureOfTransaction: `B2B ${docData.documentType.toUpperCase()} Sales (5% Credit)`,
+            rate: 0.05,
+            grossAmount: grandTotal,
+            whtAmount,
+            netPayable: netReceivableAmount,
+            certificateNo: docData.whtCertificateNo || `KRA-WHT-5%-${Date.now().toString().slice(-4)}`,
+            direction: 'Withheld_By_Customer_Receivable',
+            period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            settled: true,
+            issueDate: new Date().toISOString().split('T')[0],
+            notes: `Generated on ${docData.documentType} #${receiptNumber}`
+          };
+          setWhtRecords(prev => [newWhtRecord, ...prev]);
+        }
+
+        // 16% Output VAT entry
+        if (vatAmount > 0) {
+          entriesToPost.push({
+            id: `LEDG-VAT-${Date.now().toString().slice(-6)}`,
+            timestamp: new Date().toISOString(),
+            transactionRef: docId,
+            description: `KRA 16% Output VAT for #${receiptNumber}`,
+            debitAccount: `Sales Revenue (${locInfo?.name})`,
+            creditAccount: `KRA Output VAT Liability`,
+            amount: vatAmount,
+            locationId: fulfillLoc,
+            category: 'Tax VAT'
+          });
+        }
+      }
+
+      setLedger(prev => [...entriesToPost, ...prev]);
+
+      // Cash balance update if cash payment
+      if (payMethod === 'Cash') {
+        const cashDelta = isCredit ? -grandTotal : (docData.applyWHT5 ? netReceivableAmount : grandTotal);
+        setLocations(prevLocs =>
+          prevLocs.map(l => {
+            if (l.id === fulfillLoc) {
+              const current = l.currentCashBalance ?? l.openingFloat ?? 0;
+              return { ...l, currentCashBalance: current + cashDelta };
+            }
+            return l;
+          })
+        );
+      }
+    }
+
+    setOrders(prev => [newDoc, ...prev]);
+    setSelectedReceipt(newDoc);
+    playSuccessSound();
+
+    recordAuditLog(
+      `Created ${docData.documentType.toUpperCase()} Document`,
+      `Generated ${docData.documentType.toUpperCase()} #${receiptNumber} (ID: ${docId}) for ${docData.customerName || 'Client'} with ${formattedItems.length} items.`
+    );
+
+    return {
+      success: true,
+      message: `${docData.documentType.toUpperCase()} #${receiptNumber} successfully generated!`,
+      order: newDoc
+    };
+  };
+
+  const deleteBillingDocument = (documentId: string) => {
+    setOrders(prev => prev.filter(o => o.id !== documentId));
+    if (selectedReceipt?.id === documentId) {
+      setSelectedReceipt(null);
+    }
+    recordAuditLog('Deleted Billing Document', `Removed document record ${documentId}`);
+    return { success: true, message: `Document ${documentId} deleted successfully.` };
+  };
+
+  const updateBillingDocumentStatus = (documentId: string, updates: Partial<SaleOrder>) => {
+    setOrders(prev =>
+      prev.map(order => {
+        if (order.id === documentId) {
+          const updated = { ...order, ...updates };
+          if (selectedReceipt?.id === documentId) {
+            setSelectedReceipt(updated);
+          }
+          return updated;
+        }
+        return order;
+      })
+    );
+    return { success: true, message: `Document ${documentId} updated successfully.` };
+  };
+
   // ROUTE ORDER TICKET (From Store 1 / Store 2 or Out-of-Stock Sales Shop -> Main Store)
   const createOrderRerouteTicket = (
     items: { batchId: string; quantity: number }[],
@@ -4157,6 +4504,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearNotifications,
         processPOSCheckout,
         convertQuotationToInvoice,
+        createBillingDocument,
+        deleteBillingDocument,
+        updateBillingDocumentStatus,
         createOrderRerouteTicket,
         requestRestock,
         dispatchRestockTransfer,

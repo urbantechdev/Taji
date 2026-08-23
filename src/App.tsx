@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ERPProvider, useERP } from './context/ERPContext';
 import { Header } from './components/layout/Header';
 import { Sidebar, NavTab } from './components/layout/Sidebar';
@@ -104,23 +105,34 @@ const ERPContent: React.FC = () => {
         {/* Dynamic View Area (The only area that scrolls up and down) */}
         <div className="flex-1 h-full overflow-y-auto overflow-x-hidden min-h-0 flex flex-col justify-between">
           <main className="p-3 sm:p-5 md:p-6 lg:p-8 max-w-[1680px] mx-auto w-full space-y-6 pb-28 md:pb-36">
-            {!isAdmin || appMode === 'pos' ? (
-              <POSModule />
-            ) : (
-              <>
-                {activeTab === 'dashboard' && <AdminDashboard />}
-                {activeTab === 'branches' && <BranchManagementModule />}
-                {activeTab === 'pos' && <POSModule />}
-                {activeTab === 'catalog' && <InventoryCatalog />}
-                {activeTab === 'transfers' && <InterStoreTransfers />}
-                {activeTab === 'ledger' && <AccountingLedger />}
-                {activeTab === 'etr' && <ETRModule />}
-                {activeTab === 'payroll' && <HRPayrollModule />}
-                {activeTab === 'operators' && <POSOperatorManager />}
-                {activeTab === 'audit' && <AuditLogsModule />}
-                {activeTab === 'gmail' && <GmailInbox />}
-              </>
-            )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={!isAdmin || appMode === 'pos' ? 'pos-locked' : activeTab}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="space-y-6"
+              >
+                {!isAdmin || appMode === 'pos' ? (
+                  <POSModule />
+                ) : (
+                  <>
+                    {activeTab === 'dashboard' && <AdminDashboard />}
+                    {activeTab === 'branches' && <BranchManagementModule />}
+                    {activeTab === 'pos' && <POSModule />}
+                    {activeTab === 'catalog' && <InventoryCatalog />}
+                    {activeTab === 'transfers' && <InterStoreTransfers />}
+                    {activeTab === 'ledger' && <AccountingLedger />}
+                    {activeTab === 'etr' && <ETRModule />}
+                    {activeTab === 'payroll' && <HRPayrollModule />}
+                    {activeTab === 'operators' && <POSOperatorManager />}
+                    {activeTab === 'audit' && <AuditLogsModule />}
+                    {activeTab === 'gmail' && <GmailInbox />}
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </main>
 
           {/* Footer inside scroll container */}

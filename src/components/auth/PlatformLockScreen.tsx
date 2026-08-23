@@ -27,9 +27,7 @@ export const PlatformLockScreen: React.FC = () => {
     setActiveLocation,
     brandSettings,
     locations,
-    posOperators,
-    setCurrentUser,
-    setActiveRole
+    posOperators
   } = useERP();
 
   const [activeTab, setActiveTab] = useState<'pin' | 'admin'>('pin');

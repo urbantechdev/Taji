@@ -783,7 +783,7 @@ export const InventoryCatalog: React.FC = () => {
                             <div className="grid grid-cols-2 gap-1">
                               <button
                                 onClick={() => setEditingProduct(p)}
-                                className="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                                className="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                 title="Edit Product, Stock Allocation & Prices"
                               >
                                 <Edit3 className="w-3 h-3 text-indigo-600" />
@@ -792,7 +792,7 @@ export const InventoryCatalog: React.FC = () => {
 
                               <button
                                 onClick={() => setProductToDelete(p)}
-                                className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                                className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 text-[11px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                                 title="Instant Delete Product from Inventory"
                               >
                                 <Trash2 className="w-3 h-3 text-rose-600" />
@@ -803,7 +803,7 @@ export const InventoryCatalog: React.FC = () => {
                             <div className="grid grid-cols-3 gap-1">
                               <button
                                 onClick={() => setActiveBatchModal(p)}
-                                className="px-1.5 py-1 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 text-[10px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-0.5 cursor-pointer"
+                                className="px-1.5 py-1 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 text-[10px] font-semibold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-0.5 cursor-pointer"
                                 title="View & Print Product QR Code Tag"
                               >
                                 <QrCode className="w-3 h-3 text-rose-600" />
@@ -815,7 +815,7 @@ export const InventoryCatalog: React.FC = () => {
                                   setBulkBarcodePreselectedId(p.id);
                                   setIsBulkBarcodeGeneratorOpen(true);
                                 }}
-                                className="px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-0.5 cursor-pointer"
+                                className="px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-0.5 cursor-pointer"
                                 title="Generate and print barcode stickers"
                               >
                                 <Barcode className="w-3 h-3 text-amber-600" />
@@ -824,7 +824,7 @@ export const InventoryCatalog: React.FC = () => {
 
                               <button
                                 onClick={() => setTareSettingsProduct(p)}
-                                className="px-1.5 py-1 bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-0.5 cursor-pointer"
+                                className="px-1.5 py-1 bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200 text-[10px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-0.5 cursor-pointer"
                                 title="Configure Tare & Packaging Weight"
                               >
                                 <Scale className="w-3 h-3 text-amber-700" />
@@ -839,7 +839,7 @@ export const InventoryCatalog: React.FC = () => {
                                   setDiscountModalBatch(p);
                                   setNewPromoPrice(Math.round(p.unitPriceRetail * 0.8));
                                 }}
-                                className="w-full px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                                className="w-full px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-extrabold rounded-lg shadow-2xs transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                               >
                                 <Zap className="w-3 h-3 text-amber-300 fill-amber-300" />
                                 <span>Flash Discount</span>
@@ -1244,10 +1244,8 @@ export const InventoryCatalog: React.FC = () => {
           isOpen={!!tareSettingsProduct}
           product={tareSettingsProduct}
           onClose={() => setTareSettingsProduct(null)}
-          onSave={(updatedProduct) => {
-            if (updatedProduct.tareProfile) {
-              updateProductTareProfile(updatedProduct.id, updatedProduct.tareProfile);
-            }
+          onSaveTareProfile={(batchId, profile) => {
+            updateProductTareProfile(batchId, profile);
             setTareSettingsProduct(null);
           }}
         />

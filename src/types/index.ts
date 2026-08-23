@@ -3,6 +3,8 @@ export type LocationId = string;
 export type LocationType = 
   | 'Main Store' 
   | 'Sales Shop' 
+  | 'Central Warehouse'
+  | 'Retail Sales Shop'
   | 'Independent Branch' 
   | 'Store 1 (Transfer Only)' 
   | 'Store 2 (Transfer Only)'
@@ -19,6 +21,8 @@ export interface LocationInfo {
   canRequestRestock: boolean;
   address: string;
   phone: string;
+  email?: string;
+  operatingHours?: string;
   managerName?: string;
   managerPhone?: string;
   managerEmail?: string;
@@ -35,6 +39,7 @@ export interface LocationInfo {
 
 export type BranchExpenseCategory = 
   | 'Rent' 
+  | 'Rent & Premises'
   | 'Utilities' 
   | 'Staff Supplies' 
   | 'Transport & Logistics' 
@@ -52,7 +57,9 @@ export interface BranchExpense {
   category: BranchExpenseCategory;
   paidVia: 'Cash Float' | 'Bank Transfer' | 'M-Pesa Till';
   paidTo?: string;
+  vendorName?: string;
   receiptNo?: string;
+  receiptRef?: string;
   notes?: string;
   timestamp: string;
   recordedBy: string;
@@ -206,6 +213,7 @@ export type UserRole =
   | 'store_2_attendant'
   | 'branch_manager'
   | 'branch_cashier'
+  | 'pos_cashier'
   | 'accountant';
 
 export interface POSOperator {
@@ -256,17 +264,29 @@ export interface POSCartItem {
   tareDescription?: string;
 }
 
-export type OrderStatus = 'completed' | 'routed_to_main' | 'routed_to_shop' | 'cancelled';
+export type OrderStatus = 'completed' | 'routed_to_main' | 'routed_to_shop' | 'cancelled' | 'pending' | 'draft' | 'dispatched' | 'delivered';
+
+export type DocumentType = 
+  | 'invoice' 
+  | 'quotation' 
+  | 'proforma' 
+  | 'receipt' 
+  | 'delivery_note' 
+  | 'credit_note';
 
 export interface SaleOrder {
-  id: string; // e.g. INV-2026-8891
+  id: string; // e.g. INV-2026-8891, QUO-2026-1029, DEL-2026-4401, RCP-2026-9021, PRO-2026-3301, CRN-2026-1102
   receiptNumber: string;
+  documentType?: DocumentType;
   etrDevicePin: string;
   cuSerialNumber: string;
   originLocation: LocationId;
   fulfilledByLocation: LocationId;
   customerName?: string;
   customerKraPin?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  customerAddress?: string;
   items: {
     batchId: string;
     productName: string;
@@ -283,19 +303,39 @@ export interface SaleOrder {
   subtotal: number;
   vatAmount: number; // 16% VAT
   grandTotal: number;
-  paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque';
+  discountAmount?: number;
+  paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque' | 'Credit/On Account';
   paymentReference?: string;
   status: OrderStatus;
   operatorId: string;
   operatorName: string;
   timestamp: string;
+  dueDate?: string;
+  validityDays?: number;
   isRerouted: boolean;
   isQuotation?: boolean;
+  // Delivery Note & Logistics fields
+  deliveryAddress?: string;
+  driverName?: string;
+  driverPhone?: string;
+  vehicleRegistration?: string;
+  dispatchDate?: string;
+  packageCount?: number;
+  deliveryNotes?: string;
+  receivedByName?: string;
+  receivedByPhone?: string;
+  receivedDate?: string;
+  // Credit Note fields
+  originalInvoiceNumber?: string;
+  creditReason?: string;
+  // Tax withholding & Notes
   wht5Applied?: boolean;
   whtRate?: number; // 0.05 for 5% WHT
   whtAmount?: number; // KSh deducted
   whtCertificateNo?: string;
   netReceivableAmount?: number;
+  notes?: string;
+  termsAndConditions?: string;
 }
 
 export type TransferType = 'restock_free' | 'order_fulfillment_reroute';

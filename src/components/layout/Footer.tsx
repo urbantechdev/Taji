@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
-import { ExternalLink, Layers, ShieldCheck, Heart } from 'lucide-react';
+import { ExternalLink, Layers, ShieldCheck, BookOpen, Download } from 'lucide-react';
+import { ReadmeModal } from '../docs/ReadmeModal';
+import { downloadReadmeMarkdown } from '../../utils/downloadReadme';
 
 export const Footer: React.FC = () => {
+  const [isReadmeOpen, setIsReadmeOpen] = useState(false);
+
   return (
     <footer className="relative mt-auto border-t border-rose-200/80 bg-white/95 backdrop-blur-md text-slate-600 py-6 px-4 sm:px-8">
       <ReflectionOverlay />
@@ -30,7 +34,25 @@ export const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Center/Right: Powered by Urbantechdev with link */}
+        {/* Center: System Documentation Quick Link */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsReadmeOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 rounded-xl font-bold transition-all cursor-pointer text-xs"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>System README &amp; User Manual</span>
+          </button>
+          <button
+            onClick={() => downloadReadmeMarkdown()}
+            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer"
+            title="Download README.md"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Right: Powered by Urbantechdev with link */}
         <div className="flex items-center gap-2 text-slate-600 bg-slate-50 px-4 py-2 rounded-2xl border border-rose-100 shadow-2xs hover:border-pink-300 transition-all">
           <span className="text-[11px] font-medium text-slate-500">Powered by</span>
           <a
@@ -45,6 +67,11 @@ export const Footer: React.FC = () => {
         </div>
 
       </div>
+
+      <ReadmeModal
+        isOpen={isReadmeOpen}
+        onClose={() => setIsReadmeOpen(false)}
+      />
     </footer>
   );
 };

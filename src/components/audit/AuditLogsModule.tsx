@@ -46,8 +46,8 @@ export const AuditLogsModule: React.FC = () => {
         },
         transfersSummary: {
           totalTransfers: transfers.length,
-          delivered: transfers.filter(t => t.status === 'Delivered').length,
-          inTransit: transfers.filter(t => t.status === 'In-Transit').length
+          delivered: transfers.filter(t => t.status === 'fulfilled').length,
+          inTransit: transfers.filter(t => t.status === 'dispatched').length
         },
         expensesSummary: {
           totalExpensesCount: branchExpenses.length,

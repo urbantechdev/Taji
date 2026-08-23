@@ -74,14 +74,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     lockPlatform
   } = useERP();
 
-  const unreadMails = mailNotifications.filter(m => !m.isRead).length;
+  const unreadMails = mailNotifications.filter(m => !m.read).length;
 
   const mainStoreLowCount = products.filter(
-    p => p.locationStock ? p.locationStock.main_store <= p.minReorderLevel : (p.location === 'main_store' && p.stockQuantity <= p.reorderLevel)
+    p => p.locationStock ? (p.locationStock.main_store ?? 0) <= p.minReorderLevel : false
   ).length;
 
   const salesShopLowCount = products.filter(
-    p => p.locationStock ? p.locationStock.sales_shop <= p.minReorderLevel : (p.location === 'sales_shop' && p.stockQuantity <= p.reorderLevel)
+    p => p.locationStock ? (p.locationStock.sales_shop ?? 0) <= p.minReorderLevel : false
   ).length;
 
   const primaryNav: { id: NavTab; label: string; icon: React.ReactNode }[] = [

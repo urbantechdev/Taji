@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useERP } from '../../context/ERPContext';
 import { CategoryType, LocationId, UnitType } from '../../types';
+import { playBarcodeScanBeep } from '../../utils/audio';
 import {
   X,
   Camera,
@@ -20,7 +21,8 @@ import {
   Keyboard,
   Info,
   Maximize2,
-  PackageCheck
+  PackageCheck,
+  Volume2
 } from 'lucide-react';
 
 export const MobileBarcodeScannerModal: React.FC = () => {
@@ -299,12 +301,22 @@ export const MobileBarcodeScannerModal: React.FC = () => {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setIsMobileBarcodeScannerOpen(false)}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => playBarcodeScanBeep(true)}
+              className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-xs font-semibold text-rose-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Test loud scanner beep sound"
+            >
+              <Volume2 className="w-3.5 h-3.5 text-rose-300" />
+              <span className="hidden sm:inline">Test Beep</span>
+            </button>
+            <button
+              onClick={() => setIsMobileBarcodeScannerOpen(false)}
+              className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Live Feedback Toast Banner */}

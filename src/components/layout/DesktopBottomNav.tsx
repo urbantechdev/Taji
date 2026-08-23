@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { NavTab } from './Sidebar';
@@ -13,8 +13,12 @@ import {
   Users,
   ShieldCheck,
   UserCheck,
-  Mail
+  Mail,
+  BookOpen,
+  Download
 } from 'lucide-react';
+import { ReadmeModal } from '../docs/ReadmeModal';
+import { downloadReadmeMarkdown } from '../../utils/downloadReadme';
 
 interface NavItem {
   id: NavTab;
@@ -33,12 +37,15 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
   activeTab,
   setActiveTab
 }) => {
+  const [isReadmeOpen, setIsReadmeOpen] = useState(false);
   const {
     transfers,
     orders,
-    unreadMailCount,
+    mailNotifications,
     brandSettings
   } = useERP();
+
+  const unreadMailCount = mailNotifications ? mailNotifications.filter(m => !m.read).length : 0;
 
   const pendingTransfersCount = transfers.filter(
     t => t.status === 'pending_approval' || t.status === 'dispatched'
@@ -211,7 +218,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
         </div>
 
         {/* Bottom Navigation Grid: evenly distributed with enlarged icons */}
-        <div className="grid grid-cols-5 xl:grid-cols-10 gap-1.5 sm:gap-2.5 lg:gap-3 w-full max-w-7xl items-center relative z-10">
+        <div className="grid grid-cols-6 xl:grid-cols-11 gap-1.5 sm:gap-2 lg:gap-2.5 w-full max-w-[1720px] items-center relative z-10">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -296,8 +303,45 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
               </motion.button>
             );
           })}
+
+          {/* Downloadable README.md & Docs Action Button */}
+          <motion.button
+            id="desktop-bottom-nav-readme-btn"
+            onClick={() => {
+              playClickSound();
+              setIsReadmeOpen(true);
+            }}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="relative group w-full h-18 lg:h-20 px-1 sm:px-2 py-2 rounded-2xl font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer bg-gradient-to-b from-slate-900 via-slate-850 to-slate-950 text-white border border-slate-700/80 shadow-md hover:border-rose-400 hover:shadow-lg hover:shadow-rose-500/20"
+            title="Open & Download System README / User Manual (Markdown & PDF)"
+          >
+            {/* Background Halo Glow */}
+            <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-rose-500/20 via-pink-500/20 to-amber-500/20 blur-xs -z-10 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+            {/* Icon Container with Badge */}
+            <div className="relative flex items-center justify-center">
+              <BookOpen className="w-6 h-6 lg:w-7 lg:h-7 stroke-[2.2] text-rose-300 group-hover:text-white transition-transform duration-200 group-hover:scale-110 shrink-0" />
+              <span className="absolute -top-1.5 -right-3.5 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-black bg-rose-600 text-white shadow-xs shrink-0 flex items-center gap-0.5">
+                <Download className="w-2.5 h-2.5" />
+                <span>MD</span>
+              </span>
+            </div>
+
+            {/* Label */}
+            <span className="truncate max-w-full font-sans font-extrabold text-xs lg:text-[13px] tracking-tight leading-none text-rose-100 group-hover:text-white">
+              README
+            </span>
+          </motion.button>
         </div>
       </div>
+
+      {/* Interactive README / Documentation Modal */}
+      <ReadmeModal
+        isOpen={isReadmeOpen}
+        onClose={() => setIsReadmeOpen(false)}
+      />
     </div>
   );
 };

@@ -5,7 +5,7 @@ import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, LocationId } from '../../types';
 import { HeldCartsModal } from './HeldCartsModal';
 import { ProductDetailModal } from './ProductDetailModal';
-import { playClickSound, playPopupSound, playSuccessSound, playAlertSound, playAddToCartSound } from '../../utils/audio';
+import { playClickSound, playPopupSound, playSuccessSound, playAlertSound, playAddToCartSound, playBarcodeScanBeep, playScannerErrorBeep } from '../../utils/audio';
 import {
   Search,
   QrCode,
@@ -63,7 +63,7 @@ export const POSModule: React.FC = () => {
     updateCartTare
   } = useERP();
 
-  const unreadMails = mailNotifications.filter(m => !m.isRead).length;
+  const unreadMails = mailNotifications ? mailNotifications.filter(m => !m.read).length : 0;
 
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -127,14 +127,14 @@ export const POSModule: React.FC = () => {
 
       if (availableStock <= currentInCart && !activeLocInfo?.canSellDirectly) {
         // Warning if stock depleted
-        playAlertSound();
+        playScannerErrorBeep();
         setBarcodeScanFeedback({
           type: 'error',
           message: `Zero stock for "${matchedProduct.name}" at ${activeLocInfo?.name || activeLocation}. Reroute needed.`
         });
       } else {
         addToCart(matchedProduct, 1, false);
-        playAddToCartSound();
+        playBarcodeScanBeep(true);
         setBarcodeScanFeedback({
           type: 'success',
           message: `Scanned & Added: ${matchedProduct.name} (${matchedProduct.barcode || matchedProduct.sku})`
@@ -142,7 +142,7 @@ export const POSModule: React.FC = () => {
       }
       setBarcodeCheckoutInput('');
     } else {
-      playAlertSound();
+      playScannerErrorBeep();
       setBarcodeScanFeedback({
         type: 'error',
         message: `Unrecognized Barcode "${rawCode}". Product not found in database.`
@@ -880,7 +880,7 @@ export const POSModule: React.FC = () => {
                 {activeLocInfo?.canSellDirectly ? (
                   <button
                     onClick={() => setIsCheckoutModalOpen(true)}
-                    className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs rounded-xl shadow-md btn-hover-lift flex items-center justify-center gap-2 cursor-pointer transition-all"
                   >
                     <CreditCard className="w-4 h-4" />
                     Process Payment &amp; Issue ETR Receipt
@@ -888,7 +888,7 @@ export const POSModule: React.FC = () => {
                 ) : (
                   <button
                     onClick={() => setIsRerouteModalOpen(true)}
-                    className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-3 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold text-xs rounded-xl shadow-md btn-hover-lift flex items-center justify-center gap-2 cursor-pointer transition-all"
                   >
                     <ArrowRightLeft className="w-4 h-4" />
                     Route Order Ticket to Main Store
@@ -898,7 +898,7 @@ export const POSModule: React.FC = () => {
                 {/* Put On Hold Button */}
                 <button
                   onClick={() => setIsHoldModalOpen(true)}
-                  className="w-full py-2 bg-slate-100 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-2 bg-slate-50 hover:bg-amber-50 text-amber-900 border border-amber-200 font-bold text-xs rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <PauseCircle className="w-4 h-4 text-amber-600" />
                   Put Order On Hold
@@ -907,7 +907,7 @@ export const POSModule: React.FC = () => {
                 {/* Transfer Cart Items directly to Shop / Other Store */}
                 <button
                   onClick={handleOpenTransferModalWithCart}
-                  className="w-full py-2 bg-gradient-to-r from-indigo-50 to-rose-50 hover:from-indigo-100 hover:to-rose-100 text-indigo-900 border border-indigo-200 font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  className="w-full py-2 bg-gradient-to-r from-indigo-50 to-rose-50 hover:from-indigo-100 hover:to-rose-100 text-indigo-900 border border-indigo-200 font-extrabold text-xs rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <ArrowRightLeft className="w-4 h-4 text-indigo-600" />
                   <span>Transfer Cart Items to Shop / Store</span>

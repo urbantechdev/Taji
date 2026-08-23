@@ -12,7 +12,8 @@ import {
   KRAInputVATClaim,
   KRAWithholdingTaxRecord,
   PayrollRecord,
-  TareReconciliationRecord
+  TareReconciliationRecord,
+  DocumentType
 } from '../types';
 
 // Helper to trigger direct file download for CSV
@@ -1570,6 +1571,502 @@ export function exportTareWeightAuditSchedulePDF(
   );
 
   doc.save(`Dual_Weight_Tare_Audit_Schedule_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+// --------------------------------------------------------------------------
+// 10. BILLING ENGINE DOCUMENT EXPORTS (INVOICES, QUOTATIONS, PROFORMAS, RECEIPTS, DELIVERY NOTES, CREDIT NOTES)
+// --------------------------------------------------------------------------
+
+export function getDocumentTypeName(docType?: DocumentType, isQuotation?: boolean): string {
+  if (docType === 'delivery_note') return 'OFFICIAL GOODS DELIVERY NOTE / WAYBILL';
+  if (docType === 'proforma') return 'COMMERCIAL PROFORMA INVOICE';
+  if (docType === 'quotation' || isQuotation) return 'OFFICIAL COMMERCIAL QUOTATION';
+  if (docType === 'receipt') return 'OFFICIAL CASH / ETR PAYMENT RECEIPT';
+  if (docType === 'credit_note') return 'eTIMS TAX CREDIT NOTE';
+  return 'KRA TIMS COMMERCIAL TAX INVOICE';
+}
+
+export function exportBillingDocumentPDF(
+  order: SaleOrder,
+  etrConfig: ETRConfig,
+  locations: LocationInfo[],
+  overrideType?: DocumentType
+) {
+  const docType: DocumentType = overrideType || order.documentType || (order.isQuotation ? 'quotation' : 'invoice');
+  const isDeliveryNote = docType === 'delivery_note';
+  const isQuote = docType === 'quotation' || docType === 'proforma';
+  const isReceipt = docType === 'receipt';
+  const isCreditNote = docType === 'credit_note';
+
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+  const docTitle = getDocumentTypeName(docType, order.isQuotation);
+  const fulfillLoc = locations.find(l => l.id === order.fulfilledByLocation)?.name || 'Main Store';
+
+  // Primary Theme Colors
+  let headerBg: [number, number, number] = [225, 29, 72]; // Rose 600 default (Invoice)
+  if (isDeliveryNote) headerBg = [79, 70, 229]; // Indigo 600 (Delivery Note)
+  else if (docType === 'quotation') headerBg = [217, 119, 6]; // Amber 600 (Quotation)
+  else if (docType === 'proforma') headerBg = [2, 132, 199]; // Sky 600 (Proforma)
+  else if (isReceipt) headerBg = [16, 185, 129]; // Emerald 600 (Receipt)
+  else if (isCreditNote) headerBg = [234, 88, 12]; // Orange 600 (Credit Note)
+
+  // Top Header Banner
+  doc.setFillColor(...headerBg);
+  doc.rect(0, 0, 595, 75, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(etrConfig.companyName.toUpperCase(), 40, 32);
+
+  doc.setFontSize(10.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text(docTitle, 40, 50);
+
+  doc.setFontSize(8);
+  doc.setTextColor(241, 245, 249);
+  doc.text(`PIN: ${etrConfig.taxPin} | CU SERIAL: ${etrConfig.cuSerialNumber} | PHONE: ${etrConfig.companyPhone}`, 40, 64);
+
+  // Document Number Badge
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`#${order.receiptNumber}`, 450, 34);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Doc ID: ${order.id}`, 450, 48);
+  doc.text(`Date: ${new Date(order.timestamp).toLocaleDateString('en-GB')}`, 450, 62);
+
+  // Address & Metadata Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, 85, 515, 68, 6, 6, 'FD');
+
+  // Customer Side
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(isDeliveryNote ? 'CONSIGNEE / DELIVER TO:' : 'BILLED TO / CUSTOMER:', 55, 100);
+
+  doc.setFontSize(9.5);
+  doc.text(order.customerName || 'Walk-in Client', 55, 114);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  if (order.customerKraPin) doc.text(`KRA PIN: ${order.customerKraPin}`, 55, 126);
+  if (order.customerPhone) doc.text(`Phone: ${order.customerPhone}`, 55, 137);
+  if (order.deliveryAddress || order.customerAddress) {
+    doc.text(`Address: ${(order.deliveryAddress || order.customerAddress || '').slice(0, 42)}`, 55, 147);
+  }
+
+  // Dispatch / Issuer Side
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(isDeliveryNote ? 'LOGISTICS & DISPATCH METADATA:' : 'FISCAL & PAYMENT STATUS:', 320, 100);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Origin Store: ${fulfillLoc}`, 320, 114);
+
+  if (isDeliveryNote) {
+    doc.text(`Driver Name: ${order.driverName || 'Designated Courier'}`, 320, 126);
+    doc.text(`Vehicle Reg #: ${order.vehicleRegistration || 'Not Specified'}`, 320, 137);
+    doc.text(`Packages / Bundles: ${order.packageCount || order.items.length} units`, 320, 147);
+  } else {
+    doc.text(`Payment Mode: ${isQuote ? 'Proforma / Quote (Unpaid)' : order.paymentMethod}`, 320, 126);
+    doc.text(`Cashier / Operator: ${order.operatorName || 'System Admin'}`, 320, 137);
+    if (order.dueDate) doc.text(`Due Date: ${new Date(order.dueDate).toLocaleDateString('en-GB')}`, 320, 147);
+    else doc.text(`KRA Status: TIMS Online Fiscalized`, 320, 147);
+  }
+
+  // Items Table
+  const tableData = order.items.map((item, idx) => {
+    const tareInfo = item.tareDeduction && item.tareDeduction > 0
+      ? `\n(Gross ${item.scaleGrossWeight?.toFixed(3)}kg - ${item.tareDeduction?.toFixed(3)}kg tare)`
+      : '';
+
+    if (isDeliveryNote) {
+      return [
+        idx + 1,
+        `${item.productName}${tareInfo}`,
+        item.category,
+        item.batchId,
+        `${item.quantity} ${item.unit}`,
+        'Good Order'
+      ];
+    }
+
+    return [
+      idx + 1,
+      `${item.productName}${tareInfo}`,
+      item.category,
+      `${item.quantity} ${item.unit}`,
+      item.unitPrice.toLocaleString('en-KE', { minimumFractionDigits: 2 }),
+      item.totalPrice.toLocaleString('en-KE', { minimumFractionDigits: 2 })
+    ];
+  });
+
+  const tableHeaders = isDeliveryNote
+    ? [['#', 'Item Description & Specs', 'Category', 'SKU / Batch', 'Dispatched Qty', 'Inspection Condition']]
+    : [['#', 'Description & Specifications', 'Category', 'Billed Qty', 'Unit Rate (KSh)', 'Amount (KSh)']];
+
+  autoTable(doc, {
+    startY: 162,
+    head: tableHeaders,
+    body: tableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: headerBg,
+      textColor: [255, 255, 255],
+      fontSize: 8.5,
+      fontStyle: 'bold'
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 4,
+      textColor: [30, 41, 59]
+    },
+    columnStyles: isDeliveryNote ? {
+      0: { cellWidth: 30, halign: 'center' },
+      1: { cellWidth: 205 },
+      2: { cellWidth: 70, halign: 'center' },
+      3: { cellWidth: 75, halign: 'center' },
+      4: { cellWidth: 65, halign: 'center', fontStyle: 'bold' },
+      5: { cellWidth: 70, halign: 'center' }
+    } : {
+      0: { cellWidth: 30, halign: 'center' },
+      1: { cellWidth: 200 },
+      2: { cellWidth: 70, halign: 'center' },
+      3: { cellWidth: 65, halign: 'center', fontStyle: 'bold' },
+      4: { cellWidth: 75, halign: 'right' },
+      5: { cellWidth: 75, halign: 'right', fontStyle: 'bold' }
+    }
+  });
+
+  const tableEnd = (doc as any).lastAutoTable.finalY + 12;
+
+  // Delivery Note Specific Signatures
+  if (isDeliveryNote) {
+    // Delivery Notes & Signatures Block
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(40, tableEnd, 515, 40, 4, 4, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(51, 65, 85);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SPECIAL DISPATCH & HANDLING INSTRUCTIONS:', 50, tableEnd + 14);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      order.deliveryNotes || 'Please inspect packaging and fabric roll seals upon delivery. Any damage or variance must be endorsed on this slip.',
+      50,
+      tableEnd + 26
+    );
+
+    const sigY = tableEnd + 55;
+    // 3 Signatures: Dispatched By, Driver, Received By
+    // Box 1
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(40, sigY, 160, 65, 4, 4, 'D');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('DISPATCHED BY (STOREKEEPER)', 48, sigY + 14);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${order.operatorName || 'Store Officer'}`, 48, sigY + 28);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 48, sigY + 40);
+    doc.text('Signature: ________________', 48, sigY + 54);
+
+    // Box 2
+    doc.roundedRect(215, sigY, 160, 65, 4, 4, 'D');
+    doc.setFont('helvetica', 'bold');
+    doc.text('TRANSPORTER / DRIVER', 223, sigY + 14);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Driver: ${order.driverName || 'Designated Driver'}`, 223, sigY + 28);
+    doc.text(`Vehicle: ${order.vehicleRegistration || 'Commercial Carrier'}`, 223, sigY + 40);
+    doc.text('Signature: ________________', 223, sigY + 54);
+
+    // Box 3
+    doc.roundedRect(390, sigY, 165, 65, 4, 4, 'D');
+    doc.setFont('helvetica', 'bold');
+    doc.text('RECEIVED IN GOOD ORDER BY', 398, sigY + 14);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Customer Name: ____________', 398, sigY + 28);
+    doc.text('Date & Stamp: _____________', 398, sigY + 40);
+    doc.text('Customer Sign: _____________', 398, sigY + 54);
+
+  } else {
+    // Financial Breakdown & Banking Box
+    const bankBoxY = tableEnd;
+    
+    // Left: Banking & Terms Box
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(40, bankBoxY, 260, 85, 4, 4, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('BANKING & PAYMENT INSTRUCTIONS:', 50, bankBoxY + 14);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Bank: NCBA Bank Kenya PLC`, 50, bankBoxY + 28);
+    doc.text(`Account Name: ${etrConfig.companyName}`, 50, bankBoxY + 40);
+    doc.text(`Account No: 72819038201`, 50, bankBoxY + 52);
+    doc.text(`M-Pesa Paybill: 882901 | Acc: ${order.receiptNumber}`, 50, bankBoxY + 64);
+    doc.text(
+      isQuote ? 'Quotation validity: 30 days.' : 'Official ETR invoice. Goods sold in good order.',
+      50,
+      bankBoxY + 76
+    );
+
+    // Right: Financial Calculations Box
+    const finX = 320;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+
+    doc.text('Taxable Subtotal (Excl. VAT):', finX, bankBoxY + 14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`KSh ${order.subtotal.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 555, bankBoxY + 14, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.text('KRA 16% Output VAT:', finX, bankBoxY + 28);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`KSh ${order.vatAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 555, bankBoxY + 28, { align: 'right' });
+
+    if (order.discountAmount && order.discountAmount > 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.text('Trade Discount Applied:', finX, bankBoxY + 40);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`- KSh ${order.discountAmount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`, 555, bankBoxY + 40, { align: 'right' });
+    }
+
+    doc.setDrawColor(203, 213, 225);
+    doc.line(finX, bankBoxY + 46, 555, bankBoxY + 46);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(225, 29, 72);
+    doc.text('GROSS PAYABLE TOTAL:', finX, bankBoxY + 60);
+    doc.text(`KSh ${order.grandTotal.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`, 555, bankBoxY + 60, { align: 'right' });
+
+    if (order.wht5Applied && order.whtAmount) {
+      doc.setFontSize(8);
+      doc.setTextColor(180, 83, 9);
+      doc.text('Less 5% Withholding Tax (WHT):', finX, bankBoxY + 74);
+      doc.text(`- KSh ${order.whtAmount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`, 555, bankBoxY + 74, { align: 'right' });
+
+      doc.setTextColor(16, 185, 129);
+      doc.setFont('helvetica', 'bold');
+      doc.text('NET SETTLEMENT DUE:', finX, bankBoxY + 86);
+      doc.text(`KSh ${(order.netReceivableAmount || (order.grandTotal - order.whtAmount)).toLocaleString('en-KE', { minimumFractionDigits: 2 })}`, 555, bankBoxY + 86, { align: 'right' });
+    }
+
+    // Signatory footer
+    const sigY = bankBoxY + 105;
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.setFont('helvetica', 'normal');
+    doc.text('KRA TIMS QR VERIFICATION: kra.go.ke/verify/' + order.receiptNumber, 40, sigY + 10);
+    doc.text(`Generated by Taji Enterprise ERP • Document Version 2.4`, 40, sigY + 22);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Authorized Signatory:', 420, sigY + 10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('_____________________________', 420, sigY + 24);
+    doc.text(`For ${etrConfig.companyName}`, 420, sigY + 34);
+  }
+
+  const prefix = isDeliveryNote ? 'Delivery_Note' : isQuote ? 'Quotation' : isReceipt ? 'Receipt' : 'Invoice';
+  doc.save(`Taji_${prefix}_${order.receiptNumber || order.id}.pdf`);
+}
+
+export function exportBillingDocumentCSV(order: SaleOrder, etrConfig: ETRConfig, locations: LocationInfo[]) {
+  const fulfillLoc = locations.find(l => l.id === order.fulfilledByLocation)?.name || 'Main Store';
+  const docType = order.documentType || (order.isQuotation ? 'quotation' : 'invoice');
+
+  const headers = [
+    'Document Type',
+    'Document Number',
+    'Reference ID',
+    'Date & Time',
+    'Customer Name',
+    'Customer KRA PIN',
+    'Customer Phone',
+    'Delivery Address',
+    'Origin Store',
+    'Payment Method',
+    'Driver Name',
+    'Vehicle Plate',
+    'Package Count',
+    'Item #',
+    'Product Name',
+    'Category',
+    'SKU / Batch ID',
+    'Billed Quantity',
+    'Unit',
+    'Scale Gross (kg)',
+    'Tare Deducted (kg)',
+    'Unit Price (KSh)',
+    'Line Total (KSh)',
+    'Subtotal Excl VAT (KSh)',
+    '16% Output VAT (KSh)',
+    'Grand Total (KSh)',
+    '5% WHT Deducted (KSh)',
+    'Net Payable (KSh)',
+    'KRA PIN',
+    'CU Serial'
+  ];
+
+  const rows = order.items.map((item, idx) => [
+    docType.toUpperCase(),
+    order.receiptNumber,
+    order.id,
+    new Date(order.timestamp).toISOString(),
+    `"${(order.customerName || 'Walk-in Client').replace(/"/g, '""')}"`,
+    order.customerKraPin || 'NOT_REGISTERED',
+    order.customerPhone || '',
+    `"${(order.deliveryAddress || order.customerAddress || '').replace(/"/g, '""')}"`,
+    `"${fulfillLoc.replace(/"/g, '""')}"`,
+    order.paymentMethod,
+    order.driverName || '',
+    order.vehicleRegistration || '',
+    order.packageCount || order.items.length,
+    idx + 1,
+    `"${item.productName.replace(/"/g, '""')}"`,
+    item.category,
+    item.batchId,
+    item.quantity,
+    item.unit,
+    item.scaleGrossWeight || 0,
+    item.tareDeduction || 0,
+    item.unitPrice.toFixed(2),
+    item.totalPrice.toFixed(2),
+    order.subtotal.toFixed(2),
+    order.vatAmount.toFixed(2),
+    order.grandTotal.toFixed(2),
+    order.whtAmount || 0,
+    order.netReceivableAmount || order.grandTotal,
+    etrConfig.taxPin,
+    etrConfig.cuSerialNumber
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`Taji_${docType.toUpperCase()}_${order.receiptNumber || order.id}.csv`, csvContent);
+}
+
+export function exportBillingDocumentJSON(order: SaleOrder, etrConfig: ETRConfig) {
+  const jsonBlob = new Blob([JSON.stringify({ etrConfig, document: order }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(jsonBlob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `Taji_Document_${order.receiptNumber || order.id}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function exportBillingDocumentTextSlip(order: SaleOrder, etrConfig: ETRConfig) {
+  const docType = getDocumentTypeName(order.documentType, order.isQuotation);
+  const lines = [
+    '========================================',
+    `       ${etrConfig.companyName.toUpperCase()}`,
+    `       ${etrConfig.companyAddress}`,
+    `       TEL: ${etrConfig.companyPhone}`,
+    `   KRA PIN: ${etrConfig.taxPin}`,
+    `   CU SERIAL: ${etrConfig.cuSerialNumber}`,
+    '========================================',
+    ` DOCUMENT: ${docType}`,
+    ` DOC REF:  #${order.receiptNumber}`,
+    ` ORDER ID: ${order.id}`,
+    ` DATE:     ${new Date(order.timestamp).toLocaleString()}`,
+    ` CUSTOMER: ${order.customerName || 'Walk-in Client'}`,
+    order.customerKraPin ? ` KRA PIN:  ${order.customerKraPin}` : '',
+    order.driverName ? ` DRIVER:   ${order.driverName} (${order.vehicleRegistration || 'Vehicle'})` : '',
+    order.deliveryAddress ? ` DEST:     ${order.deliveryAddress}` : '',
+    '----------------------------------------',
+    ' ITEM                     QTY    TOTAL',
+    '----------------------------------------',
+    ...order.items.map(it => {
+      const name = it.productName.padEnd(20).slice(0, 20);
+      const qty = `${it.quantity} ${it.unit}`.padStart(7);
+      const tot = `KSh ${it.totalPrice.toLocaleString()}`.padStart(11);
+      return ` ${name} ${qty} ${tot}`;
+    }),
+    '----------------------------------------',
+    ` Subtotal (Excl VAT):    KSh ${order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    ` 16% Output VAT:         KSh ${order.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    ` GROSS TOTAL:            KSh ${order.grandTotal.toLocaleString()}`,
+    order.whtAmount ? ` Less 5% WHT Deduction: -KSh ${order.whtAmount.toLocaleString()}` : '',
+    order.whtAmount ? ` NET SETTLEMENT DUE:     KSh ${(order.netReceivableAmount || (order.grandTotal - order.whtAmount)).toLocaleString()}` : '',
+    '========================================',
+    ' KRA TIMS DIGITAL FISCAL RECEIPT CODE',
+    ` VERIFY: kra.go.ke/verify/${order.receiptNumber}`,
+    ' Thank you for your esteemed business!',
+    '========================================'
+  ].filter(Boolean).join('\n');
+
+  const blob = new Blob([lines], { type: 'text/plain;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `Taji_Slip_${order.receiptNumber || order.id}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function exportAllBillingDocumentsCSV(orders: SaleOrder[], locations: LocationInfo[]) {
+  const headers = [
+    'Document Type',
+    'Receipt / Invoice No',
+    'Order ID',
+    'Timestamp',
+    'Customer Name',
+    'Buyer KRA PIN',
+    'Items Count',
+    'Subtotal (KSh)',
+    '16% VAT (KSh)',
+    'Gross Total (KSh)',
+    '5% WHT Deducted (KSh)',
+    'Net Payable (KSh)',
+    'Payment Method',
+    'Payment Status',
+    'Origin Branch',
+    'Driver Name',
+    'Vehicle Plate'
+  ];
+
+  const rows = orders.map(o => {
+    const docType = o.documentType || (o.isQuotation ? 'quotation' : 'invoice');
+    const fulfillLoc = locations.find(l => l.id === o.fulfilledByLocation)?.name || 'Main Store';
+    return [
+      docType.toUpperCase(),
+      o.receiptNumber,
+      o.id,
+      new Date(o.timestamp).toISOString(),
+      `"${(o.customerName || 'Walk-in Client').replace(/"/g, '""')}"`,
+      o.customerKraPin || 'NOT_REGISTERED',
+      o.items.length,
+      o.subtotal.toFixed(2),
+      o.vatAmount.toFixed(2),
+      o.grandTotal.toFixed(2),
+      o.whtAmount || 0,
+      o.netReceivableAmount || o.grandTotal,
+      o.paymentMethod,
+      o.isQuotation ? 'UNPAID_QUOTE' : 'PAID',
+      `"${fulfillLoc.replace(/"/g, '""')}"`,
+      o.driverName || '',
+      o.vehicleRegistration || ''
+    ];
+  });
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`Taji_Billing_Register_Master_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
 }
 
 

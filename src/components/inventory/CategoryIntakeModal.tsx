@@ -25,7 +25,7 @@ import {
   Zap,
   Info
 } from 'lucide-react';
-import { playAddToCartSound, playAlertSound, playClickSound, playSuccessSound } from '../../utils/audio';
+import { playAddToCartSound, playAlertSound, playClickSound, playSuccessSound, playBarcodeScanBeep, playScannerErrorBeep } from '../../utils/audio';
 
 export interface CategoryPresetConfig {
   category: CategoryType;
@@ -225,7 +225,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     if (existingSessionIndex >= 0) {
       // Increment quantity in session list
       updatedSessionItems[existingSessionIndex].quantity += qtyToAdd;
-      playAddToCartSound();
+      playBarcodeScanBeep(true);
       setScanFeedback({
         type: 'success',
         message: `Updated: +${qtyToAdd} ${unit} for "${updatedSessionItems[existingSessionIndex].name}" (Total: ${updatedSessionItems[existingSessionIndex].quantity} ${unit})`
@@ -253,7 +253,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
       };
 
       updatedSessionItems = [newItem, ...updatedSessionItems];
-      playAddToCartSound();
+      playBarcodeScanBeep(true);
       setScanFeedback({
         type: 'success',
         message: existingProduct

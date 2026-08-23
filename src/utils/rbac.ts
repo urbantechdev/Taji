@@ -327,6 +327,35 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canDispatchTransfers: false,
       canReceiveTransfers: true
     }
+  },
+  pos_cashier: {
+    role: 'pos_cashier',
+    title: 'Point of Sale Cashier',
+    shortLabel: 'POS Cashier',
+    description: 'Front-desk point of sale terminal operator. Handles retail checkout, barcode scanning, M-Pesa receipts, and customer billing.',
+    badgeClass: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40',
+    dotColor: 'bg-emerald-400',
+    defaultLocation: 'sales_shop',
+    allowedTabs: [
+      'pos',
+      'catalog',
+      'etr'
+    ],
+    permissions: {
+      canManageUsers: false,
+      canManageStaff: false,
+      canAccessCFOAdvisor: false,
+      canExecuteForensicAudit: false,
+      canManageGeneralLedger: false,
+      canDisbursePayroll: false,
+      canConfigureETR: false,
+      canDirectPOSSale: true,
+      canManageBranchExpenses: false,
+      canCreateLocations: false,
+      canAddProductBatches: false,
+      canDispatchTransfers: false,
+      canReceiveTransfers: false
+    }
   }
 };
 

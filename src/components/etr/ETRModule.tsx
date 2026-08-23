@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
-import { SaleOrder } from '../../types';
+import { SaleOrder, DocumentType } from '../../types';
 import {
   Receipt,
   Printer,
@@ -20,14 +20,43 @@ import {
   CreditCard,
   Building2,
   Coins,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  Download,
+  FileSpreadsheet,
+  Truck,
+  RotateCcw,
+  Trash2,
+  ChevronDown
 } from 'lucide-react';
+import { CreateBillingDocumentModal } from './CreateBillingDocumentModal';
+import {
+  exportBillingDocumentPDF,
+  exportBillingDocumentCSV,
+  exportAllBillingDocumentsCSV,
+  getDocumentTypeName
+} from '../../utils/documentExport';
 
 export const ETRModule: React.FC = () => {
-  const { orders, etrConfig, updateETRConfig, setSelectedReceipt, convertQuotationToInvoice } = useERP();
+  const {
+    orders,
+    etrConfig,
+    locations,
+    updateETRConfig,
+    setSelectedReceipt,
+    convertQuotationToInvoice,
+    deleteBillingDocument
+  } = useERP();
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'invoices' | 'quotations' | 'wht'>('all');
+  const [activeFilterTab, setActiveFilterTab] = useState<
+    'all' | 'invoice' | 'quotation' | 'receipt' | 'delivery_note' | 'credit_note' | 'wht'
+  >('all');
   const [isConfigEditing, setIsConfigEditing] = useState(false);
+
+  // Create Document Modal State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createInitialType, setCreateInitialType] = useState<DocumentType>('invoice');
 
   // Quick Quotation Converter state
   const [convertingQuotation, setConvertingQuotation] = useState<SaleOrder | null>(null);
@@ -72,64 +101,117 @@ export const ETRModule: React.FC = () => {
     }
   };
 
+  const handleOpenCreateModal = (type: DocumentType = 'invoice') => {
+    setCreateInitialType(type);
+    setIsCreateModalOpen(true);
+  };
+
+  const handleDeleteDocument = (order: SaleOrder) => {
+    if (window.confirm(`Are you sure you want to delete ${order.documentType || 'document'} #${order.receiptNumber}? This action will remove the record.`)) {
+      deleteBillingDocument(order.id);
+    }
+  };
+
   // Filtered orders list
   const filteredOrders = orders.filter(o => {
     const matchesSearch =
       o.receiptNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       o.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (o.customerName && o.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (o.customerKraPin && o.customerKraPin.toLowerCase().includes(searchQuery.toLowerCase()));
+      (o.customerKraPin && o.customerKraPin.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (o.driverName && o.driverName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (o.vehicleRegistration && o.vehicleRegistration.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
 
-    if (activeFilterTab === 'invoices') return !o.isQuotation;
-    if (activeFilterTab === 'quotations') return !!o.isQuotation;
+    const docType: DocumentType = o.documentType || (o.isQuotation ? 'quotation' : 'invoice');
+
+    if (activeFilterTab === 'invoice') return docType === 'invoice';
+    if (activeFilterTab === 'quotation') return docType === 'quotation' || docType === 'proforma' || !!o.isQuotation;
+    if (activeFilterTab === 'receipt') return docType === 'receipt';
+    if (activeFilterTab === 'delivery_note') return docType === 'delivery_note';
+    if (activeFilterTab === 'credit_note') return docType === 'credit_note';
     if (activeFilterTab === 'wht') return !!o.wht5Applied;
     return true;
   });
 
   // Calculate high-level billing summary metrics
-  const completedOrders = orders.filter(o => !o.isQuotation);
-  const activeQuotations = orders.filter(o => !!o.isQuotation);
+  const invoicesList = orders.filter(o => (o.documentType === 'invoice' || (!o.documentType && !o.isQuotation)));
+  const quotationsList = orders.filter(o => o.documentType === 'quotation' || o.documentType === 'proforma' || !!o.isQuotation);
+  const deliveryList = orders.filter(o => o.documentType === 'delivery_note');
   const whtInvoices = orders.filter(o => !!o.wht5Applied);
 
-  const totalInvoicedGross = completedOrders.reduce((sum, o) => sum + o.grandTotal, 0);
-  const totalVatCollected = completedOrders.reduce((sum, o) => sum + o.vatAmount, 0);
-  const totalQuotationValue = activeQuotations.reduce((sum, o) => sum + o.grandTotal, 0);
+  const totalInvoicedGross = invoicesList.reduce((sum, o) => sum + o.grandTotal, 0);
+  const totalVatCollected = invoicesList.reduce((sum, o) => sum + o.vatAmount, 0);
+  const totalQuotationValue = quotationsList.reduce((sum, o) => sum + o.grandTotal, 0);
   const totalWhtCredits = whtInvoices.reduce((sum, o) => sum + (o.whtAmount || 0), 0);
 
+  const handleExportMasterCSV = () => {
+    exportAllBillingDocumentsCSV(filteredOrders, locations);
+  };
+
+  const getDocBadge = (order: SaleOrder) => {
+    const type: DocumentType = order.documentType || (order.isQuotation ? 'quotation' : 'invoice');
+    switch (type) {
+      case 'quotation':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">Quotation</span>;
+      case 'proforma':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-300">Proforma</span>;
+      case 'receipt':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">Receipt</span>;
+      case 'delivery_note':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">Delivery Note</span>;
+      case 'credit_note':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-900 border border-orange-300">Credit Note</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">Tax Invoice</span>;
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       
       {/* Top Header Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-rose-700 via-rose-600 to-pink-700 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group">
+      <div className="relative overflow-hidden bg-gradient-to-r from-rose-700 via-rose-600 to-pink-700 text-white p-6 rounded-2xl shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 group">
         <ReflectionOverlay />
         <RightEdgeBlend variant="rainbow" />
         <div className="space-y-1 relative z-10">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-emerald-300" />
-            <h2 className="font-bold text-lg font-sans">
-              Billing, Invoicing, Receipts &amp; Quotations Engine
+            <h2 className="font-bold text-lg">
+              Enterprise Billing, Invoicing, Quotations &amp; Delivery Notes
             </h2>
           </div>
           <p className="text-xs text-rose-100 max-w-2xl">
-            Complete automated billing suite with Kenya Revenue Authority (KRA) TIMS 16% VAT compliance, official commercial tax invoices, ETR thermal receipts, proforma quotations, and 5% Withholding Tax management.
+            Create, issue, fiscalize, and instantly download Tax Invoices, Quotations, Proformas, Official Receipts, Goods Delivery Notes, and Credit Notes with full KRA TIMS 16% VAT &amp; 5% WHT compliance.
           </p>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-md p-3 rounded-xl border border-white/20 text-xs font-mono space-y-1 shrink-0">
-          <p><strong>Company Tax PIN:</strong> {etrConfig.taxPin}</p>
-          <p><strong>TIMS CU Serial:</strong> {etrConfig.cuSerialNumber}</p>
-          <p className="text-emerald-300 font-bold font-sans flex items-center gap-1 text-[11px]">
-            <CheckCircle2 className="w-3.5 h-3.5" /> TIMS Live Online Sync Active
-          </p>
+        <div className="flex flex-wrap items-center gap-2.5 relative z-10">
+          {/* Create Document Action Button */}
+          <button
+            onClick={() => handleOpenCreateModal('invoice')}
+            className="px-4 py-2.5 bg-white text-rose-700 hover:bg-rose-50 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-rose-600" />
+            <span>Create Document</span>
+          </button>
+
+          <button
+            onClick={handleExportMasterCSV}
+            className="px-3.5 py-2.5 bg-slate-900/80 hover:bg-slate-900 text-white font-bold text-xs rounded-xl border border-white/20 shadow transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Download full billing dataset as Excel / CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-rose-300" />
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 font-sans">
         {/* Total Invoiced */}
-        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs space-y-1">
+        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs space-y-1 card-hover-effect">
           <div className="flex items-center justify-between text-slate-500 text-xs">
             <span>Total Invoiced Revenue</span>
             <Receipt className="w-4 h-4 text-rose-600" />
@@ -138,12 +220,12 @@ export const ETRModule: React.FC = () => {
             KSh {totalInvoicedGross.toLocaleString()}
           </p>
           <p className="text-[11px] text-emerald-600 font-medium">
-            {completedOrders.length} Paid Tax Invoices
+            {invoicesList.length} Official Invoices Issued
           </p>
         </div>
 
         {/* 16% VAT Collected */}
-        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs space-y-1">
+        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs space-y-1 card-hover-effect">
           <div className="flex items-center justify-between text-slate-500 text-xs">
             <span>16% Output VAT Recorded</span>
             <Percent className="w-4 h-4 text-amber-600" />
@@ -152,12 +234,12 @@ export const ETRModule: React.FC = () => {
             KSh {totalVatCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <p className="text-[11px] text-slate-500">
-            KRA Output VAT Liability
+            KRA TIMS Output VAT Liability
           </p>
         </div>
 
         {/* Quotations Pipeline */}
-        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs space-y-1">
+        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs space-y-1 card-hover-effect">
           <div className="flex items-center justify-between text-slate-500 text-xs">
             <span>Active Quotations</span>
             <FileText className="w-4 h-4 text-blue-600" />
@@ -166,27 +248,27 @@ export const ETRModule: React.FC = () => {
             KSh {totalQuotationValue.toLocaleString()}
           </p>
           <p className="text-[11px] text-blue-600 font-medium">
-            {activeQuotations.length} Proforma Quotations Pending
+            {quotationsList.length} Quotes &amp; Proformas Active
           </p>
         </div>
 
-        {/* 5% WHT Credits */}
-        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs space-y-1">
+        {/* Goods Delivery Waybills */}
+        <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-2xs space-y-1 card-hover-effect">
           <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span>5% Withholding Tax (WHT)</span>
-            <Coins className="w-4 h-4 text-purple-600" />
+            <span>Goods Delivery Waybills</span>
+            <Truck className="w-4 h-4 text-indigo-600" />
           </div>
-          <p className="text-lg md:text-xl font-bold font-mono text-purple-900">
-            KSh {totalWhtCredits.toLocaleString()}
+          <p className="text-lg md:text-xl font-bold font-mono text-indigo-950">
+            {deliveryList.length} Dispatched
           </p>
-          <p className="text-[11px] text-purple-600 font-medium">
-            {whtInvoices.length} B2B Invoices with WHT
+          <p className="text-[11px] text-indigo-600 font-medium">
+            Verified Goods Dispatch Notes
           </p>
         </div>
       </div>
 
       {/* Control Navigation, Filters & Search */}
-      <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-2xs space-y-4 font-sans">
+      <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-2xs space-y-4">
         
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           
@@ -200,37 +282,73 @@ export const ETRModule: React.FC = () => {
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              All Records ({orders.length})
+              All Documents ({orders.length})
             </button>
+
             <button
-              onClick={() => setActiveFilterTab('invoices')}
+              onClick={() => setActiveFilterTab('invoice')}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
-                activeFilterTab === 'invoices'
+                activeFilterTab === 'invoice'
                   ? 'bg-rose-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Tax Invoices &amp; Receipts ({completedOrders.length})
+              Tax Invoices ({invoicesList.length})
             </button>
+
             <button
-              onClick={() => setActiveFilterTab('quotations')}
+              onClick={() => setActiveFilterTab('quotation')}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
-                activeFilterTab === 'quotations'
+                activeFilterTab === 'quotation'
                   ? 'bg-rose-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Official Quotations ({activeQuotations.length})
+              Quotations &amp; Proformas ({quotationsList.length})
             </button>
+
+            <button
+              onClick={() => setActiveFilterTab('delivery_note')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+                activeFilterTab === 'delivery_note'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Delivery Notes ({deliveryList.length})
+            </button>
+
+            <button
+              onClick={() => setActiveFilterTab('receipt')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+                activeFilterTab === 'receipt'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Receipts
+            </button>
+
+            <button
+              onClick={() => setActiveFilterTab('credit_note')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+                activeFilterTab === 'credit_note'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Credit Notes
+            </button>
+
             <button
               onClick={() => setActiveFilterTab('wht')}
               className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
                 activeFilterTab === 'wht'
-                  ? 'bg-rose-600 text-white shadow-xs'
+                  ? 'bg-purple-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              5% WHT Invoices ({whtInvoices.length})
+              5% WHT ({whtInvoices.length})
             </button>
           </div>
 
@@ -241,7 +359,7 @@ export const ETRModule: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search Receipt #, PIN, Client..."
+                placeholder="Search Ref, Buyer, Driver, PIN..."
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
               />
             </div>
@@ -259,7 +377,7 @@ export const ETRModule: React.FC = () => {
 
         {/* ETR Config Editor Form */}
         {isConfigEditing && (
-          <form onSubmit={handleSaveConfig} className="p-4 bg-rose-50/50 rounded-xl border border-rose-200 space-y-3 text-xs font-sans animate-in fade-in duration-150">
+          <form onSubmit={handleSaveConfig} className="p-4 bg-rose-50/50 rounded-xl border border-rose-200 space-y-3 text-xs animate-in fade-in duration-150">
             <h4 className="font-bold text-slate-900 border-b border-rose-200 pb-2 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-rose-600" />
               Update KRA ETR Profile &amp; Letterhead Details
@@ -324,18 +442,18 @@ export const ETRModule: React.FC = () => {
       </div>
 
       {/* Orders, Invoices, Receipts & Quotations Table */}
-      <div className="bg-white rounded-2xl border border-rose-100 shadow-2xs overflow-hidden font-sans">
+      <div className="bg-white rounded-2xl border border-rose-100 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-rose-50/60 border-b border-rose-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                 <th className="p-4">Type &amp; Reference</th>
-                <th className="p-4">Customer Details</th>
-                <th className="p-4">Items Summary</th>
+                <th className="p-4">Customer &amp; Consignee</th>
+                <th className="p-4">Items / Packages</th>
                 <th className="p-4 font-mono">16% VAT (KSh)</th>
                 <th className="p-4 font-mono">Gross Total (KSh)</th>
                 <th className="p-4">Payment &amp; Status</th>
-                <th className="p-4 text-right">Actions</th>
+                <th className="p-4 text-right">Actions &amp; Downloads</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
@@ -344,24 +462,24 @@ export const ETRModule: React.FC = () => {
                   <td colSpan={7} className="p-8 text-center text-slate-400">
                     <FileText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-bold text-slate-600">No matching billing records found.</p>
-                    <p className="text-[11px] text-slate-400">Create sales or quotations from the POS checkout module.</p>
+                    <p className="text-[11px] text-slate-400">Click &quot;Create Document&quot; above to create a new invoice, quotation, receipt, or delivery note.</p>
                   </td>
                 </tr>
               ) : (
                 filteredOrders.map(order => {
-                  const isQuotation = !!order.isQuotation;
+                  const docType: DocumentType = order.documentType || (order.isQuotation ? 'quotation' : 'invoice');
+                  const isQuotation = docType === 'quotation' || docType === 'proforma' || !!order.isQuotation;
+                  const isDelivery = docType === 'delivery_note';
+
                   return (
                     <tr key={order.id} className="hover:bg-rose-50/30 transition-colors">
                       
                       <td className="p-4">
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            isQuotation ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-rose-100 text-rose-800'
-                          }`}>
-                            {isQuotation ? 'Quotation' : 'Tax Invoice'}
-                          </span>
+                          {getDocBadge(order)}
                         </div>
-                        <p className="font-mono font-bold text-slate-900 pt-1">{order.receiptNumber}</p>
+                        <p className="font-mono font-bold text-slate-900 pt-1">#{order.receiptNumber}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">ID: {order.id}</p>
                         <p className="text-[10px] text-slate-400">{new Date(order.timestamp).toLocaleString()}</p>
                         {order.isRerouted && (
                           <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-900">
@@ -372,30 +490,45 @@ export const ETRModule: React.FC = () => {
 
                       <td className="p-4">
                         <p className="font-bold text-slate-900">{order.customerName || 'Retail Client'}</p>
-                        {order.customerKraPin ? (
+                        {order.customerKraPin && (
                           <p className="font-mono text-[10px] text-slate-500 font-semibold">PIN: {order.customerKraPin}</p>
-                        ) : (
-                          <p className="text-[10px] text-slate-400">Standard Retail</p>
+                        )}
+                        {order.customerPhone && (
+                          <p className="text-[10px] text-slate-500">Tel: {order.customerPhone}</p>
+                        )}
+                        {order.driverName && (
+                          <p className="text-[10px] text-indigo-700 font-medium">
+                            Driver: {order.driverName} {order.vehicleRegistration ? `(${order.vehicleRegistration})` : ''}
+                          </p>
                         )}
                       </td>
 
                       <td className="p-4">
-                        <p className="font-semibold text-slate-800">{order.items.length} Product Line(s)</p>
+                        <p className="font-semibold text-slate-800">
+                          {order.items.length} Line Item(s)
+                          {order.packageCount ? ` • ${order.packageCount} pkgs` : ''}
+                        </p>
                         <p className="text-[10px] text-slate-500 truncate max-w-xs">
                           {order.items.map(i => `${i.quantity} ${i.unit} ${i.productName}`).join(', ')}
                         </p>
                       </td>
 
                       <td className="p-4 font-mono font-bold text-amber-900">
-                        KSh {order.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {isDelivery ? '—' : `KSh ${order.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                       </td>
 
                       <td className="p-4 font-mono font-bold text-slate-900">
-                        <span className="text-rose-700">KSh {order.grandTotal.toLocaleString()}</span>
-                        {order.wht5Applied && order.whtAmount && (
-                          <span className="block text-[10px] font-mono text-purple-700">
-                            Less 5% WHT: -KSh {order.whtAmount.toLocaleString()}
-                          </span>
+                        {isDelivery ? (
+                          <span className="text-indigo-700">Waybill (Goods)</span>
+                        ) : (
+                          <>
+                            <span className="text-rose-700">KSh {order.grandTotal.toLocaleString()}</span>
+                            {order.wht5Applied && order.whtAmount && (
+                              <span className="block text-[10px] font-mono text-purple-700">
+                                Less 5% WHT: -KSh {order.whtAmount.toLocaleString()}
+                              </span>
+                            )}
+                          </>
                         )}
                       </td>
 
@@ -403,6 +536,10 @@ export const ETRModule: React.FC = () => {
                         {isQuotation ? (
                           <span className="bg-amber-50 border border-amber-200 text-amber-900 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-block">
                             Proforma (Unpaid)
+                          </span>
+                        ) : isDelivery ? (
+                          <span className="bg-indigo-50 border border-indigo-200 text-indigo-900 px-2.5 py-1 rounded-lg text-[11px] font-bold inline-block">
+                            Dispatched
                           </span>
                         ) : (
                           <div className="space-y-0.5">
@@ -419,23 +556,53 @@ export const ETRModule: React.FC = () => {
                       </td>
 
                       <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                        
+                        {/* Download PDF Button */}
+                        <button
+                          onClick={() => exportBillingDocumentPDF(order, etrConfig, locations)}
+                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          title="Download PDF Document"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Download CSV Button */}
+                        <button
+                          onClick={() => exportBillingDocumentCSV(order, etrConfig, locations)}
+                          className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-xs rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          title="Download Excel / CSV"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                        </button>
+
+                        {/* Convert quotation shortcut */}
                         {isQuotation && (
                           <button
                             onClick={() => setConvertingQuotation(order)}
-                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
                             title="Convert Quotation into Official Tax Invoice &amp; ETR Receipt"
                           >
-                            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                            <Sparkles className="w-3 h-3 text-amber-300" />
                             <span>Convert</span>
                           </button>
                         )}
 
+                        {/* View & Print Modal trigger */}
                         <button
                           onClick={() => setSelectedReceipt(order)}
-                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                          className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
                         >
                           <Printer className="w-3.5 h-3.5" />
-                          <span>View &amp; Print</span>
+                          <span>View</span>
+                        </button>
+
+                        {/* Delete document button */}
+                        <button
+                          onClick={() => handleDeleteDocument(order)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                          title="Delete Document Record"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </td>
 
@@ -448,10 +615,17 @@ export const ETRModule: React.FC = () => {
         </div>
       </div>
 
+      {/* CREATE BILLING DOCUMENT MODAL */}
+      <CreateBillingDocumentModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        initialType={createInitialType}
+      />
+
       {/* MODAL: CONVERT QUOTATION TO OFFICIAL INVOICE */}
       {convertingQuotation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100 animate-in zoom-in-95 duration-150 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
@@ -468,7 +642,7 @@ export const ETRModule: React.FC = () => {
               </div>
               <button
                 onClick={() => setConvertingQuotation(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer text-lg font-bold"
               >
                 &times;
               </button>
@@ -527,9 +701,9 @@ export const ETRModule: React.FC = () => {
                     <input
                       type="text"
                       value={convertWhtCert}
-                      onChange={e => setConvertWhtCert(e.target.value)}
+                      onChange={e => setConvertWhtCert(e.target.value.toUpperCase())}
                       placeholder="e.g. KRA-WHT-2026-88192"
-                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono"
+                      className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono uppercase font-bold"
                     />
                   </div>
                 )}

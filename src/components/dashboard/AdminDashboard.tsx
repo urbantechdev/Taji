@@ -106,7 +106,7 @@ export const AdminDashboard: React.FC = () => {
     if (o.status !== 'completed') return acc;
     const orderCost = o.items.reduce((iAcc, item) => {
       const prod = products.find(p => p.id === item.batchId);
-      const unitCost = prod ? prod.costPrice : item.price * 0.7;
+      const unitCost = prod ? prod.costPrice : item.unitPrice * 0.7;
       return iAcc + unitCost * item.quantity;
     }, 0);
     return acc + orderCost;
@@ -851,11 +851,11 @@ export const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Stock Holding & Revenue by Location Chart */}
-        <div className="relative overflow-hidden lg:col-span-2 bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 group">
+        <div className="relative overflow-hidden lg:col-span-2 bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 group hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
           <RightEdgeBlend variant="rainbow" />
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">
+              <h3 className="font-bold text-slate-900 text-sm group-hover:text-rose-600 transition-colors">
                 Node Financial Distribution &amp; Sales
               </h3>
               <p className="text-xs text-slate-500">
@@ -882,10 +882,10 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Category Share Breakdown */}
-        <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 flex flex-col justify-between group">
+        <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 flex flex-col justify-between group hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
           <RightEdgeBlend variant="ocean" />
           <div>
-            <h3 className="font-bold text-slate-900 text-sm">
+            <h3 className="font-bold text-slate-900 text-sm group-hover:text-rose-600 transition-colors">
               Textile Category Asset Share
             </h3>
             <p className="text-xs text-slate-500">
@@ -916,9 +916,9 @@ export const AdminDashboard: React.FC = () => {
 
           <div className="space-y-2 border-t border-rose-100 pt-3">
             {categoryData.map((cat, idx) => (
-              <div key={cat.name} className="flex items-center justify-between text-xs">
+              <div key={cat.name} className="flex items-center justify-between text-xs p-1 rounded-lg hover:bg-rose-50/60 transition-colors">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx] }} />
+                  <div className="w-3 h-3 rounded-full transition-transform group-hover:scale-110" style={{ backgroundColor: COLORS[idx] }} />
                   <span className="font-semibold text-slate-700">{cat.name}</span>
                 </div>
                 <span className="font-mono font-bold text-slate-900">
@@ -935,11 +935,11 @@ export const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Core System Architecture Operational Rules Checklist */}
-        <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 group">
+        <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4 group hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
           <RightEdgeBlend variant="rose" />
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 group-hover:text-rose-600 transition-colors">
                 <ShieldCheck className="w-4 h-4 text-rose-600" />
                 Core Inter-Store Logic &amp; Operational Matrix
               </h3>
@@ -951,7 +951,7 @@ export const AdminDashboard: React.FC = () => {
 
           <div className="space-y-3">
             
-            <div className="p-3 bg-rose-50/60 rounded-xl border border-rose-100 flex items-start gap-3">
+            <div className="p-3 bg-rose-50/60 rounded-xl border border-rose-100 flex items-start gap-3 hover:bg-rose-100/60 hover:shadow-xs transition-all">
               <CheckCircle2 className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs font-bold text-rose-950">Main Store Operations</p>
@@ -961,7 +961,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 flex items-start gap-3">
+            <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 flex items-start gap-3 hover:bg-amber-100/60 hover:shadow-xs transition-all">
               <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs font-bold text-amber-950">Store 1 &amp; Store 2 Sales Restrictions</p>
@@ -971,7 +971,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 flex items-start gap-3">
+            <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 flex items-start gap-3 hover:bg-emerald-100/60 hover:shadow-xs transition-all">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs font-bold text-emerald-950">Sales Shop &amp; ETR Engine</p>
@@ -988,7 +988,7 @@ export const AdminDashboard: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           
           {/* MAIN STORE LOW STOCK ALERT CARD */}
-          <div className="relative overflow-hidden bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 shadow-md space-y-4 group">
+          <div className="relative overflow-hidden bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 shadow-md space-y-4 group hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
             <RightEdgeBlend variant="sunset" />
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
@@ -1019,7 +1019,7 @@ export const AdminDashboard: React.FC = () => {
                 {mainStoreLowStock.map((p) => (
                   <div
                     key={`main-low-${p.id}`}
-                    className="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl flex items-center justify-between gap-3 text-xs"
+                    className="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl flex items-center justify-between gap-3 text-xs hover:bg-slate-800 hover:border-rose-500/50 hover:shadow-xs transition-all"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
@@ -1041,7 +1041,7 @@ export const AdminDashboard: React.FC = () => {
                           `Supplier Factory Reorder for Main Store Hub (${p.name})`
                         );
                       }}
-                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-lg shrink-0 transition-colors flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-lg shrink-0 transition-all hover:scale-105 active:scale-95 shadow-xs flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw className="w-3 h-3" />
                       Procure Hub Stock
@@ -1053,11 +1053,11 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           {/* SALES SHOP LOW STOCK ALERT CARD */}
-          <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-pink-200 shadow-sm space-y-4 group">
+          <div className="relative overflow-hidden bg-white p-5 rounded-2xl border border-pink-200 shadow-xs space-y-4 group hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
             <RightEdgeBlend variant="rainbow" />
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 group-hover:text-pink-600 transition-colors">
                   <Store className="w-4 h-4 text-pink-600" />
                   <AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" />
                   Sales Shop Low Stock Alerts ({salesShopLowStock.length})
@@ -1084,7 +1084,7 @@ export const AdminDashboard: React.FC = () => {
                 {salesShopLowStock.map((p) => (
                   <div
                     key={`shop-low-${p.id}`}
-                    className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs"
+                    className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs hover:bg-amber-100/80 hover:border-amber-400 hover:shadow-xs transition-all"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
@@ -1501,14 +1501,12 @@ export const AdminDashboard: React.FC = () => {
                   <div key={tx.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs gap-3 font-mono">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900">{tx.account}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          tx.type === 'debit' ? 'bg-indigo-100 text-indigo-900' : 'bg-emerald-100 text-emerald-900'
-                        }`}>
-                          {(tx?.type || '').toUpperCase()}
+                        <span className="font-bold text-slate-900">{tx.debitAccount} → {tx.creditAccount}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-900">
+                          {tx.category}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 font-sans">{tx.description} • By: {tx.performedBy}</p>
+                      <p className="text-[11px] text-slate-500 font-sans">{tx.description} • Ref: {tx.transactionRef}</p>
                     </div>
 
                     <div className="text-right shrink-0">
