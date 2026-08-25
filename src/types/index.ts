@@ -130,11 +130,148 @@ export interface CategoryImageConfig {
 export interface DuplicateBarcodeAlertState {
   isOpen: boolean;
   barcode: string;
+  sku?: string;
+  matchType?: 'barcode' | 'sku' | 'name';
   existingProduct: ProductBatch | null;
   scannedAt: string;
   scannedCategory?: CategoryType;
   targetLocation?: LocationId;
+  incomingQuantity?: number;
   message: string;
+}
+
+export interface ProductDuplicateGroup {
+  key: string;
+  matchType: 'barcode' | 'sku' | 'name';
+  masterProduct: ProductBatch;
+  duplicates: ProductBatch[];
+  totalDuplicateCount: number;
+  totalStockDistortion: number;
+  financialValuationDistortionCost: number;
+  financialValuationDistortionRetail: number;
+}
+
+export interface CatalogDuplicateAuditReport {
+  totalProductsScanned: number;
+  duplicateGroupsCount: number;
+  totalDuplicateRecords: number;
+  totalStockDistortionUnits: number;
+  totalFinancialDistortionCost: number;
+  totalFinancialDistortionRetail: number;
+  duplicateGroups: ProductDuplicateGroup[];
+  isAuditClean: boolean;
+  auditGeneratedAt: string;
+}
+
+// Financial Statements Generation Types (Full, Mobile Money, Bank, PDQ)
+export interface MobileMoneyStatementEntry {
+  id: string;
+  transactionId: string;
+  timestamp: string;
+  receiptNumber: string;
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  channel: 'Till Number (Buy Goods)' | 'Paybill Account' | 'Pochi la Biashara' | 'Direct Send Money';
+  tillOrPaybillNo: string;
+  grossAmount: number;
+  transactionFee: number;
+  netSettlement: number;
+  locationId: LocationId;
+  status: 'Settled' | 'Pending Verification' | 'Reconciled';
+  notes?: string;
+}
+
+export interface MobileMoneyStatementSummary {
+  totalGrossInflow: number;
+  totalTransactionFees: number;
+  totalNetSettled: number;
+  transactionCount: number;
+  reconciledCount: number;
+  unreconciledCount: number;
+  primaryTillNumber: string;
+  paybillNumber?: string;
+  accountReference?: string;
+  settlementAccount: string;
+}
+
+export interface BankStatementEntry {
+  id: string;
+  transactionRef: string;
+  valueDate: string;
+  documentRef: string;
+  customerName: string;
+  bankName: string;
+  accountNumber: string;
+  paymentType: 'Direct Bank Transfer' | 'RTGS Wire' | 'Pesalink Instant' | 'Cheque Deposit';
+  debitAmount: number;
+  creditAmount: number;
+  runningBalance: number;
+  locationId: LocationId;
+  reconciliationStatus: 'Matched & Cleared' | 'Pending Bank Clearance' | 'Uncleared Cheque';
+  notes?: string;
+}
+
+export interface BankStatementSummary {
+  openingBalance: number;
+  totalCredits: number;
+  totalDebits: number;
+  closingBalance: number;
+  clearedTransactionsCount: number;
+  unclearedCount: number;
+  bankName: string;
+  accountNumber: string;
+  accountCurrency?: string;
+}
+
+export interface PDQStatementEntry {
+  id: string;
+  terminalId: string;
+  batchNumber: string;
+  authCode: string;
+  receiptNumber: string;
+  orderId: string;
+  cardType: 'Visa Credit' | 'Visa Debit' | 'Mastercard' | 'Contactless Tap';
+  cardLast4: string;
+  cardHolderName: string;
+  timestamp: string;
+  grossAmount: number;
+  merchantDiscountFee: number;
+  netSettlement: number;
+  settlementBatchStatus: 'Settled to Bank' | 'Pending End-of-Day Batch Close';
+  locationId: LocationId;
+}
+
+export interface PDQStatementSummary {
+  merchantId?: string;
+  terminalIds: string[];
+  settlementBank?: string;
+  totalGrossVolume: number;
+  totalMerchantFees: number;
+  totalNetSettlement: number;
+  totalSwipesCount: number;
+  visaVolume: number;
+  mastercardVolume: number;
+  settledBatchesCount: number;
+}
+
+export interface FullConsolidatedFinancialStatement {
+  reportingPeriod: string;
+  generatedAt: string;
+  locationScope: string;
+  companyInfo: ETRConfig;
+  balanceSheet: BalanceSheetData;
+  incomeStatement: IncomeStatementData;
+  cashFlow?: CashFlowStatementData;
+  cashFlowStatement?: CashFlowStatementData;
+  mobileMoneySummary: MobileMoneyStatementSummary;
+  bankSummary: BankStatementSummary;
+  pdqSummary: PDQStatementSummary;
+  totalGrossInflows?: number;
+  totalChannelFeesDeducted?: number;
+  netSettledRevenue?: number;
+  totalOperatingDisbursements?: number;
+  closingCashAndBankEquivalents?: number;
 }
 
 export interface MobileBarcodeScanOptions {
@@ -344,17 +481,31 @@ export type TransferStatus = 'pending_approval' | 'dispatched' | 'fulfilled' | '
 
 export interface InterStoreTransfer {
   id: string; // e.g. TRF-1029
+  trackingNumber?: string;
   transferType: TransferType;
   fromLocation: LocationId;
   toLocation: LocationId;
+  originLocationId?: LocationId;
+  destinationLocationId?: LocationId;
   requestedByOperator: string;
+  requestedBy?: string;
   fulfilledByOperator?: string;
+  dispatchedBy?: string;
+  receivedBy?: string;
+  driverName?: string;
+  vehicleRegistration?: string;
+  driverPhone?: string;
+  tareDeductionApplied?: boolean;
+  tareWeightAllowance?: number;
+  sealNumber?: string;
   items: {
     batchId: string;
     productName: string;
+    category?: CategoryType;
     quantity: number;
     unit: UnitType;
     unitCost: number; // For stock value tracking
+    tareWeightDeduction?: number;
   }[];
   notes?: string;
   status: TransferStatus;
@@ -490,6 +641,10 @@ export interface ETRConfig {
   companyPhone: string;
   companyEmail: string;
   receiptFooterMessage: string;
+  tillNumber?: string;
+  paybillNumber?: string;
+  mpesaTill?: string;
+  bankAccount?: string;
 }
 
 export interface ETIMSCreditNote {
@@ -572,6 +727,9 @@ export interface BrandSettings {
   logoUrl?: string;
   faviconUrl?: string;
   headerBgColor: string; // e.g. '#ec4899' or 'pink'
+  supportEmail?: string;
+  supportPhone?: string;
+  address?: string;
 }
 
 export interface MailNotification {
@@ -693,5 +851,156 @@ export interface CashFlowStatementData {
   };
   netChangeInCash: number;
   closingCashPosition: number;
+}
+
+export interface CashierShiftRecord {
+  id: string; // e.g. "SHIFT-2026-0824-001"
+  shiftNumber: string;
+  locationId: LocationId;
+  locationName: string;
+  operatorId: string;
+  operatorName: string;
+  operatorRole?: UserRole;
+  startTime: string;
+  endTime: string;
+  status: 'active' | 'closed';
+  
+  // Starting float
+  openingFloat: number;
+  
+  // Sales generated during this shift
+  totalSalesOrdersCount: number;
+  totalUnitsSold: number;
+  grossSalesRevenue: number;
+  vatLiability: number;
+  netSalesRevenue: number;
+  
+  // Expected breakdown by channel
+  expectedCash: number;
+  expectedMpesa: number;
+  expectedBank: number;
+  expectedCard?: number;
+  
+  // Expenses / Cash Outflows during shift
+  cashExpensesPaid: number;
+  
+  // Actual recorded by cashier at closing
+  actualCashAtHand: number;
+  actualMpesa: number;
+  actualBank: number;
+  actualCard?: number;
+  
+  // Variances (Actual - Expected)
+  cashVariance: number; // positive = surplus, negative = shortage
+  mpesaVariance: number;
+  bankVariance: number;
+  totalVariance: number;
+  
+  // Cash denomination count (notes & coins)
+  cashDenominations?: {
+    notes1000?: number;
+    notes500?: number;
+    notes200?: number;
+    notes100?: number;
+    notes50?: number;
+    coins?: number;
+  };
+  
+  // Handover details
+  handedOverTo?: string;
+  closingNotes?: string;
+  closedBySupervisor?: string;
+  closedAt: string;
+  zReportNumber: string;
+}
+
+export type PeriodicStatementPeriod = 'daily' | 'weekly' | 'monthly' | 'custom';
+
+export interface PeriodicStatementSummary {
+  periodType: PeriodicStatementPeriod;
+  startDate: string;
+  endDate: string;
+  title: string;
+  locationId?: LocationId | 'All';
+  locationName: string;
+  
+  // Highlights
+  totalOrders: number;
+  totalUnitsSold: number;
+  grossSalesRevenue: number;
+  vat16Amount: number;
+  netSalesRevenue: number;
+  cogsAmount: number;
+  grossProfit: number;
+  grossMarginPercent: number;
+  
+  // Channel breakdown (Cash at hand vs Bank vs Mpesa)
+  cashSalesTotal: number;
+  cashSalesCount: number;
+  mpesaSalesTotal: number;
+  mpesaSalesCount: number;
+  bankSalesTotal: number;
+  bankSalesCount: number;
+  cardSalesTotal: number;
+  cardSalesCount: number;
+  
+  // Shifts & Cash Handover highlights
+  totalOpeningFloats: number;
+  totalCashExpenses: number;
+  expectedCashInDrawer: number;
+  actualCountedCash: number;
+  totalCashVariance: number;
+  
+  // Itemized product lines
+  categoryBreakdown: {
+    category: CategoryType;
+    unitsSold: number;
+    revenue: number;
+    sharePercent: number;
+  }[];
+  
+  // List of matching orders
+  orders: SaleOrder[];
+  
+  // Shift closures during this period
+  shiftClosures: CashierShiftRecord[];
+  
+  generatedAt: string;
+}
+
+export interface TodaySalesSummary {
+  date: string;
+  totalOrders: number;
+  totalUnitsSold: number;
+  grossRevenue: number;
+  vatLiability: number;
+  netRevenue: number;
+  cogs: number;
+  grossProfit: number;
+  grossMarginPercent: number;
+  
+  // Channel Breakdown
+  cashAtHand: number;
+  cashOrdersCount: number;
+  mpesaTotal: number;
+  mpesaOrdersCount: number;
+  bankTotal: number;
+  bankOrdersCount: number;
+  cardTotal: number;
+  cardOrdersCount: number;
+  
+  // Drawer & Float
+  currentCashDrawerBalance: number;
+  todayCashExpenses: number;
+  
+  // Item categories
+  categoryBreakdown: {
+    category: CategoryType;
+    unitsSold: number;
+    revenue: number;
+    margin: number;
+  }[];
+  
+  orders: SaleOrder[];
 }
 

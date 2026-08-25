@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavTab } from './Sidebar';
 import { useERP } from '../../context/ERPContext';
 import { LocationId, UserRole } from '../../types';
+import { isTabAllowedForRole } from '../../utils/rbac';
 import { playClickSound, playPopupSound } from '../../utils/audio';
 import {
   LayoutDashboard,
@@ -26,7 +27,8 @@ import {
   ShieldCheck,
   Store,
   Warehouse,
-  Building2
+  Building2,
+  TrendingUp
 } from 'lucide-react';
 
 interface MobileBottomNavProps {
@@ -84,7 +86,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     p => p.locationStock ? (p.locationStock.sales_shop ?? 0) <= p.minReorderLevel : false
   ).length;
 
-  const primaryNav: { id: NavTab; label: string; icon: React.ReactNode }[] = [
+  const allPrimaryNav: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     {
       id: 'dashboard',
       label: 'Overview',
@@ -107,7 +109,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     }
   ];
 
-  const secondaryNav: { id: NavTab; label: string; icon: React.ReactNode; desc: string }[] = [
+  const allSecondaryNav: { id: NavTab; label: string; icon: React.ReactNode; desc: string }[] = [
+    {
+      id: 'sales_today',
+      label: 'Sales Today & Cash',
+      icon: <TrendingUp className="w-5 h-5 text-rose-600" />,
+      desc: 'Live revenue, bank, mpesa & cash'
+    },
     {
       id: 'branches',
       label: 'Autonomous Branches',
@@ -146,13 +154,26 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     }
   ];
 
+  // RBAC filter: Only show tabs permitted for the user's role
+  const primaryNav = allPrimaryNav.filter(item => isTabAllowedForRole(currentUser.role, item.id));
+  const secondaryNav = allSecondaryNav.filter(item => isTabAllowedForRole(currentUser.role, item.id));
+
+  // If primaryNav is empty, pull first allowed items from secondaryNav
+  const displayPrimaryNav = primaryNav.length > 0
+    ? primaryNav
+    : secondaryNav.slice(0, 4).map(item => ({ id: item.id, label: item.label.split(' ')[0], icon: item.icon }));
+
+  const displaySecondaryNav = primaryNav.length > 0
+    ? secondaryNav
+    : secondaryNav.slice(4);
+
   const handleSelectTab = (tab: NavTab) => {
     playClickSound();
     setActiveTab(tab);
     setIsMoreMenuOpen(false);
   };
 
-  const isSecondaryActive = secondaryNav.some(item => item.id === activeTab);
+  const isSecondaryActive = displaySecondaryNav.some(item => item.id === activeTab);
 
   return (
     <>
@@ -427,106 +448,60 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       )}
 
       {/* Sticky Mobile Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-center justify-around py-1.5 px-2 text-slate-600 md:hidden">
-        {isAdmin ? (
-          <>
-            {primaryNav.map(item => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleSelectTab(item.id)}
-                  className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all relative ${
-                    isActive
-                      ? 'text-rose-600 font-bold scale-105'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {item.icon}
-                  <span className="text-[10px] mt-0.5 tracking-tight font-medium">
-                    {item.label}
-                  </span>
-                  {isActive && (
-                    <span className="absolute -top-1.5 w-8 h-1 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-[0_2px_8px_rgba(244,63,94,0.6)]" />
-                  )}
-                </button>
-              );
-            })}
-
-            {/* Modules / Control Panel Drawer Trigger Button */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-center justify-around py-1.5 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] text-slate-600 md:hidden">
+        {displayPrimaryNav.map(item => {
+          const isActive = activeTab === item.id;
+          return (
             <button
-              onClick={() => setIsMoreMenuOpen(prev => !prev)}
+              key={item.id}
+              onClick={() => handleSelectTab(item.id)}
               className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all relative ${
-                isSecondaryActive || isMoreMenuOpen
+                isActive
                   ? 'text-rose-600 font-bold scale-105'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Grid className="w-5 h-5" />
-              <span className="text-[10px] mt-0.5 tracking-tight font-medium">Modules</span>
-              {(isSecondaryActive || isMoreMenuOpen) && (
+              {item.icon}
+              <span className="text-[10px] mt-0.5 tracking-tight font-medium">
+                {item.label}
+              </span>
+              {isActive && (
                 <span className="absolute -top-1.5 w-8 h-1 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-[0_2px_8px_rgba(244,63,94,0.6)]" />
               )}
             </button>
-          </>
-        ) : (
-          /* Specialized Cashier POS mobile bottom bar */
-          <>
-            <button
-              onClick={() => {
-                playClickSound();
-                setAppMode('pos');
-              }}
-              className="flex flex-col items-center justify-center py-1 px-2 text-rose-600 font-black relative"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              <span className="text-[10px] mt-0.5 tracking-tight">POS Terminal</span>
-              <span className="absolute -top-1.5 w-8 h-1 bg-rose-600 rounded-full" />
-            </button>
+          );
+        })}
 
-            <button
-              onClick={() => {
-                playClickSound();
-                setIsMailDrawerOpen(true);
-              }}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all relative ${
-                unreadMails > 0 ? 'text-amber-600 font-bold animate-pulse' : 'text-slate-500'
-              }`}
-            >
-              <div className="relative">
-                <Mail className="w-5 h-5" />
-                {unreadMails > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
-                    {unreadMails}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] mt-0.5 tracking-tight font-medium">Inbox</span>
-            </button>
-
-            <button
-              onClick={() => {
-                playClickSound();
-                setIsQRScannerOpen(true);
-              }}
-              className="flex flex-col items-center justify-center py-1 px-2 text-slate-500 hover:text-slate-800"
-            >
-              <QrCode className="w-5 h-5 text-indigo-600" />
-              <span className="text-[10px] mt-0.5 tracking-tight font-medium">Scan QR</span>
-            </button>
-
-            <button
-              onClick={() => {
-                playClickSound();
-                lockPlatform();
-              }}
-              className="flex flex-col items-center justify-center py-1 px-2 text-rose-600 font-bold"
-            >
-              <Lock className="w-5 h-5 text-rose-500" />
-              <span className="text-[10px] mt-0.5 tracking-tight">Lock</span>
-            </button>
-          </>
+        {/* Modules / Control Panel Drawer Trigger Button (Only if extra allowed modules exist) */}
+        {displaySecondaryNav.length > 0 && (
+          <button
+            onClick={() => setIsMoreMenuOpen(prev => !prev)}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all relative ${
+              isSecondaryActive || isMoreMenuOpen
+                ? 'text-rose-600 font-bold scale-105'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Grid className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Modules</span>
+            {(isSecondaryActive || isMoreMenuOpen) && (
+              <span className="absolute -top-1.5 w-8 h-1 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-[0_2px_8px_rgba(244,63,94,0.6)]" />
+            )}
+          </button>
         )}
+
+        {/* Quick Lock Session Button */}
+        <button
+          onClick={() => {
+            playClickSound();
+            lockPlatform();
+          }}
+          className="flex flex-col items-center justify-center py-1 px-2 text-rose-600 font-bold"
+          title="Lock Terminal Session"
+        >
+          <Lock className="w-5 h-5 text-rose-500" />
+          <span className="text-[10px] mt-0.5 tracking-tight">Lock</span>
+        </button>
       </nav>
     </>
   );

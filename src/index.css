@@ -84,17 +84,34 @@ body {
 /* Global Interactive Hover & Animation Dynamics for Blocks and Buttons */
 @layer base {
   button:not([disabled]) {
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  button:not([disabled]):hover {
+    filter: brightness(1.03);
   }
   
   button:not([disabled]):active {
     transform: scale(0.97);
   }
+
+  /* Universal smooth cursor and focus states */
+  input, select, textarea {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  }
 }
 
 /* Card and Block Elevation Micro-Animations */
-.card-hover-effect {
+.card-hover-effect, 
+div[class*="rounded-2xl"][class*="border"], 
+div[class*="rounded-xl"][class*="border"],
+div[class*="rounded-3xl"][class*="border"] {
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+div[class*="rounded-2xl"][class*="border"]:hover, 
+div[class*="rounded-xl"][class*="border"]:hover {
+  border-color: rgba(244, 63, 94, 0.28);
 }
 
 .card-hover-effect:hover {
@@ -132,6 +149,15 @@ body {
 
 .interactive-badge:hover {
   transform: translateY(-1px) scale(1.02);
+}
+
+/* Tab buttons and pill hover transitions */
+[role="tab"], button[class*="rounded-xl"], button[class*="rounded-lg"] {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[role="tab"]:hover, button[class*="rounded-xl"]:hover, button[class*="rounded-lg"]:hover {
+  transform: translateY(-0.5px);
 }
 
 /* Subtle pulse and glow for active indicators */

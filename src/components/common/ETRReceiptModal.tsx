@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from './ReflectionOverlay';
+import { DocumentHeader } from './DocumentHeader';
 import {
   X,
   Printer,
@@ -42,6 +43,7 @@ export const ETRReceiptModal: React.FC = () => {
     selectedReceipt,
     setSelectedReceipt,
     etrConfig,
+    brandSettings,
     locations,
     convertQuotationToInvoice,
     createBillingDocument
@@ -435,14 +437,32 @@ export const ETRReceiptModal: React.FC = () => {
              THERMAL 80mm RECEIPT LAYOUT
              ============================================================== */
           <div className="p-6 font-mono text-xs text-slate-800 space-y-4 print:p-0 print:text-black" id="printable-receipt">
-            {/* Company Header */}
+            {/* Company Header with Logo */}
             <div className="text-center space-y-1 pb-3 border-b border-dashed border-slate-300">
+              <div className="flex justify-center mb-1.5">
+                <div className="w-12 h-12 rounded-full border border-slate-300 p-0.5 shadow-xs bg-white overflow-hidden flex items-center justify-center">
+                  {brandSettings?.logoUrl ? (
+                    <img
+                      src={brandSettings.logoUrl}
+                      alt={brandSettings.brandName || etrConfig.companyName}
+                      className="w-full h-full object-contain rounded-full"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-full bg-rose-600 text-white font-bold text-base flex items-center justify-center">
+                      {(brandSettings?.brandName || etrConfig.companyName).charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="flex justify-center items-center gap-1 text-rose-600 font-sans font-bold text-base uppercase tracking-tight">
-                <Building2 className="w-4 h-4 text-rose-600 print:hidden" />
-                {etrConfig.companyName}
+                {brandSettings?.brandName || etrConfig.companyName}
               </div>
               <p className="text-[10px] text-slate-500 font-sans">{etrConfig.companyAddress}</p>
-              <p className="text-[10px] text-slate-500 font-sans">Tel: {etrConfig.companyPhone}</p>
+              <p className="text-[10px] text-slate-500 font-sans">Tel: {etrConfig.companyPhone} • {brandSettings?.supportEmail || 'billing@zamodasports.com'}</p>
               <div className="mt-2 text-[10px] bg-slate-100 py-1 rounded font-bold text-slate-700">
                 KRA PIN: {etrConfig.taxPin} | CU SERIAL: {etrConfig.cuSerialNumber}
               </div>
@@ -587,41 +607,20 @@ export const ETRReceiptModal: React.FC = () => {
              A4 GOODS DELIVERY NOTE / DISPATCH WAYBILL LAYOUT
              ============================================================== */
           <div className="p-8 font-sans text-xs text-slate-800 space-y-6 print:p-0 print:text-black" id="printable-receipt">
-            {/* Top Header */}
-            <div className="flex justify-between items-start border-b-2 border-indigo-600 pb-5">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-indigo-600 text-white rounded-xl print:bg-black">
-                    <Truck className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="font-extrabold text-xl text-slate-900 uppercase tracking-tight">
-                      {etrConfig.companyName}
-                    </h2>
-                    <p className="text-xs text-indigo-700 font-bold font-mono">
-                      OFFICIAL GOODS DELIVERY NOTE &amp; DISPATCH WAYBILL
-                    </p>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 pt-1">{etrConfig.companyAddress}</p>
-                <p className="text-xs text-slate-500">Phone: {etrConfig.companyPhone} • Dispatch Store: {fulfilledLoc?.name || 'Main Store'}</p>
-              </div>
-
-              <div className="text-right space-y-1">
-                <span className="inline-block px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-900 border border-indigo-200">
-                  Goods Delivery Note
-                </span>
-                <p className="font-mono text-sm font-bold text-slate-900 pt-1">
-                  #{selectedReceipt.receiptNumber}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Dispatch Date: <span className="font-semibold">{selectedReceipt.dispatchDate || new Date(selectedReceipt.timestamp).toLocaleDateString()}</span>
-                </p>
-                <p className="text-[11px] text-slate-500">
+            {/* Top Branded Header */}
+            <DocumentHeader
+              title="Official Goods Delivery Note & Dispatch Waybill"
+              subtitle="Textile Manufacturing & Distribution Hub"
+              documentNumber={selectedReceipt.receiptNumber}
+              documentDate={selectedReceipt.dispatchDate || selectedReceipt.timestamp}
+              badgeVariant="delivery_note"
+              badgeLabel="Goods Delivery Note"
+              extraMetaRight={
+                <p className="text-[11px] text-slate-500 font-medium">
                   Packages: <span className="font-bold text-indigo-900">{selectedReceipt.packageCount || selectedReceipt.items.length} Bundles/Rolls</span>
                 </p>
-              </div>
-            </div>
+              }
+            />
 
             {/* Consignee & Transporter Info Grid */}
             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
@@ -762,41 +761,28 @@ export const ETRReceiptModal: React.FC = () => {
              A4 COMMERCIAL TAX INVOICE / QUOTATION LETTERHEAD LAYOUT
              ============================================================== */
           <div className="p-8 font-sans text-xs text-slate-800 space-y-6 print:p-0 print:text-black" id="printable-receipt">
-            {/* Top Company Letterhead */}
-            <div className="flex justify-between items-start border-b-2 border-rose-600 pb-5">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-rose-600 text-white rounded-xl print:bg-black">
-                    <Building2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="font-extrabold text-xl text-slate-900 uppercase tracking-tight">
-                      {etrConfig.companyName}
-                    </h2>
-                    <p className="text-xs text-rose-700 font-bold font-mono">
-                      TEXTILE MANUFACTURING &amp; DISTRIBUTION ERP
-                    </p>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500 pt-1">{etrConfig.companyAddress}</p>
-                <p className="text-xs text-slate-500">Phone: {etrConfig.companyPhone} • Email: billing@zamodasports.com</p>
-              </div>
-
-              <div className="text-right space-y-1">
-                <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider ${badgeColor}`}>
-                  {documentTitle}
-                </span>
-                <p className="font-mono text-sm font-bold text-slate-900 pt-1">
-                  #{selectedReceipt.receiptNumber}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Ref ID: <span className="font-mono font-bold text-slate-700">{selectedReceipt.id}</span>
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Date: <span className="font-semibold">{new Date(selectedReceipt.timestamp).toLocaleDateString()}</span>
-                </p>
-              </div>
-            </div>
+            {/* Top Company Branded Letterhead */}
+            <DocumentHeader
+              title={documentTitle}
+              subtitle="Textile Manufacturing & Multi-Branch Distribution Hub"
+              documentNumber={selectedReceipt.receiptNumber}
+              documentDate={selectedReceipt.timestamp}
+              refId={selectedReceipt.id}
+              badgeVariant={
+                isDeliveryNote
+                  ? 'delivery_note'
+                  : docType === 'quotation'
+                  ? 'quotation'
+                  : docType === 'proforma'
+                  ? 'proforma'
+                  : isReceipt
+                  ? 'receipt'
+                  : isCreditNote
+                  ? 'credit_note'
+                  : 'invoice'
+              }
+              badgeLabel={documentTitle}
+            />
 
             {/* B2B Customer & KRA Tax Grid */}
             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">

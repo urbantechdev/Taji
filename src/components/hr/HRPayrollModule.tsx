@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { PayrollRecord, StaffMember, UserRole, LocationId } from '../../types';
+import DocumentHeader from '../common/DocumentHeader';
 import {
   calculateKenyaStatutoryDeductions,
   generateKRAPayeCSV,
@@ -766,12 +767,15 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
             </div>
 
             <div className="space-y-3 font-sans text-xs bg-slate-50 p-4 rounded-xl border border-slate-200" id="printable-payslip">
-              <div className="text-center border-b border-slate-200 pb-2">
-                <h4 className="font-black text-slate-900 text-sm">{etrConfig?.companyName || 'Taji Textile & Garment Solutions Ltd'}</h4>
-                <p className="text-[10px] text-slate-500">Multi-Branch ERP Hub • PIN: {etrConfig?.taxPin || 'P051982341Z'}</p>
-              </div>
+              <DocumentHeader
+                variant="thermal"
+                title={`PAYSLIP - ${selectedPayslip.monthYear}`}
+                docNumber={`PAY-${selectedPayslip.employeeNo}-${selectedPayslip.monthYear.replace(/\s+/g, '')}`}
+                docDate={new Date().toISOString()}
+                badgeText="OFFICIAL PAYSLIP"
+              />
 
-              <div className="space-y-1">
+              <div className="space-y-1 pt-2 border-t border-slate-200">
                 <div className="flex justify-between"><span className="text-slate-500">Employee Name:</span><span className="font-bold text-slate-900">{selectedPayslip.staffName}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Employee No:</span><span className="font-mono">{selectedPayslip.employeeNo}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Designation:</span><span className="font-semibold">{selectedPayslip.role}</span></div>

@@ -215,7 +215,6 @@ export const Header: React.FC = () => {
   const getLocationShortLabel = (locId: LocationId) => {
     if (locId === 'main_store') return 'Main Hub';
     if (locId === 'sales_shop') return 'Sales Shop';
-    if (locId === 'branch_westlands') return 'Westlands';
     if (locId === 'store_1') return 'Store 1';
     if (locId === 'store_2') return 'Store 2';
     const loc = locations.find(l => l.id === locId);
@@ -307,11 +306,11 @@ export const Header: React.FC = () => {
         </div>
       )}
 
-      {/* Main Header Container with doubled height padding */}
-      <div className="px-4 sm:px-8 pt-8 sm:pt-12 pb-12 sm:pb-16 flex flex-wrap items-center justify-between gap-5 relative z-10">
+      {/* Main Header Container with responsive padding */}
+      <div className="px-3 sm:px-6 md:px-8 pt-4 sm:pt-6 md:pt-8 pb-5 sm:pb-8 md:pb-10 flex flex-wrap items-center justify-between gap-3 sm:gap-5 relative z-10">
         
         {/* Brand Title & Enlarged Animated Round Logo Frame */}
-        <div className="flex items-center gap-4 sm:gap-5">
+        <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
           <motion.div
             onClick={() => setIsBrandSettingsModalOpen(true)}
             title="Click to customize brand logo & settings"
@@ -328,7 +327,7 @@ export const Header: React.FC = () => {
               repeat: Infinity,
               ease: 'easeInOut'
             }}
-            className="w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full bg-white/25 border-3 sm:border-4 border-white/60 p-1.5 sm:p-2 shadow-2xl ring-4 ring-white/20 flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative cursor-pointer group/logo hover:border-white transition-all"
+            className="w-14 h-14 sm:w-20 sm:h-20 md:w-26 md:h-26 rounded-full bg-white/25 border-2 sm:border-3 md:border-4 border-white/60 p-1 sm:p-1.5 shadow-2xl ring-2 sm:ring-4 ring-white/20 flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative cursor-pointer group/logo hover:border-white transition-all"
           >
             {brandSettings?.logoUrl ? (
               <motion.img
@@ -347,15 +346,15 @@ export const Header: React.FC = () => {
                 whileHover={{ scale: 1.1, rotate: 3 }}
               />
             ) : (
-              <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-3xl sm:text-4xl md:text-5xl shadow-inner border border-white/30 group-hover/logo:scale-105 transition-transform">
+              <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl sm:text-3xl md:text-4xl shadow-inner border border-white/30 group-hover/logo:scale-105 transition-transform">
                 {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
               </div>
             )}
           </motion.div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-3">
-              <h1 className="font-ai text-white text-3xl sm:text-4xl md:text-5xl lg:text-[48px] font-black uppercase tracking-[0.14em] select-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.3)] transition-all hover:scale-105 duration-200 cursor-default flex items-center">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <h1 className="font-ai text-white text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-black uppercase tracking-[0.12em] select-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.3)] transition-all hover:scale-105 duration-200 cursor-default flex items-center">
                 {brandSettings.brandName}
               </h1>
               <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-ai font-bold bg-white/20 text-white border border-white/30 backdrop-blur-md tracking-widest uppercase shadow-sm">
@@ -366,12 +365,12 @@ export const Header: React.FC = () => {
             
             {/* Clean White AI Circuit Line */}
             <div className="flex items-center gap-1.5 opacity-80">
-              <div className="h-[2px] w-16 sm:w-24 bg-gradient-to-r from-white via-white/70 to-transparent rounded-full shadow-xs" />
+              <div className="h-[2px] w-12 sm:w-20 md:w-24 bg-gradient-to-r from-white via-white/70 to-transparent rounded-full shadow-xs" />
               <div className="h-1.5 w-1.5 bg-white rounded-full animate-ping" />
               <div className="h-[2px] w-4 bg-white/40 rounded-full" />
             </div>
 
-            <p className="text-xs sm:text-sm text-pink-100 font-medium hidden sm:block mt-1 font-sans">
+            <p className="text-xs sm:text-sm text-pink-100 font-medium hidden sm:block mt-0.5 font-sans">
               {brandSettings.tagline || 'Autonomous Multi-Location ERP, KRA ETR Compliance & Accounting Ledger'}
             </p>
           </div>
@@ -463,7 +462,7 @@ export const Header: React.FC = () => {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.96 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                  className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-[320px] sm:w-[390px] md:w-[430px] bg-white border border-slate-200/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.3)] p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
+                  className="absolute top-full right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-[390px] md:w-[430px] max-w-[430px] bg-white border border-slate-200/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.3)] p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
                 >
                   <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -596,7 +595,7 @@ export const Header: React.FC = () => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.15, ease: 'easeOut' }}
-                    className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-[320px] sm:w-[390px] md:w-[430px] bg-white border border-slate-200/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.3)] p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
+                    className="absolute top-full right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-[390px] md:w-[430px] max-w-[430px] bg-white border border-slate-200/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.3)] p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
                   >
                     <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">

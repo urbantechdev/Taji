@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { NavTab } from './Sidebar';
+import { isTabAllowedForRole } from '../../utils/rbac';
 import { playClickSound } from '../../utils/audio';
 import {
   LayoutDashboard,
@@ -15,7 +16,9 @@ import {
   UserCheck,
   Mail,
   BookOpen,
-  Download
+  Download,
+  TrendingUp,
+  Building2
 } from 'lucide-react';
 import { ReadmeModal } from '../docs/ReadmeModal';
 import { downloadReadmeMarkdown } from '../../utils/downloadReadme';
@@ -39,10 +42,13 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
 }) => {
   const [isReadmeOpen, setIsReadmeOpen] = useState(false);
   const {
+    currentUser,
     transfers,
     orders,
     mailNotifications,
-    brandSettings
+    brandSettings,
+    products,
+    isAdmin
   } = useERP();
 
   const unreadMailCount = mailNotifications ? mailNotifications.filter(m => !m.read).length : 0;
@@ -53,23 +59,38 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
 
   const todayOrdersCount = orders.length;
 
-  const navItems: NavItem[] = [
+  const lowStockCount = products.filter(
+    p => (p.locationStock?.main_store <= p.minReorderLevel) || (p.locationStock?.sales_shop <= p.minReorderLevel)
+  ).length;
+
+  const allNavItems: NavItem[] = [
     {
       id: 'dashboard',
       label: 'Hub',
       icon: LayoutDashboard,
     },
     {
+      id: 'sales_today',
+      label: 'Today',
+      icon: TrendingUp,
+      badge: todayOrdersCount > 0 ? todayOrdersCount : undefined
+    },
+    {
+      id: 'branches',
+      label: 'Branches',
+      icon: Building2,
+    },
+    {
       id: 'pos',
       label: 'POS',
       icon: ShoppingCart,
-      badge: todayOrdersCount > 0 ? todayOrdersCount : undefined,
       highlight: true
     },
     {
       id: 'catalog',
       label: 'Inventory',
       icon: Boxes,
+      badge: lowStockCount > 0 ? `${lowStockCount}` : undefined
     },
     {
       id: 'transfers',
@@ -109,6 +130,16 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
       icon: ShieldCheck,
     }
   ];
+
+  // RBAC Filter: Only show tabs permitted for the current user's role!
+  const navItems = allNavItems.filter(item =>
+    isTabAllowedForRole(currentUser.role, item.id)
+  );
+
+  // If no items are permitted, do not render bottom navigation
+  if (navItems.length === 0) {
+    return null;
+  }
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 w-full hidden md:block pointer-events-auto transition-all duration-300">
@@ -217,8 +248,8 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
           </div>
         </div>
 
-        {/* Bottom Navigation Grid: evenly distributed with enlarged icons */}
-        <div className="grid grid-cols-6 xl:grid-cols-11 gap-1.5 sm:gap-2 lg:gap-2.5 w-full max-w-[1720px] items-center relative z-10">
+        {/* Bottom Navigation Container: dynamically centered & responsive to role's permitted items */}
+        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 lg:gap-2.5 w-full max-w-[1720px] relative z-10">
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -233,7 +264,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                className={`relative group w-full h-18 lg:h-20 px-1 sm:px-2 py-2 rounded-2xl font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer ${
+                className={`relative group flex-1 min-w-[70px] sm:min-w-[84px] max-w-[135px] h-17 sm:h-18 lg:h-20 px-1 sm:px-2 py-1.5 sm:py-2 rounded-2xl font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer ${
                   isActive
                     ? 'bg-gradient-to-r from-rose-600 via-rose-500 to-red-600 text-white shadow-xl shadow-rose-500/35 ring-2 ring-rose-400/80'
                     : item.highlight
@@ -260,13 +291,13 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
 
                 {/* Enlarged Icon Container with Floating Badge */}
                 <div className="relative flex items-center justify-center">
-                  <Icon className={`w-6 h-6 lg:w-7 lg:h-7 stroke-[2.2] shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                  <Icon className={`w-5.5 h-5.5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 stroke-[2.2] shrink-0 transition-transform duration-200 group-hover:scale-110 ${
                     isActive ? 'text-white' : 'text-slate-600 group-hover:text-rose-600'
                   }`} />
 
                   {item.badge !== undefined && (
                     <span
-                      className={`absolute -top-1.5 -right-3.5 px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-black shadow-xs shrink-0 ${
+                      className={`absolute -top-1.5 -right-3.5 px-1.5 py-0.2 rounded-full text-[9px] sm:text-[9.5px] font-mono font-black shadow-xs shrink-0 ${
                         isActive ? 'bg-white text-rose-700' : 'bg-rose-600 text-white'
                       }`}
                     >
@@ -276,7 +307,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
                 </div>
 
                 {/* Shortened Label */}
-                <span className="truncate max-w-full font-sans font-extrabold text-xs lg:text-[13px] tracking-tight leading-none">
+                <span className="truncate max-w-full font-sans font-extrabold text-[11px] sm:text-xs lg:text-[13px] tracking-tight leading-none">
                   {item.label}
                 </span>
 
@@ -314,7 +345,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
             whileHover={{ scale: 1.05, y: -2 }}
             whileTap={{ scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            className="relative group w-full h-18 lg:h-20 px-1 sm:px-2 py-2 rounded-2xl font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer bg-gradient-to-b from-slate-900 via-slate-850 to-slate-950 text-white border border-slate-700/80 shadow-md hover:border-rose-400 hover:shadow-lg hover:shadow-rose-500/20"
+            className="relative group flex-1 min-w-[70px] sm:min-w-[80px] max-w-[115px] h-17 sm:h-18 lg:h-20 px-1 sm:px-2 py-1.5 sm:py-2 rounded-2xl font-extrabold transition-all duration-150 flex flex-col items-center justify-center gap-1 shrink-0 cursor-pointer bg-gradient-to-b from-slate-900 via-slate-850 to-slate-950 text-white border border-slate-700/80 shadow-md hover:border-rose-400 hover:shadow-lg hover:shadow-rose-500/20"
             title="Open & Download System README / User Manual (Markdown & PDF)"
           >
             {/* Background Halo Glow */}

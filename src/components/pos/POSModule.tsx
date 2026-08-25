@@ -38,7 +38,10 @@ import {
   Barcode,
   Scan,
   Scale,
-  ShieldCheck
+  ShieldCheck,
+  TrendingUp,
+  FileSpreadsheet,
+  Lock
 } from 'lucide-react';
 
 export const POSModule: React.FC = () => {
@@ -60,7 +63,10 @@ export const POSModule: React.FC = () => {
     holdCurrentCart,
     setIsMailDrawerOpen,
     mailNotifications,
-    updateCartTare
+    updateCartTare,
+    setIsShiftClosureModalOpen,
+    setIsTodaySalesModalOpen,
+    setIsPeriodicStatementModalOpen
   } = useERP();
 
   const unreadMails = mailNotifications ? mailNotifications.filter(m => !m.read).length : 0;
@@ -307,8 +313,38 @@ export const POSModule: React.FC = () => {
                 ))}
               </div>
 
-              {/* Quick Action Buttons: Inbox, POS Transfer & QR Scanner */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              {/* Quick Action Buttons: Sales Today, Statements, Close Shift, Inbox, POS Transfer & QR Scanner */}
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsTodaySalesModalOpen(true)}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
+                  title="View Today's Real-time Sales, Cash at hand, Bank & M-Pesa"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Sales Today</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPeriodicStatementModalOpen(true)}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
+                  title="Download Daily, Weekly, or Monthly Statements"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Statements</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsShiftClosureModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
+                  title="Close Shift at End of Day - Reconcile Cash in Hand vs Bank & M-Pesa"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-200" />
+                  <span>Close Shift</span>
+                </button>
+
                 <button
                   onClick={() => setIsMailDrawerOpen(true)}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer border hover:scale-105 active:scale-95 ${

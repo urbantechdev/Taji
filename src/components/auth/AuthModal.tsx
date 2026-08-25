@@ -32,7 +32,8 @@ export const AuthModal: React.FC = () => {
     signOutGoogleAdmin,
     activeLocation,
     setActiveLocation,
-    brandSettings
+    brandSettings,
+    locations
   } = useERP();
 
   const [activeTab, setActiveTab] = useState<'pin' | 'admin'>('pin');
@@ -220,10 +221,11 @@ export const AuthModal: React.FC = () => {
                 onChange={(e) => setActiveLocation(e.target.value as LocationId)}
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
               >
-                <option value="sales_shop">Sales Shop (Retail POS)</option>
-                <option value="branch_westlands">Westlands Flagship Branch</option>
-                <option value="store_1">Store 1 (Transfer Only)</option>
-                <option value="store_2">Store 2 (Transfer Only)</option>
+                {locations.filter(l => l.status === 'active' && l.id !== 'main_store').map(loc => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </option>
+                ))}
               </select>
             </div>
 

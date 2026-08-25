@@ -10,6 +10,7 @@ export interface RoleMetadata {
   defaultLocation: LocationId;
   allowedTabs: Array<
     | 'dashboard'
+    | 'sales_today'
     | 'pos'
     | 'catalog'
     | 'transfers'
@@ -49,6 +50,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     defaultLocation: 'main_store',
     allowedTabs: [
       'dashboard',
+      'sales_today',
       'branches',
       'pos',
       'catalog',
@@ -118,6 +120,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     defaultLocation: 'sales_shop',
     allowedTabs: [
       'dashboard',
+      'sales_today',
       'branches',
       'pos',
       'catalog',
@@ -153,6 +156,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     defaultLocation: 'main_store',
     allowedTabs: [
       'dashboard',
+      'sales_today',
       'ledger',
       'etr',
       'payroll',
@@ -186,6 +190,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     defaultLocation: 'sales_shop',
     allowedTabs: [
       'pos',
+      'sales_today',
       'catalog',
       'transfers',
       'etr',
@@ -217,6 +222,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     defaultLocation: 'sales_shop',
     allowedTabs: [
       'pos',
+      'sales_today',
       'catalog',
       'transfers',
       'etr',

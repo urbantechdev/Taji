@@ -15,11 +15,13 @@ import {
   Building2,
   Shield,
   User,
-  Settings
+  Settings,
+  TrendingUp
 } from 'lucide-react';
 
 export type NavTab =
   | 'dashboard'
+  | 'sales_today'
   | 'pos'
   | 'catalog'
   | 'transfers'
@@ -48,6 +50,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       id: 'dashboard',
       label: 'Executive Dashboard',
       icon: <LayoutDashboard className="w-4 h-4" />,
+    },
+    {
+      id: 'sales_today',
+      label: 'Sales Today & Cash',
+      icon: <TrendingUp className="w-4 h-4 text-rose-500" />,
+      badge: 'Live'
     },
     {
       id: 'branches',

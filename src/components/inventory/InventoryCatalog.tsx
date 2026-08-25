@@ -10,6 +10,7 @@ import { EditProductModal } from './EditProductModal';
 import { CategoryPricingModal } from './CategoryPricingModal';
 import { ProductImageManagerModal } from './ProductImageManagerModal';
 import { BulkBarcodeGeneratorModal } from './BulkBarcodeGeneratorModal';
+import { DuplicateAuditModal } from './DuplicateAuditModal';
 import {
   Boxes,
   Layers,
@@ -66,9 +67,13 @@ export const InventoryCatalog: React.FC = () => {
     lastCloudSync,
     syncCloudInventory,
     isProductImageModalOpen,
-    setIsProductImageModalOpen
+    setIsProductImageModalOpen,
+    checkProductDuplicate,
+    scanAllCatalogDuplicates,
+    restockExistingProduct
   } = useERP();
 
+  const [isDuplicateAuditOpen, setIsDuplicateAuditOpen] = useState(false);
   const [activeInventoryTab, setActiveInventoryTab] = useState<'catalog' | 'weight_reconciliation'>('catalog');
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>('All');
   const [stockFilter, setStockFilter] = useState<'All' | 'main_store_low' | 'sales_shop_low' | 'dead_stock'>('All');
@@ -486,6 +491,15 @@ export const InventoryCatalog: React.FC = () => {
               >
                 <Truck className="w-3.5 h-3.5 text-slate-600" />
                 <span>Delivery</span>
+              </button>
+
+              <button
+                onClick={() => setIsDuplicateAuditOpen(true)}
+                className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Scan and Resolve Product Duplicates to prevent financial audit errors"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                <span>Duplication Control</span>
               </button>
             </div>
           </div>
@@ -993,6 +1007,49 @@ export const InventoryCatalog: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Instant Real-Time Duplication Warning Prompt */}
+              {(() => {
+                const conflict = (newBarcode.trim() || newSku.trim() || newName.trim())
+                  ? checkProductDuplicate({
+                      barcode: newBarcode.trim() || newSku.trim(),
+                      sku: newSku.trim(),
+                      name: newName.trim()
+                    })
+                  : null;
+
+                if (!conflict?.isDuplicate || !conflict.existingProduct) return null;
+
+                return (
+                  <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl space-y-2 animate-in fade-in">
+                    <div className="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
+                      <ShieldCheck className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>Duplicate Item Detected ({conflict.matchType?.toUpperCase() || 'MATCH'})</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700 leading-relaxed">
+                      Matches existing item: <strong>{conflict.existingProduct.name}</strong> ({conflict.existingProduct.sku}).
+                      Creating a duplicate batch will distort inventory audits.
+                    </p>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] font-bold text-slate-600">
+                        Current Stock: {Object.values(conflict.existingProduct.locationStock).reduce((a, b) => a + Number(b || 0), 0)} units
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await restockExistingProduct(conflict.existingProduct!.id, Number(newMainStock) || 50, 'main_store');
+                          setIsAddBatchModalOpen(false);
+                          setSyncToast(`Successfully merged & added stock to ${conflict.existingProduct!.name}`);
+                          setTimeout(() => setSyncToast(null), 3500);
+                        }}
+                        className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-lg transition-colors cursor-pointer"
+                      >
+                        Restock Existing Instead
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1542,6 +1599,12 @@ export const InventoryCatalog: React.FC = () => {
           <span>{syncToast}</span>
         </div>
       )}
+
+      {/* Duplication Control & Financial Audit Scanner Modal */}
+      <DuplicateAuditModal
+        isOpen={isDuplicateAuditOpen}
+        onClose={() => setIsDuplicateAuditOpen(false)}
+      />
 
     </div>
   );

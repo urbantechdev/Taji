@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
+import DocumentHeader from '../common/DocumentHeader';
 import { InterStoreTransfer, LocationId, ProductBatch } from '../../types';
 import {
   ArrowLeftRight,
@@ -21,8 +22,10 @@ import {
   UserCheck,
   Sparkles,
   PackageCheck,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react';
+import { exportInterStoreTransferWaybillPDF } from '../../utils/documentExport';
 
 export const InterStoreTransfers: React.FC = () => {
   const {
@@ -35,7 +38,8 @@ export const InterStoreTransfers: React.FC = () => {
     activeLocation,
     products,
     posSession,
-    brandSettings
+    brandSettings,
+    etrConfig
   } = useERP();
 
   const [activeTab, setActiveTab] = useState<'pending' | 'fulfilled' | 'all'>('pending');
@@ -807,13 +811,15 @@ export const InterStoreTransfers: React.FC = () => {
               {/* Waybill Document Body */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 font-sans text-xs">
                 
-                <div className="text-center border-b border-slate-200 pb-3 space-y-0.5">
-                  <h4 className="font-black text-slate-900 text-sm tracking-tight">{brandSettings.brandName}</h4>
-                  <p className="text-[10px] text-slate-500 font-bold">Inter-Store Stock Movement Waybill</p>
-                  <p className="text-[11px] font-mono font-bold text-rose-700">Waybill ID: {selectedWaybill.id}</p>
-                </div>
+                <DocumentHeader
+                  variant="a4"
+                  title="Official Inter-Store Waybill"
+                  docNumber={selectedWaybill.trackingNumber || selectedWaybill.id}
+                  docDate={selectedWaybill.dispatchedAt || selectedWaybill.requestedAt}
+                  badgeText="INVENTORY WAYBILL"
+                />
 
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-slate-200">
                   <div>
                     <p className="text-slate-400 font-bold uppercase text-[9px]">Origin Store:</p>
                     <p className="font-extrabold text-slate-900">{locations.find(l => l.id === selectedWaybill.fromLocation)?.name}</p>
@@ -863,6 +869,13 @@ export const InterStoreTransfers: React.FC = () => {
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 shrink-0">
+              <button
+                onClick={() => exportInterStoreTransferWaybillPDF(selectedWaybill, etrConfig, locations, brandSettings)}
+                className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export PDF Waybill</span>
+              </button>
               <button
                 onClick={() => window.print()}
                 className="w-full sm:w-auto px-5 py-3 sm:py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow cursor-pointer flex items-center justify-center gap-1.5"

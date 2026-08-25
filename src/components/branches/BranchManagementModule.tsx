@@ -776,20 +776,20 @@ export const BranchManagementModule: React.FC = () => {
                       required
                       value={newBranch.name}
                       onChange={e => setNewBranch({ ...newBranch, name: e.target.value })}
-                      placeholder="e.g., Nairobi Westlands Flagship"
+                      placeholder="e.g., Mombasa Branch Outlet"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-rose-500"
                     />
                   </div>
 
                   <div>
                     <label className="text-xs font-bold text-slate-700 block mb-1">
-                      Branch Code (e.g. BR-WST)
+                      Branch Code (e.g. BR-MSA)
                     </label>
                     <input
                       type="text"
                       value={newBranch.code}
                       onChange={e => setNewBranch({ ...newBranch, code: e.target.value.toUpperCase() })}
-                      placeholder="e.g. BR-WESTLANDS"
+                      placeholder="e.g. BR-MOMBASA"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-bold uppercase focus:outline-none focus:border-rose-500"
                     />
                   </div>
@@ -836,7 +836,7 @@ export const BranchManagementModule: React.FC = () => {
                       type="text"
                       value={newBranch.address}
                       onChange={e => setNewBranch({ ...newBranch, address: e.target.value })}
-                      placeholder="e.g., Sarit Centre, 2nd Floor, Westlands, Nairobi"
+                      placeholder="e.g., Nyali Mall, 2nd Floor, Links Road, Mombasa"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                     />
                   </div>

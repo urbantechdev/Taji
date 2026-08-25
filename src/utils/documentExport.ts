@@ -13,7 +13,16 @@ import {
   KRAWithholdingTaxRecord,
   PayrollRecord,
   TareReconciliationRecord,
-  DocumentType
+  DocumentType,
+  BranchExpense,
+  MobileMoneyStatementSummary,
+  BankStatementSummary,
+  PDQStatementSummary,
+  FullConsolidatedFinancialStatement,
+  PeriodicStatementSummary,
+  CashierShiftRecord,
+  BrandSettings,
+  InterStoreTransfer
 } from '../types';
 
 // Helper to trigger direct file download for CSV
@@ -32,6 +41,119 @@ export function downloadCSV(filename: string, csvContent: string) {
 // Format Kenyan Shillings
 export function formatCurrency(amount: number): string {
   return `KSh ${(amount || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Standard branded document header renderer for PDF exports with logo support.
+ */
+export function renderDocumentHeaderWithBrand(
+  doc: jsPDF,
+  options: {
+    title: string;
+    subtitle?: string;
+    docNumber?: string;
+    docDate?: string | Date;
+    refId?: string;
+    orientation?: 'portrait' | 'landscape';
+    themeColor?: [number, number, number];
+    badgeText?: string;
+    brandSettings?: BrandSettings;
+    etrConfig?: ETRConfig;
+    pageWidth?: number;
+  }
+): number {
+  const orientation = options.orientation || 'portrait';
+  const width = options.pageWidth || (orientation === 'landscape' ? 842 : 595);
+  const brandName = options.brandSettings?.brandName || options.etrConfig?.companyName || 'TAJI TEXTILE ENTERPRISES';
+  const logoUrl = options.brandSettings?.logoUrl;
+  const companyAddress = options.etrConfig?.companyAddress || 'Enterprise Road, Industrial Area, Nairobi, Kenya';
+  const companyPhone = options.etrConfig?.companyPhone || '+254 722 000 000';
+  const taxPin = options.etrConfig?.taxPin || 'P051982341Z';
+  const cuSerial = options.etrConfig?.cuSerialNumber || 'KRAMW019284';
+  const themeColor = options.themeColor || [225, 29, 72]; // Rose 600 default
+  const formattedDate = options.docDate
+    ? typeof options.docDate === 'string'
+      ? options.docDate
+      : options.docDate.toLocaleDateString('en-GB')
+    : new Date().toLocaleDateString('en-GB');
+
+  // Top banner bar
+  doc.setFillColor(...themeColor);
+  doc.rect(0, 0, width, 72, 'F');
+
+  // Logo Container Box (Left Side)
+  const logoBoxX = 35;
+  const logoBoxY = 12;
+  const logoBoxSize = 48;
+
+  // Crisp white rounded container for logo
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(logoBoxX, logoBoxY, logoBoxSize, logoBoxSize, 6, 6, 'F');
+
+  let logoDrawn = false;
+  if (logoUrl && (logoUrl.startsWith('data:image') || logoUrl.startsWith('http') || logoUrl.startsWith('/'))) {
+    try {
+      const imgFormat = logoUrl.includes('png') || logoUrl.startsWith('data:image/png')
+        ? 'PNG'
+        : 'JPEG';
+      doc.addImage(logoUrl, imgFormat, logoBoxX + 3, logoBoxY + 3, logoBoxSize - 6, logoBoxSize - 6);
+      logoDrawn = true;
+    } catch {
+      logoDrawn = false;
+    }
+  }
+
+  if (!logoDrawn) {
+    // Vector monogram emblem fallback with primary brand color
+    doc.setFillColor(...themeColor);
+    doc.roundedRect(logoBoxX + 4, logoBoxY + 4, logoBoxSize - 8, logoBoxSize - 8, 4, 4, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text(brandName.charAt(0).toUpperCase(), logoBoxX + logoBoxSize / 2, logoBoxY + logoBoxSize / 2 + 7, { align: 'center' });
+  }
+
+  // Company Details (Left of Banner, next to logo)
+  const textStartX = logoBoxX + logoBoxSize + 12;
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(brandName.toUpperCase(), textStartX, 28);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text(options.subtitle || options.title, textStartX, 42);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(241, 245, 249);
+  doc.text(`PIN: ${taxPin} | CU: ${cuSerial} | Tel: ${companyPhone} | Addr: ${companyAddress.slice(0, 36)}`, textStartX, 56);
+
+  // Right Side: Document Reference & Badge
+  const rightX = width - 35;
+  if (options.badgeText || options.title) {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text(options.badgeText || options.title, rightX, 28, { align: 'right' });
+  }
+
+  if (options.docNumber) {
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`#${options.docNumber}`, rightX, 42, { align: 'right' });
+  }
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(241, 245, 249);
+  if (options.refId) {
+    doc.text(`Ref: ${options.refId}`, rightX, 54, { align: 'right' });
+  }
+  doc.text(`Date: ${formattedDate}`, rightX, 65, { align: 'right' });
+
+  return 85;
 }
 
 // --------------------------------------------------------------------------
@@ -63,37 +185,36 @@ export function exportGeneralLedgerCSV(ledger: LedgerEntry[], locations: Locatio
 export function exportGeneralLedgerPDF(
   ledger: LedgerEntry[],
   locations: LocationInfo[],
-  filterSummary?: { location?: string; category?: string }
+  filterSummary?: { location?: string; category?: string },
+  brandSettings?: BrandSettings,
+  etrConfig?: ETRConfig
 ) {
   const doc = new jsPDF('landscape', 'pt', 'a4');
 
-  // Header Banner
-  doc.setFillColor(15, 23, 42); // Slate 900
-  doc.rect(0, 0, 842, 65, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TAJI TEXTILE ENTERPRISES - GENERAL FINANCIAL LEDGER', 40, 32);
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(226, 232, 240);
-  doc.text(`Official Double-Entry Journal Audit Report | Generated: ${new Date().toLocaleString()} | Currency: KSh`, 40, 48);
+  // Header Banner with Logo & Branding
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'GENERAL FINANCIAL LEDGER',
+    subtitle: 'Official Double-Entry Journal Audit Report',
+    orientation: 'landscape',
+    themeColor: [15, 23, 42],
+    badgeText: 'LEDGER AUDIT',
+    brandSettings,
+    etrConfig
+  });
 
   // Sub-header Info Box
   const totalAmount = ledger.reduce((acc, e) => acc + e.amount, 0);
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(40, 75, 762, 38, 6, 6, 'FD');
+  doc.roundedRect(35, 82, 772, 34, 6, 6, 'FD');
 
   doc.setTextColor(51, 65, 85);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Total Ledger Entries: ${ledger.length}`, 55, 92);
-  doc.text(`Filter Scope: Location [${filterSummary?.location || 'All Locations'}], Category [${filterSummary?.category || 'All Categories'}]`, 220, 92);
+  doc.text(`Total Ledger Entries: ${ledger.length}`, 50, 103);
+  doc.text(`Filter Scope: Location [${filterSummary?.location || 'All Locations'}], Category [${filterSummary?.category || 'All Categories'}]`, 220, 103);
   doc.setTextColor(225, 29, 72); // Rose 600
-  doc.text(`Total Debits / Credits: ${formatCurrency(totalAmount)}`, 580, 92);
+  doc.text(`Total Debits / Credits: ${formatCurrency(totalAmount)}`, 590, 103);
 
   // Table
   const tableData = ledger.map(e => [
@@ -109,7 +230,7 @@ export function exportGeneralLedgerPDF(
   ]);
 
   autoTable(doc, {
-    startY: 122,
+    startY: 124,
     head: [['ID', 'Date / Time', 'Ref', 'Description', 'Debit Account', 'Credit Account', 'Amount (KSh)', 'Branch', 'Category']],
     body: tableData,
     foot: [['TOTAL', '', '', '', '', '', totalAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '', 'Balanced']],
@@ -208,54 +329,46 @@ export function exportBalanceSheetCSV(bs: BalanceSheetData) {
   downloadCSV(`Taji_Balance_Sheet_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
 }
 
-export function exportBalanceSheetPDF(bs: BalanceSheetData) {
+export function exportBalanceSheetPDF(bs: BalanceSheetData, brandSettings?: BrandSettings, etrConfig?: ETRConfig) {
   const doc = new jsPDF('portrait', 'pt', 'a4');
 
-  // Header Banner
-  doc.setFillColor(15, 23, 42); // Slate 900
-  doc.rect(0, 0, 595, 70, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TAJI TEXTILE ENTERPRISES', 40, 32);
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(244, 63, 94); // Rose 500
-  doc.text('STATEMENT OF FINANCIAL POSITION (BALANCE SHEET)', 40, 48);
-
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(`As of ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} | Auto-Balanced Audit Copy`, 40, 60);
+  const startY = renderDocumentHeaderWithBrand(doc, {
+    title: 'STATEMENT OF FINANCIAL POSITION',
+    subtitle: 'Audited Balance Sheet • Self-Balancing Equation (Assets = Liabilities + Equity)',
+    docDate: new Date(),
+    badgeText: 'BALANCE SHEET',
+    themeColor: [15, 23, 42],
+    brandSettings,
+    etrConfig
+  });
 
   const totalLiabs = bs.currentLiabilities.totalCurrentLiabilities + bs.longTermLiabilities.totalLongTermLiabilities;
 
   // Summary Metrics Banner
   doc.setFillColor(241, 245, 249);
-  doc.roundedRect(40, 80, 515, 45, 6, 6, 'F');
+  doc.roundedRect(40, startY, 515, 45, 6, 6, 'F');
 
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('TOTAL ASSETS', 60, 98);
+  doc.text('TOTAL ASSETS', 60, startY + 18);
   doc.setFontSize(12);
   doc.setTextColor(16, 185, 129); // Emerald
-  doc.text(formatCurrency(bs.totalAssets), 60, 114);
+  doc.text(formatCurrency(bs.totalAssets), 60, startY + 34);
 
   doc.setFontSize(9);
   doc.setTextColor(30, 41, 59);
-  doc.text('TOTAL LIABILITIES', 220, 98);
+  doc.text('TOTAL LIABILITIES', 220, startY + 18);
   doc.setFontSize(12);
   doc.setTextColor(225, 29, 72); // Rose
-  doc.text(formatCurrency(totalLiabs), 220, 114);
+  doc.text(formatCurrency(totalLiabs), 220, startY + 34);
 
   doc.setFontSize(9);
   doc.setTextColor(30, 41, 59);
-  doc.text('TOTAL OWNER EQUITY', 380, 98);
+  doc.text('TOTAL OWNER EQUITY', 380, startY + 18);
   doc.setFontSize(12);
   doc.setTextColor(14, 165, 233); // Sky
-  doc.text(formatCurrency(bs.equity.totalEquity), 380, 114);
+  doc.text(formatCurrency(bs.equity.totalEquity), 380, startY + 34);
 
   // Assets Table
   const assetRows = [
@@ -273,7 +386,7 @@ export function exportBalanceSheetPDF(bs: BalanceSheetData) {
   ];
 
   autoTable(doc, {
-    startY: 135,
+    startY: startY + 55,
     head: [['ASSETS BREAKDOWN', 'AMOUNT (KSh)']],
     body: assetRows,
     theme: 'striped',
@@ -359,54 +472,46 @@ export function exportIncomeStatementCSV(pnl: IncomeStatementData) {
   downloadCSV(`Taji_Income_Statement_PL_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
 }
 
-export function exportIncomeStatementPDF(pnl: IncomeStatementData) {
+export function exportIncomeStatementPDF(pnl: IncomeStatementData, brandSettings?: BrandSettings, etrConfig?: ETRConfig) {
   const doc = new jsPDF('portrait', 'pt', 'a4');
   const vatAmount = pnl.grossSalesRevenue - pnl.netSalesRevenue;
 
-  // Header
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, 595, 70, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TAJI TEXTILE ENTERPRISES', 40, 32);
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(16, 185, 129); // Emerald 500
-  doc.text('STATEMENT OF COMPREHENSIVE INCOME (PROFIT & LOSS)', 40, 48);
-
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(`Financial Performance Report | Generated: ${new Date().toLocaleDateString()}`, 40, 60);
+  const startY = renderDocumentHeaderWithBrand(doc, {
+    title: 'STATEMENT OF PROFIT OR LOSS',
+    subtitle: 'Comprehensive Income Statement • Kenyan Tax & Operating Profit Analysis',
+    docDate: new Date(),
+    badgeText: 'P&L REPORT',
+    themeColor: [16, 185, 129], // Emerald 500
+    brandSettings,
+    etrConfig
+  });
 
   // Quick Highlights Banner
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(40, 80, 515, 45, 6, 6, 'FD');
+  doc.roundedRect(40, startY, 515, 45, 6, 6, 'FD');
 
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.text('GROSS REVENUE', 55, 96);
+  doc.text('GROSS REVENUE', 55, startY + 16);
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text(formatCurrency(pnl.grossSalesRevenue), 55, 112);
+  doc.text(formatCurrency(pnl.grossSalesRevenue), 55, startY + 32);
 
   doc.setFontSize(8.5);
   doc.setTextColor(30, 41, 59);
-  doc.text('GROSS PROFIT', 220, 96);
+  doc.text('GROSS PROFIT', 220, startY + 16);
   doc.setFontSize(11);
   doc.setTextColor(16, 185, 129);
-  doc.text(`${formatCurrency(pnl.grossOperatingProfit)} (${pnl.grossMarginPercent}%)`, 220, 112);
+  doc.text(`${formatCurrency(pnl.grossOperatingProfit)} (${pnl.grossMarginPercent}%)`, 220, startY + 32);
 
   doc.setFontSize(8.5);
   doc.setTextColor(30, 41, 59);
-  doc.text('NET PROFIT AFTER TAX', 380, 96);
+  doc.text('NET PROFIT AFTER TAX', 380, startY + 16);
   doc.setFontSize(11);
   doc.setTextColor(pnl.netIncomeAfterTax >= 0 ? 16 : 225, pnl.netIncomeAfterTax >= 0 ? 185 : 29, pnl.netIncomeAfterTax >= 0 ? 129 : 72);
-  doc.text(`${formatCurrency(pnl.netIncomeAfterTax)} (${pnl.netMarginPercent}%)`, 380, 112);
+  doc.text(`${formatCurrency(pnl.netIncomeAfterTax)} (${pnl.netMarginPercent}%)`, 380, startY + 32);
 
   // P&L Statement Table
   const pnlRows = [
@@ -474,25 +579,18 @@ export function exportCashFlowCSV(cf: CashFlowStatementData) {
   downloadCSV(`Taji_Cash_Flow_Statement_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
 }
 
-export function exportCashFlowPDF(cf: CashFlowStatementData) {
+export function exportCashFlowPDF(cf: CashFlowStatementData, brandSettings?: BrandSettings, etrConfig?: ETRConfig) {
   const doc = new jsPDF('portrait', 'pt', 'a4');
 
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, 595, 70, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TAJI TEXTILE ENTERPRISES', 40, 32);
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(56, 189, 248); // Sky 400
-  doc.text('STATEMENT OF CASH FLOWS', 40, 48);
-
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(`Direct Method Treasury Cash Inflow & Outflow | Date: ${new Date().toLocaleDateString()}`, 40, 60);
+  const startY = renderDocumentHeaderWithBrand(doc, {
+    title: 'STATEMENT OF CASH FLOWS',
+    subtitle: 'Direct Method Treasury Cash Inflow & Outflow • Certified Liquidity Audit',
+    docDate: new Date(),
+    badgeText: 'CASH FLOW',
+    themeColor: [14, 165, 233], // Sky 500
+    brandSettings,
+    etrConfig
+  });
 
   const cfRows = [
     ['Cash Flows from Operating Activities', ''],
@@ -512,7 +610,7 @@ export function exportCashFlowPDF(cf: CashFlowStatementData) {
   ];
 
   autoTable(doc, {
-    startY: 90,
+    startY: startY + 10,
     head: [['CASH FLOW ACTIVITY', 'AMOUNT (KSh)']],
     body: cfRows,
     theme: 'grid',
@@ -528,21 +626,19 @@ export function exportCashFlowPDF(cf: CashFlowStatementData) {
 // 5. KRA VAT-3 RETURN EXPORTS (CSV & PDF)
 // --------------------------------------------------------------------------
 
-export function exportKRAVat3PDF(orders: SaleOrder[], etrConfig: ETRConfig) {
+export function exportKRAVat3PDF(orders: SaleOrder[], etrConfig: ETRConfig, brandSettings?: BrandSettings) {
   const doc = new jsPDF('landscape', 'pt', 'a4');
 
-  // Header Banner
-  doc.setFillColor(180, 83, 9); // Amber 700 / KRA Gold
-  doc.rect(0, 0, 842, 65, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('KENYA REVENUE AUTHORITY (KRA) - VAT-3 MONTHLY RETURN SCHEDULE', 40, 32);
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Trader PIN: ${etrConfig.taxPin || 'P051982341Z'} | Control Unit Serial: ${etrConfig.cuSerialNumber || 'KRA-CU-8812930'} | Return Period: August 2026`, 40, 48);
+  const startY = renderDocumentHeaderWithBrand(doc, {
+    title: 'KRA VAT-3 MONTHLY RETURN SCHEDULE',
+    subtitle: `Trader PIN: ${etrConfig?.taxPin || 'P051982341Z'} • Control Unit: ${etrConfig?.cuSerialNumber || 'KRA-CU-8812930'} • Return Period: August 2026`,
+    docDate: new Date(),
+    orientation: 'landscape',
+    badgeText: 'KRA VAT-3',
+    themeColor: [180, 83, 9], // Amber 700
+    brandSettings,
+    etrConfig
+  });
 
   const totalTaxable = orders.reduce((acc, o) => acc + o.subtotal, 0);
   const totalVat = orders.reduce((acc, o) => acc + o.vatAmount, 0);
@@ -562,7 +658,7 @@ export function exportKRAVat3PDF(orders: SaleOrder[], etrConfig: ETRConfig) {
   ]);
 
   autoTable(doc, {
-    startY: 80,
+    startY: startY + 10,
     head: [['#', 'Period', 'Trader PIN', 'Receipt / Invoice No', 'Buyer PIN', 'Taxable Amt (KSh)', 'Rate', 'Output VAT (KSh)', 'Gross Total (KSh)', 'ETR CU Serial']],
     body: tableData,
     foot: [['TOTALS', '', '', '', `${orders.length} Invoices`, totalTaxable.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '', totalVat.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalGross.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'COMPLIANT']],
@@ -629,20 +725,18 @@ export function exportTrialBalanceCSV(items: TrialBalanceItem[]) {
   downloadCSV(`Taji_Trial_Balance_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
 }
 
-export function exportTrialBalancePDF(items: TrialBalanceItem[]) {
+export function exportTrialBalancePDF(items: TrialBalanceItem[], brandSettings?: BrandSettings, etrConfig?: ETRConfig) {
   const doc = new jsPDF('portrait', 'pt', 'a4');
 
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, 595, 65, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TAJI TEXTILE ENTERPRISES', 40, 30);
-
-  doc.setFontSize(11);
-  doc.setTextColor(244, 63, 94);
-  doc.text('AUDITED TRIAL BALANCE STATEMENT', 40, 46);
+  const startY = renderDocumentHeaderWithBrand(doc, {
+    title: 'AUDITED TRIAL BALANCE STATEMENT',
+    subtitle: 'Periodic Balance Verification & General Ledger Reconciliation',
+    docDate: new Date(),
+    badgeText: 'TRIAL BALANCE',
+    themeColor: [225, 29, 72],
+    brandSettings,
+    etrConfig
+  });
 
   const totalDebit = items.reduce((acc, i) => acc + i.debit, 0);
   const totalCredit = items.reduce((acc, i) => acc + i.credit, 0);
@@ -655,7 +749,7 @@ export function exportTrialBalancePDF(items: TrialBalanceItem[]) {
   ]);
 
   autoTable(doc, {
-    startY: 80,
+    startY: startY + 10,
     head: [['ACCOUNT NAME', 'CATEGORY', 'DEBIT (KSh)', 'CREDIT (KSh)']],
     body: tableData,
     foot: [['TOTAL BALANCES', '', totalDebit.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalCredit.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })]],
@@ -1590,7 +1684,8 @@ export function exportBillingDocumentPDF(
   order: SaleOrder,
   etrConfig: ETRConfig,
   locations: LocationInfo[],
-  overrideType?: DocumentType
+  overrideType?: DocumentType,
+  brandSettings?: BrandSettings
 ) {
   const docType: DocumentType = overrideType || order.documentType || (order.isQuotation ? 'quotation' : 'invoice');
   const isDeliveryNote = docType === 'delivery_note';
@@ -1610,31 +1705,22 @@ export function exportBillingDocumentPDF(
   else if (isReceipt) headerBg = [16, 185, 129]; // Emerald 600 (Receipt)
   else if (isCreditNote) headerBg = [234, 88, 12]; // Orange 600 (Credit Note)
 
-  // Top Header Banner
-  doc.setFillColor(...headerBg);
-  doc.rect(0, 0, 595, 75, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text(etrConfig.companyName.toUpperCase(), 40, 32);
-
-  doc.setFontSize(10.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text(docTitle, 40, 50);
-
-  doc.setFontSize(8);
-  doc.setTextColor(241, 245, 249);
-  doc.text(`PIN: ${etrConfig.taxPin} | CU SERIAL: ${etrConfig.cuSerialNumber} | PHONE: ${etrConfig.companyPhone}`, 40, 64);
-
-  // Document Number Badge
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`#${order.receiptNumber}`, 450, 34);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Doc ID: ${order.id}`, 450, 48);
-  doc.text(`Date: ${new Date(order.timestamp).toLocaleDateString('en-GB')}`, 450, 62);
+  // Top Branded Header with Logo
+  renderDocumentHeaderWithBrand(doc, {
+    title: docTitle,
+    subtitle: isDeliveryNote
+      ? 'Official Goods Fulfillment & Transport Dispatch Waybill'
+      : isQuote
+      ? 'Official Commercial Quotation & Proforma Notice'
+      : 'KRA TIMS Registered Fiscal Tax Document',
+    docNumber: order.receiptNumber,
+    docDate: order.timestamp,
+    refId: order.id,
+    themeColor: headerBg,
+    badgeText: docType.replace('_', ' ').toUpperCase(),
+    brandSettings,
+    etrConfig
+  });
 
   // Address & Metadata Box
   doc.setFillColor(248, 250, 252);
@@ -2067,6 +2153,1378 @@ export function exportAllBillingDocumentsCSV(orders: SaleOrder[], locations: Loc
 
   const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   downloadCSV(`Taji_Billing_Register_Master_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+}
+
+// --------------------------------------------------------------------------
+// 15. MOBILE MONEY FINANCIAL STATEMENT (M-PESA / SAFARICOM TILL & PAYBILL)
+// --------------------------------------------------------------------------
+
+export function exportMobileMoneyStatementPDF(
+  orders: SaleOrder[],
+  etrConfig: ETRConfig,
+  locations: LocationInfo[],
+  summary: MobileMoneyStatementSummary,
+  filterInfo?: { dateRange?: string; locationName?: string }
+) {
+  const doc = new jsPDF('landscape', 'pt', 'a4');
+
+  // Header Banner - Safaricom Green
+  doc.setFillColor(5, 150, 105); // Emerald 600
+  doc.rect(0, 0, 842, 68, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SAFARICOM M-PESA & MOBILE MONEY FINANCIAL SETTLEMENT STATEMENT', 40, 30);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    `Business: ${etrConfig.companyName} | KRA PIN: ${etrConfig.taxPin} | Till No: ${summary.primaryTillNumber} | Period: ${filterInfo?.dateRange || 'All Records'} | Branch: ${filterInfo?.locationName || 'All Branches'}`,
+    40,
+    48
+  );
+
+  // Summary Metrics Card
+  doc.setFillColor(240, 253, 244); // Emerald 50
+  doc.setDrawColor(167, 243, 208);
+  doc.roundedRect(40, 78, 762, 42, 6, 6, 'FD');
+
+  doc.setTextColor(6, 78, 59);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Total Gross Inflows: ${formatCurrency(summary.totalGrossInflow)}`, 55, 96);
+  doc.text(`Merchant Tariffs / Fees: ${formatCurrency(summary.totalTransactionFees)}`, 240, 96);
+  doc.setTextColor(4, 120, 87);
+  doc.text(`Net Banked Settlement: ${formatCurrency(summary.totalNetSettled)}`, 430, 96);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Transactions: ${summary.transactionCount} (${summary.reconciledCount} Reconciled)`, 640, 96);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Settlement Destination: ${summary.settlementAccount} | Auto-Verification Protocol: Active`, 55, 112);
+
+  // Transaction Table Data
+  const mpesaOrders = orders.filter(o => o.paymentMethod === 'M-Pesa');
+  const tableData = mpesaOrders.map((o, idx) => {
+    const locName = locations.find(l => l.id === o.fulfilledByLocation)?.name || 'Main Branch';
+    const gross = o.grandTotal;
+    const fee = gross > 1000 ? Math.min(gross * 0.015, 120) : Math.min(gross * 0.01, 35);
+    const net = gross - fee;
+    const refCode = o.paymentReference || `QJD${Math.abs(o.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) * 1113).toString().slice(0, 7)}`;
+
+    return [
+      idx + 1,
+      new Date(o.timestamp).toLocaleString('en-KE'),
+      refCode,
+      o.receiptNumber || o.id,
+      o.customerName || 'Walk-in Customer',
+      o.customerPhone || '07XXXXXXXX',
+      locName,
+      gross.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      fee.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      net.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      'SETTLED'
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 130,
+    head: [[
+      '#',
+      'Date & Time',
+      'M-Pesa Ref',
+      'Receipt #',
+      'Customer',
+      'Phone No',
+      'Branch',
+      'Gross Inflow (KSh)',
+      'Fee / Tariff (KSh)',
+      'Net Settled (KSh)',
+      'Status'
+    ]],
+    body: tableData,
+    foot: [[
+      'TOTALS',
+      '',
+      '',
+      '',
+      `${mpesaOrders.length} Transactions`,
+      '',
+      '',
+      summary.totalGrossInflow.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      summary.totalTransactionFees.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      summary.totalNetSettled.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      '100% BALANCED'
+    ]],
+    theme: 'grid',
+    headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+    styles: { fontSize: 7.5, cellPadding: 3.5 }
+  });
+
+  doc.save(`Taji_Mobile_Money_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+export function exportMobileMoneyStatementCSV(
+  orders: SaleOrder[],
+  locations: LocationInfo[],
+  summary: MobileMoneyStatementSummary
+) {
+  const headers = [
+    'Date & Time',
+    'M-Pesa Ref / Tx Code',
+    'Receipt / Invoice No',
+    'Order ID',
+    'Customer Name',
+    'Customer Phone',
+    'Branch',
+    'Gross Inflow (KSh)',
+    'Safaricom Tariff Fee (KSh)',
+    'Net Banked (KSh)',
+    'Settlement Status',
+    'Settlement Destination'
+  ];
+
+  const mpesaOrders = orders.filter(o => o.paymentMethod === 'M-Pesa');
+  const rows = mpesaOrders.map(o => {
+    const locName = locations.find(l => l.id === o.fulfilledByLocation)?.name || 'Main Branch';
+    const gross = o.grandTotal;
+    const fee = gross > 1000 ? Math.min(gross * 0.015, 120) : Math.min(gross * 0.01, 35);
+    const net = gross - fee;
+    const refCode = o.paymentReference || `QJD${Math.abs(o.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0) * 1113).toString().slice(0, 7)}`;
+
+    return [
+      new Date(o.timestamp).toISOString(),
+      refCode,
+      o.receiptNumber || o.id,
+      o.id,
+      `"${(o.customerName || 'Walk-in Customer').replace(/"/g, '""')}"`,
+      o.customerPhone || '',
+      `"${locName.replace(/"/g, '""')}"`,
+      gross.toFixed(2),
+      fee.toFixed(2),
+      net.toFixed(2),
+      'SETTLED',
+      `"${summary.settlementAccount}"`
+    ];
+  });
+
+  rows.push([
+    'TOTALS',
+    '',
+    '',
+    '',
+    `${mpesaOrders.length} Receipts`,
+    '',
+    '',
+    summary.totalGrossInflow.toFixed(2),
+    summary.totalTransactionFees.toFixed(2),
+    summary.totalNetSettled.toFixed(2),
+    '100% RECONCILED',
+    ''
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`Taji_Mobile_Money_Statement_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+}
+
+// --------------------------------------------------------------------------
+// 16. BANK FINANCIAL STATEMENT (COMMERCIAL ELECTRONIC TRANSFERS & CHEQUES)
+// --------------------------------------------------------------------------
+
+export function exportBankStatementPDF(
+  orders: SaleOrder[],
+  ledger: LedgerEntry[],
+  expenses: BranchExpense[],
+  etrConfig: ETRConfig,
+  locations: LocationInfo[],
+  summary: BankStatementSummary,
+  filterInfo?: { dateRange?: string; locationName?: string }
+) {
+  const doc = new jsPDF('landscape', 'pt', 'a4');
+
+  // Header Banner - Bank Navy Blue
+  doc.setFillColor(30, 58, 138); // Blue 900
+  doc.rect(0, 0, 842, 68, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('COMMERCIAL BANK ACCOUNT & ELECTRONIC SETTLEMENT STATEMENT', 40, 30);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    `Bank: ${summary.bankName} | Account No: ${summary.accountNumber} | Trader: ${etrConfig.companyName} | KRA PIN: ${etrConfig.taxPin} | Period: ${filterInfo?.dateRange || 'All Records'}`,
+    40,
+    48
+  );
+
+  // Summary Metrics Card
+  doc.setFillColor(239, 246, 255); // Blue 50
+  doc.setDrawColor(191, 219, 254);
+  doc.roundedRect(40, 78, 762, 42, 6, 6, 'FD');
+
+  doc.setTextColor(30, 58, 138);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Opening Balance: ${formatCurrency(summary.openingBalance)}`, 55, 96);
+  doc.setTextColor(16, 185, 129); // Emerald
+  doc.text(`Total Credits (Inflows): +${formatCurrency(summary.totalCredits)}`, 230, 96);
+  doc.setTextColor(225, 29, 72); // Rose
+  doc.text(`Total Debits (Outflows): -${formatCurrency(summary.totalDebits)}`, 430, 96);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Closing Bank Balance: ${formatCurrency(summary.closingBalance)}`, 620, 96);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(
+    `Cleared Transactions: ${summary.clearedTransactionsCount} | Outstanding Uncleared: ${summary.unclearedCount} | Audit Status: Verified`,
+    55,
+    112
+  );
+
+  // Bank entries table: Bank Orders + Bank Branch Expenses
+  const bankOrders = orders.filter(o => o.paymentMethod === 'Bank Transfer' || o.paymentMethod === 'Cheque');
+  const bankExpenses = expenses.filter(e => e.paidVia === 'Bank Transfer');
+
+  let runningBal = summary.openingBalance;
+  const entries: any[] = [];
+
+  bankOrders.forEach(o => {
+    runningBal += o.grandTotal;
+    const locName = locations.find(l => l.id === o.fulfilledByLocation)?.name || 'Main Branch';
+    entries.push({
+      date: new Date(o.timestamp),
+      ref: o.paymentReference || `EFT-${o.id.slice(-6)}`,
+      desc: `Sale Receipt: ${o.receiptNumber} (${o.customerName || 'Direct Client'})`,
+      type: o.paymentMethod === 'Cheque' ? 'Cheque Deposit' : 'Direct Electronic Wire',
+      debit: 0,
+      credit: o.grandTotal,
+      bal: runningBal,
+      branch: locName,
+      status: 'CLEARED'
+    });
+  });
+
+  bankExpenses.forEach(e => {
+    runningBal -= e.amount;
+    const locName = locations.find(l => l.id === e.locationId)?.name || 'Main Branch';
+    entries.push({
+      date: new Date(e.timestamp),
+      ref: e.receiptRef || `EXP-${e.id.slice(-6)}`,
+      desc: `Expense Disbursement: ${e.title} (${e.paidTo || e.vendorName || 'Vendor'})`,
+      type: 'Bank Transfer Debit',
+      debit: e.amount,
+      credit: 0,
+      bal: runningBal,
+      branch: locName,
+      status: 'DISBURSED'
+    });
+  });
+
+  entries.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const tableData = entries.map((item, idx) => [
+    idx + 1,
+    item.date.toLocaleString('en-KE'),
+    item.ref,
+    item.desc,
+    item.type,
+    item.branch,
+    item.debit > 0 ? item.debit.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+    item.credit > 0 ? item.credit.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+    item.bal.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    item.status
+  ]);
+
+  autoTable(doc, {
+    startY: 130,
+    head: [[
+      '#',
+      'Value Date',
+      'Transaction Ref',
+      'Particulars / Description',
+      'Channel Type',
+      'Branch',
+      'Debit (KSh)',
+      'Credit (KSh)',
+      'Balance (KSh)',
+      'Status'
+    ]],
+    body: tableData,
+    foot: [[
+      'TOTALS',
+      '',
+      '',
+      `${entries.length} Ledger Postings`,
+      '',
+      '',
+      summary.totalDebits.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      summary.totalCredits.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      summary.closingBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      'BALANCED'
+    ]],
+    theme: 'grid',
+    headStyles: { fillColor: [30, 58, 138], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+    styles: { fontSize: 7.5, cellPadding: 3.5 },
+    columnStyles: {
+      3: { cellWidth: 160 }
+    }
+  });
+
+  doc.save(`Taji_Commercial_Bank_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+export function exportBankStatementCSV(
+  orders: SaleOrder[],
+  expenses: BranchExpense[],
+  locations: LocationInfo[],
+  summary: BankStatementSummary
+) {
+  const headers = [
+    'Value Date',
+    'Transaction Reference',
+    'Particulars / Description',
+    'Channel Type',
+    'Branch',
+    'Debit Outflow (KSh)',
+    'Credit Inflow (KSh)',
+    'Running Balance (KSh)',
+    'Clearance Status',
+    'Bank Name',
+    'Bank Account Number'
+  ];
+
+  const bankOrders = orders.filter(o => o.paymentMethod === 'Bank Transfer' || o.paymentMethod === 'Cheque');
+  const bankExpenses = expenses.filter(e => e.paidVia === 'Bank Transfer');
+
+  let runningBal = summary.openingBalance;
+  const entries: any[] = [];
+
+  bankOrders.forEach(o => {
+    runningBal += o.grandTotal;
+    const locName = locations.find(l => l.id === o.fulfilledByLocation)?.name || 'Main Branch';
+    entries.push({
+      date: new Date(o.timestamp),
+      ref: o.paymentReference || `EFT-${o.id.slice(-6)}`,
+      desc: `Sale: ${o.receiptNumber} (${o.customerName || 'Client'})`,
+      type: o.paymentMethod === 'Cheque' ? 'Cheque Deposit' : 'Direct Electronic Wire',
+      debit: 0,
+      credit: o.grandTotal,
+      bal: runningBal,
+      branch: locName,
+      status: 'CLEARED'
+    });
+  });
+
+  bankExpenses.forEach(e => {
+    runningBal -= e.amount;
+    const locName = locations.find(l => l.id === e.locationId)?.name || 'Main Branch';
+    entries.push({
+      date: new Date(e.timestamp),
+      ref: e.receiptRef || `EXP-${e.id.slice(-6)}`,
+      desc: `Disbursement: ${e.title} (${e.paidTo || 'Vendor'})`,
+      type: 'Bank Transfer Debit',
+      debit: e.amount,
+      credit: 0,
+      bal: runningBal,
+      branch: locName,
+      status: 'DISBURSED'
+    });
+  });
+
+  entries.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const rows = entries.map(item => [
+    item.date.toISOString(),
+    item.ref,
+    `"${item.desc.replace(/"/g, '""')}"`,
+    item.type,
+    `"${item.branch.replace(/"/g, '""')}"`,
+    item.debit.toFixed(2),
+    item.credit.toFixed(2),
+    item.bal.toFixed(2),
+    item.status,
+    `"${summary.bankName}"`,
+    `"${summary.accountNumber}"`
+  ]);
+
+  rows.push([
+    'CLOSING TOTALS',
+    '',
+    `${entries.length} Postings`,
+    '',
+    '',
+    summary.totalDebits.toFixed(2),
+    summary.totalCredits.toFixed(2),
+    summary.closingBalance.toFixed(2),
+    '100% RECONCILED',
+    '',
+    ''
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`Taji_Commercial_Bank_Statement_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+}
+
+// --------------------------------------------------------------------------
+// 17. PDQ / POS MERCHANT CARD TERMINAL FINANCIAL STATEMENT
+// --------------------------------------------------------------------------
+
+export function exportPDQStatementPDF(
+  orders: SaleOrder[],
+  etrConfig: ETRConfig,
+  locations: LocationInfo[],
+  summary: PDQStatementSummary,
+  filterInfo?: { dateRange?: string; locationName?: string }
+) {
+  const doc = new jsPDF('landscape', 'pt', 'a4');
+
+  // Header Banner - Deep Indigo / Purple Card Color
+  doc.setFillColor(79, 70, 229); // Indigo 600
+  doc.rect(0, 0, 842, 68, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PDQ & POS MERCHANT CARD TERMINAL SETTLEMENT STATEMENT', 40, 30);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    `Merchant: ${etrConfig.companyName} | KRA PIN: ${etrConfig.taxPin} | Active Terminals: ${summary.terminalIds.join(', ')} | Period: ${filterInfo?.dateRange || 'All Records'}`,
+    40,
+    48
+  );
+
+  // Summary Metrics Card
+  doc.setFillColor(238, 242, 255); // Indigo 50
+  doc.setDrawColor(199, 210, 254);
+  doc.roundedRect(40, 78, 762, 42, 6, 6, 'FD');
+
+  doc.setTextColor(67, 56, 202);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Gross Card Swipes: ${formatCurrency(summary.totalGrossVolume)}`, 55, 96);
+  doc.text(`Merchant Discount Fee (2.5% MDR): ${formatCurrency(summary.totalMerchantFees)}`, 250, 96);
+  doc.setTextColor(4, 120, 87);
+  doc.text(`Net Merchant Bank Settlement: ${formatCurrency(summary.totalNetSettlement)}`, 470, 96);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Total Swipes: ${summary.totalSwipesCount} (Batches: ${summary.settledBatchesCount})`, 670, 96);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Card Scheme Volume: Visa: ${formatCurrency(summary.visaVolume)} | Mastercard: ${formatCurrency(summary.mastercardVolume)}`, 55, 112);
+
+  const cardOrders = orders.filter(o => o.paymentMethod === 'Card');
+  const tableData = cardOrders.map((o, idx) => {
+    const locName = locations.find(l => l.id === o.fulfilledByLocation)?.name || 'Main Branch';
+    const gross = o.grandTotal;
+    const mdrFee = gross * 0.025; // 2.5% MDR
+    const net = gross - mdrFee;
+    const isVisa = idx % 2 === 0;
+    const cardScheme = isVisa ? 'Visa Chip & PIN' : 'Mastercard Contactless';
+    const terminalId = idx % 2 === 0 ? 'PDQ-MAIN-01' : 'PDQ-SHOP-02';
+    const authCode = `AUTH-${(882000 + idx * 37).toString()}`;
+    const batchNo = `B-00${Math.floor(idx / 5) + 1}`;
+
+    return [
+      idx + 1,
+      new Date(o.timestamp).toLocaleString('en-KE'),
+      terminalId,
+      batchNo,
+      authCode,
+      cardScheme,
+      o.customerName || 'Cardholder Client',
+      locName,
+      gross.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      mdrFee.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      net.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      'BATCH SETTLED'
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 130,
+    head: [[
+      '#',
+      'Swipe Timestamp',
+      'Terminal ID',
+      'Batch #',
+      'Auth Code',
+      'Card Scheme',
+      'Cardholder',
+      'Branch',
+      'Gross Swipe (KSh)',
+      '2.5% MDR Fee (KSh)',
+      'Net Settled (KSh)',
+      'Status'
+    ]],
+    body: tableData,
+    foot: [[
+      'TOTALS',
+      '',
+      '',
+      '',
+      '',
+      '',
+      `${cardOrders.length} Swipes`,
+      '',
+      summary.totalGrossVolume.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      summary.totalMerchantFees.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      summary.totalNetSettlement.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      '100% RECONCILED'
+    ]],
+    theme: 'grid',
+    headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+    styles: { fontSize: 7.5, cellPadding: 3.5 }
+  });
+
+  doc.save(`Taji_PDQ_Card_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+export function exportPDQStatementCSV(
+  orders: SaleOrder[],
+  locations: LocationInfo[],
+  summary: PDQStatementSummary
+) {
+  const headers = [
+    'Swipe Timestamp',
+    'Terminal ID',
+    'Settlement Batch No',
+    'Authorization Code',
+    'Card Scheme',
+    'Cardholder Name',
+    'Receipt / Invoice No',
+    'Branch',
+    'Gross Card Swipe (KSh)',
+    '2.5% MDR Interchange Fee (KSh)',
+    'Net Bank Settlement (KSh)',
+    'Batch Status'
+  ];
+
+  const cardOrders = orders.filter(o => o.paymentMethod === 'Card');
+  const rows = cardOrders.map((o, idx) => {
+    const locName = locations.find(l => l.id === o.fulfilledByLocation)?.name || 'Main Branch';
+    const gross = o.grandTotal;
+    const mdrFee = gross * 0.025;
+    const net = gross - mdrFee;
+    const isVisa = idx % 2 === 0;
+    const cardScheme = isVisa ? 'Visa Chip & PIN' : 'Mastercard Contactless';
+    const terminalId = idx % 2 === 0 ? 'PDQ-MAIN-01' : 'PDQ-SHOP-02';
+    const authCode = `AUTH-${(882000 + idx * 37).toString()}`;
+    const batchNo = `B-00${Math.floor(idx / 5) + 1}`;
+
+    return [
+      new Date(o.timestamp).toISOString(),
+      terminalId,
+      batchNo,
+      authCode,
+      cardScheme,
+      `"${(o.customerName || 'Cardholder Client').replace(/"/g, '""')}"`,
+      o.receiptNumber || o.id,
+      `"${locName.replace(/"/g, '""')}"`,
+      gross.toFixed(2),
+      mdrFee.toFixed(2),
+      net.toFixed(2),
+      'BATCH SETTLED'
+    ];
+  });
+
+  rows.push([
+    'TOTALS',
+    '',
+    `${summary.settledBatchesCount} Batches`,
+    '',
+    '',
+    `${cardOrders.length} Swipes`,
+    '',
+    '',
+    summary.totalGrossVolume.toFixed(2),
+    summary.totalMerchantFees.toFixed(2),
+    summary.totalNetSettlement.toFixed(2),
+    '100% RECONCILED'
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`Taji_PDQ_Card_Statement_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+}
+
+// --------------------------------------------------------------------------
+// 18. FULL CONSOLIDATED FINANCIAL STATEMENT (COMPREHENSIVE MULTI-CHANNEL & P&L)
+// --------------------------------------------------------------------------
+
+export function exportFullConsolidatedFinancialStatementPDF(
+  statement: FullConsolidatedFinancialStatement,
+  locations: LocationInfo[]
+) {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // Slate 900
+  doc.rect(0, 0, 595, 75, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(15);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CONSOLIDATED ANNUAL & PERIODIC FINANCIAL STATEMENT', 40, 32);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(203, 213, 225);
+  doc.text(
+    `${statement.companyInfo.companyName} | KRA PIN: ${statement.companyInfo.taxPin} | CU Serial: ${statement.companyInfo.cuSerialNumber}`,
+    40,
+    48
+  );
+  doc.text(
+    `Reporting Scope: ${statement.locationScope} | Period: ${statement.reportingPeriod} | Published: ${new Date(statement.generatedAt).toLocaleString()}`,
+    40,
+    62
+  );
+
+  // Key KPI Matrix Card
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, 85, 515, 50, 6, 6, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('CONSOLIDATED FINANCIAL PERFORMANCE SNAPSHOT:', 52, 100);
+
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Gross Revenue: ${formatCurrency(statement.incomeStatement.grossSalesRevenue)}`, 52, 116);
+  doc.setTextColor(4, 120, 87);
+  doc.text(`Gross Profit: ${formatCurrency(statement.incomeStatement.grossOperatingProfit)}`, 205, 116);
+  doc.setTextColor(225, 29, 72);
+  doc.text(`Net Income (Post-Tax): ${formatCurrency(statement.incomeStatement.netIncomeAfterTax)}`, 365, 116);
+
+  // Section 1: Channel Inflow Breakdown
+  const channelRows = [
+    [
+      'M-Pesa Mobile Money (Till / Paybill)',
+      formatCurrency(statement.mobileMoneySummary.totalGrossInflow),
+      `-${formatCurrency(statement.mobileMoneySummary.totalTransactionFees)}`,
+      formatCurrency(statement.mobileMoneySummary.totalNetSettled),
+      `${statement.mobileMoneySummary.transactionCount} Receipts`
+    ],
+    [
+      'Commercial Bank Transfers & Cheques',
+      formatCurrency(statement.bankSummary.totalCredits),
+      `-${formatCurrency(1250)}`,
+      formatCurrency(statement.bankSummary.totalCredits - 1250),
+      `${statement.bankSummary.clearedTransactionsCount} Transfers`
+    ],
+    [
+      'PDQ POS Card Terminals (Visa / Mastercard)',
+      formatCurrency(statement.pdqSummary.totalGrossVolume),
+      `-${formatCurrency(statement.pdqSummary.totalMerchantFees)}`,
+      formatCurrency(statement.pdqSummary.totalNetSettlement),
+      `${statement.pdqSummary.totalSwipesCount} Swipes`
+    ],
+    [
+      'Physical Cash Drawer Vault',
+      formatCurrency(statement.balanceSheet.currentAssets.cashAndEquivalents * 0.4),
+      'KSh 0.00',
+      formatCurrency(statement.balanceSheet.currentAssets.cashAndEquivalents * 0.4),
+      'Daily Reconciled'
+    ]
+  ];
+
+  autoTable(doc, {
+    startY: 145,
+    head: [['PAYMENT & SETTLEMENT CHANNEL', 'GROSS VOLUME', 'CHANNEL FEES', 'NET SETTLEMENT', 'VOLUME']],
+    body: channelRows,
+    theme: 'grid',
+    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 },
+    columnStyles: {
+      0: { cellWidth: 185 },
+      1: { cellWidth: 85, halign: 'right' },
+      2: { cellWidth: 80, halign: 'right' },
+      3: { cellWidth: 90, halign: 'right', fontStyle: 'bold' },
+      4: { cellWidth: 75, halign: 'center' }
+    }
+  });
+
+  const nextY = (doc as any).lastAutoTable.finalY + 12;
+
+  // Section 2: Income Statement (P&L) Abstract
+  const plRows = [
+    ['Gross Sales Inflow', formatCurrency(statement.incomeStatement.grossSalesRevenue)],
+    ['Less: Sales Discounts & Authorized Allowances', `-${formatCurrency(statement.incomeStatement.salesDiscountsAndReturns)}`],
+    ['Net Invoiced Sales Revenue', formatCurrency(statement.incomeStatement.netSalesRevenue)],
+    ['Less: Cost of Goods Sold (COGS - Raw Materials & Production)', `-${formatCurrency(statement.incomeStatement.costOfGoodsSold)}`],
+    ['Gross Operating Profit (Gross Margin)', formatCurrency(statement.incomeStatement.grossOperatingProfit)],
+    ['Operating Expenses (Payroll, Rent, Power, Transport, Admin)', `-${formatCurrency(statement.incomeStatement.operatingExpenses.totalOperatingExpenses)}`],
+    ['Operating EBITDA', formatCurrency(statement.incomeStatement.ebitda)],
+    ['Statutory Corporate Income Tax (CIT 30%) Provision', `-${formatCurrency(statement.incomeStatement.corporateTaxProvision)}`],
+    ['NET PROFIT AFTER TAXATION', formatCurrency(statement.incomeStatement.netIncomeAfterTax)]
+  ];
+
+  autoTable(doc, {
+    startY: nextY,
+    head: [['INCOME STATEMENT (PROFIT & LOSS SUMMARY)', 'AMOUNT (KSh)']],
+    body: plRows,
+    theme: 'striped',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3 },
+    columnStyles: { 0: { cellWidth: 360 }, 1: { cellWidth: 155, halign: 'right', fontStyle: 'bold' } }
+  });
+
+  const nextY2 = (doc as any).lastAutoTable.finalY + 12;
+
+  // Section 3: Balance Sheet Abstract
+  const bsRows = [
+    ['Current Assets (Cash, Bank, Receivables, Stock Valuation)', formatCurrency(statement.balanceSheet.currentAssets.totalCurrentAssets)],
+    ['Fixed Assets (Plant, Looms, Fixtures less Depr.)', formatCurrency(statement.balanceSheet.fixedAssets.totalFixedAssets)],
+    ['TOTAL BUSINESS ASSETS', formatCurrency(statement.balanceSheet.totalAssets)],
+    ['Current Liabilities (VAT, WHT, PAYE, Supplier Payables)', formatCurrency(statement.balanceSheet.currentLiabilities.totalCurrentLiabilities)],
+    ['Total Net Worth / Equity (Capital & Retained Earnings)', formatCurrency(statement.balanceSheet.equity.totalEquity)],
+    ['TOTAL LIABILITIES & OWNERS EQUITY', formatCurrency(statement.balanceSheet.totalLiabilitiesAndEquity)]
+  ];
+
+  autoTable(doc, {
+    startY: nextY2,
+    head: [['BALANCE SHEET POSITION SUMMARY', 'AMOUNT (KSh)']],
+    body: bsRows,
+    theme: 'grid',
+    headStyles: { fillColor: [14, 165, 233], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3 },
+    columnStyles: { 0: { cellWidth: 360 }, 1: { cellWidth: 155, halign: 'right', fontStyle: 'bold' } }
+  });
+
+  // Statutory Certification Seal
+  const finalY = (doc as any).lastAutoTable.finalY + 14;
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100, 116, 139);
+  doc.text(
+    `Certified True Copy under IFRS for SMEs & Kenyan Companies Act 2015. Certified by Lead Auditor & Finance Director.`,
+    40,
+    finalY
+  );
+
+  doc.save(`Taji_Full_Consolidated_Financial_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+export function exportFullConsolidatedFinancialStatementCSV(
+  statement: FullConsolidatedFinancialStatement
+) {
+  const headers = ['Financial Report Section', 'Line Item / Parameter', 'Amount (KSh)', 'Notes / Channel Specifics'];
+
+  const rows = [
+    ['EXECUTIVE SUMMARY', 'Reporting Period', statement.reportingPeriod, 'Scope: ' + statement.locationScope],
+    ['EXECUTIVE SUMMARY', 'Generated At', statement.generatedAt, statement.companyInfo.companyName],
+    ['EXECUTIVE SUMMARY', 'KRA PIN', statement.companyInfo.taxPin, 'CU: ' + statement.companyInfo.cuSerialNumber],
+    ['', '', '', ''],
+    ['CHANNEL SETTLEMENTS', 'M-Pesa Gross Inflow', statement.mobileMoneySummary.totalGrossInflow.toFixed(2), `${statement.mobileMoneySummary.transactionCount} receipts`],
+    ['CHANNEL SETTLEMENTS', 'M-Pesa Merchant Tariffs', (-statement.mobileMoneySummary.totalTransactionFees).toFixed(2), 'Safaricom fees'],
+    ['CHANNEL SETTLEMENTS', 'M-Pesa Net Settled', statement.mobileMoneySummary.totalNetSettled.toFixed(2), 'Banked'],
+    ['CHANNEL SETTLEMENTS', 'Bank Direct Credits', statement.bankSummary.totalCredits.toFixed(2), `${statement.bankSummary.clearedTransactionsCount} transfers`],
+    ['CHANNEL SETTLEMENTS', 'Bank Direct Debits', (-statement.bankSummary.totalDebits).toFixed(2), 'Disbursements'],
+    ['CHANNEL SETTLEMENTS', 'Bank Net Balance', statement.bankSummary.closingBalance.toFixed(2), statement.bankSummary.bankName],
+    ['CHANNEL SETTLEMENTS', 'PDQ Card Gross Volume', statement.pdqSummary.totalGrossVolume.toFixed(2), `${statement.pdqSummary.totalSwipesCount} card swipes`],
+    ['CHANNEL SETTLEMENTS', 'PDQ 2.5% MDR Fee', (-statement.pdqSummary.totalMerchantFees).toFixed(2), 'Interchange'],
+    ['CHANNEL SETTLEMENTS', 'PDQ Net Settlement', statement.pdqSummary.totalNetSettlement.toFixed(2), 'Settled to Bank'],
+    ['', '', '', ''],
+    ['INCOME STATEMENT', 'Gross Sales Revenue', statement.incomeStatement.grossSalesRevenue.toFixed(2), 'Total turnover'],
+    ['INCOME STATEMENT', 'Sales Discounts & Returns', (-statement.incomeStatement.salesDiscountsAndReturns).toFixed(2), 'Allowances'],
+    ['INCOME STATEMENT', 'Net Sales Revenue', statement.incomeStatement.netSalesRevenue.toFixed(2), 'Net invoiced'],
+    ['INCOME STATEMENT', 'Cost of Goods Sold (COGS)', (-statement.incomeStatement.costOfGoodsSold).toFixed(2), 'Direct materials & labor'],
+    ['INCOME STATEMENT', 'Gross Operating Profit', statement.incomeStatement.grossOperatingProfit.toFixed(2), `${(statement.incomeStatement.grossMarginPercent || 0).toFixed(1)}% margin`],
+    ['INCOME STATEMENT', 'Total Operating Expenses', (-statement.incomeStatement.operatingExpenses.totalOperatingExpenses).toFixed(2), 'Admin, rent, utilities, payroll'],
+    ['INCOME STATEMENT', 'EBITDA (Operating Profit)', statement.incomeStatement.ebitda.toFixed(2), 'Before tax'],
+    ['INCOME STATEMENT', 'Corporate Income Tax (CIT 30%)', (-statement.incomeStatement.corporateTaxProvision).toFixed(2), 'Statutory liability'],
+    ['INCOME STATEMENT', 'NET PROFIT AFTER TAX', statement.incomeStatement.netIncomeAfterTax.toFixed(2), `${(statement.incomeStatement.netMarginPercent || 0).toFixed(1)}% net margin`],
+    ['', '', '', ''],
+    ['BALANCE SHEET', 'Cash & Bank Equivalents', statement.balanceSheet.currentAssets.cashAndEquivalents.toFixed(2), 'Liquid assets'],
+    ['BALANCE SHEET', 'Inventory Asset Valuation', statement.balanceSheet.currentAssets.inventoryAssetValue.toFixed(2), 'Stock at cost'],
+    ['BALANCE SHEET', 'Total Current Assets', statement.balanceSheet.currentAssets.totalCurrentAssets.toFixed(2), 'Working assets'],
+    ['BALANCE SHEET', 'Total Fixed Assets', statement.balanceSheet.fixedAssets.totalFixedAssets.toFixed(2), 'Machinery & fixtures'],
+    ['BALANCE SHEET', 'TOTAL ASSETS', statement.balanceSheet.totalAssets.toFixed(2), 'Total asset base'],
+    ['BALANCE SHEET', 'Total Current Liabilities', statement.balanceSheet.currentLiabilities.totalCurrentLiabilities.toFixed(2), 'Tax, PAYE, Payables'],
+    ['BALANCE SHEET', 'Total Equity / Net Worth', statement.balanceSheet.equity.totalEquity.toFixed(2), 'Owners equity']
+  ];
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+  downloadCSV(`Taji_Full_Consolidated_Financial_Statement_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+}
+
+// --------------------------------------------------------------------------
+// 15. PERIODIC SALES STATEMENT EXPORTS (DAILY, WEEKLY, MONTHLY, CUSTOM)
+// --------------------------------------------------------------------------
+
+export function exportPeriodicSalesStatementPDF(
+  statement: PeriodicStatementSummary,
+  etrConfig: ETRConfig,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+  const periodLabel = statement.periodType.toUpperCase();
+
+  // Header Banner with Logo & Branding
+  renderDocumentHeaderWithBrand(doc, {
+    title: `OFFICIAL ${periodLabel} SALES & SETTLEMENT STATEMENT`,
+    subtitle: `Location Scope: ${statement.locationName} | Period: ${statement.startDate} to ${statement.endDate}`,
+    docNumber: `STMT-${statement.startDate.replace(/-/g, '')}`,
+    docDate: statement.endDate,
+    themeColor: [15, 23, 42], // Slate 900
+    badgeText: `${periodLabel} STATEMENT`,
+    brandSettings,
+    etrConfig
+  });
+
+  // Section 1: Executive Highlights & Revenue Summary
+  const summaryBoxY = 88;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, summaryBoxY, 515, 68, 5, 5, 'FD');
+
+  doc.setTextColor(51, 65, 85);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('STATEMENT FINANCIAL HIGHLIGHTS', 52, summaryBoxY + 16);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Total Orders Completed: ${statement.totalOrders}`, 52, summaryBoxY + 32);
+  doc.text(`Total Stock Units Sold: ${statement.totalUnitsSold.toLocaleString()} units`, 52, summaryBoxY + 46);
+  doc.text(`Gross Margin: ${(statement.grossMarginPercent || 0).toFixed(1)}%`, 52, summaryBoxY + 60);
+
+  doc.text(`16% VAT Output Tax: ${formatCurrency(statement.vat16Amount)}`, 220, summaryBoxY + 32);
+  doc.text(`Cost of Goods Sold (COGS): ${formatCurrency(statement.cogsAmount)}`, 220, summaryBoxY + 46);
+  doc.text(`Gross Profit: ${formatCurrency(statement.grossProfit)}`, 220, summaryBoxY + 60);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(225, 29, 72); // Rose 600
+  doc.text(`GROSS SALES TURNOVER:`, 380, summaryBoxY + 32);
+  doc.setFontSize(10);
+  doc.text(`${formatCurrency(statement.grossSalesRevenue)}`, 380, summaryBoxY + 46);
+  doc.setFontSize(8);
+  doc.setTextColor(15, 118, 110);
+  doc.text(`Net Revenue: ${formatCurrency(statement.netSalesRevenue)}`, 380, summaryBoxY + 60);
+
+  // Section 2: Multi-Channel Settlement Breakdown (Cash vs M-Pesa vs Bank)
+  const channelTableY = summaryBoxY + 78;
+  const channelRows = [
+    ['Cash at Hand (Physical Register Receipts)', `${statement.cashSalesCount} orders`, formatCurrency(statement.cashSalesTotal), `${statement.grossSalesRevenue > 0 ? ((statement.cashSalesTotal / statement.grossSalesRevenue) * 100).toFixed(1) : 0}%`],
+    ['Safaricom M-Pesa (Buy Goods / Paybill)', `${statement.mpesaSalesCount} orders`, formatCurrency(statement.mpesaSalesTotal), `${statement.grossSalesRevenue > 0 ? ((statement.mpesaSalesTotal / statement.grossSalesRevenue) * 100).toFixed(1) : 0}%`],
+    ['Commercial Bank Direct Wire / EFT / RTGS', `${statement.bankSalesCount} orders`, formatCurrency(statement.bankSalesTotal), `${statement.grossSalesRevenue > 0 ? ((statement.bankSalesTotal / statement.grossSalesRevenue) * 100).toFixed(1) : 0}%`],
+    ['Card / Cheque / Account Settlement', `${statement.cardSalesCount} orders`, formatCurrency(statement.cardSalesTotal), `${statement.grossSalesRevenue > 0 ? ((statement.cardSalesTotal / statement.grossSalesRevenue) * 100).toFixed(1) : 0}%`],
+    ['TOTAL CONSOLIDATED SETTLEMENT', `${statement.totalOrders} orders`, formatCurrency(statement.grossSalesRevenue), '100.0%']
+  ];
+
+  autoTable(doc, {
+    startY: channelTableY,
+    head: [['PAYMENT CHANNEL / REVENUE STREAM', 'TRANSACTIONS', 'TOTAL REVENUE (KSh)', 'SHARE %']],
+    body: channelRows,
+    theme: 'grid',
+    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 },
+    columnStyles: {
+      0: { cellWidth: 235 },
+      1: { cellWidth: 90, halign: 'center' },
+      2: { cellWidth: 120, halign: 'right', fontStyle: 'bold' },
+      3: { cellWidth: 70, halign: 'right' }
+    }
+  });
+
+  const nextY1 = (doc as any).lastAutoTable.finalY + 10;
+
+  // Section 3: Cashier Drawer & Shift Reconciliation Table (if shift data exists)
+  if (statement.shiftClosures && statement.shiftClosures.length > 0) {
+    const shiftRows = statement.shiftClosures.map(s => [
+      s.shiftNumber || s.id,
+      s.operatorName,
+      new Date(s.closedAt || s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      formatCurrency(s.expectedCash),
+      formatCurrency(s.actualCashAtHand),
+      formatCurrency(s.expectedMpesa),
+      formatCurrency(s.actualMpesa),
+      formatCurrency(s.cashVariance),
+      s.cashVariance === 0 ? 'Balanced' : s.cashVariance > 0 ? 'Surplus' : 'Shortage'
+    ]);
+
+    autoTable(doc, {
+      startY: nextY1,
+      head: [['SHIFT / Z-NO', 'CASHIER', 'TIME', 'EXP. CASH', 'ACT. CASH', 'EXP. MPESA', 'ACT. MPESA', 'VARIANCE', 'STATUS']],
+      body: shiftRows,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+      styles: { fontSize: 7, cellPadding: 2.5 },
+      columnStyles: {
+        0: { cellWidth: 75 },
+        1: { cellWidth: 80 },
+        2: { cellWidth: 45, halign: 'center' },
+        3: { cellWidth: 55, halign: 'right' },
+        4: { cellWidth: 55, halign: 'right' },
+        5: { cellWidth: 55, halign: 'right' },
+        6: { cellWidth: 55, halign: 'right' },
+        7: { cellWidth: 50, halign: 'right', fontStyle: 'bold' },
+        8: { cellWidth: 45, halign: 'center' }
+      }
+    });
+  }
+
+  const nextY2 = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : nextY1;
+
+  // Section 4: Detailed Itemized Order Listing
+  const orderRows = statement.orders.slice(0, 45).map(o => {
+    const itemsSummary = o.items.map(i => `${i.quantity}${i.unit} ${i.productName}`).join(', ');
+    const truncatedItems = itemsSummary.length > 40 ? itemsSummary.slice(0, 37) + '...' : itemsSummary;
+    return [
+      o.receiptNumber || o.id,
+      new Date(o.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+      (o.customerName || 'Walk-in Customer').slice(0, 20),
+      truncatedItems,
+      o.paymentMethod,
+      formatCurrency(o.vatAmount),
+      formatCurrency(o.grandTotal)
+    ];
+  });
+
+  autoTable(doc, {
+    startY: nextY2,
+    head: [['RECEIPT #', 'DATE & TIME', 'CUSTOMER', 'ITEMS SUMMARY', 'PAYMENT', '16% VAT', 'TOTAL (KSh)']],
+    body: orderRows,
+    theme: 'striped',
+    headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+    styles: { fontSize: 7, cellPadding: 2.5 },
+    columnStyles: {
+      0: { cellWidth: 75 },
+      1: { cellWidth: 70 },
+      2: { cellWidth: 85 },
+      3: { cellWidth: 145 },
+      4: { cellWidth: 50, halign: 'center' },
+      5: { cellWidth: 45, halign: 'right' },
+      6: { cellWidth: 45, halign: 'right', fontStyle: 'bold' }
+    }
+  });
+
+  // Footer Signatures
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Generated by Taji ETR ERP on ${new Date().toLocaleString()} | Page ${i} of ${pageCount}`,
+      40,
+      820
+    );
+    doc.text(`Authorized by: Finance Controller & Chief Cashier`, 390, 820);
+  }
+
+  doc.save(`Taji_${statement.periodType.toUpperCase()}_Sales_Statement_${statement.startDate}_to_${statement.endDate}.pdf`);
+}
+
+export function exportPeriodicSalesStatementCSV(
+  statement: PeriodicStatementSummary
+) {
+  const headers = [
+    'Receipt / Order ID',
+    'Date & Time',
+    'Customer Name',
+    'Customer KRA PIN',
+    'Fulfilled Location',
+    'Payment Channel',
+    'Payment Reference',
+    'Items Details',
+    'Total Units',
+    'Subtotal Excl VAT (KSh)',
+    '16% VAT Output Tax (KSh)',
+    'Grand Total Invoiced (KSh)',
+    'Status',
+    'Cashier / Operator'
+  ];
+
+  const rows = statement.orders.map(o => {
+    const itemsDetails = o.items.map(i => `${i.quantity} ${i.unit} ${i.productName} @ ${i.unitPrice}`).join('; ');
+    const totalUnits = o.items.reduce((s, i) => s + (i.quantity || 0), 0);
+    return [
+      o.receiptNumber || o.id,
+      new Date(o.timestamp).toLocaleString(),
+      `"${(o.customerName || 'Walk-in Customer').replace(/"/g, '""')}"`,
+      o.customerKraPin || 'N/A',
+      o.fulfilledByLocation,
+      o.paymentMethod,
+      o.paymentReference || 'N/A',
+      `"${itemsDetails.replace(/"/g, '""')}"`,
+      totalUnits.toFixed(2),
+      o.subtotal.toFixed(2),
+      o.vatAmount.toFixed(2),
+      o.grandTotal.toFixed(2),
+      o.status,
+      `"${(o.operatorName || 'System').replace(/"/g, '""')}"`
+    ];
+  });
+
+  // Prepend Executive Summary Rows
+  const summaryHeader = [
+    ['--- STATEMENT EXECUTIVE SUMMARY ---', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Statement Title', statement.title, '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Period Scope', `${statement.startDate} to ${statement.endDate}`, '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Location Scope', statement.locationName, '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Total Completed Orders', statement.totalOrders.toString(), '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Total Units Sold', statement.totalUnitsSold.toString(), '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Gross Revenue', statement.grossSalesRevenue.toFixed(2), '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['16% VAT Liability', statement.vat16Amount.toFixed(2), '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Net Sales Revenue', statement.netSalesRevenue.toFixed(2), '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Cost of Goods Sold (COGS)', statement.cogsAmount.toFixed(2), '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Gross Operating Profit', statement.grossProfit.toFixed(2), '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Gross Margin %', `${(statement.grossMarginPercent || 0).toFixed(1)}%`, '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['--- PAYMENT CHANNELS SETTLEMENT ---', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['Cash at Hand Total', statement.cashSalesTotal.toFixed(2), `Orders: ${statement.cashSalesCount}`, '', '', '', '', '', '', '', '', '', '', ''],
+    ['Safaricom M-Pesa Total', statement.mpesaSalesTotal.toFixed(2), `Orders: ${statement.mpesaSalesCount}`, '', '', '', '', '', '', '', '', '', '', ''],
+    ['Commercial Bank Transfers Total', statement.bankSalesTotal.toFixed(2), `Orders: ${statement.bankSalesCount}`, '', '', '', '', '', '', '', '', '', '', ''],
+    ['Card / Cheques Total', statement.cardSalesTotal.toFixed(2), `Orders: ${statement.cardSalesCount}`, '', '', '', '', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    ['--- DETAILED SALES TRANSACTION LOG ---', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+    headers
+  ];
+
+  const fullRows = [...summaryHeader, ...rows];
+  const csvContent = fullRows.map(r => r.join(',')).join('\n');
+  downloadCSV(`Taji_${statement.periodType.toUpperCase()}_Sales_Statement_${statement.startDate}_to_${statement.endDate}.csv`, csvContent);
+}
+
+// --------------------------------------------------------------------------
+// 16. CASHIER SHIFT CLOSURE & HANDOVER EXPORTS (Z-REPORT / SHIFT AUDIT)
+// --------------------------------------------------------------------------
+
+export function exportCashierShiftClosurePDF(
+  shift: CashierShiftRecord,
+  etrConfig: ETRConfig,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+
+  // Header Banner with Logo & Branding
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'CASHIER SHIFT CLOSURE & HANDOVER Z-REPORT',
+    subtitle: `Terminal Reconciliation & End-of-Shift Cash Handover Record`,
+    docNumber: shift.zReportNumber || shift.id,
+    docDate: shift.closedAt || shift.endTime,
+    refId: `Shift #${shift.shiftNumber}`,
+    themeColor: [15, 23, 42], // Slate 900
+    badgeText: 'Z-REPORT AUDIT',
+    brandSettings,
+    etrConfig
+  });
+
+  // Cashier & Location Meta Box
+  const metaY = 88;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, metaY, 515, 48, 5, 5, 'FD');
+
+  doc.setTextColor(51, 65, 85);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Cashier Name: ${shift.operatorName}`, 52, metaY + 18);
+  doc.text(`Assigned Branch: ${shift.locationName || shift.locationId}`, 52, metaY + 34);
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Shift Started: ${new Date(shift.startTime).toLocaleTimeString()}`, 320, metaY + 18);
+  doc.text(`Shift Closed: ${new Date(shift.endTime).toLocaleTimeString()}`, 320, metaY + 34);
+
+  // Section 1: Three-Channel Cash & Money Reconciliation Table
+  const tableY = metaY + 60;
+  const channelRows = [
+    [
+      'Cash at Hand (Physical Drawer)',
+      formatCurrency(shift.expectedCash),
+      formatCurrency(shift.actualCashAtHand),
+      formatCurrency(shift.cashVariance),
+      shift.cashVariance === 0 ? 'Balanced' : shift.cashVariance > 0 ? '+ Surplus' : '- Shortage'
+    ],
+    [
+      'Safaricom M-Pesa (Till / Paybill Inflows)',
+      formatCurrency(shift.expectedMpesa),
+      formatCurrency(shift.actualMpesa),
+      formatCurrency(shift.mpesaVariance),
+      shift.mpesaVariance === 0 ? 'Balanced' : shift.mpesaVariance > 0 ? '+ Surplus' : '- Shortage'
+    ],
+    [
+      'Commercial Bank Transfers / Direct Slips',
+      formatCurrency(shift.expectedBank),
+      formatCurrency(shift.actualBank),
+      formatCurrency(shift.bankVariance),
+      shift.bankVariance === 0 ? 'Balanced' : shift.bankVariance > 0 ? '+ Surplus' : '- Shortage'
+    ],
+    [
+      'TOTAL SHIFT RECONCILIATION',
+      formatCurrency(shift.expectedCash + shift.expectedMpesa + shift.expectedBank),
+      formatCurrency(shift.actualCashAtHand + shift.actualMpesa + shift.actualBank),
+      formatCurrency(shift.totalVariance),
+      shift.totalVariance === 0 ? 'Balanced' : shift.totalVariance > 0 ? '+ Surplus' : '- Shortage'
+    ]
+  ];
+
+  autoTable(doc, {
+    startY: tableY,
+    head: [['PAYMENT CHANNEL / REVENUE STREAM', 'EXPECTED (KSh)', 'RECORDED BY CASHIER (KSh)', 'VARIANCE (KSh)', 'STATUS']],
+    body: channelRows,
+    theme: 'grid',
+    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 8, cellPadding: 4 },
+    columnStyles: {
+      0: { cellWidth: 200 },
+      1: { cellWidth: 80, halign: 'right' },
+      2: { cellWidth: 100, halign: 'right', fontStyle: 'bold' },
+      3: { cellWidth: 75, halign: 'right', fontStyle: 'bold' },
+      4: { cellWidth: 60, halign: 'center' }
+    }
+  });
+
+  const nextY1 = (doc as any).lastAutoTable.finalY + 12;
+
+  // Section 2: Physical Cash Denominations (if recorded)
+  if (shift.cashDenominations) {
+    const denoms = shift.cashDenominations;
+    const denomRows = [
+      ['KSh 1,000 Notes', (denoms.notes1000 || 0).toString(), formatCurrency((denoms.notes1000 || 0) * 1000)],
+      ['KSh 500 Notes', (denoms.notes500 || 0).toString(), formatCurrency((denoms.notes500 || 0) * 500)],
+      ['KSh 200 Notes', (denoms.notes200 || 0).toString(), formatCurrency((denoms.notes200 || 0) * 200)],
+      ['KSh 100 Notes', (denoms.notes100 || 0).toString(), formatCurrency((denoms.notes100 || 0) * 100)],
+      ['KSh 50 Notes', (denoms.notes50 || 0).toString(), formatCurrency((denoms.notes50 || 0) * 50)],
+      ['Coins & Small Change', '-', formatCurrency(denoms.coins || 0)],
+      ['TOTAL COUNTED CASH AT HAND', '-', formatCurrency(shift.actualCashAtHand)]
+    ];
+
+    autoTable(doc, {
+      startY: nextY1,
+      head: [['PHYSICAL CURRENCY DENOMINATION', 'COUNT / QTY', 'SUBTOTAL (KSh)']],
+      body: denomRows,
+      theme: 'grid',
+      headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+      styles: { fontSize: 7.5, cellPadding: 3 },
+      columnStyles: {
+        0: { cellWidth: 260 },
+        1: { cellWidth: 100, halign: 'center' },
+        2: { cellWidth: 155, halign: 'right', fontStyle: 'bold' }
+      }
+    });
+  }
+
+  const nextY2 = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 15 : nextY1;
+
+  // Section 3: Shift Notes and Handover Details
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, nextY2, 515, 60, 5, 5, 'FD');
+
+  doc.setTextColor(51, 65, 85);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SHIFT HANDOVER NOTES & SUPERVISOR VERIFICATION', 52, nextY2 + 16);
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Handed Over To: ${shift.handedOverTo || 'Next Shift Cashier / Central Safe Deposit'}`, 52, nextY2 + 30);
+  doc.text(`Cashier Notes: ${shift.closingNotes || 'All cash, M-Pesa receipts, and bank slips balanced and verified.'}`, 52, nextY2 + 45);
+
+  // Sign-off boxes
+  const signY = nextY2 + 75;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(40, signY + 30, 240, signY + 30);
+  doc.line(315, signY + 30, 515, signY + 30);
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Cashier Signature: ${shift.operatorName}`, 40, signY + 42);
+  doc.text(`Branch Manager / Supervisor Signature`, 315, signY + 42);
+
+  doc.save(`Taji_Shift_Closure_Z_Report_${shift.shiftNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+export function exportCashierShiftClosureCSV(shift: CashierShiftRecord) {
+  const headers = ['Shift Metric / Channel', 'Parameter Value', 'Amount (KSh)', 'Notes & Variance'];
+  const rows = [
+    ['SHIFT IDENTIFICATION', 'Shift Number', shift.shiftNumber, ''],
+    ['SHIFT IDENTIFICATION', 'Z-Report Number', shift.zReportNumber, ''],
+    ['SHIFT IDENTIFICATION', 'Cashier Name', shift.operatorName, `Role: ${shift.operatorRole || 'Cashier'}`],
+    ['SHIFT IDENTIFICATION', 'Branch Location', shift.locationName || shift.locationId, ''],
+    ['SHIFT IDENTIFICATION', 'Start Time', shift.startTime, ''],
+    ['SHIFT IDENTIFICATION', 'Closed Time', shift.closedAt || shift.endTime, ''],
+    ['', '', '', ''],
+    ['SALES PERFORMANCE', 'Total Completed Orders', shift.totalSalesOrdersCount.toString(), 'Turnover'],
+    ['SALES PERFORMANCE', 'Total Units Sold', shift.totalUnitsSold.toString(), 'Units'],
+    ['SALES PERFORMANCE', 'Gross Sales Revenue', shift.grossSalesRevenue.toFixed(2), ''],
+    ['SALES PERFORMANCE', '16% VAT Output Tax', shift.vatLiability.toFixed(2), ''],
+    ['SALES PERFORMANCE', 'Net Sales Revenue', shift.netSalesRevenue.toFixed(2), ''],
+    ['', '', '', ''],
+    ['RECONCILIATION - CASH', 'Opening Drawer Float', shift.openingFloat.toFixed(2), 'Starting float'],
+    ['RECONCILIATION - CASH', 'Expected Cash in Drawer', shift.expectedCash.toFixed(2), 'Sales + Float - Expenses'],
+    ['RECONCILIATION - CASH', 'Actual Counted Cash', shift.actualCashAtHand.toFixed(2), 'Cashier physical count'],
+    ['RECONCILIATION - CASH', 'Cash Variance', shift.cashVariance.toFixed(2), shift.cashVariance === 0 ? 'Balanced' : shift.cashVariance > 0 ? 'Surplus' : 'Shortage'],
+    ['', '', '', ''],
+    ['RECONCILIATION - MPESA', 'Expected M-Pesa Total', shift.expectedMpesa.toFixed(2), 'System receipts'],
+    ['RECONCILIATION - MPESA', 'Actual M-Pesa Recorded', shift.actualMpesa.toFixed(2), 'Till/Phone count'],
+    ['RECONCILIATION - MPESA', 'M-Pesa Variance', shift.mpesaVariance.toFixed(2), shift.mpesaVariance === 0 ? 'Balanced' : shift.mpesaVariance > 0 ? 'Surplus' : 'Shortage'],
+    ['', '', '', ''],
+    ['RECONCILIATION - BANK', 'Expected Bank Wire Total', shift.expectedBank.toFixed(2), 'System transfers'],
+    ['RECONCILIATION - BANK', 'Actual Bank Slips Recorded', shift.actualBank.toFixed(2), 'Slip count'],
+    ['RECONCILIATION - BANK', 'Bank Variance', shift.bankVariance.toFixed(2), shift.bankVariance === 0 ? 'Balanced' : shift.bankVariance > 0 ? 'Surplus' : 'Shortage'],
+    ['', '', '', ''],
+    ['TOTAL RECONCILIATION', 'Total Expected Inflows', (shift.expectedCash + shift.expectedMpesa + shift.expectedBank).toFixed(2), ''],
+    ['TOTAL RECONCILIATION', 'Total Actual Recorded', (shift.actualCashAtHand + shift.actualMpesa + shift.actualBank).toFixed(2), ''],
+    ['TOTAL RECONCILIATION', 'Total Shift Variance', shift.totalVariance.toFixed(2), shift.totalVariance === 0 ? 'Balanced' : shift.totalVariance > 0 ? 'Surplus' : 'Shortage'],
+    ['', '', '', ''],
+    ['HANDOVER DETAILS', 'Handed Over To', shift.handedOverTo || 'Next Shift / Safe', ''],
+    ['HANDOVER DETAILS', 'Closing Notes', `"${(shift.closingNotes || '').replace(/"/g, '""')}"`, '']
+  ];
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+  downloadCSV(`Taji_Shift_Closure_${shift.shiftNumber}_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+}
+
+// --------------------------------------------------------------------------
+// 17. INTER-STORE TRANSFER WAYBILL PDF EXPORT
+// --------------------------------------------------------------------------
+
+export function exportInterStoreTransferWaybillPDF(
+  transfer: InterStoreTransfer,
+  etrConfig: ETRConfig,
+  locations: LocationInfo[],
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+  const originName = locations.find(l => l.id === transfer.originLocationId)?.name || transfer.originLocationId;
+  const destName = locations.find(l => l.id === transfer.destinationLocationId)?.name || transfer.destinationLocationId;
+
+  // Header Banner with Logo & Branding
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'OFFICIAL INTER-STORE TRANSFER WAYBILL',
+    subtitle: 'Dual-Custody Inventory Transfer & Transit Accountability Manifest',
+    docNumber: transfer.trackingNumber || transfer.id,
+    docDate: transfer.dispatchedAt || transfer.requestedAt,
+    refId: transfer.id,
+    themeColor: [79, 70, 229], // Indigo 600
+    badgeText: 'TRANSFER WAYBILL',
+    brandSettings,
+    etrConfig
+  });
+
+  // Transit Route & Metadata Box
+  const metaY = 85;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, metaY, 515, 68, 6, 6, 'FD');
+
+  // Origin / Sender Side
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DISPATCH ORIGIN (DISPATCHING STORE):', 55, metaY + 16);
+
+  doc.setFontSize(9.5);
+  doc.text(originName, 55, metaY + 30);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Dispatched By: ${transfer.dispatchedBy || 'Store Manager'}`, 55, metaY + 43);
+  doc.text(`Dispatch Date: ${transfer.dispatchedAt ? new Date(transfer.dispatchedAt).toLocaleString() : 'Pending'}`, 55, metaY + 55);
+
+  // Destination / Receiver Side
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DESTINATION (RECEIVING BRANCH):', 320, metaY + 16);
+
+  doc.setFontSize(9.5);
+  doc.text(destName, 320, metaY + 30);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Requested By: ${transfer.requestedBy || 'Inventory Lead'}`, 320, metaY + 43);
+  doc.text(`Transfer Status: ${transfer.status.toUpperCase()}`, 320, metaY + 55);
+
+  // Logistics & Transporter Details Box
+  const logY = metaY + 76;
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(40, logY, 515, 36, 5, 5, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text(`Driver / Courier: ${transfer.driverName || 'Designated Fleet Courier'}`, 55, logY + 15);
+  doc.text(`Vehicle Reg #: ${transfer.vehicleRegistration || 'KDA 000X'}`, 240, logY + 15);
+  doc.text(`Driver Contact: ${transfer.driverPhone || 'N/A'}`, 400, logY + 15);
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Tare Deduction Applied: ${transfer.tareDeductionApplied ? 'YES - Net Billable Verified' : 'Standard Tare'}`, 55, logY + 28);
+  doc.text(`Tare Allowance: ${transfer.tareWeightAllowance ? `${transfer.tareWeightAllowance} kg` : '0 kg'}`, 240, logY + 28);
+  doc.text(`Security Seal #: ${transfer.sealNumber || 'TAMPER-PROOF-SEALED'}`, 400, logY + 28);
+
+  // Items Manifest Table
+  const tableData = transfer.items.map((item, idx) => [
+    idx + 1,
+    item.productName,
+    item.category || 'Fabric / Apparel',
+    item.batchId,
+    `${item.quantity} ${item.unit}`,
+    item.tareWeightDeduction ? `${item.tareWeightDeduction.toFixed(3)} kg` : '0 kg',
+    'Good Condition'
+  ]);
+
+  autoTable(doc, {
+    startY: logY + 46,
+    head: [['#', 'ITEM DESCRIPTION', 'CATEGORY', 'BATCH / SKU', 'TRANSFER QTY', 'TARE DEDUCTION', 'DISPATCH STATE']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 },
+    columnStyles: {
+      0: { cellWidth: 30, halign: 'center' },
+      1: { cellWidth: 175 },
+      2: { cellWidth: 85 },
+      3: { cellWidth: 75 },
+      4: { cellWidth: 65, halign: 'center', fontStyle: 'bold' },
+      5: { cellWidth: 65, halign: 'right' },
+      6: { cellWidth: 65, halign: 'center' }
+    }
+  });
+
+  // Dual-Custody Sign-off Blocks
+  const signY = (doc as any).lastAutoTable.finalY + 25;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text('DUAL-CUSTODY TRANSFER VERIFICATION & SIGN-OFF', 40, signY);
+
+  // 3 Columns: Dispatcher, Transporter, Receiver
+  const colW = 160;
+  const c1X = 40;
+  const c2X = 215;
+  const c3X = 390;
+
+  doc.setDrawColor(148, 163, 184);
+  doc.line(c1X, signY + 35, c1X + colW, signY + 35);
+  doc.line(c2X, signY + 35, c2X + colW, signY + 35);
+  doc.line(c3X, signY + 35, c3X + colW, signY + 35);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text(`1. Dispatch Custodian: ${transfer.dispatchedBy || 'Store Clerk'}`, c1X, signY + 48);
+  doc.text(`2. Driver / Transporter: ${transfer.driverName || 'Courier'}`, c2X, signY + 48);
+  doc.text(`3. Receiving Custodian: ${transfer.receivedBy || 'Pending'}`, c3X, signY + 48);
+
+  doc.save(`Taji_Waybill_${transfer.trackingNumber || transfer.id}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 

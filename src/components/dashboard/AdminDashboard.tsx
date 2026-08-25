@@ -3,6 +3,7 @@ import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { SalesTrendChart } from './SalesTrendChart';
+import { TodaySalesView } from './TodaySalesView';
 import {
   Smartphone,
   Banknote,
@@ -67,11 +68,13 @@ export const AdminDashboard: React.FC = () => {
     dispatchRestockTransfer,
     receiveRestockTransfer,
     acceptPurchaseOrder,
-    setSelectedReceipt
+    setSelectedReceipt,
+    setIsPeriodicStatementModalOpen,
+    setIsShiftClosureModalOpen
   } = useERP();
 
-  // Active Tab View: 'overview' | 'store_breakdown' | 'general_accounting'
-  const [activeTab, setActiveTab] = useState<'overview' | 'store_breakdown' | 'general_accounting'>('overview');
+  // Active Tab View: 'overview' | 'sales_today' | 'store_breakdown' | 'general_accounting'
+  const [activeTab, setActiveTab] = useState<'overview' | 'sales_today' | 'store_breakdown' | 'general_accounting'>('overview');
 
   // Selected drilldown block state
   const [expandedBlock, setExpandedBlock] = useState<'stock' | 'revenue' | 'vat' | 'transfers' | null>(null);
@@ -294,6 +297,28 @@ export const AdminDashboard: React.FC = () => {
             <span className="tracking-tight">Enterprise Overview</span>
           </button>
 
+          {/* Tab: Sales Today & Cash Highlights */}
+          <button
+            onClick={() => setActiveTab('sales_today')}
+            className={`group px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition-all duration-200 cursor-pointer ${
+              activeTab === 'sales_today'
+                ? 'bg-gradient-to-r from-rose-600 to-rose-500 text-white shadow-md shadow-rose-200 ring-1 ring-rose-400'
+                : 'bg-slate-50 text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/80'
+            }`}
+          >
+            <div className={`p-1 rounded-lg transition-colors ${
+              activeTab === 'sales_today' ? 'bg-white/20 text-white' : 'bg-rose-100/80 text-rose-600 group-hover:bg-rose-200/80'
+            }`}>
+              <TrendingUp className="w-4 h-4 stroke-[2.2]" />
+            </div>
+            <span className="tracking-tight">Sales Today &amp; Cash</span>
+            <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full transition-colors ${
+              activeTab === 'sales_today' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-800 border border-rose-200'
+            }`}>
+              Live
+            </span>
+          </button>
+
           {/* Tab 2: Store Sales & Stock Accountability */}
           <button
             onClick={() => setActiveTab('store_breakdown')}
@@ -483,10 +508,8 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
           </div>
-        </div>
-      )}
 
-      {/* EXPANDED DRILLDOWN PANEL BELOW THE METRIC CARDS */}
+          {/* EXPANDED DRILLDOWN PANEL BELOW THE METRIC CARDS */}
       {expandedBlock !== null && (
         <div className="relative overflow-hidden bg-white rounded-3xl border border-rose-200 shadow-xl p-6 space-y-5 animate-in slide-in-from-top-4 duration-300 group/drilldown">
           <RightEdgeBlend variant="rainbow" />
@@ -1119,7 +1142,9 @@ export const AdminDashboard: React.FC = () => {
 
         </div>
 
-        {/* DEAD STOCK ALERT & STAGNANT INVENTORY CAPITAL RISK MONITOR - WHITE BACKGROUND */}
+      </div>
+
+      {/* DEAD STOCK ALERT & STAGNANT INVENTORY CAPITAL RISK MONITOR - WHITE BACKGROUND */}
         <div className="relative overflow-hidden bg-white text-slate-900 p-5 rounded-2xl border border-rose-200 shadow-sm space-y-4 group">
           <RightEdgeBlend variant="sunset" />
           
@@ -1193,6 +1218,14 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
       </div>
+      )}
+
+      {/* TAB VIEW: SALES TODAY & CASH AUDIT */}
+      {activeTab === 'sales_today' && (
+        <div className="space-y-6 animate-fadeIn">
+          <TodaySalesView />
+        </div>
+      )}
 
       {/* TAB VIEW 2: STORE-BY-STORE SALES & STOCK RESPONSIBILITY MATRIX */}
       {activeTab === 'store_breakdown' && (

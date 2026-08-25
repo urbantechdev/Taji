@@ -81,29 +81,6 @@ export const LOCATIONS: LocationInfo[] = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'branch_westlands',
-    code: 'BR-WST-02',
-    name: 'Westlands Flagship Branch',
-    type: 'Independent Branch',
-    canSellDirectly: true,
-    canFulfillOrders: true,
-    canRequestRestock: true,
-    address: 'Woodvale Grove, The Oval 2nd Floor, Westlands, Nairobi',
-    phone: '+254 700 555 111',
-    managerName: 'Westlands Branch Manager',
-    managerPhone: '+254 733 000 000',
-    managerEmail: 'branch.westlands@taji.co.ke',
-    isAutonomousFinancial: true,
-    openingFloat: 0,
-    currentCashBalance: 0,
-    bankAccountName: 'Taji Westlands Operating Account',
-    bankAccountNumber: '',
-    mpesaTillNumber: '',
-    monthlyBudget: 0,
-    status: 'active',
-    createdAt: new Date().toISOString()
-  },
-  {
     id: 'store_1',
     code: 'DEP-001',
     name: 'Store 1 (Transfer & Fulfillment Only)',
@@ -277,6 +254,51 @@ export const INITIAL_WHT_RECORDS: KRAWithholdingTaxRecord[] = [
     period: 'August 2026',
     settled: true,
     issueDate: '2026-08-18'
+  }
+];
+
+export const INITIAL_SHIFT_CLOSURES: any[] = [
+  {
+    id: 'SHIFT-2026-0823-01',
+    shiftNumber: 'SH-0823-01',
+    locationId: 'loc-002',
+    locationName: 'Sales Shop 1 (Moi Avenue)',
+    operatorId: 'user-001',
+    operatorName: 'John Kamau',
+    operatorRole: 'cashier',
+    startTime: '2026-08-23T08:00:00.000Z',
+    endTime: '2026-08-23T17:30:00.000Z',
+    status: 'closed',
+    openingFloat: 10000,
+    totalSalesOrdersCount: 8,
+    totalUnitsSold: 340,
+    grossSalesRevenue: 185000,
+    vatLiability: 25517.24,
+    netSalesRevenue: 159482.76,
+    expectedCash: 65000,
+    expectedMpesa: 90000,
+    expectedBank: 30000,
+    cashExpensesPaid: 2500,
+    actualCashAtHand: 65000,
+    actualMpesa: 90000,
+    actualBank: 30000,
+    cashVariance: 0,
+    mpesaVariance: 0,
+    bankVariance: 0,
+    totalVariance: 0,
+    cashDenominations: {
+      notes1000: 55,
+      notes500: 16,
+      notes200: 8,
+      notes100: 4,
+      notes50: 0,
+      coins: 0
+    },
+    handedOverTo: 'Central Safe Deposit / Branch Supervisor',
+    closingNotes: 'Shift closed without variance. All cash bundled and deposited to branch safe.',
+    closedBySupervisor: 'Evans Wachira (Branch Manager)',
+    closedAt: '2026-08-23T17:35:00.000Z',
+    zReportNumber: 'Z-20260823-002'
   }
 ];
 

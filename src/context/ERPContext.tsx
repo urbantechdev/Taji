@@ -35,8 +35,15 @@ import {
   MobileBarcodeScanOptions,
   KRAWithholdingTaxRecord,
   DocumentType,
-  OrderStatus
+  OrderStatus,
+  CatalogDuplicateAuditReport,
+  ProductDuplicateGroup,
+  CashierShiftRecord,
+  PeriodicStatementSummary,
+  TodaySalesSummary
 } from '../types';
+import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
+import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
 import {
   LOCATIONS,
   INITIAL_BRANCH_EXPENSES,
@@ -54,6 +61,7 @@ import {
   INITIAL_DELIVERIES,
   INITIAL_TARE_RECONCILIATION_LOGS,
   INITIAL_WHT_RECORDS,
+  INITIAL_SHIFT_CLOSURES,
   CURRENT_USER
 } from '../data/initialData';
 import {
@@ -370,6 +378,10 @@ interface ERPContextType {
     additionalQuantity: number,
     locationId: LocationId
   ) => Promise<{ success: boolean; message: string }>;
+  checkProductDuplicate: (candidate: { barcode?: string; sku?: string; name?: string; category?: string; excludeId?: string }) => { isDuplicate: boolean; matchType?: 'barcode' | 'sku' | 'name'; existingProduct: ProductBatch | null; message: string };
+  mergeDuplicateProducts: (masterProductId: string, duplicateProductIds: string[]) => Promise<{ success: boolean; mergedCount: number; message: string }>;
+  scanAllCatalogDuplicates: () => CatalogDuplicateAuditReport;
+  autoDeduplicateAllCatalog: () => Promise<{ success: boolean; groupsResolved: number; itemsMerged: number; message: string }>;
   scannedResult: string | null;
   setScannedResult: (res: string | null) => void;
   handleQRScan: (qrString: string) => boolean;
@@ -382,6 +394,42 @@ interface ERPContextType {
   isMailDrawerOpen: boolean;
   setIsMailDrawerOpen: (open: boolean) => void;
   purgeAllMockData: () => Promise<{ success: boolean; message: string }>;
+
+  // Shift Closure, Statements & Sales Today
+  shiftClosures: CashierShiftRecord[];
+  activeShiftStartTime: string;
+  closeCashierShift: (data: {
+    actualCashAtHand: number;
+    actualMpesa: number;
+    actualBank: number;
+    actualCard?: number;
+    cashDenominations?: {
+      notes1000?: number;
+      notes500?: number;
+      notes200?: number;
+      notes100?: number;
+      notes50?: number;
+      coins?: number;
+    };
+    handedOverTo?: string;
+    closingNotes?: string;
+  }) => Promise<{ success: boolean; shiftRecord?: CashierShiftRecord; message: string }>;
+  isShiftClosureModalOpen: boolean;
+  setIsShiftClosureModalOpen: (open: boolean) => void;
+  selectedShiftRecord: CashierShiftRecord | null;
+  setSelectedShiftRecord: (record: CashierShiftRecord | null) => void;
+  isTodaySalesModalOpen: boolean;
+  setIsTodaySalesModalOpen: (open: boolean) => void;
+  isPeriodicStatementModalOpen: boolean;
+  setIsPeriodicStatementModalOpen: (open: boolean) => void;
+  getActiveShiftStats: () => ReturnType<typeof calculateActiveShiftPreview>;
+  getTodaySalesSummary: (locationId?: LocationId | 'All') => TodaySalesSummary;
+  getPeriodicStatementSummary: (
+    periodType: 'daily' | 'weekly' | 'monthly' | 'custom',
+    startDateStr: string,
+    endDateStr: string,
+    locationId?: LocationId | 'All'
+  ) => PeriodicStatementSummary;
 }
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
@@ -747,12 +795,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_locations');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((l: LocationInfo) => l.id !== 'branch_westlands');
+        }
       }
     } catch (e) {
       console.warn('Error reading saved locations from localStorage:', e);
     }
-    return LOCATIONS;
+    return LOCATIONS.filter((l: LocationInfo) => l.id !== 'branch_westlands');
   });
 
   useEffect(() => {
@@ -1372,6 +1422,210 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMailNotifications([]);
   };
 
+  // Shift Closures State
+  const [shiftClosures, setShiftClosures] = useState<CashierShiftRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_shift_closures');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading shift closures from localStorage:', e);
+    }
+    return INITIAL_SHIFT_CLOSURES;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_shift_closures', JSON.stringify(shiftClosures));
+    } catch (e) {
+      console.warn('Error saving shift closures to localStorage:', e);
+    }
+  }, [shiftClosures]);
+
+  const [activeShiftStartTime, setActiveShiftStartTime] = useState<string>(() => {
+    const saved = localStorage.getItem('urban_interior_active_shift_start');
+    if (saved) return saved;
+    const today8am = new Date();
+    today8am.setHours(8, 0, 0, 0);
+    return today8am.toISOString();
+  });
+
+  useEffect(() => {
+    localStorage.setItem('urban_interior_active_shift_start', activeShiftStartTime);
+  }, [activeShiftStartTime]);
+
+  const [isShiftClosureModalOpen, setIsShiftClosureModalOpen] = useState(false);
+  const [selectedShiftRecord, setSelectedShiftRecord] = useState<CashierShiftRecord | null>(null);
+  const [isTodaySalesModalOpen, setIsTodaySalesModalOpen] = useState(false);
+  const [isPeriodicStatementModalOpen, setIsPeriodicStatementModalOpen] = useState(false);
+
+  const getActiveShiftStats = () => {
+    const currentLoc = locations.find(l => l.id === activeLocation);
+    const openingFloat = currentLoc?.openingFloat || 10000;
+    return calculateActiveShiftPreview(
+      currentUser?.id || 'op-current',
+      currentUser?.name || 'Cashier',
+      activeLocation,
+      orders,
+      branchExpenses,
+      activeShiftStartTime,
+      openingFloat
+    );
+  };
+
+  const getTodaySalesSummary = (locationId: LocationId | 'All' = 'All') => {
+    return computeTodaySalesSummary(
+      orders,
+      products,
+      locations,
+      branchExpenses,
+      locationId
+    );
+  };
+
+  const getPeriodicStatementSummary = (
+    periodType: 'daily' | 'weekly' | 'monthly' | 'custom',
+    startDateStr: string,
+    endDateStr: string,
+    locationId: LocationId | 'All' = 'All'
+  ) => {
+    return computePeriodicStatementSummary(
+      periodType,
+      startDateStr,
+      endDateStr,
+      orders,
+      products,
+      locations,
+      branchExpenses,
+      shiftClosures,
+      locationId
+    );
+  };
+
+  const closeCashierShift = async (data: {
+    actualCashAtHand: number;
+    actualMpesa: number;
+    actualBank: number;
+    actualCard?: number;
+    cashDenominations?: {
+      notes1000?: number;
+      notes500?: number;
+      notes200?: number;
+      notes100?: number;
+      notes50?: number;
+      coins?: number;
+    };
+    handedOverTo?: string;
+    closingNotes?: string;
+  }) => {
+    try {
+      const activeStats = getActiveShiftStats();
+      const nowISO = new Date().toISOString();
+      const locInfo = locations.find(l => l.id === activeLocation);
+      const shiftNum = `SH-${new Date().toISOString().slice(5, 10).replace('-', '')}-${String(shiftClosures.length + 1).padStart(2, '0')}`;
+      const zNum = `Z-${Date.now().toString().slice(-8)}`;
+
+      const cashVariance = Number((data.actualCashAtHand - activeStats.expectedCashInDrawer).toFixed(2));
+      const mpesaVariance = Number((data.actualMpesa - activeStats.expectedMpesa).toFixed(2));
+      const bankVariance = Number((data.actualBank - activeStats.expectedBank).toFixed(2));
+      const totalVariance = Number((cashVariance + mpesaVariance + bankVariance).toFixed(2));
+
+      const newShiftRecord: CashierShiftRecord = {
+        id: `SHIFT-${Date.now()}`,
+        shiftNumber: shiftNum,
+        locationId: activeLocation,
+        locationName: locInfo?.name || activeLocation,
+        operatorId: currentUser?.id || 'op-current',
+        operatorName: currentUser?.name || 'Cashier',
+        operatorRole: currentUser?.role || 'pos_cashier',
+        startTime: activeShiftStartTime,
+        endTime: nowISO,
+        status: 'closed',
+        openingFloat: activeStats.openingFloat,
+        totalSalesOrdersCount: activeStats.totalSalesOrdersCount,
+        totalUnitsSold: activeStats.totalUnitsSold,
+        grossSalesRevenue: activeStats.grossSalesRevenue,
+        vatLiability: activeStats.vatLiability,
+        netSalesRevenue: activeStats.netSalesRevenue,
+        expectedCash: activeStats.expectedCashInDrawer,
+        expectedMpesa: activeStats.expectedMpesa,
+        expectedBank: activeStats.expectedBank,
+        expectedCard: activeStats.expectedCard,
+        cashExpensesPaid: activeStats.cashExpensesPaid,
+        actualCashAtHand: data.actualCashAtHand,
+        actualMpesa: data.actualMpesa,
+        actualBank: data.actualBank,
+        actualCard: data.actualCard ?? activeStats.expectedCard,
+        cashVariance,
+        mpesaVariance,
+        bankVariance,
+        totalVariance,
+        cashDenominations: data.cashDenominations,
+        handedOverTo: data.handedOverTo || 'Branch Supervisor / Safe',
+        closingNotes: data.closingNotes || 'Shift closed and balanced.',
+        closedBySupervisor: isAdmin ? (adminUser?.displayName || 'Administrator') : undefined,
+        closedAt: nowISO,
+        zReportNumber: zNum
+      };
+
+      setShiftClosures(prev => [newShiftRecord, ...prev]);
+
+      // Adjust current cash balance in location to actual counted cash
+      setLocations(prev => prev.map(l => {
+        if (l.id === activeLocation) {
+          return {
+            ...l,
+            currentCashBalance: data.actualCashAtHand
+          };
+        }
+        return l;
+      }));
+
+      // Post variance to ledger if there is any cash discrepancy
+      if (Math.abs(cashVariance) >= 0.01) {
+        const varianceLedgerId = `LEDG-VAR-${Date.now().toString().slice(-6)}`;
+        setLedger(prev => [
+          {
+            id: varianceLedgerId,
+            timestamp: nowISO,
+            transactionRef: zNum,
+            description: `Cashier Shift Reconciled Variance for ${newShiftRecord.shiftNumber} (${cashVariance > 0 ? 'Surplus' : 'Shortage'})`,
+            debitAccount: cashVariance > 0 ? 'Cash in Drawer' : 'Cash Shortage Expense',
+            creditAccount: cashVariance > 0 ? 'Cash Over / Surplus Revenue' : 'Cash in Drawer',
+            amount: Math.abs(cashVariance),
+            locationId: activeLocation,
+            category: 'Adjustment'
+          },
+          ...prev
+        ]);
+      }
+
+      // Record Audit Log
+      recordAuditLog(
+        'Cashier Shift Closed',
+        `Closed shift ${shiftNum} (Z-Report: ${zNum}) for ${newShiftRecord.operatorName} at ${locInfo?.name}. Expected Cash: KSh ${activeStats.expectedCashInDrawer.toLocaleString()}, Actual Cash: KSh ${data.actualCashAtHand.toLocaleString()}, Variance: KSh ${totalVariance.toLocaleString()}`
+      );
+
+      // Start next active shift session
+      setActiveShiftStartTime(nowISO);
+      setSelectedShiftRecord(newShiftRecord);
+
+      return {
+        success: true,
+        shiftRecord: newShiftRecord,
+        message: `Shift ${shiftNum} successfully closed and reconciled with Z-Report #${zNum}`
+      };
+    } catch (err: any) {
+      console.error('Error closing shift:', err);
+      return {
+        success: false,
+        message: err.message || 'Failed to close shift'
+      };
+    }
+  };
+
   // HELD CART OPERATIONS
   const holdCurrentCart = (note: string = 'Order Put On Hold', customerName: string = 'Retail Customer') => {
     if (cart.length === 0) {
@@ -1500,10 +1754,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assignedLoc = 'main_store';
       roleName = 'Faith Chebet (Accountant)';
     } else if (role === 'branch_manager') {
-      assignedLoc = activeLocation || 'branch_westlands';
+      assignedLoc = activeLocation && activeLocation !== 'branch_westlands' ? activeLocation : 'sales_shop';
       roleName = 'Brian O. Otieno (Branch Manager)';
     } else if (role === 'branch_cashier') {
-      assignedLoc = activeLocation || 'branch_westlands';
+      assignedLoc = activeLocation && activeLocation !== 'branch_westlands' ? activeLocation : 'sales_shop';
       roleName = 'Mercy Chebet (Branch Cashier)';
     }
 
@@ -3364,7 +3618,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sales_shop: destLoc === 'sales_shop' ? newProductData.quantity : 0,
         store_1: destLoc === 'store_1' ? newProductData.quantity : 0,
         store_2: destLoc === 'store_2' ? newProductData.quantity : 0,
-        branch_westlands: destLoc === 'branch_westlands' ? newProductData.quantity : 0,
         [destLoc]: newProductData.quantity
       },
       minReorderLevel: newProductData.minReorderLevel || 30,
@@ -4346,6 +4599,102 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  // DUPLICATION CONTROL & AUDIT SHIELD ENGINE
+  const checkProductDuplicate = (candidate: { barcode?: string; sku?: string; name?: string; category?: string; excludeId?: string }) => {
+    return checkDuplicateConflict(candidate, products);
+  };
+
+  const scanAllCatalogDuplicates = (): CatalogDuplicateAuditReport => {
+    return calculateCatalogDuplicateReport(products, locations);
+  };
+
+  const mergeDuplicateProducts = async (masterProductId: string, duplicateProductIds: string[]) => {
+    const master = products.find(p => p.id === masterProductId);
+    if (!master) return { success: false, mergedCount: 0, message: 'Master product record not found.' };
+
+    const dupes = products.filter(p => duplicateProductIds.includes(p.id) && p.id !== masterProductId);
+    if (dupes.length === 0) return { success: false, mergedCount: 0, message: 'No duplicate records to merge.' };
+
+    // Aggregate location stocks across all stores
+    const mergedLocationStock: Record<LocationId, number> = {
+      main_store: Number(master.locationStock.main_store) || 0,
+      sales_shop: Number(master.locationStock.sales_shop) || 0,
+      eastleigh_wholesale: Number(master.locationStock.eastleigh_wholesale) || 0,
+      parklands_store: Number(master.locationStock.parklands_store) || 0
+    };
+
+    dupes.forEach(d => {
+      if (d.locationStock) {
+        Object.entries(d.locationStock).forEach(([loc, qty]) => {
+          const locKey = loc as LocationId;
+          mergedLocationStock[locKey] = (mergedLocationStock[locKey] || 0) + (Number(qty) || 0);
+        });
+      }
+    });
+
+    const updatedMaster: ProductBatch = {
+      ...master,
+      locationStock: mergedLocationStock
+    };
+
+    // Update local state
+    setProducts(prev => [
+      updatedMaster,
+      ...prev.filter(p => p.id !== masterProductId && !duplicateProductIds.includes(p.id))
+    ]);
+
+    // Firestore sync
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'products', masterProductId), updatedMaster, { merge: true });
+      await Promise.all(dupes.map(d => deleteDoc(doc(db, 'products', d.id))));
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn('Firestore merge products sync warning:', e);
+      setCloudSyncStatus('offline');
+    }
+
+    recordAuditLog(
+      'Duplicate Products Merged',
+      `Merged ${dupes.length} duplicate product records into master batch ${master.id} (${master.name}). Total consolidated stock adjusted.`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      mergedCount: dupes.length,
+      message: `Successfully consolidated ${dupes.length} duplicate item(s) into master product "${master.name}". Stock re-tallied correctly.`
+    };
+  };
+
+  const autoDeduplicateAllCatalog = async () => {
+    const report = calculateCatalogDuplicateReport(products, locations);
+    if (report.duplicateGroups.length === 0) {
+      return { success: true, groupsResolved: 0, itemsMerged: 0, message: 'Zero duplicate products detected in the catalog!' };
+    }
+
+    let totalMerged = 0;
+    let groupsDone = 0;
+
+    for (const group of report.duplicateGroups) {
+      const master = group.masterProduct;
+      const dupIds = group.duplicates.map(d => d.id);
+      const res = await mergeDuplicateProducts(master.id, dupIds);
+      if (res.success) {
+        totalMerged += res.mergedCount;
+        groupsDone++;
+      }
+    }
+
+    return {
+      success: true,
+      groupsResolved: groupsDone,
+      itemsMerged: totalMerged,
+      message: `Audit Guard resolved ${groupsDone} duplicate group(s) and safely merged ${totalMerged} duplicate stock records into canonical batches!`
+    };
+  };
+
   // QR SCANNER Handler (Enhanced Multi-Format Parser & Resolver)
   const handleQRScan = (qrString: string) => {
     const raw = (qrString || '').trim();
@@ -4574,6 +4923,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         dismissDuplicateAlert,
         scanToAddProduct,
         restockExistingProduct,
+        checkProductDuplicate,
+        mergeDuplicateProducts,
+        scanAllCatalogDuplicates,
+        autoDeduplicateAllCatalog,
         scannedResult,
         setScannedResult,
         handleQRScan,
@@ -4591,7 +4944,21 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAuthModalOpen,
         isMailDrawerOpen,
         setIsMailDrawerOpen,
-        purgeAllMockData
+        purgeAllMockData,
+        shiftClosures,
+        activeShiftStartTime,
+        closeCashierShift,
+        isShiftClosureModalOpen,
+        setIsShiftClosureModalOpen,
+        selectedShiftRecord,
+        setSelectedShiftRecord,
+        isTodaySalesModalOpen,
+        setIsTodaySalesModalOpen,
+        isPeriodicStatementModalOpen,
+        setIsPeriodicStatementModalOpen,
+        getActiveShiftStats,
+        getTodaySalesSummary,
+        getPeriodicStatementSummary
       }}
     >
       {children}
