@@ -29,6 +29,7 @@ import { DuplicateBarcodeAlertModal } from './components/common/DuplicateBarcode
 import { AuthModal } from './components/auth/AuthModal';
 import { PlatformLockScreen } from './components/auth/PlatformLockScreen';
 import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
+import { ReturnExchangeModal } from './components/ReturnExchangeModal';
 import { Footer } from './components/layout/Footer';
 
 const ERPContent: React.FC = () => {
@@ -179,6 +180,7 @@ const ERPContent: React.FC = () => {
       <ShiftZReportModal />
       <PeriodicStatementModal />
       <TodaySalesModal />
+      <ReturnExchangeModal />
       <AuthModal />
 
     </div>

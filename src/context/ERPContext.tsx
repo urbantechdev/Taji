@@ -40,7 +40,11 @@ import {
   ProductDuplicateGroup,
   CashierShiftRecord,
   PeriodicStatementSummary,
-  TodaySalesSummary
+  TodaySalesSummary,
+  QuarantinedDefectRecord,
+  ReturnExchangePayload,
+  ETIMSCreditNote,
+  FabricRollRecord
 } from '../types';
 import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
 import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
@@ -62,6 +66,9 @@ import {
   INITIAL_TARE_RECONCILIATION_LOGS,
   INITIAL_WHT_RECORDS,
   INITIAL_SHIFT_CLOSURES,
+  INITIAL_QUARANTINED_DEFECTS,
+  INITIAL_CREDIT_NOTES,
+  INITIAL_FABRIC_ROLLS,
   CURRENT_USER
 } from '../data/initialData';
 import {
@@ -266,10 +273,18 @@ interface ERPContextType {
       retailPrice?: number;
       bulkPrice?: number;
       costPrice?: number;
+      pricePerKgRate?: number;
+      coneTareWeightKg?: number;
+      baleTareWeightKg?: number;
+      autoDeductTareAtPOS?: boolean;
       adjustmentType?: 'set_exact' | 'increase_percent' | 'decrease_percent' | 'markup_from_cost';
       percentageValue?: number;
     }
   ) => Promise<{ success: boolean; updatedCount: number; message: string }>;
+  updateCategoryPricingConfig: (
+    category: CategoryType,
+    configUpdates: Partial<CategoryPricingConfig>
+  ) => Promise<{ success: boolean; message: string }>;
   categoryPricingConfigs: Record<CategoryType, CategoryPricingConfig>;
   categoryImages: Record<CategoryType, string>;
   updateCategoryImage: (category: CategoryType, imageUrl: string, applyToAllBatches?: boolean) => Promise<{ success: boolean; message: string }>;
@@ -323,6 +338,20 @@ interface ERPContextType {
       colorName?: string;
       colorHex?: string;
       fiberComposition?: string;
+      yarnCount?: string;
+      linearDensityTex?: string;
+      dyeLot?: string;
+      shadeCode?: string;
+      bagNumber?: string;
+      packagesCount?: number;
+      weightPerPackageKg?: number;
+      grossWeightKg?: number;
+      netWeightKg?: number;
+      tareWeightKg?: number;
+      manufacturer?: string;
+      countryOfOrigin?: string;
+      yarnType?: string;
+      tareProfile?: TareProfile;
     }[],
     targetLocation: LocationId,
     sessionNotes?: string
@@ -430,6 +459,59 @@ interface ERPContextType {
     endDateStr: string,
     locationId?: LocationId | 'All'
   ) => PeriodicStatementSummary;
+
+  // Returns, Exchanges, Defective Cones Quarantine & Supplier Claims (RMA)
+  quarantinedDefects: QuarantinedDefectRecord[];
+  creditNotes: ETIMSCreditNote[];
+  addCreditNote: (creditNote: Omit<ETIMSCreditNote, 'id' | 'timestamp' | 'fiscalSignature'> & { id?: string }) => { success: boolean; creditNoteId: string; message: string; creditNote: ETIMSCreditNote };
+  processReturnAndExchange: (payload: ReturnExchangePayload) => {
+    success: boolean;
+    rmaId?: string;
+    message: string;
+    creditNote?: ETIMSCreditNote;
+    exchangeRecord?: QuarantinedDefectRecord;
+  };
+  fileSupplierDefectClaim: (recordIds: string[], supplierName: string, notes: string) => {
+    success: boolean;
+    claimRef: string;
+    message: string;
+  };
+  resolveQuarantineRecord: (
+    recordIds: string[],
+    action: 'supplier_compensated' | 'supplier_replaced' | 'written_off_scrap',
+    notes: string,
+    restockBatchId?: string,
+    restockQtyKg?: number
+  ) => { success: boolean; message: string };
+  isReturnExchangeModalOpen: boolean;
+  setIsReturnExchangeModalOpen: (open: boolean) => void;
+
+  // Fabric Rolls & Piece Goods Inventory (Fleece & Dereec Variable Meters & Remnants)
+  fabricRolls: FabricRollRecord[];
+  addFabricRoll: (roll: Omit<FabricRollRecord, 'id' | 'receivedAt'>) => { success: boolean; rollId: string; message: string };
+  addFabricRollBatchIntake: (
+    batchId: string,
+    locationId: LocationId,
+    rollLengths: number[],
+    widthCm?: number,
+    gsm?: number,
+    supplierName?: string
+  ) => { success: boolean; createdCount: number; totalMetersAdded: number; message: string };
+  cutFabricFromRoll: (
+    rollId: string,
+    metersToCut: number,
+    orderId?: string,
+    isSpoiltCut?: boolean,
+    flawReason?: DefectReasonType
+  ) => { success: boolean; remainingMeters: number; message: string; isRemnant: boolean };
+  logSpoiltFabricMeters: (
+    rollId: string,
+    spoiltMeters: number,
+    flawReason: DefectReasonType,
+    notes?: string
+  ) => { success: boolean; rmaId?: string; message: string };
+  isFabricRollModalOpen: boolean;
+  setIsFabricRollModalOpen: (open: boolean) => void;
 }
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
@@ -864,6 +946,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       defaultBulkPrice: 950,
       defaultCostPrice: 600,
       marginPercentage: 100,
+      pricePerKgRate: 1200,
+      coneTareWeightKg: 0.250,
+      baleTareWeightKg: 0.500,
+      autoDeductTareAtPOS: true,
       lastUpdated: new Date().toISOString()
     },
     Fleece: {
@@ -872,6 +958,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       defaultBulkPrice: 1350,
       defaultCostPrice: 850,
       marginPercentage: 88,
+      pricePerKgRate: 1600,
+      coneTareWeightKg: 0.250,
+      baleTareWeightKg: 0.500,
+      autoDeductTareAtPOS: true,
       lastUpdated: new Date().toISOString()
     },
     Yarns: {
@@ -880,6 +970,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       defaultBulkPrice: 680,
       defaultCostPrice: 420,
       marginPercentage: 102,
+      pricePerKgRate: 750, // Default 1 KG = KSh 750 (Single cone rate) or custom
+      coneTareWeightKg: 0.070, // Standard 70g empty paper/plastic cone spool
+      baleTareWeightKg: 0.840, // Standard 840g bale bag & packaging
+      autoDeductTareAtPOS: true,
       lastUpdated: new Date().toISOString()
     }
   };
@@ -1168,7 +1262,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.filter((w: KRAWithholdingTaxRecord) => !w.id?.startsWith('WHT-2026-0'));
         }
       }
     } catch (e) {
@@ -1428,7 +1522,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_shift_closures');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((s: CashierShiftRecord) => !s.id?.startsWith('SHIFT-2026-0823'));
+        }
       }
     } catch (e) {
       console.warn('Error reading shift closures from localStorage:', e);
@@ -1624,6 +1720,491 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: err.message || 'Failed to close shift'
       };
     }
+  };
+
+  // QUARANTINED DEFECTS & CREDIT NOTES (RMA, DAMAGED CONES, SUPPLIER CLAIMS)
+  const [quarantinedDefects, setQuarantinedDefects] = useState<QuarantinedDefectRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_quarantine_defects');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading quarantine defects from localStorage:', e);
+    }
+    return INITIAL_QUARANTINED_DEFECTS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_quarantine_defects', JSON.stringify(quarantinedDefects));
+    } catch (e) {
+      console.warn('Error saving quarantine defects to localStorage:', e);
+    }
+  }, [quarantinedDefects]);
+
+  const [creditNotes, setCreditNotes] = useState<ETIMSCreditNote[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_credit_notes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading credit notes from localStorage:', e);
+    }
+    return INITIAL_CREDIT_NOTES;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_credit_notes', JSON.stringify(creditNotes));
+    } catch (e) {
+      console.warn('Error saving credit notes to localStorage:', e);
+    }
+  }, [creditNotes]);
+
+  const [isReturnExchangeModalOpen, setIsReturnExchangeModalOpen] = useState(false);
+
+  const addCreditNote = (noteData: Omit<ETIMSCreditNote, 'id' | 'timestamp' | 'fiscalSignature'> & { id?: string }) => {
+    const id = noteData.id || `CRN-2026-${String(creditNotes.length + 1).padStart(3, '0')}`;
+    const newNote: ETIMSCreditNote = {
+      ...noteData,
+      id,
+      timestamp: new Date().toISOString(),
+      fiscalSignature: `KRA-ETIMS-SIG-${Math.floor(10000 + Math.random() * 90000)}-${id}`
+    };
+    setCreditNotes(prev => [newNote, ...prev]);
+    return { success: true, creditNoteId: id, message: `Credit Note ${id} created successfully.`, creditNote: newNote };
+  };
+
+  const processReturnAndExchange = (payload: ReturnExchangePayload) => {
+    const rmaId = `RMA-2026-${String(quarantinedDefects.length + 1).padStart(4, '0')}`;
+    const retBatch = products.find(p => p.id === payload.returnedBatchId);
+    const locInfo = locations.find(l => l.id === payload.locationId);
+
+    const netWeight = payload.returnedNetWeightKg > 0 ? payload.returnedNetWeightKg : 4.0;
+    const unitPrice = payload.returnedRatePerKg > 0 ? payload.returnedRatePerKg : (retBatch?.unitPriceRetail || 750);
+    const costPrice = retBatch?.costPrice || (unitPrice * 0.6);
+    const retailValuation = netWeight * unitPrice;
+    const costValuation = netWeight * costPrice;
+
+    // Tax calculation on returned goods
+    const vatRate = etrConfig.vatRate || 0.16;
+    const taxableNetRevenue = Number((retailValuation / (1 + vatRate)).toFixed(2));
+    const vatReversal = Number((retailValuation - taxableNetRevenue).toFixed(2));
+
+    let createdCreditNote: ETIMSCreditNote | undefined = undefined;
+    let replacementInfo: QuarantinedDefectRecord['replacementItem'] = undefined;
+    const financialDetails: QuarantinedDefectRecord['financialDetails'] = {
+      originalPaymentMethod: payload.refundChannel || 'Bank Transfer'
+    };
+
+    // 1. RESOLUTION MODE HANDLING:
+    if (payload.resolutionType === 'exchange_replacement') {
+      // 1-to-1 Exchange: Issue good replacement cones to customer from sellable active stock
+      const repBatchId = payload.replacementBatchId || payload.returnedBatchId;
+      const repBatch = products.find(p => p.id === repBatchId) || retBatch;
+      const repNetKg = payload.replacementNetWeightKg || netWeight;
+      const repPricePerKg = payload.replacementRatePerKg || unitPrice;
+      const repRetailValuation = repNetKg * repPricePerKg;
+
+      // Check stock for replacement
+      const availableStock = repBatch?.locationStock[payload.locationId] || 0;
+      if (availableStock < repNetKg) {
+        playAlertSound();
+        return {
+          success: false,
+          message: `Cannot complete exchange: Insufficient replacement stock at ${locInfo?.name}. Available: ${availableStock.toFixed(2)}kg, Required: ${repNetKg.toFixed(2)}kg.`
+        };
+      }
+
+      // Deduct replacement stock from Active Sellable Inventory
+      setProducts(prevProds =>
+        prevProds.map(p => {
+          if (p.id === repBatchId) {
+            const cur = p.locationStock[payload.locationId] || 0;
+            return {
+              ...p,
+              locationStock: {
+                ...p.locationStock,
+                [payload.locationId]: Math.max(0, cur - repNetKg)
+              }
+            };
+          }
+          return p;
+        })
+      );
+
+      replacementInfo = {
+        batchId: repBatchId,
+        productName: repBatch?.name || 'Replacement Yarn Cones',
+        sku: repBatch?.sku || repBatchId,
+        colorName: repBatch?.colorName,
+        dyeLot: repBatch?.dyeLot,
+        shadeCode: repBatch?.shadeCode,
+        conesCount: payload.replacementConesCount || payload.returnedConesCount,
+        netWeightKg: repNetKg,
+        unitPrice: repPricePerKg,
+        totalValuationRetail: repRetailValuation
+      };
+
+      // Difference in price if replacement cones weighed slightly different
+      const priceDiff = repRetailValuation - retailValuation;
+      if (priceDiff > 0.01) {
+        financialDetails.priceDifferencePaidByCustomer = priceDiff;
+      } else if (priceDiff < -0.01) {
+        financialDetails.priceDifferenceRefundedToCustomer = Math.abs(priceDiff);
+      }
+
+      // Ledger: Move cost from Active Inventory to Quarantined Damaged Inventory Asset
+      const entriesToPost: LedgerEntry[] = [
+        {
+          id: `LEDG-RMA-${Date.now().toString().slice(-6)}-1`,
+          timestamp: new Date().toISOString(),
+          transactionRef: rmaId,
+          description: `RMA Defective Yarn Spoilage Quarantine (${payload.returnedConesCount} cones, ${netWeight.toFixed(3)}kg) - Reason: ${payload.defectReason}`,
+          debitAccount: '1350 - Quarantined Damaged Inventory Asset (Pending Supplier Claim)',
+          creditAccount: `1200 - Inventory Asset (${locInfo?.name})`,
+          amount: Number(costValuation.toFixed(2)),
+          locationId: payload.locationId,
+          category: 'Adjustment'
+        }
+      ];
+
+      if (priceDiff > 0.01) {
+        entriesToPost.push({
+          id: `LEDG-RMA-${Date.now().toString().slice(-6)}-2`,
+          timestamp: new Date().toISOString(),
+          transactionRef: rmaId,
+          description: `RMA Exchange Weight Surcharge Collected (Customer top-up ${priceDiff.toFixed(2)})`,
+          debitAccount: 'Cash at Hand / Bank',
+          creditAccount: 'Sales Revenue (Exchange Variance)',
+          amount: Number(priceDiff.toFixed(2)),
+          locationId: payload.locationId,
+          category: 'Sales'
+        });
+      }
+
+      setLedger(prev => [...entriesToPost, ...prev]);
+
+    } else if (payload.resolutionType === 'bank_refund' || payload.resolutionType === 'mpesa_refund' || payload.resolutionType === 'cash_refund') {
+      // Direct Cash/Bank Reversal: Company refunds the customer for spoilt cones
+      const refundAmount = retailValuation;
+      financialDetails.refundAmount = refundAmount;
+      financialDetails.vatReversalAmount = vatReversal;
+      financialDetails.netRevenueReversalAmount = taxableNetRevenue;
+      financialDetails.bankTransferReference = payload.refundReference || `REF-BANK-${Date.now().toString().slice(-6)}`;
+
+      // Generate official eTIMS Credit Note
+      const crnId = `CRN-2026-${String(creditNotes.length + 1).padStart(3, '0')}`;
+      createdCreditNote = {
+        id: crnId,
+        originalInvoiceNo: payload.receiptNumber || payload.orderId || 'INV-2026-ORIG',
+        originalCuSerial: etrConfig.cuSerialNumber,
+        customerName: payload.customerName,
+        customerKraPin: undefined,
+        creditReason: 'Damaged Fabric Return',
+        originalAmount: refundAmount,
+        creditAmount: refundAmount,
+        vatCredited: vatReversal,
+        netCredited: taxableNetRevenue,
+        issuedBy: payload.operatorName || currentUser.name,
+        timestamp: new Date().toISOString(),
+        fiscalSignature: `KRA-ETIMS-CRN-${Math.floor(10000 + Math.random() * 90000)}-${crnId}`
+      };
+      setCreditNotes(prev => [createdCreditNote!, ...prev]);
+      financialDetails.creditNoteNumber = crnId;
+
+      // Decrement cash/bank if Cash
+      if (payload.resolutionType === 'cash_refund') {
+        setLocations(prevLocs =>
+          prevLocs.map(l => {
+            if (l.id === payload.locationId) {
+              const cur = l.currentCashBalance ?? l.openingFloat ?? 0;
+              return { ...l, currentCashBalance: Math.max(0, cur - refundAmount) };
+            }
+            return l;
+          })
+        );
+      }
+
+      const channelName = payload.resolutionType === 'bank_refund'
+        ? 'Bank Operating Account'
+        : payload.resolutionType === 'mpesa_refund'
+        ? 'M-Pesa Till / Paybill'
+        : 'Cash Drawer';
+
+      // Ledger: Reverse Sales Revenue & Output VAT, and isolate cost in Quarantine Asset
+      const entriesToPost: LedgerEntry[] = [
+        {
+          id: `LEDG-RMA-${Date.now().toString().slice(-6)}-1`,
+          timestamp: new Date().toISOString(),
+          transactionRef: rmaId,
+          description: `Sales Return & Revenue Reversal for ${payload.customerName} (${payload.defectReason})`,
+          debitAccount: '4200 - Sales Returns & Allowances',
+          creditAccount: channelName,
+          amount: Number(taxableNetRevenue.toFixed(2)),
+          locationId: payload.locationId,
+          category: 'Sales'
+        },
+        {
+          id: `LEDG-RMA-${Date.now().toString().slice(-6)}-2`,
+          timestamp: new Date().toISOString(),
+          transactionRef: rmaId,
+          description: `KRA 16% Output VAT Reversal via Credit Note ${crnId}`,
+          debitAccount: '2150 - KRA Output VAT Liability',
+          creditAccount: channelName,
+          amount: Number(vatReversal.toFixed(2)),
+          locationId: payload.locationId,
+          category: 'Tax VAT'
+        },
+        {
+          id: `LEDG-RMA-${Date.now().toString().slice(-6)}-3`,
+          timestamp: new Date().toISOString(),
+          transactionRef: rmaId,
+          description: `Defective Stock Moved to Quarantine Asset at Cost (${payload.returnedConesCount} cones)`,
+          debitAccount: '1350 - Quarantined Damaged Inventory Asset',
+          creditAccount: '5000 - Cost of Goods Sold (COGS Reversal)',
+          amount: Number(costValuation.toFixed(2)),
+          locationId: payload.locationId,
+          category: 'Adjustment'
+        }
+      ];
+
+      setLedger(prev => [...entriesToPost, ...prev]);
+
+    } else if (payload.resolutionType === 'store_credit') {
+      // Digital Store Credit Voucher issued
+      const creditAmount = retailValuation;
+      financialDetails.refundAmount = creditAmount;
+      financialDetails.vatReversalAmount = vatReversal;
+      financialDetails.netRevenueReversalAmount = taxableNetRevenue;
+
+      const crnId = `CRN-2026-${String(creditNotes.length + 1).padStart(3, '0')}`;
+      createdCreditNote = {
+        id: crnId,
+        originalInvoiceNo: payload.receiptNumber || payload.orderId || 'INV-2026-ORIG',
+        originalCuSerial: etrConfig.cuSerialNumber,
+        customerName: payload.customerName,
+        customerKraPin: undefined,
+        creditReason: 'Damaged Fabric Return',
+        originalAmount: creditAmount,
+        creditAmount: creditAmount,
+        vatCredited: vatReversal,
+        netCredited: taxableNetRevenue,
+        issuedBy: payload.operatorName || currentUser.name,
+        timestamp: new Date().toISOString(),
+        fiscalSignature: `KRA-ETIMS-CRN-${Math.floor(10000 + Math.random() * 90000)}-${crnId}`
+      };
+      setCreditNotes(prev => [createdCreditNote!, ...prev]);
+      financialDetails.creditNoteNumber = crnId;
+
+      const entriesToPost: LedgerEntry[] = [
+        {
+          id: `LEDG-RMA-${Date.now().toString().slice(-6)}-1`,
+          timestamp: new Date().toISOString(),
+          transactionRef: rmaId,
+          description: `Store Credit Issued to ${payload.customerName} for Damaged Yarn (${crnId})`,
+          debitAccount: '4200 - Sales Returns & Allowances',
+          creditAccount: '2200 - Customer Store Credit Liabilities',
+          amount: Number(taxableNetRevenue.toFixed(2)),
+          locationId: payload.locationId,
+          category: 'Sales'
+        },
+        {
+          id: `LEDG-RMA-${Date.now().toString().slice(-6)}-2`,
+          timestamp: new Date().toISOString(),
+          transactionRef: rmaId,
+          description: `KRA 16% Output VAT Reversal for Credit Note ${crnId}`,
+          debitAccount: '2150 - KRA Output VAT Liability',
+          creditAccount: '2200 - Customer Store Credit Liabilities',
+          amount: Number(vatReversal.toFixed(2)),
+          locationId: payload.locationId,
+          category: 'Tax VAT'
+        },
+        {
+          id: `LEDG-RMA-${Date.now().toString().slice(-6)}-3`,
+          timestamp: new Date().toISOString(),
+          transactionRef: rmaId,
+          description: `Defective Stock Moved to Quarantine Asset at Cost`,
+          debitAccount: '1350 - Quarantined Damaged Inventory Asset',
+          creditAccount: '5000 - Cost of Goods Sold (COGS Reversal)',
+          amount: Number(costValuation.toFixed(2)),
+          locationId: payload.locationId,
+          category: 'Adjustment'
+        }
+      ];
+
+      setLedger(prev => [...entriesToPost, ...prev]);
+    }
+
+    // 2. CREATE QUARANTINED DEFECT RECORD
+    const newQuarantineRecord: QuarantinedDefectRecord = {
+      id: rmaId,
+      rmaNumber: rmaId,
+      orderId: payload.orderId,
+      receiptNumber: payload.receiptNumber,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      returnedAt: new Date().toISOString(),
+      locationId: payload.locationId,
+      operatorId: payload.operatorId || currentUser.id,
+      operatorName: payload.operatorName || currentUser.name,
+      defectReason: payload.defectReason,
+      defectNotes: payload.defectNotes,
+      resolutionType: payload.resolutionType,
+      returnedItem: {
+        batchId: payload.returnedBatchId,
+        productName: retBatch?.name || 'Damaged Yarn Cones',
+        sku: retBatch?.sku || payload.returnedBatchId,
+        category: retBatch?.category || 'Yarns',
+        colorName: retBatch?.colorName,
+        colorHex: retBatch?.colorHex,
+        dyeLot: retBatch?.dyeLot,
+        shadeCode: retBatch?.shadeCode,
+        yarnCount: retBatch?.yarnCount,
+        conesCount: payload.returnedConesCount,
+        grossWeightKg: payload.returnedGrossWeightKg,
+        tareDeductionKg: payload.returnedTareKg,
+        netWeightKg: netWeight,
+        unitPrice: unitPrice,
+        costPrice: costPrice,
+        totalValuationRetail: retailValuation,
+        totalValuationCost: costValuation
+      },
+      replacementItem: replacementInfo,
+      financialDetails,
+      quarantineStatus: 'quarantined',
+      supplierName: payload.supplierName || retBatch?.manufacturer || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD'
+    };
+
+    setQuarantinedDefects(prev => [newQuarantineRecord, ...prev]);
+
+    // 3. AUDIT LOG & SOUND
+    recordAuditLog(
+      'RMA Return & Exchange Processed',
+      `Processed ${payload.resolutionType.replace('_', ' ')} (${rmaId}) for ${payload.customerName}: ${payload.returnedConesCount} spoilt cones (${netWeight.toFixed(3)}kg) quarantined. Defect: ${payload.defectReason}`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      rmaId,
+      message: `Return & ${payload.resolutionType === 'exchange_replacement' ? 'Exchange' : 'Refund'} processed successfully under Ticket ${rmaId}.`,
+      creditNote: createdCreditNote,
+      exchangeRecord: newQuarantineRecord
+    };
+  };
+
+  const fileSupplierDefectClaim = (recordIds: string[], supplierName: string, notes: string) => {
+    const claimRef = `CLM-${supplierName.split(' ')[0].toUpperCase()}-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const now = new Date().toISOString();
+
+    let totalCostValuation = 0;
+    let totalNetKg = 0;
+
+    setQuarantinedDefects(prev =>
+      prev.map(rec => {
+        if (recordIds.includes(rec.id)) {
+          totalCostValuation += rec.returnedItem.totalValuationCost;
+          totalNetKg += rec.returnedItem.netWeightKg;
+          return {
+            ...rec,
+            quarantineStatus: 'supplier_claim_filed',
+            supplierName: supplierName || rec.supplierName,
+            supplierClaimNumber: claimRef,
+            supplierClaimFiledAt: now,
+            supplierResolutionNotes: notes
+          };
+        }
+        return rec;
+      })
+    );
+
+    // Ledger: Move from Quarantine Inventory to Supplier Receivable Claim
+    const claimJournal: LedgerEntry = {
+      id: `LEDG-CLM-${Date.now().toString().slice(-6)}`,
+      timestamp: now,
+      transactionRef: claimRef,
+      description: `Supplier Defect Claim Filed against ${supplierName} (${totalNetKg.toFixed(2)}kg yarn defects, ${recordIds.length} batch lots)`,
+      debitAccount: `1180 - Accounts Receivable (Supplier Claims - ${supplierName})`,
+      creditAccount: '1350 - Quarantined Damaged Inventory Asset',
+      amount: Number(totalCostValuation.toFixed(2)),
+      locationId: activeLocation,
+      category: 'Adjustment'
+    };
+
+    setLedger(prev => [claimJournal, ...prev]);
+
+    recordAuditLog(
+      'Supplier Defect Claim Filed',
+      `Submitted Claim Note ${claimRef} to ${supplierName} for KSh ${totalCostValuation.toLocaleString()} (${totalNetKg.toFixed(2)}kg defect yarn across ${recordIds.length} tickets)`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      claimRef,
+      message: `Supplier Claim Note ${claimRef} successfully filed for ${recordIds.length} defect records (KSh ${totalCostValuation.toLocaleString()}).`
+    };
+  };
+
+  const resolveQuarantineRecord = (
+    recordIds: string[],
+    action: 'supplier_compensated' | 'supplier_replaced' | 'written_off_scrap',
+    notes: string,
+    restockBatchId?: string,
+    restockQtyKg?: number
+  ) => {
+    const now = new Date().toISOString();
+
+    setQuarantinedDefects(prev =>
+      prev.map(rec => {
+        if (recordIds.includes(rec.id)) {
+          return {
+            ...rec,
+            quarantineStatus: action === 'written_off_scrap' ? 'written_off_scrap' : 'supplier_compensated',
+            supplierResolutionDate: now,
+            supplierResolutionNotes: notes,
+            isWrittenOff: action === 'written_off_scrap'
+          };
+        }
+        return rec;
+      })
+    );
+
+    // If replacement cones received from manufacturer, restock sellable inventory
+    if (action === 'supplier_replaced' && restockBatchId && restockQtyKg && restockQtyKg > 0) {
+      setProducts(prevProds =>
+        prevProds.map(p => {
+          if (p.id === restockBatchId) {
+            const cur = p.locationStock[activeLocation] || 0;
+            return {
+              ...p,
+              locationStock: {
+                ...p.locationStock,
+                [activeLocation]: cur + restockQtyKg
+              }
+            };
+          }
+          return p;
+        })
+      );
+    }
+
+    recordAuditLog(
+      'Quarantine Defect Resolved',
+      `Resolved ${recordIds.length} defect records via ${action.replace('_', ' ')}. Notes: ${notes}`
+    );
+    playSuccessSound();
+
+    return { success: true, message: `Quarantine records resolved successfully.` };
   };
 
   // HELD CART OPERATIONS
@@ -3778,6 +4359,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       colorName?: string;
       colorHex?: string;
       fiberComposition?: string;
+      yarnCount?: string;
+      linearDensityTex?: string;
+      dyeLot?: string;
+      shadeCode?: string;
+      bagNumber?: string;
+      packagesCount?: number;
+      weightPerPackageKg?: number;
+      grossWeightKg?: number;
+      netWeightKg?: number;
+      tareWeightKg?: number;
+      manufacturer?: string;
+      countryOfOrigin?: string;
+      yarnType?: string;
+      tareProfile?: TareProfile;
     }[],
     targetLocation: LocationId,
     sessionNotes?: string
@@ -3792,16 +4387,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let totalRetailValuationAdded = 0;
 
     let updatedProducts = [...products];
+    const newTareLogs: TareReconciliationRecord[] = [];
 
     items.forEach(item => {
       const barcodeUpper = item.barcode.trim().toUpperCase();
       const existingIndex = updatedProducts.findIndex(
         p => (p.barcode && p.barcode.toUpperCase() === barcodeUpper) ||
              (p.sku && p.sku.toUpperCase() === barcodeUpper) ||
-             p.id.toUpperCase() === barcodeUpper
+             p.id.toUpperCase() === barcodeUpper ||
+             (item.shadeCode && p.shadeCode && p.shadeCode.toUpperCase() === item.shadeCode.toUpperCase() && item.dyeLot && p.dyeLot === item.dyeLot)
       );
 
-      const qty = Math.max(1, Number(item.quantity) || 1);
+      const qty = Math.max(0.1, Number(item.quantity) || 1);
       const wholesale = Number(item.wholesalePrice) || 0;
       const retail = Number(item.retailPrice) || 0;
 
@@ -3817,6 +4414,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...existing,
           costPrice: wholesale > 0 ? wholesale : existing.costPrice,
           unitPriceRetail: retail > 0 ? retail : existing.unitPriceRetail,
+          yarnCount: item.yarnCount || existing.yarnCount,
+          dyeLot: item.dyeLot || existing.dyeLot,
+          shadeCode: item.shadeCode || existing.shadeCode,
+          bagNumber: item.bagNumber || existing.bagNumber,
+          packagesCount: item.packagesCount || existing.packagesCount,
+          manufacturer: item.manufacturer || existing.manufacturer,
           locationStock: {
             ...existing.locationStock,
             [targetLocation]: currentLocStock + qty
@@ -3826,8 +4429,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Auto-create product record under chosen category
         const batchId = `BATCH-${category.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
         const sku = barcodeUpper;
-        const colorName = item.colorName || (category === 'Dereck' ? 'Royal Navy' : category === 'Fleece' ? 'Charcoal Heather' : 'Natural Ecru');
-        const colorHex = item.colorHex || (category === 'Dereck' ? '#1E3A8A' : category === 'Fleece' ? '#374151' : '#F3F4F6');
+        const colorName = item.colorName || (category === 'Dereck' ? 'Royal Navy' : category === 'Fleece' ? 'Charcoal Heather' : 'Mix Grey');
+        const colorHex = item.colorHex || (category === 'Dereck' ? '#1E3A8A' : category === 'Fleece' ? '#374151' : '#94A3B8');
         const unit = item.unit || (category === 'Yarns' ? 'kg' : 'meter');
         const name = item.name || `${category} - ${colorName} (${sku})`;
 
@@ -3838,6 +4441,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           color: colorHex,
           unitPrice: retail,
           costPrice: wholesale,
+          lot: item.dyeLot,
+          shade: item.shadeCode,
           intakeAt: now
         });
 
@@ -3847,8 +4452,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           barcode: barcodeUpper,
           name,
           category,
-          subCategory: `${category} Premium Stock`,
-          fiberComposition: item.fiberComposition || (category === 'Dereck' ? '100% Superfine Dereec Weave' : category === 'Fleece' ? 'Heavyweight Thermal Polar Fleece' : '100% Spun Acrylic Knitting Yarn'),
+          subCategory: item.yarnCount ? `Count ${item.yarnCount} ${category}` : `${category} Premium Stock`,
+          fiberComposition: item.fiberComposition || (category === 'Dereck' ? '100% Superfine Dereec Weave' : category === 'Fleece' ? 'Heavyweight Thermal Polar Fleece' : '100% ACRYLIC (HB) DYED YARN'),
           colorName,
           colorHex,
           unit,
@@ -3862,16 +4467,60 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             store_2: targetLocation === 'store_2' ? qty : 0,
             [targetLocation]: qty
           },
-          minReorderLevel: 25,
+          minReorderLevel: category === 'Yarns' ? 48 : 25,
           qrCodeData: qrData,
+          manufacturer: item.manufacturer || (category === 'Yarns' ? 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD' : undefined),
+          countryOfOrigin: item.countryOfOrigin || (category === 'Yarns' ? 'INDIA' : undefined),
+          yarnCount: item.yarnCount,
+          linearDensityTex: item.linearDensityTex,
+          dyeLot: item.dyeLot,
+          shadeCode: item.shadeCode,
+          bagNumber: item.bagNumber,
+          packagesCount: item.packagesCount,
+          weightPerPackageKg: item.weightPerPackageKg,
+          grossWeightKg: item.grossWeightKg,
+          netWeightKg: item.netWeightKg || qty,
+          tareWeightKg: item.tareWeightKg,
+          yarnType: item.yarnType,
+          tareProfile: item.tareProfile || (item.tareWeightKg ? {
+            tareWeightPerUnit: item.tareWeightKg,
+            tareType: 'fixed_tare',
+            packagingDescription: `Yarn Bale Packaging (${item.tareWeightKg} KG Tare)`,
+            isTareDeductedAtPOS: true
+          } : undefined),
           createdAt: now.split('T')[0]
         };
 
         updatedProducts = [newProd, ...updatedProducts];
+
+        // If tare weight is logged on intake, register tare reconciliation record
+        if (item.tareWeightKg && item.tareWeightKg > 0) {
+          newTareLogs.push({
+            id: `TARE-INTK-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`,
+            consignmentId: item.bagNumber ? `BAG-#${item.bagNumber}` : `LOT-${item.dyeLot || batchId}`,
+            type: 'delivery_intake',
+            timestamp: now,
+            batchId,
+            productName: name,
+            sku,
+            locationId: targetLocation,
+            grossWeight: item.grossWeightKg || (qty + item.tareWeightKg),
+            tareWeightDeducted: item.tareWeightKg,
+            netWeightBillable: qty,
+            unitPrice: retail,
+            costPrice: wholesale,
+            varianceCostSaved: Math.round(item.tareWeightKg * wholesale),
+            notes: `Auto Tare Deduction on Bale Intake (Gross: ${item.grossWeightKg}kg -> Net: ${qty}kg)`,
+            status: 'reconciled'
+          });
+        }
       }
     });
 
     setProducts(updatedProducts);
+    if (newTareLogs.length > 0) {
+      setTareReconciliationLogs(prev => [...newTareLogs, ...prev]);
+    }
 
     // Synchronize newly added/updated products to Firestore
     try {
@@ -4131,6 +4780,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       costPrice?: number;
       adjustmentType?: 'set_exact' | 'increase_percent' | 'decrease_percent' | 'markup_from_cost';
       percentageValue?: number;
+      pricePerKgRate?: number;
+      coneTareWeightKg?: number;
+      baleTareWeightKg?: number;
+      autoDeductTareAtPOS?: boolean;
     }
   ) => {
     const matchingProducts = products.filter(p => p.category === category);
@@ -4200,6 +4853,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         defaultBulkPrice: priceUpdates.bulkPrice || prev[category]?.defaultBulkPrice || 950,
         defaultCostPrice: priceUpdates.costPrice || prev[category]?.defaultCostPrice || 600,
         marginPercentage: priceUpdates.percentageValue || prev[category]?.marginPercentage || 50,
+        pricePerKgRate: priceUpdates.pricePerKgRate || prev[category]?.pricePerKgRate || (category === 'Yarns' ? 750 : 1200),
+        coneTareWeightKg: typeof priceUpdates.coneTareWeightKg === 'number' ? priceUpdates.coneTareWeightKg : prev[category]?.coneTareWeightKg ?? 0.070,
+        baleTareWeightKg: typeof priceUpdates.baleTareWeightKg === 'number' ? priceUpdates.baleTareWeightKg : prev[category]?.baleTareWeightKg ?? 0.840,
+        autoDeductTareAtPOS: priceUpdates.autoDeductTareAtPOS ?? prev[category]?.autoDeductTareAtPOS ?? true,
         lastUpdated: new Date().toISOString(),
         updatedBy: currentUser.name || 'Admin'
       }
@@ -4236,6 +4893,47 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       success: true,
       updatedCount: updatedList.length,
       message: `Successfully updated prices for all ${updatedList.length} products in "${category}" and synchronized globally!`
+    };
+  };
+
+  // UPDATE SPECIFIC CATEGORY PRICING CONFIG (Price per kg, tare defaults, etc.)
+  const updateCategoryPricingConfig = async (
+    category: CategoryType,
+    configUpdates: Partial<CategoryPricingConfig>
+  ): Promise<{ success: boolean; message: string }> => {
+    const prevConfig = categoryPricingConfigs[category] || DEFAULT_CATEGORY_PRICING[category];
+    const newConfig: CategoryPricingConfig = {
+      ...prevConfig,
+      ...configUpdates,
+      category,
+      lastUpdated: new Date().toISOString(),
+      updatedBy: currentUser.name || 'Admin'
+    };
+
+    setCategoryPricingConfigs(prev => ({
+      ...prev,
+      [category]: newConfig
+    }));
+
+    // Persist to Firestore
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'category_pricing_configs', category.toLowerCase()), newConfig, { merge: true });
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn('Firestore category pricing config sync warning:', e);
+    }
+
+    recordAuditLog(
+      'Category Pricing Setting Updated',
+      `Updated pricing settings for "${category}": 1 KG Rate = KSh ${newConfig.pricePerKgRate || newConfig.defaultRetailPrice}, Cone Tare = ${(Number(newConfig.coneTareWeightKg || 0) * 1000).toFixed(0)}g`
+    );
+
+    playSuccessSound();
+    return {
+      success: true,
+      message: `Updated "${category}" pricing settings! Rate: KSh ${newConfig.pricePerKgRate || newConfig.defaultRetailPrice}/kg, Cone Tare: ${(Number(newConfig.coneTareWeightKg || 0) * 1000).toFixed(0)}g.`
     };
   };
 
@@ -4750,6 +5448,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'urban_interior_branch_expenses',
         'urban_interior_deliveries',
         'urban_interior_tare_logs',
+        'urban_interior_wht_records',
+        'urban_interior_shift_closures',
         'urban_interior_staff',
         'urban_interior_payroll',
         'urban_interior_mail_notifications',
@@ -4772,6 +5472,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setBranchExpenses([]);
       setDeliveries([]);
       setTareReconciliationLogs([]);
+      setWhtRecords([]);
+      setShiftClosures([]);
       setStaff([]);
       setPayroll([]);
       setAuditLogs([]);
@@ -4870,6 +5572,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteMultipleProducts,
         restoreProductBatch,
         updateCategoryPrices,
+        updateCategoryPricingConfig,
         categoryPricingConfigs,
         categoryImages,
         updateCategoryImage,
@@ -4958,7 +5661,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsPeriodicStatementModalOpen,
         getActiveShiftStats,
         getTodaySalesSummary,
-        getPeriodicStatementSummary
+        getPeriodicStatementSummary,
+        quarantinedDefects,
+        creditNotes,
+        addCreditNote,
+        processReturnAndExchange,
+        fileSupplierDefectClaim,
+        resolveQuarantineRecord,
+        isReturnExchangeModalOpen,
+        setIsReturnExchangeModalOpen
       }}
     >
       {children}

@@ -263,7 +263,8 @@ app.post('/api/gmail/send', async (req, res) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const { to, subject, message } = req.body;
+  const { to, subject } = req.body;
+  const message = req.body.message || req.body.body;
   if (!to || !subject || !message) {
     return res.status(400).json({ error: 'To, subject, and message are required' });
   }
@@ -328,14 +329,7 @@ app.post('/api/gmail/trash/:id', async (req, res) => {
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
+  return new GoogleGenAI({ apiKey });
 }
 
 // Resilient helper with multi-model fallback for high demand/503 spikes

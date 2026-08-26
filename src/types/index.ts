@@ -114,6 +114,10 @@ export interface CategoryPricingConfig {
   defaultBulkPrice: number;
   defaultCostPrice: number;
   marginPercentage?: number;
+  pricePerKgRate?: number; // e.g. 75, 750, or 850 (KSh per 1 KG)
+  coneTareWeightKg?: number; // e.g. 0.070 kg (70g plastic / paper spool tare)
+  baleTareWeightKg?: number; // e.g. 0.840 kg (outer bag tare)
+  autoDeductTareAtPOS?: boolean; // Enable auto-deduction on scale input
   lastUpdated?: string;
   updatedBy?: string;
 }
@@ -326,18 +330,34 @@ export interface ProductBatch {
   name: string;
   category: CategoryType;
   subCategory: string; // e.g. "Polar Fleece", "Acrylic Yarn", "Heavy Dereck Weave"
-  fiberComposition: string; // e.g., "100% Cotton", "80% Polyester 20% Wool"
-  colorName: string; // e.g., "Crimson Red"
+  fiberComposition: string; // e.g., "100% Cotton", "100% ACRYLIC (HB) DYED YARN"
+  colorName: string; // e.g., "Crimson Red", "Mix Grey"
   colorHex: string; // e.g., "#E91E63"
   unit: UnitType;
   unitPriceRetail: number; // KSh or $ retail price per unit
-  unitPriceBulk: number; // Bulk price per unit (for Main Store bulk sales)
+  unitPriceBulk: number; // Bulk price per unit (for Main Store bulk sales / full bag rate)
   costPrice: number; // Internal cost per unit (for inventory valuation)
   locationStock: Record<LocationId, number>; // Stock per store location
   minReorderLevel: number; // Low stock threshold for automatic alert / request
   imageUrl?: string; // High-resolution product image URL
   qrCodeData: string; // Embedded QR payload string
   tareProfile?: TareProfile; // Dual-weight Tare Configuration
+
+  // Manufacturer & Bale Label Metadata
+  manufacturer?: string; // e.g. "UDEY UDYOG UNIT OF OSTER INDIA PVT LTD"
+  countryOfOrigin?: string; // e.g. "INDIA"
+  yarnCount?: string; // e.g. "2/24 NM"
+  linearDensityTex?: string; // e.g. "83"
+  dyeLot?: string; // e.g. "26E081"
+  shadeCode?: string; // e.g. "MIX GREY-4251"
+  bagNumber?: string; // e.g. "148"
+  packagesCount?: number; // e.g. 12 cones / packages
+  weightPerPackageKg?: number; // e.g. 2.000 kg per cone
+  grossWeightKg?: number; // e.g. 24.840 kg
+  netWeightKg?: number; // e.g. 24.000 kg
+  tareWeightKg?: number; // e.g. 0.840 kg
+  yarnType?: string; // e.g. "MACHINE KNITTING"
+
   createdAt: string;
 }
 
@@ -399,6 +419,13 @@ export interface POSCartItem {
   netBillableWeight?: number; // Resulting pure stock net weight
   isTareApplied?: boolean;
   tareDescription?: string;
+  // Textile & Yarn Bale Specifics
+  dyeLot?: string;
+  shadeCode?: string;
+  yarnCount?: string;
+  bagNumber?: string;
+  isFullBag?: boolean;
+  conesCount?: number;
 }
 
 export type OrderStatus = 'completed' | 'routed_to_main' | 'routed_to_shop' | 'cancelled' | 'pending' | 'draft' | 'dispatched' | 'delivered';
@@ -436,6 +463,10 @@ export interface SaleOrder {
     tareDeduction?: number;
     netBillableWeight?: number;
     tareDescription?: string;
+    dyeLot?: string;
+    shadeCode?: string;
+    yarnCount?: string;
+    bagNumber?: string;
   }[];
   subtotal: number;
   vatAmount: number; // 16% VAT
@@ -1002,5 +1033,181 @@ export interface TodaySalesSummary {
   }[];
   
   orders: SaleOrder[];
+}
+
+// Return, Defective Cones Quarantine & Supplier Claim Types
+export type DefectReasonType =
+  | 'Oil Stained / Dirty Filament'
+  | 'Broken / Snagged Yarn Ply'
+  | 'Uneven Yarn Count / Thin Spots'
+  | 'Dye Lot / Shade Variation'
+  | 'Knotty / Weak Tensile'
+  | 'Moisture / Mould Contamination'
+  | 'Defective Cone Spool / Crushed Core'
+  | 'Fabric Hole / Run / Tear'
+  | 'Weft / Warp Slub & Weaving Flaw'
+  | 'Oil / Machine Grease Stain on Fabric'
+  | 'Color Shading / Dye Streaks across Width'
+  | 'Selvage Edge Damage / Curling'
+  | 'Uneven Width / Short Meterage on Roll'
+  | 'Pilling / Uneven Fleece Pile'
+  | 'Wrong Item / Customer Mistake'
+  | 'Other Flaw / Defect';
+
+export type ReturnResolutionType =
+  | 'exchange_replacement' // 1-to-1 replacement cones or meters from active stock
+  | 'store_credit'         // Digital credit voucher for next order
+  | 'bank_refund'          // Bank account payout reversal
+  | 'mpesa_refund'         // M-Pesa reversal payout
+  | 'cash_refund';         // Cash drawer payout
+
+export type QuarantineStatusType =
+  | 'quarantined'          // Isolated in quarantine shelf / warehouse
+  | 'supplier_claim_filed' // Claim submitted to manufacturer (e.g. Oster India / Fabric Mill)
+  | 'supplier_compensated' // Supplier issued credit or replacement bale/roll
+  | 'written_off_scrap';   // Written off to scrap expense
+
+export interface FabricRollRecord {
+  id: string; // e.g. ROL-FLC-2026-001
+  rollNumber: string; // e.g. "Roll #14", "Bale 148 / R-02"
+  barcode: string; // e.g. "26001849102"
+  batchId: string;
+  productName: string;
+  category: CategoryType;
+  colorName: string;
+  colorHex?: string;
+  locationId: LocationId;
+  initialLengthMeters: number; // e.g. 52.4m
+  currentLengthMeters: number; // e.g. 34.0m
+  widthCm?: number; // e.g. 160cm (63")
+  gsm?: number; // e.g. 280 GSM
+  status: 'sealed_full' | 'cutting_in_progress' | 'remnant' | 'depleted' | 'quarantined_defect';
+  isRemnant: boolean; // True if length < 3.0m
+  remnantDiscountPct?: number; // e.g. 25% clearance on remnant
+  spoiltMetersLogged: number; // Cutaway defect meters
+  notes?: string;
+  receivedAt: string;
+  supplierName?: string;
+}
+
+export interface QuarantinedDefectRecord {
+  id: string; // e.g. RMA-2026-0042
+  rmaNumber: string;
+  orderId?: string;
+  receiptNumber?: string;
+  originalInvoiceNo?: string;
+  customerName: string;
+  customerPhone?: string;
+  returnedAt: string;
+  locationId: LocationId;
+  operatorId: string;
+  operatorName: string;
+  
+  // Defect Categorization
+  defectReason: DefectReasonType;
+  defectNotes?: string;
+  resolutionType: ReturnResolutionType;
+
+  // Defective Item Details
+  returnedItem: {
+    batchId: string;
+    productName: string;
+    sku: string;
+    category: CategoryType;
+    unit: UnitType; // 'kg' | 'meter' | 'roll'
+    colorName?: string;
+    colorHex?: string;
+    dyeLot?: string;
+    shadeCode?: string;
+    yarnCount?: string;
+    conesCount?: number; // for Yarns e.g. 2 cones
+    grossWeightKg?: number; // for Yarns e.g. 4.140 kg on scale
+    tareDeductionKg?: number; // for Yarns e.g. 0.140 kg
+    netWeightKg?: number; // for Yarns e.g. 4.000 kg net
+    metersCount?: number; // for Fleece/Dereec e.g. 3.50 meters
+    rollNumber?: string; // for Fleece/Dereec e.g. "Roll #07"
+    unitPrice: number; // KSh per kg or KSh per meter
+    costPrice: number; // Internal cost valuation
+    totalValuationRetail: number; // e.g. 3,000 KSh
+    totalValuationCost: number; // e.g. 1,800 KSh
+  };
+
+  // Replacement Cones / Meters Given (if resolution is exchange)
+  replacementItem?: {
+    batchId: string;
+    productName: string;
+    sku: string;
+    unit: UnitType;
+    colorName?: string;
+    dyeLot?: string;
+    shadeCode?: string;
+    conesCount?: number;
+    netWeightKg?: number;
+    metersCount?: number;
+    rollNumber?: string;
+    unitPrice: number;
+    totalValuationRetail: number;
+  };
+
+  // Financial & Ledger Resolution
+  financialDetails: {
+    originalPaymentMethod?: string;
+    priceDifferencePaidByCustomer?: number; // In case replacement had higher meterage/weight
+    priceDifferenceRefundedToCustomer?: number; // In case replacement had lower meterage/weight
+    refundAmount?: number;
+    vatReversalAmount?: number;
+    netRevenueReversalAmount?: number;
+    creditNoteNumber?: string;
+    bankTransferReference?: string;
+    mpesaReference?: string;
+  };
+
+  // Supplier Claim & Recovery
+  quarantineStatus: QuarantineStatusType;
+  supplierName?: string; // e.g. "UDEY UDYOG / OSTER INDIA PVT LTD / TEXTILE MILL"
+  supplierClaimNumber?: string;
+  supplierClaimFiledAt?: string;
+  supplierResolutionDate?: string;
+  supplierResolutionNotes?: string;
+  isWrittenOff?: boolean;
+}
+
+export interface ReturnExchangePayload {
+  orderId?: string;
+  receiptNumber?: string;
+  customerName: string;
+  customerPhone?: string;
+  locationId: LocationId;
+  operatorId: string;
+  operatorName: string;
+  defectReason: DefectReasonType;
+  defectNotes?: string;
+  resolutionType: ReturnResolutionType;
+
+  // Returned item
+  returnedBatchId: string;
+  returnedUnit?: UnitType; // 'kg' | 'meter' | 'roll'
+  returnedConesCount?: number;
+  returnedGrossWeightKg?: number;
+  returnedTareKg?: number;
+  returnedNetWeightKg?: number;
+  returnedMeters?: number; // for Fleece / Dereec
+  returnedRollNumber?: string;
+  returnedRatePerKg?: number;
+  returnedRatePerMeter?: number;
+
+  // Replacement item (for exchange)
+  replacementBatchId?: string;
+  replacementConesCount?: number;
+  replacementNetWeightKg?: number;
+  replacementMeters?: number; // for Fleece / Dereec
+  replacementRollNumber?: string;
+  replacementRatePerKg?: number;
+  replacementRatePerMeter?: number;
+
+  // Financial payout specifics
+  refundChannel?: 'Bank Account' | 'M-Pesa B2C' | 'Cash Drawer' | 'Store Credit Note';
+  refundReference?: string;
+  supplierName?: string;
 }
 

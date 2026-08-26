@@ -36,7 +36,8 @@ import {
   CreditCard,
   MapPin,
   Boxes,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RotateCcw
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -67,7 +68,9 @@ export const Header: React.FC = () => {
     isMailDrawerOpen,
     setIsMailDrawerOpen,
     isAdmin,
-    lockPlatform
+    lockPlatform,
+    setIsReturnExchangeModalOpen,
+    quarantinedDefects
   } = useERP();
 
   const [soundOn, setSoundOn] = useState<boolean>(true);
@@ -714,6 +717,25 @@ export const Header: React.FC = () => {
             {totalMessageAlerts > 0 && (
               <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
                 {totalMessageAlerts}
+              </span>
+            )}
+          </button>
+
+          {/* RMA / Returns & Exchanges Manager Button */}
+          <button
+            onClick={() => {
+              playClickSound();
+              setIsReturnExchangeModalOpen(true);
+            }}
+            className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white rounded-xl shadow-md shadow-rose-950/20 transition-all cursor-pointer border border-amber-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+            title="Damaged Cones Returns, 1:1 Exchanges, eTIMS Credit Notes & Supplier Claims"
+            aria-label="Returns and Exchanges RMA"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-amber-200 group-hover:rotate-180 transition-transform duration-500" />
+            <span>RMA / Returns</span>
+            {quarantinedDefects.length > 0 && (
+              <span className="bg-amber-400 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
+                {quarantinedDefects.length}
               </span>
             )}
           </button>

@@ -39,7 +39,7 @@ export interface CategoryPresetConfig {
   themeGradient: string;
   badgeBg: string;
   badgeText: string;
-  sampleBarcodes: { code: string; label: string; colorName: string; colorHex: string }[];
+  presetBarcodes: { code: string; label: string; colorName: string; colorHex: string }[];
 }
 
 const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
@@ -55,7 +55,7 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
     themeGradient: 'from-blue-950 via-slate-900 to-indigo-950',
     badgeBg: 'bg-blue-100 text-blue-800 border-blue-200',
     badgeText: 'text-blue-700',
-    sampleBarcodes: [
+    presetBarcodes: [
       { code: 'DRC-ROYAL-NAVY-01', label: 'Royal Navy Dereec', colorName: 'Royal Navy', colorHex: '#1E3A8A' },
       { code: 'DRC-CRIMSON-RED-02', label: 'Crimson Red Dereec', colorName: 'Crimson Red', colorHex: '#DC2626' },
       { code: 'DRC-EMERALD-GRN-03', label: 'Deep Emerald Dereec', colorName: 'Deep Emerald', colorHex: '#047857' },
@@ -74,7 +74,7 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
     themeGradient: 'from-amber-950 via-slate-900 to-rose-950',
     badgeBg: 'bg-amber-100 text-amber-900 border-amber-200',
     badgeText: 'text-amber-700',
-    sampleBarcodes: [
+    presetBarcodes: [
       { code: 'FLC-CHARCOAL-HTH-01', label: 'Heather Charcoal Fleece', colorName: 'Heather Charcoal', colorHex: '#374151' },
       { code: 'FLC-ARCTIC-BLU-02', label: 'Arctic Glacier Fleece', colorName: 'Arctic Glacier', colorHex: '#0284C7' },
       { code: 'FLC-DESERT-SND-03', label: 'Desert Camel Fleece', colorName: 'Desert Camel', colorHex: '#D97706' },
@@ -84,20 +84,20 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
   Yarns: {
     category: 'Yarns',
     label: 'Yarns (Knitting & Weaving)',
-    subTitle: 'Acrylic, wool & combed cotton cones & skeins',
-    defaultWholesalePrice: 450,
-    defaultRetailPrice: 950,
+    subTitle: 'Oster India 2/24 NM acrylic & spun yarn bales (24 KG Bags)',
+    defaultWholesalePrice: 650,
+    defaultRetailPrice: 850,
     defaultUnit: 'kg',
-    defaultComposition: '100% Spun Acrylic & Combed Cotton Blend',
+    defaultComposition: '100% ACRYLIC (HB) DYED YARN',
     iconText: '🧶',
     themeGradient: 'from-purple-950 via-slate-900 to-pink-950',
     badgeBg: 'bg-purple-100 text-purple-800 border-purple-200',
     badgeText: 'text-purple-700',
-    sampleBarcodes: [
-      { code: 'YRN-IVORY-WHT-01', label: 'Pure Ivory White Yarn', colorName: 'Pure Ivory', colorHex: '#F8FAFC' },
-      { code: 'YRN-SAFFRON-GLD-02', label: 'Saffron Gold Yarn', colorName: 'Saffron Gold', colorHex: '#EAB308' },
-      { code: 'YRN-SOFT-LILAC-03', label: 'Soft Lilac Yarn', colorName: 'Soft Lilac', colorHex: '#A855F7' },
-      { code: 'YRN-ONYX-BLK-04', label: 'Onyx Black Yarn', colorName: 'Onyx Black', colorHex: '#000000' }
+    presetBarcodes: [
+      { code: 'MIX GREY-4251', label: 'Shade: MIX GREY-4251 (Oster India)', colorName: 'Mix Grey', colorHex: '#94A3B8' },
+      { code: '26E081', label: 'Lot Barcode: 26E081 (Dye Lot)', colorName: 'Mix Grey', colorHex: '#94A3B8' },
+      { code: 'YRN-IVORY-WHT-01', label: 'Pure Ivory White (2/24 NM)', colorName: 'Pure Ivory', colorHex: '#F8FAFC' },
+      { code: 'YRN-ONYX-BLK-04', label: 'Onyx Black (2/24 NM)', colorName: 'Onyx Black', colorHex: '#000000' }
     ]
   }
 };
@@ -115,6 +115,20 @@ interface ScannedSessionItem {
   colorHex: string;
   fiberComposition: string;
   isExistingProduct: boolean;
+  // Bale metadata
+  yarnCount?: string;
+  linearDensityTex?: string;
+  dyeLot?: string;
+  shadeCode?: string;
+  bagNumber?: string;
+  packagesCount?: number;
+  weightPerPackageKg?: number;
+  grossWeightKg?: number;
+  netWeightKg?: number;
+  tareWeightKg?: number;
+  manufacturer?: string;
+  countryOfOrigin?: string;
+  yarnType?: string;
 }
 
 interface CategoryIntakeModalProps {
@@ -231,33 +245,98 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
         message: `Updated: +${qtyToAdd} ${unit} for "${updatedSessionItems[existingSessionIndex].name}" (Total: ${updatedSessionItems[existingSessionIndex].quantity} ${unit})`
       });
     } else {
-      // New item to session
-      const name = existingProduct ? existingProduct.name : `${currentPreset.category} - Auto-Scanned (${codeUpper})`;
-      const colorName = existingProduct ? existingProduct.colorName : 'Standard Batch Shade';
-      const colorHex = existingProduct ? existingProduct.colorHex : (selectedCategory === 'Dereck' ? '#1E3A8A' : selectedCategory === 'Fleece' ? '#374151' : '#F59E0B');
-      const itemFiber = existingProduct ? existingProduct.fiberComposition : currentPreset.defaultComposition;
+      // Check if it's the Oster India Yarn Bale label
+      const isOsterBale = codeUpper.includes('MIX GREY') || codeUpper.includes('4251') || codeUpper.includes('26E081');
+      
+      let name = existingProduct ? existingProduct.name : `${currentPreset.category} - Auto-Scanned (${codeUpper})`;
+      let colorName = existingProduct ? existingProduct.colorName : 'Standard Batch Shade';
+      let colorHex = existingProduct ? existingProduct.colorHex : (selectedCategory === 'Dereck' ? '#1E3A8A' : selectedCategory === 'Fleece' ? '#374151' : '#F59E0B');
+      let itemFiber = existingProduct ? existingProduct.fiberComposition : currentPreset.defaultComposition;
+      
+      let yarnCount = existingProduct?.yarnCount;
+      let linearDensityTex = existingProduct?.linearDensityTex;
+      let dyeLot = existingProduct?.dyeLot;
+      let shadeCode = existingProduct?.shadeCode;
+      let bagNumber = existingProduct?.bagNumber;
+      let packagesCount = existingProduct?.packagesCount;
+      let weightPerPackageKg = existingProduct?.weightPerPackageKg;
+      let grossWeightKg = existingProduct?.grossWeightKg;
+      let netWeightKg = existingProduct?.netWeightKg;
+      let tareWeightKg = existingProduct?.tareWeightKg;
+      let manufacturer = existingProduct?.manufacturer;
+      let countryOfOrigin = existingProduct?.countryOfOrigin;
+      let yarnType = existingProduct?.yarnType;
+      let itemQty = qtyToAdd;
+
+      if (selectedCategory === 'Yarns' && (isOsterBale || !existingProduct)) {
+        if (isOsterBale) {
+          name = 'Yarns - Mix Grey (Oster India 2/24 NM Acrylic)';
+          colorName = 'Mix Grey';
+          colorHex = '#94A3B8';
+          itemFiber = '100% ACRYLIC (HB) DYED YARN';
+          yarnCount = '2/24 NM';
+          linearDensityTex = '83 TEX';
+          dyeLot = '26E081';
+          shadeCode = 'MIX GREY-4251';
+          bagNumber = '148';
+          packagesCount = 12;
+          weightPerPackageKg = 2.0;
+          grossWeightKg = 24.840;
+          netWeightKg = 24.000;
+          tareWeightKg = 0.840;
+          manufacturer = 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD';
+          countryOfOrigin = 'INDIA';
+          yarnType = 'MACHINE KNITTING';
+          itemQty = 24.0;
+        } else {
+          yarnCount = '2/24 NM';
+          dyeLot = codeUpper.startsWith('LOT-') ? codeUpper : 'LOT-A1';
+          shadeCode = codeUpper;
+          packagesCount = 12;
+          grossWeightKg = 24.840;
+          netWeightKg = 24.000;
+          tareWeightKg = 0.840;
+          manufacturer = 'OSTER INDIA PVT LTD';
+          itemQty = 24.0;
+        }
+      }
 
       const newItem: ScannedSessionItem = {
         id: `scan-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         barcode: codeUpper,
         name,
         category: selectedCategory,
-        quantity: qtyToAdd,
+        quantity: itemQty,
         wholesalePrice: wholesalePrice,
         retailPrice: retailPrice,
         unit: unit,
         colorName,
         colorHex,
         fiberComposition: itemFiber,
-        isExistingProduct: !!existingProduct
+        isExistingProduct: !!existingProduct,
+        yarnCount,
+        linearDensityTex,
+        dyeLot,
+        shadeCode,
+        bagNumber,
+        packagesCount,
+        weightPerPackageKg,
+        grossWeightKg,
+        netWeightKg,
+        tareWeightKg,
+        manufacturer,
+        countryOfOrigin,
+        yarnType
       };
 
       updatedSessionItems = [newItem, ...updatedSessionItems];
       playBarcodeScanBeep(true);
       setScanFeedback({
         type: 'success',
-        message: existingProduct
-          ? `Scanned: Existing Product "${name}" (+${qtyToAdd} ${unit})`
+        message: isOsterBale
+          ? `Scanned Oster India Yarn Bale: Shade ${shadeCode} | Lot ${dyeLot} | ${itemQty} KG (12 Cones)`
+          : existingProduct
+          ? `Scanned: Existing Product "${name}" (+${itemQty} ${unit})`
           : `Auto-Registered: New ${selectedCategory} Item (${codeUpper}) with Wholesale KSh ${wholesalePrice} & Retail KSh ${retailPrice}`
       });
     }
@@ -304,7 +383,20 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
         unit: item.unit,
         colorName: item.colorName,
         colorHex: item.colorHex,
-        fiberComposition: item.fiberComposition
+        fiberComposition: item.fiberComposition,
+        yarnCount: item.yarnCount,
+        linearDensityTex: item.linearDensityTex,
+        dyeLot: item.dyeLot,
+        shadeCode: item.shadeCode,
+        bagNumber: item.bagNumber,
+        packagesCount: item.packagesCount,
+        weightPerPackageKg: item.weightPerPackageKg,
+        grossWeightKg: item.grossWeightKg,
+        netWeightKg: item.netWeightKg,
+        tareWeightKg: item.tareWeightKg,
+        manufacturer: item.manufacturer,
+        countryOfOrigin: item.countryOfOrigin,
+        yarnType: item.yarnType
       })),
       targetLocation,
       `Batch Barcode Intake for ${currentPreset.label}`
@@ -663,16 +755,16 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                     <span className="text-[10px] text-slate-400">Click any barcode to simulate instant scan</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {currentPreset.sampleBarcodes.map((sample, idx) => (
+                    {currentPreset.presetBarcodes.map((preset, idx) => (
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => handleScanBarcode(sample.code)}
+                        onClick={() => handleScanBarcode(preset.code)}
                         className="px-2.5 py-1 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-300 rounded-xl text-xs font-mono font-bold text-slate-800 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
                       >
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: sample.colorHex }} />
-                        <span>{sample.code}</span>
-                        <span className="text-[10px] text-slate-400 font-sans">({sample.colorName})</span>
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: preset.colorHex }} />
+                        <span>{preset.code}</span>
+                        <span className="text-[10px] text-slate-400 font-sans">({preset.colorName})</span>
                       </button>
                     ))}
                     <button

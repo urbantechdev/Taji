@@ -41,7 +41,8 @@ import {
   ShieldCheck,
   TrendingUp,
   FileSpreadsheet,
-  Lock
+  Lock,
+  RotateCcw
 } from 'lucide-react';
 
 export const POSModule: React.FC = () => {
@@ -66,7 +67,10 @@ export const POSModule: React.FC = () => {
     updateCartTare,
     setIsShiftClosureModalOpen,
     setIsTodaySalesModalOpen,
-    setIsPeriodicStatementModalOpen
+    setIsPeriodicStatementModalOpen,
+    categoryPricingConfigs,
+    setIsReturnExchangeModalOpen,
+    quarantinedDefects
   } = useERP();
 
   const unreadMails = mailNotifications ? mailNotifications.filter(m => !m.read).length : 0;
@@ -86,6 +90,17 @@ export const POSModule: React.FC = () => {
   const [isQuotation, setIsQuotation] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCartExpanded, setIsCartExpanded] = useState(false);
+
+  // Digital Scale & Variable Cone Weigher Pad State
+  const [isDigitalScaleOpen, setIsDigitalScaleOpen] = useState(false);
+  const [scaleSelectedProduct, setScaleSelectedProduct] = useState<ProductBatch | null>(null);
+  const [scaleGrossWeight, setScaleGrossWeight] = useState<number>(2.080);
+  const [scaleRatePerKg, setScaleRatePerKg] = useState<number>(750);
+  const [scaleConeCount, setScaleConeCount] = useState<number>(1);
+  const [scaleTarePerCone, setScaleTarePerCone] = useState<number>(0.070);
+  const [scaleAutoTare, setScaleAutoTare] = useState<boolean>(true);
+  const [scaleTarePresetType, setScaleTarePresetType] = useState<'standard_cone' | 'two_cones' | 'bale_bag' | 'zero' | 'custom'>('standard_cone');
+  const [scaleCustomTareKg, setScaleCustomTareKg] = useState<number>(0.070);
 
   // Active Tare Scale Modal / In-Line Drawer State
   const [activeTareItemBatchId, setActiveTareItemBatchId] = useState<string | null>(null);
@@ -252,6 +267,90 @@ export const POSModule: React.FC = () => {
     }
   };
 
+  // Open Digital Scale Weigher & Variable Cone Auto-Calculator
+  const handleOpenDigitalScale = (product?: ProductBatch, initialGross?: number, existingCartItem?: any) => {
+    const targetProduct =
+      product ||
+      (existingCartItem ? products.find(p => p.id === existingCartItem.batchId) : null) ||
+      products.find(p => p.category === 'Yarns') ||
+      products[0];
+
+    if (!targetProduct) return;
+
+    setScaleSelectedProduct(targetProduct);
+    const catConf = categoryPricingConfigs[targetProduct.category];
+    const catRate = catConf?.pricePerKgRate || targetProduct.unitPriceRetail || (targetProduct.category === 'Yarns' ? 750 : 1200);
+    const coneTare = catConf?.coneTareWeightKg ?? 0.070;
+    const autoTarePref = catConf?.autoDeductTareAtPOS ?? true;
+
+    setScaleRatePerKg(existingCartItem?.unitPrice || catRate);
+    setScaleTarePerCone(coneTare);
+    setScaleAutoTare(autoTarePref);
+    setScaleTarePresetType('standard_cone');
+    setScaleCustomTareKg(coneTare);
+
+    if (existingCartItem) {
+      const gross = existingCartItem.scaleGrossWeight || (existingCartItem.quantity + (existingCartItem.tareDeduction || 0));
+      setScaleGrossWeight(gross || 2.080);
+      setScaleConeCount(1);
+    } else {
+      setScaleGrossWeight(initialGross || (targetProduct.weightPerPackageKg ? targetProduct.weightPerPackageKg : 2.080));
+      setScaleConeCount(1);
+    }
+
+    setIsDigitalScaleOpen(true);
+    playPopupSound();
+  };
+
+  // Confirm Scale Weight and apply into cart
+  const handleConfirmScaleWeight = () => {
+    if (!scaleSelectedProduct) return;
+
+    let computedTarePerUnit = scaleTarePerCone;
+    if (scaleTarePresetType === 'zero' || !scaleAutoTare) {
+      computedTarePerUnit = 0;
+    } else if (scaleTarePresetType === 'standard_cone') {
+      computedTarePerUnit = scaleTarePerCone;
+    } else if (scaleTarePresetType === 'two_cones') {
+      computedTarePerUnit = scaleTarePerCone * 2;
+    } else if (scaleTarePresetType === 'bale_bag') {
+      computedTarePerUnit = 0.840;
+    } else if (scaleTarePresetType === 'custom') {
+      computedTarePerUnit = scaleCustomTareKg;
+    }
+
+    const totalTare = (scaleAutoTare && scaleTarePresetType !== 'zero') ? (computedTarePerUnit * (scaleTarePresetType === 'two_cones' ? 1 : scaleConeCount)) : 0;
+    const netWeight = Math.max(0.01, Number((scaleGrossWeight - totalTare).toFixed(3)));
+
+    const existingIndex = cart.findIndex(c => c.batchId === scaleSelectedProduct.id);
+
+    if (existingIndex >= 0) {
+      updateCartTare(
+        scaleSelectedProduct.id,
+        scaleGrossWeight,
+        totalTare,
+        netWeight,
+        totalTare > 0 ? `${scaleConeCount} Cone(s) Spool Tare (-${(totalTare * 1000).toFixed(0)}g)` : 'Zero Tare (Pure Net)'
+      );
+      if (scaleRatePerKg !== cart[existingIndex].unitPrice) {
+        updateCartQuantity(scaleSelectedProduct.id, netWeight);
+      }
+    } else {
+      addToCart(scaleSelectedProduct, netWeight, false);
+      updateCartTare(
+        scaleSelectedProduct.id,
+        scaleGrossWeight,
+        totalTare,
+        netWeight,
+        totalTare > 0 ? `${scaleConeCount} Cone(s) Spool Tare (-${(totalTare * 1000).toFixed(0)}g)` : 'Zero Tare (Pure Net)'
+      );
+    }
+
+    playAddToCartSound();
+    playSuccessSound();
+    setIsDigitalScaleOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       
@@ -313,8 +412,33 @@ export const POSModule: React.FC = () => {
                 ))}
               </div>
 
-              {/* Quick Action Buttons: Sales Today, Statements, Close Shift, Inbox, POS Transfer & QR Scanner */}
+              {/* Quick Action Buttons: Scale Weigher, Sales Today, Statements, Close Shift, Inbox, POS Transfer & QR Scanner */}
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleOpenDigitalScale()}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-700 via-indigo-800 to-indigo-900 hover:from-indigo-600 hover:to-indigo-800 text-white text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer hover:scale-105 active:scale-95 border border-indigo-500/50"
+                  title="Digital Cone Weigher Scale & Auto-Tare Price-per-KG Calculator"
+                >
+                  <Scale className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Scale Weigher (KG)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsReturnExchangeModalOpen(true)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95 border border-amber-400/40"
+                  title="Process Returned Spoilt Cones, 1:1 Replacement or Bank Refund & eTIMS Credit Notes"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-200" />
+                  <span>RMA / Returns</span>
+                  {quarantinedDefects.length > 0 && (
+                    <span className="bg-amber-300 text-slate-900 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                      {quarantinedDefects.length}
+                    </span>
+                  )}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setIsTodaySalesModalOpen(true)}
@@ -516,6 +640,30 @@ export const POSModule: React.FC = () => {
                       <p className="text-[11px] text-slate-500 font-medium">
                         {prod.colorName} • {prod.fiberComposition}
                       </p>
+                      {(prod.shadeCode || prod.dyeLot || prod.yarnCount) && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {prod.shadeCode && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded border border-indigo-200">
+                              Shade: {prod.shadeCode}
+                            </span>
+                          )}
+                          {prod.dyeLot && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded border border-purple-200">
+                              Lot: {prod.dyeLot}
+                            </span>
+                          )}
+                          {prod.yarnCount && (
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded">
+                              {prod.yarnCount}
+                            </span>
+                          )}
+                          {prod.packagesCount && (
+                            <span className="text-[9px] font-medium px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded border border-amber-200">
+                              {prod.packagesCount} Cones / {prod.netWeightKg || 24} KG Bale
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Prices & Unit */}
@@ -564,6 +712,20 @@ export const POSModule: React.FC = () => {
                     </span>
 
                     <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDigitalScale(prod);
+                        }}
+                        disabled={isOut && activeLocInfo?.canSellDirectly}
+                        className="px-2 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1 text-[11px] font-bold"
+                        title={`Weigh ${prod.name} on scale & auto-calculate price by net KG`}
+                      >
+                        <Scale className="w-3.5 h-3.5 text-indigo-600" />
+                        <span className="hidden sm:inline">Weigh</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={(e) => {
@@ -723,6 +885,20 @@ export const POSModule: React.FC = () => {
                             <p className="text-[10px] text-slate-500">
                               {item.colorName} • KSh {item.unitPrice.toLocaleString()} / {item.unit}
                             </p>
+                            {(item.shadeCode || item.dyeLot || item.yarnCount) && (
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {item.shadeCode && (
+                                  <span className="text-[8px] font-bold px-1 py-0.2 bg-indigo-100 text-indigo-800 rounded">
+                                    Shade: {item.shadeCode}
+                                  </span>
+                                )}
+                                {item.dyeLot && (
+                                  <span className="text-[8px] font-bold px-1 py-0.2 bg-purple-100 text-purple-800 rounded">
+                                    Lot: {item.dyeLot}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
@@ -730,26 +906,17 @@ export const POSModule: React.FC = () => {
                             type="button"
                             onClick={() => {
                               playClickSound();
-                              if (isTareOpen) {
-                                setActiveTareItemBatchId(null);
-                              } else {
-                                setActiveTareItemBatchId(item.batchId);
-                                setTareInputGrossWeight(item.scaleGrossWeight ?? item.quantity);
-                                setTareInputCoreCount(1);
-                                setTareInputCustomPerUnit(defaultTareKg);
-                              }
+                              handleOpenDigitalScale(prod, item.scaleGrossWeight || item.quantity, item);
                             }}
                             className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition-all cursor-pointer ${
                               item.isTareApplied
-                                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                                : isTareOpen
-                                ? 'bg-slate-900 text-white border-slate-900'
-                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
                             }`}
-                            title="Dual-Weight Scale & Tare Deduction Calculator"
+                            title="Open Digital Scale & Variable Weight Calculator"
                           >
                             <Scale className="w-3 h-3" />
-                            <span>{item.isTareApplied ? 'Tare Applied' : 'Scale / Tare'}</span>
+                            <span>{item.isTareApplied ? 'Tare Active' : '⚖️ Weigh / Tare'}</span>
                           </button>
 
                           <button
@@ -864,7 +1031,7 @@ export const POSModule: React.FC = () => {
                       )}
 
                       {/* Quantity Controls & Line Total */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200 flex-wrap gap-2">
                         <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg p-1">
                           <button
                             onClick={() => updateCartQuantity(item.batchId, Math.max(0.1, Number((item.quantity - 1).toFixed(3))))}
@@ -884,7 +1051,35 @@ export const POSModule: React.FC = () => {
                           <span className="text-[10px] text-slate-500 uppercase font-bold">{item.unit}</span>
                         </div>
 
-                        <span className="font-mono font-black text-slate-900 text-sm sm:text-base">
+                        {/* Quick Preset Buttons for Yarns */}
+                        {prod?.category === 'Yarns' && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playClickSound();
+                                updateCartQuantity(item.batchId, 2.0);
+                              }}
+                              className="px-1.5 py-0.5 text-[9px] font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded cursor-pointer"
+                              title="Set quantity to 1 Cone (2.0 KG)"
+                            >
+                              1 Cone (2kg)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playClickSound();
+                                updateCartQuantity(item.batchId, 24.0);
+                              }}
+                              className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded cursor-pointer"
+                              title="Set quantity to 1 Full Bale (24.0 KG)"
+                            >
+                              Full Bale (24kg)
+                            </button>
+                          </div>
+                        )}
+
+                        <span className="font-mono font-black text-slate-900 text-sm sm:text-base ml-auto">
                           KSh {(item.unitPrice * item.quantity).toLocaleString()}
                         </span>
                       </div>
@@ -1519,6 +1714,472 @@ export const POSModule: React.FC = () => {
               >
                 <ArrowRightLeft className="w-4 h-4" />
                 <span>Confirm &amp; Execute Inter-Store Transfer</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIGITAL SCALE & VARIABLE CONE AUTO-CALCULATOR MODAL */}
+      {isDigitalScaleOpen && scaleSelectedProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col my-4 max-h-[94vh]">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-indigo-900/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner">
+                  <Scale className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                    <span>Digital Scale &amp; Variable Weight Calculator</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 font-bold uppercase">
+                      1 KG = KSh {scaleRatePerKg}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-indigo-200">
+                    Live gross scale weigh-in with automatic spool tare deduction for accurate inventory and ledger balance.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsDigitalScaleOpen(false)}
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-5 bg-slate-50/50">
+              {/* Product Info Banner */}
+              <div className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-8 h-8 rounded-xl border border-white shadow-xs shrink-0"
+                    style={{ backgroundColor: scaleSelectedProduct.colorHex }}
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-extrabold text-sm text-slate-900">
+                        {scaleSelectedProduct.name}
+                      </h4>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                        {scaleSelectedProduct.category}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium">
+                      {scaleSelectedProduct.colorName} • SKU: {scaleSelectedProduct.sku}
+                      {scaleSelectedProduct.shadeCode && ` • Shade: ${scaleSelectedProduct.shadeCode}`}
+                      {scaleSelectedProduct.dyeLot && ` • Lot: ${scaleSelectedProduct.dyeLot}`}
+                      {scaleSelectedProduct.yarnCount && ` • ${scaleSelectedProduct.yarnCount}`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-center">
+                  <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-xl">
+                    Active Store Stock: <strong className="font-mono text-slate-900">{scaleSelectedProduct.locationStock[activeLocation] || 0} {scaleSelectedProduct.unit}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Grid: Left Column (Scale Display & Input) | Right Column (Rate, Tare & Calculation) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                
+                {/* Left Column: Digital Scale Display */}
+                <div className="lg:col-span-6 space-y-4">
+                  
+                  {/* Glowing LED Scale Weight Readout */}
+                  <div className="bg-slate-950 rounded-2xl p-5 border-2 border-indigo-500/40 shadow-xl space-y-3 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                    
+                    <div className="flex items-center justify-between text-xs text-indigo-300 font-mono">
+                      <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        DIGITAL SCALE WEIGH-IN
+                      </span>
+                      <span className="text-[10px] text-slate-400">UNITS: KG</span>
+                    </div>
+
+                    <div className="bg-black/60 rounded-xl p-4 border border-white/10 flex flex-col items-center justify-center">
+                      <span className="text-[10px] uppercase font-bold text-amber-400/80 tracking-widest block mb-1">
+                        Measured Gross Weight
+                      </span>
+                      <div className="flex items-baseline gap-2">
+                        <input
+                          type="number"
+                          step="0.001"
+                          min="0.01"
+                          value={scaleGrossWeight}
+                          onChange={e => setScaleGrossWeight(Math.max(0.001, parseFloat(e.target.value) || 0))}
+                          className="text-4xl md:text-5xl font-mono font-black text-amber-300 bg-transparent text-center focus:outline-none w-48 border-b border-amber-400/30"
+                        />
+                        <span className="text-xl font-mono font-bold text-amber-400/70">KG</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400 mt-1">
+                        = {(scaleGrossWeight * 1000).toFixed(0)} Grams
+                      </span>
+                    </div>
+
+                    {/* Quick Step Buttons */}
+                    <div className="grid grid-cols-5 gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setScaleGrossWeight(w => Math.max(0.01, Number((w - 0.050).toFixed(3))))}
+                        className="py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-mono font-bold transition-all text-center cursor-pointer"
+                      >
+                        -50g
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScaleGrossWeight(w => Math.max(0.01, Number((w - 0.010).toFixed(3))))}
+                        className="py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-mono font-bold transition-all text-center cursor-pointer"
+                      >
+                        -10g
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScaleGrossWeight(2.000)}
+                        className="py-1.5 bg-indigo-600/60 hover:bg-indigo-600 text-white rounded-lg text-xs font-mono font-bold transition-all text-center cursor-pointer"
+                      >
+                        2.00kg
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScaleGrossWeight(w => Number((w + 0.010).toFixed(3)))}
+                        className="py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-mono font-bold transition-all text-center cursor-pointer"
+                      >
+                        +10g
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScaleGrossWeight(w => Number((w + 0.050).toFixed(3)))}
+                        className="py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-mono font-bold transition-all text-center cursor-pointer"
+                      >
+                        +50g
+                      </button>
+                    </div>
+
+                    {/* Common Preset Cones Weights */}
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Quick Weight Presets:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[1.920, 1.950, 2.000, 2.050, 2.080, 2.100, 2.150, 24.000].map(val => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setScaleGrossWeight(val)}
+                            className={`px-2 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                              scaleGrossWeight === val
+                                ? 'bg-amber-400 text-slate-950 font-black'
+                                : 'bg-white/10 hover:bg-white/20 text-white'
+                            }`}
+                          >
+                            {val.toFixed(3)}kg
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quantity of Cones / Units Input */}
+                  <div className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800">
+                        Number of Physical Cones on Scale:
+                      </label>
+                      <p className="text-[11px] text-slate-500">
+                        Multiplies spool tare deduction for single or multiple cones.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setScaleConeCount(c => Math.max(1, c - 1))}
+                        className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={scaleConeCount}
+                        onChange={e => setScaleConeCount(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-12 py-1 text-center font-mono font-bold text-sm bg-slate-50 border border-slate-200 rounded-lg"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setScaleConeCount(c => c + 1)}
+                        className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Rate, Tare & Real-Time Calculation */}
+                <div className="lg:col-span-6 space-y-4">
+                  
+                  {/* Price Rate Per KG */}
+                  <div className="p-4 bg-white rounded-2xl border border-indigo-100 shadow-xs space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-900">
+                        Rate per 1 KG (KSh / KG):
+                      </label>
+                      <span className="text-[11px] text-indigo-700 font-bold">
+                        100g = KSh {(scaleRatePerKg / 10).toFixed(1)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">KSh</span>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={scaleRatePerKg}
+                          onChange={e => setScaleRatePerKg(Math.max(1, Number(e.target.value)))}
+                          className="w-full pl-11 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-black text-indigo-950 focus:bg-white focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setScaleRatePerKg(750)}
+                          className={`px-2.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            scaleRatePerKg === 750 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          750/kg
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScaleRatePerKg(850)}
+                          className={`px-2.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            scaleRatePerKg === 850 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          850/kg
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScaleRatePerKg(650)}
+                          className={`px-2.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            scaleRatePerKg === 650 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          650/kg
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tare Deduction Presets */}
+                  <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-900">
+                        Packaging / Spool Tare Deduction:
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={scaleAutoTare}
+                          onChange={e => setScaleAutoTare(e.target.checked)}
+                          className="rounded text-indigo-600"
+                        />
+                        <span className="font-semibold">Auto-Tare</span>
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScaleTarePresetType('standard_cone');
+                          setScaleTarePerCone(0.070);
+                        }}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          scaleTarePresetType === 'standard_cone'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-950 font-bold'
+                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-xs block font-bold">1 Spool</span>
+                        <span className="text-[10px] text-slate-500 font-mono">-70g (0.070kg)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScaleTarePresetType('two_cones');
+                          setScaleTarePerCone(0.070);
+                        }}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          scaleTarePresetType === 'two_cones'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-950 font-bold'
+                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-xs block font-bold">2 Spools</span>
+                        <span className="text-[10px] text-slate-500 font-mono">-140g (0.140kg)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScaleTarePresetType('bale_bag');
+                          setScaleTarePerCone(0.840);
+                        }}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          scaleTarePresetType === 'bale_bag'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-950 font-bold'
+                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-xs block font-bold">Bale Bag</span>
+                        <span className="text-[10px] text-slate-500 font-mono">-840g (0.840kg)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScaleTarePresetType('zero');
+                        }}
+                        className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          scaleTarePresetType === 'zero'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-950 font-bold'
+                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-xs block font-bold">Zero Tare</span>
+                        <span className="text-[10px] text-slate-500 font-mono">0g (Pure Net)</span>
+                      </button>
+                    </div>
+
+                    {scaleTarePresetType === 'custom' && (
+                      <div className="pt-2 flex items-center gap-2">
+                        <label className="text-xs text-slate-600 font-medium">Custom Tare (KG):</label>
+                        <input
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          value={scaleCustomTareKg}
+                          onChange={e => setScaleCustomTareKg(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Calculated Results Card */}
+                  {(() => {
+                    let computedTarePerUnit = scaleTarePerCone;
+                    if (scaleTarePresetType === 'zero' || !scaleAutoTare) {
+                      computedTarePerUnit = 0;
+                    } else if (scaleTarePresetType === 'standard_cone') {
+                      computedTarePerUnit = scaleTarePerCone;
+                    } else if (scaleTarePresetType === 'two_cones') {
+                      computedTarePerUnit = scaleTarePerCone * 2;
+                    } else if (scaleTarePresetType === 'bale_bag') {
+                      computedTarePerUnit = 0.840;
+                    } else if (scaleTarePresetType === 'custom') {
+                      computedTarePerUnit = scaleCustomTareKg;
+                    }
+
+                    const totalTare = (scaleAutoTare && scaleTarePresetType !== 'zero')
+                      ? (computedTarePerUnit * (scaleTarePresetType === 'two_cones' ? 1 : scaleConeCount))
+                      : 0;
+
+                    const netWeight = Math.max(0.01, Number((scaleGrossWeight - totalTare).toFixed(3)));
+                    const totalLineAmount = Number((netWeight * scaleRatePerKg).toFixed(2));
+                    const lineVat = Number(((totalLineAmount * 16) / 116).toFixed(2));
+                    const lineNet = Number((totalLineAmount - lineVat).toFixed(2));
+
+                    return (
+                      <div className="p-4 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 text-white rounded-2xl border border-indigo-500/40 shadow-md space-y-3">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                          <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-300">
+                            Calculation Breakdown
+                          </span>
+                          <span className="text-[11px] font-mono text-amber-300">
+                            {netWeight.toFixed(3)} KG × KSh {scaleRatePerKg.toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-white/5 p-2 rounded-xl">
+                            <span className="text-[10px] text-slate-400 block uppercase">Gross Scale</span>
+                            <span className="font-mono font-bold text-xs text-white">{scaleGrossWeight.toFixed(3)} kg</span>
+                          </div>
+                          <div className="bg-white/5 p-2 rounded-xl">
+                            <span className="text-[10px] text-rose-300 block uppercase">Spool Tare</span>
+                            <span className="font-mono font-bold text-xs text-rose-300">-{totalTare.toFixed(3)} kg</span>
+                          </div>
+                          <div className="bg-emerald-500/10 border border-emerald-500/30 p-2 rounded-xl">
+                            <span className="text-[10px] text-emerald-300 block uppercase font-bold">Pure Net</span>
+                            <span className="font-mono font-black text-sm text-emerald-400">{netWeight.toFixed(3)} kg</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-baseline justify-between pt-1 border-t border-white/10">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Billable Price</span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              (Net: KSh {lineNet.toLocaleString()} + 16% VAT: KSh {lineVat.toLocaleString()})
+                            </span>
+                          </div>
+                          <span className="text-2xl font-black font-mono text-amber-300">
+                            KSh {totalLineAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Ledger Explanation Box */}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-emerald-900">Ledger &amp; Inventory Accuracy Guarantee: </strong>
+                  The system will relieve exactly the pure net weight from inventory stock at <strong>{activeLocInfo?.name}</strong>. No phantom variance will be recorded. The accounting ledger automatically posts the exact billed cash value to Sales Revenue and 16% KRA Output VAT liability.
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-white border-t border-slate-200 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDigitalScaleOpen(false)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmScaleWeight}
+                className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 hover:from-indigo-500 hover:to-indigo-700 text-white text-xs font-black rounded-xl shadow-lg shadow-indigo-300 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Scale className="w-4 h-4 text-amber-300" />
+                <span>
+                  Confirm &amp; Add Net Weight to Cart (KSh {(
+                    Math.max(
+                      0.01,
+                      Number((scaleGrossWeight - (scaleAutoTare && scaleTarePresetType !== 'zero' ? (scaleTarePresetType === 'bale_bag' ? 0.840 : scaleTarePresetType === 'two_cones' ? scaleTarePerCone * 2 : scaleTarePerCone * scaleConeCount) : 0)).toFixed(3))
+                    ) * scaleRatePerKg
+                  ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                </span>
               </button>
             </div>
           </div>
