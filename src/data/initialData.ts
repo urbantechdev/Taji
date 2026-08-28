@@ -16,7 +16,8 @@ import {
   MailNotification,
   KRAWithholdingTaxRecord,
   QuarantinedDefectRecord,
-  ETIMSCreditNote
+  ETIMSCreditNote,
+  FabricRollRecord
 } from '../types';
 
 export const INITIAL_POS_OPERATORS: POSOperator[] = [
@@ -204,6 +205,7 @@ export const INITIAL_QUARANTINED_DEFECTS: QuarantinedDefectRecord[] = [
       productName: '2/24 NM Acrylic Yarn - Mix Grey',
       sku: 'YRN-ACR-001',
       category: 'Yarns',
+      unit: 'kg',
       colorName: 'Mix Grey',
       colorHex: '#9E9E9E',
       dyeLot: '26E081',
@@ -222,6 +224,7 @@ export const INITIAL_QUARANTINED_DEFECTS: QuarantinedDefectRecord[] = [
       batchId: 'BATCH-2026-001',
       productName: '2/24 NM Acrylic Yarn - Mix Grey',
       sku: 'YRN-ACR-001',
+      unit: 'kg',
       colorName: 'Mix Grey',
       dyeLot: '26E081',
       shadeCode: 'MIX GREY-4251',

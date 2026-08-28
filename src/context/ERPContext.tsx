@@ -44,7 +44,8 @@ import {
   QuarantinedDefectRecord,
   ReturnExchangePayload,
   ETIMSCreditNote,
-  FabricRollRecord
+  FabricRollRecord,
+  DefectReasonType
 } from '../types';
 import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
 import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
@@ -162,14 +163,33 @@ interface ERPContextType {
     customerKraPin?: string,
     isQuotation?: boolean,
     applyWHT5?: boolean,
-    whtCertificateNo?: string
-  ) => { success: boolean; orderId?: string; message?: string };
+    whtCertificateNo?: string,
+    isForwardDated?: boolean,
+    forwardFulfillmentDate?: string,
+    advanceDepositAmount?: number,
+    fulfillmentNotes?: string
+  ) => { success: boolean; orderId?: string; message?: string; isForwardDated?: boolean };
   convertQuotationToInvoice: (
     quotationId: string,
     paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque',
     applyWHT5?: boolean,
     whtCertificateNo?: string
   ) => { success: boolean; message: string; order?: SaleOrder };
+
+  // Forward-Dated Reservations & Advance Bookings (Deferred Revenue & Stock Allocation)
+  fulfillForwardReservation: (
+    orderId: string,
+    finalPaymentMethod?: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque',
+    finalPaymentReference?: string,
+    notes?: string
+  ) => { success: boolean; message: string; order?: SaleOrder };
+  cancelForwardReservation: (
+    orderId: string,
+    refundMethod?: 'cash' | 'mpesa' | 'bank' | 'store_credit',
+    cancellationReason?: string
+  ) => { success: boolean; message: string };
+  isForwardReservationsModalOpen: boolean;
+  setIsForwardReservationsModalOpen: (open: boolean) => void;
 
   // Billing Document Engine (Invoices, Quotations, Proformas, Receipts, Delivery Notes, Credit Notes)
   createBillingDocument: (docData: {
@@ -1769,7 +1789,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [creditNotes]);
 
+  // Fabric Rolls & Piece Goods Inventory (Fleece & Dereec variable roll lengths & remnants)
+  const [fabricRolls, setFabricRolls] = useState<FabricRollRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_fabric_rolls');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading fabric rolls from localStorage:', e);
+    }
+    return INITIAL_FABRIC_ROLLS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_fabric_rolls', JSON.stringify(fabricRolls));
+    } catch (e) {
+      console.warn('Error saving fabric rolls to localStorage:', e);
+    }
+  }, [fabricRolls]);
+
   const [isReturnExchangeModalOpen, setIsReturnExchangeModalOpen] = useState(false);
+  const [isFabricRollModalOpen, setIsFabricRollModalOpen] = useState(false);
+  const [isForwardReservationsModalOpen, setIsForwardReservationsModalOpen] = useState(false);
 
   const addCreditNote = (noteData: Omit<ETIMSCreditNote, 'id' | 'timestamp' | 'fiscalSignature'> & { id?: string }) => {
     const id = noteData.id || `CRN-2026-${String(creditNotes.length + 1).padStart(3, '0')}`;
@@ -1783,16 +1829,272 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, creditNoteId: id, message: `Credit Note ${id} created successfully.`, creditNote: newNote };
   };
 
+  // Add a single fabric roll
+  const addFabricRoll = (rollData: Omit<FabricRollRecord, 'id' | 'receivedAt'>) => {
+    const id = `ROL-${rollData.category.slice(0, 3).toUpperCase()}-2026-${String(fabricRolls.length + 1).padStart(3, '0')}`;
+    const newRoll: FabricRollRecord = {
+      ...rollData,
+      id,
+      receivedAt: new Date().toISOString()
+    };
+    setFabricRolls(prev => [newRoll, ...prev]);
+    recordAuditLog('Fabric Roll Created', `Logged roll ${newRoll.rollNumber} (${newRoll.currentLengthMeters}m of ${newRoll.productName})`);
+    return { success: true, rollId: id, message: `Fabric Roll ${newRoll.rollNumber} created successfully.` };
+  };
+
+  // Multi-roll batch intake (e.g. bale arrival with variable meterages: [52.4, 48.0, 63.8, 55.0])
+  const addFabricRollBatchIntake = (
+    batchId: string,
+    locationId: LocationId,
+    rollLengths: number[],
+    widthCm: number = 160,
+    gsm: number = 300,
+    supplierName?: string
+  ) => {
+    const batch = products.find(p => p.id === batchId);
+    if (!batch) {
+      return { success: false, createdCount: 0, totalMetersAdded: 0, message: 'Product batch not found.' };
+    }
+
+    const totalMeters = rollLengths.reduce((acc, len) => acc + len, 0);
+    const newRolls: FabricRollRecord[] = rollLengths.map((len, idx) => {
+      const rollSeq = fabricRolls.length + idx + 1;
+      const rollId = `ROL-${batch.category.slice(0, 3).toUpperCase()}-2026-${String(rollSeq).padStart(3, '0')}`;
+      return {
+        id: rollId,
+        rollNumber: `Roll #${idx + 1} (${batch.name.split(' - ')[0] || batch.name})`,
+        barcode: `${batch.category.slice(0, 3).toUpperCase()}-ROL-${Date.now().toString().slice(-4)}${idx + 1}`,
+        batchId: batch.id,
+        productName: batch.name,
+        category: batch.category,
+        colorName: batch.colorName || 'Standard',
+        colorHex: batch.colorHex,
+        locationId,
+        initialLengthMeters: len,
+        currentLengthMeters: len,
+        widthCm,
+        gsm,
+        status: 'sealed_full',
+        isRemnant: len < 3.0,
+        remnantDiscountPct: len < 3.0 ? 20 : undefined,
+        spoiltMetersLogged: 0,
+        receivedAt: new Date().toISOString(),
+        supplierName: supplierName || batch.manufacturer || 'Oster India Garment Fabrics / Udey Udyog'
+      };
+    });
+
+    setFabricRolls(prev => [...newRolls, ...prev]);
+
+    // Update the master product batch total stock for this location
+    setProducts(prev =>
+      prev.map(p => {
+        if (p.id === batchId) {
+          const curStock = p.locationStock[locationId] || 0;
+          return {
+            ...p,
+            locationStock: {
+              ...p.locationStock,
+              [locationId]: curStock + totalMeters
+            }
+          };
+        }
+        return p;
+      })
+    );
+
+    recordAuditLog(
+      'Fabric Batch Intake Registered',
+      `Registered ${newRolls.length} rolls of ${batch.name} totalling ${totalMeters.toFixed(2)} meters at ${locationId}`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      createdCount: newRolls.length,
+      totalMetersAdded: totalMeters,
+      message: `Successfully received ${newRolls.length} rolls totalling ${totalMeters.toFixed(2)} meters into inventory.`
+    };
+  };
+
+  // Cut meters from an active fabric roll (handles piece goods deduction & remnant detection)
+  const cutFabricFromRoll = (
+    rollId: string,
+    metersToCut: number,
+    orderId?: string,
+    isSpoiltCut: boolean = false,
+    flawReason?: DefectReasonType
+  ) => {
+    const roll = fabricRolls.find(r => r.id === rollId);
+    if (!roll) {
+      return { success: false, remainingMeters: 0, message: 'Fabric roll not found.', isRemnant: false };
+    }
+
+    if (roll.currentLengthMeters < metersToCut) {
+      playAlertSound();
+      return {
+        success: false,
+        remainingMeters: roll.currentLengthMeters,
+        message: `Insufficient length on ${roll.rollNumber}. Available: ${roll.currentLengthMeters.toFixed(2)}m, Requested: ${metersToCut.toFixed(2)}m.`,
+        isRemnant: roll.isRemnant
+      };
+    }
+
+    const newLength = Number((roll.currentLengthMeters - metersToCut).toFixed(2));
+    const isNowRemnant = newLength > 0 && newLength <= 3.0;
+    const isDepleted = newLength <= 0.05;
+
+    let updatedStatus: FabricRollRecord['status'] = 'cutting_in_progress';
+    if (isDepleted) updatedStatus = 'depleted';
+    else if (isNowRemnant) updatedStatus = 'remnant';
+
+    setFabricRolls(prev =>
+      prev.map(r => {
+        if (r.id === rollId) {
+          return {
+            ...r,
+            currentLengthMeters: Math.max(0, newLength),
+            status: updatedStatus,
+            isRemnant: isNowRemnant,
+            remnantDiscountPct: isNowRemnant ? (r.remnantDiscountPct || 20) : undefined,
+            spoiltMetersLogged: isSpoiltCut ? (r.spoiltMetersLogged || 0) + metersToCut : r.spoiltMetersLogged
+          };
+        }
+        return r;
+      })
+    );
+
+    // Update parent batch stock
+    setProducts(prev =>
+      prev.map(p => {
+        if (p.id === roll.batchId) {
+          const curStock = p.locationStock[roll.locationId] || 0;
+          return {
+            ...p,
+            locationStock: {
+              ...p.locationStock,
+              [roll.locationId]: Math.max(0, curStock - metersToCut)
+            }
+          };
+        }
+        return p;
+      })
+    );
+
+    recordAuditLog(
+      isSpoiltCut ? 'Spoilt Fabric Cut & Isolated' : 'Fabric Cut From Roll',
+      `Cut ${metersToCut.toFixed(2)}m from ${roll.rollNumber}. Remaining: ${newLength.toFixed(2)}m ${isNowRemnant ? '(Marked as Remnant End-Piece)' : ''}`
+    );
+
+    return {
+      success: true,
+      remainingMeters: Math.max(0, newLength),
+      message: `Cut ${metersToCut.toFixed(2)}m from ${roll.rollNumber}. ${isNowRemnant ? 'Roll has become a remnant (<=3m) and can be sold at bundle discount.' : ''}`,
+      isRemnant: isNowRemnant
+    };
+  };
+
+  // Cutout and quarantine spoilt meters directly from roll
+  const logSpoiltFabricMeters = (
+    rollId: string,
+    spoiltMeters: number,
+    flawReason: DefectReasonType,
+    notes?: string
+  ) => {
+    const roll = fabricRolls.find(r => r.id === rollId);
+    if (!roll) {
+      return { success: false, message: 'Roll not found' };
+    }
+    const batch = products.find(p => p.id === roll.batchId);
+    const unitPrice = batch?.unitPriceRetail || 650;
+    const costPrice = batch?.costPrice || (unitPrice * 0.6);
+    const costValuation = spoiltMeters * costPrice;
+
+    // Deduct from roll
+    const cutResult = cutFabricFromRoll(rollId, spoiltMeters, undefined, true, flawReason);
+    if (!cutResult.success) {
+      return { success: false, message: cutResult.message };
+    }
+
+    const rmaId = `RMA-FLC-2026-${String(quarantinedDefects.length + 1).padStart(4, '0')}`;
+    const newQuarantineRecord: QuarantinedDefectRecord = {
+      id: rmaId,
+      rmaNumber: rmaId,
+      customerName: 'Internal Spoilage / Cut Isolation',
+      returnedAt: new Date().toISOString(),
+      locationId: roll.locationId,
+      operatorId: currentUser.id,
+      operatorName: currentUser.name,
+      defectReason: flawReason,
+      defectNotes: notes || `Cut out ${spoiltMeters.toFixed(2)}m of defective fabric from ${roll.rollNumber}`,
+      resolutionType: 'exchange_replacement',
+      returnedItem: {
+        batchId: roll.batchId,
+        productName: roll.productName,
+        sku: roll.barcode,
+        category: roll.category,
+        unit: 'meter',
+        colorName: roll.colorName,
+        colorHex: roll.colorHex,
+        metersCount: spoiltMeters,
+        rollNumber: roll.rollNumber,
+        unitPrice,
+        costPrice,
+        totalValuationRetail: spoiltMeters * unitPrice,
+        totalValuationCost: costValuation
+      },
+      financialDetails: {},
+      quarantineStatus: 'quarantined',
+      supplierName: roll.supplierName || 'Oster India Garment Fabrics / Udey Udyog'
+    };
+
+    setQuarantinedDefects(prev => [newQuarantineRecord, ...prev]);
+
+    // Ledger entry: Move cost from Active Inventory to Quarantined Damaged Inventory Asset
+    const entry: LedgerEntry = {
+      id: `LEDG-FLC-DEF-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString(),
+      transactionRef: rmaId,
+      description: `Defective Fabric Spoilage Quarantine (${spoiltMeters.toFixed(2)}m from ${roll.rollNumber}) - Reason: ${flawReason}`,
+      debitAccount: '1350 - Quarantined Damaged Inventory Asset (Pending Supplier Claim)',
+      creditAccount: `1200 - Inventory Asset (${roll.locationId})`,
+      amount: Number(costValuation.toFixed(2)),
+      locationId: roll.locationId,
+      category: 'Adjustment'
+    };
+    setLedger(prev => [entry, ...prev]);
+
+    recordAuditLog(
+      'Defective Fabric Meters Quarantined',
+      `Quarantined ${spoiltMeters.toFixed(2)}m of defective fabric from ${roll.rollNumber} under ${rmaId}. Valuation: KSh ${costValuation.toLocaleString()}`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      rmaId,
+      message: `Successfully cut and quarantined ${spoiltMeters.toFixed(2)}m of spoilt fabric under ticket ${rmaId}.`
+    };
+  };
+
   const processReturnAndExchange = (payload: ReturnExchangePayload) => {
     const rmaId = `RMA-2026-${String(quarantinedDefects.length + 1).padStart(4, '0')}`;
     const retBatch = products.find(p => p.id === payload.returnedBatchId);
     const locInfo = locations.find(l => l.id === payload.locationId);
 
-    const netWeight = payload.returnedNetWeightKg > 0 ? payload.returnedNetWeightKg : 4.0;
-    const unitPrice = payload.returnedRatePerKg > 0 ? payload.returnedRatePerKg : (retBatch?.unitPriceRetail || 750);
+    const isFabric = retBatch?.category === 'Fleece' || retBatch?.category === 'Dereck' || payload.returnedUnit === 'meter' || (payload.returnedMeters && payload.returnedMeters > 0);
+
+    // Quantity metrics: meters for Fleece/Dereec, net kg for Yarn
+    const returnedQty = isFabric
+      ? (payload.returnedMeters && payload.returnedMeters > 0 ? payload.returnedMeters : 1.0)
+      : (payload.returnedNetWeightKg > 0 ? payload.returnedNetWeightKg : 4.0);
+
+    const unitPrice = isFabric
+      ? (payload.returnedRatePerMeter && payload.returnedRatePerMeter > 0 ? payload.returnedRatePerMeter : (retBatch?.unitPriceRetail || 650))
+      : (payload.returnedRatePerKg > 0 ? payload.returnedRatePerKg : (retBatch?.unitPriceRetail || 750));
+
     const costPrice = retBatch?.costPrice || (unitPrice * 0.6);
-    const retailValuation = netWeight * unitPrice;
-    const costValuation = netWeight * costPrice;
+    const retailValuation = returnedQty * unitPrice;
+    const costValuation = returnedQty * costPrice;
 
     // Tax calculation on returned goods
     const vatRate = etrConfig.vatRate || 0.16;
@@ -1807,20 +2109,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 1. RESOLUTION MODE HANDLING:
     if (payload.resolutionType === 'exchange_replacement') {
-      // 1-to-1 Exchange: Issue good replacement cones to customer from sellable active stock
+      // 1-to-1 Exchange: Issue good replacement cones or meters to customer from sellable active stock
       const repBatchId = payload.replacementBatchId || payload.returnedBatchId;
       const repBatch = products.find(p => p.id === repBatchId) || retBatch;
-      const repNetKg = payload.replacementNetWeightKg || netWeight;
-      const repPricePerKg = payload.replacementRatePerKg || unitPrice;
-      const repRetailValuation = repNetKg * repPricePerKg;
+      const repQty = isFabric
+        ? (payload.replacementMeters || returnedQty)
+        : (payload.replacementNetWeightKg || returnedQty);
+      const repUnitPrice = isFabric
+        ? (payload.replacementRatePerMeter || unitPrice)
+        : (payload.replacementRatePerKg || unitPrice);
+      const repRetailValuation = repQty * repUnitPrice;
 
       // Check stock for replacement
       const availableStock = repBatch?.locationStock[payload.locationId] || 0;
-      if (availableStock < repNetKg) {
+      if (availableStock < repQty) {
         playAlertSound();
         return {
           success: false,
-          message: `Cannot complete exchange: Insufficient replacement stock at ${locInfo?.name}. Available: ${availableStock.toFixed(2)}kg, Required: ${repNetKg.toFixed(2)}kg.`
+          message: `Cannot complete exchange: Insufficient replacement stock at ${locInfo?.name}. Available: ${availableStock.toFixed(2)}${isFabric ? 'm' : 'kg'}, Required: ${repQty.toFixed(2)}${isFabric ? 'm' : 'kg'}.`
         };
       }
 
@@ -1833,7 +2139,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...p,
               locationStock: {
                 ...p.locationStock,
-                [payload.locationId]: Math.max(0, cur - repNetKg)
+                [payload.locationId]: Math.max(0, cur - repQty)
               }
             };
           }
@@ -1843,18 +2149,21 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       replacementInfo = {
         batchId: repBatchId,
-        productName: repBatch?.name || 'Replacement Yarn Cones',
+        productName: repBatch?.name || (isFabric ? 'Replacement Fabric' : 'Replacement Yarn Cones'),
         sku: repBatch?.sku || repBatchId,
+        unit: isFabric ? 'meter' : 'kg',
         colorName: repBatch?.colorName,
         dyeLot: repBatch?.dyeLot,
         shadeCode: repBatch?.shadeCode,
-        conesCount: payload.replacementConesCount || payload.returnedConesCount,
-        netWeightKg: repNetKg,
-        unitPrice: repPricePerKg,
+        conesCount: !isFabric ? (payload.replacementConesCount || payload.returnedConesCount) : undefined,
+        netWeightKg: !isFabric ? repQty : undefined,
+        metersCount: isFabric ? repQty : undefined,
+        rollNumber: payload.replacementRollNumber,
+        unitPrice: repUnitPrice,
         totalValuationRetail: repRetailValuation
       };
 
-      // Difference in price if replacement cones weighed slightly different
+      // Difference in price if replacement had slight variance
       const priceDiff = repRetailValuation - retailValuation;
       if (priceDiff > 0.01) {
         financialDetails.priceDifferencePaidByCustomer = priceDiff;
@@ -1863,12 +2172,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Ledger: Move cost from Active Inventory to Quarantined Damaged Inventory Asset
+      const itemDesc = isFabric
+        ? `${returnedQty.toFixed(2)} meters of ${retBatch?.name}`
+        : `${payload.returnedConesCount} cones (${returnedQty.toFixed(3)}kg) of ${retBatch?.name}`;
+
       const entriesToPost: LedgerEntry[] = [
         {
           id: `LEDG-RMA-${Date.now().toString().slice(-6)}-1`,
           timestamp: new Date().toISOString(),
           transactionRef: rmaId,
-          description: `RMA Defective Yarn Spoilage Quarantine (${payload.returnedConesCount} cones, ${netWeight.toFixed(3)}kg) - Reason: ${payload.defectReason}`,
+          description: `RMA Defective ${isFabric ? 'Fabric' : 'Yarn'} Quarantine (${itemDesc}) - Reason: ${payload.defectReason}`,
           debitAccount: '1350 - Quarantined Damaged Inventory Asset (Pending Supplier Claim)',
           creditAccount: `1200 - Inventory Asset (${locInfo?.name})`,
           amount: Number(costValuation.toFixed(2)),
@@ -1882,7 +2195,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: `LEDG-RMA-${Date.now().toString().slice(-6)}-2`,
           timestamp: new Date().toISOString(),
           transactionRef: rmaId,
-          description: `RMA Exchange Weight Surcharge Collected (Customer top-up ${priceDiff.toFixed(2)})`,
+          description: `RMA Exchange Variance Surcharge Collected (Customer top-up ${priceDiff.toFixed(2)})`,
           debitAccount: 'Cash at Hand / Bank',
           creditAccount: 'Sales Revenue (Exchange Variance)',
           amount: Number(priceDiff.toFixed(2)),
@@ -1894,7 +2207,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLedger(prev => [...entriesToPost, ...prev]);
 
     } else if (payload.resolutionType === 'bank_refund' || payload.resolutionType === 'mpesa_refund' || payload.resolutionType === 'cash_refund') {
-      // Direct Cash/Bank Reversal: Company refunds the customer for spoilt cones
+      // Direct Cash/Bank Reversal: Company refunds the customer for spoilt goods
       const refundAmount = retailValuation;
       financialDetails.refundAmount = refundAmount;
       financialDetails.vatReversalAmount = vatReversal;
@@ -1968,7 +2281,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: `LEDG-RMA-${Date.now().toString().slice(-6)}-3`,
           timestamp: new Date().toISOString(),
           transactionRef: rmaId,
-          description: `Defective Stock Moved to Quarantine Asset at Cost (${payload.returnedConesCount} cones)`,
+          description: `Defective Stock Moved to Quarantine Asset at Cost (${isFabric ? `${returnedQty.toFixed(2)}m` : `${payload.returnedConesCount} cones`})`,
           debitAccount: '1350 - Quarantined Damaged Inventory Asset',
           creditAccount: '5000 - Cost of Goods Sold (COGS Reversal)',
           amount: Number(costValuation.toFixed(2)),
@@ -2010,7 +2323,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: `LEDG-RMA-${Date.now().toString().slice(-6)}-1`,
           timestamp: new Date().toISOString(),
           transactionRef: rmaId,
-          description: `Store Credit Issued to ${payload.customerName} for Damaged Yarn (${crnId})`,
+          description: `Store Credit Issued to ${payload.customerName} for Damaged Goods (${crnId})`,
           debitAccount: '4200 - Sales Returns & Allowances',
           creditAccount: '2200 - Customer Store Credit Liabilities',
           amount: Number(taxableNetRevenue.toFixed(2)),
@@ -2061,18 +2374,21 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resolutionType: payload.resolutionType,
       returnedItem: {
         batchId: payload.returnedBatchId,
-        productName: retBatch?.name || 'Damaged Yarn Cones',
+        productName: retBatch?.name || (isFabric ? 'Damaged Fabric' : 'Damaged Yarn Cones'),
         sku: retBatch?.sku || payload.returnedBatchId,
-        category: retBatch?.category || 'Yarns',
+        category: retBatch?.category || (isFabric ? 'Fleece' : 'Yarns'),
+        unit: isFabric ? 'meter' : 'kg',
         colorName: retBatch?.colorName,
         colorHex: retBatch?.colorHex,
         dyeLot: retBatch?.dyeLot,
         shadeCode: retBatch?.shadeCode,
         yarnCount: retBatch?.yarnCount,
-        conesCount: payload.returnedConesCount,
-        grossWeightKg: payload.returnedGrossWeightKg,
-        tareDeductionKg: payload.returnedTareKg,
-        netWeightKg: netWeight,
+        conesCount: !isFabric ? payload.returnedConesCount : undefined,
+        grossWeightKg: !isFabric ? payload.returnedGrossWeightKg : undefined,
+        tareDeductionKg: !isFabric ? payload.returnedTareKg : undefined,
+        netWeightKg: !isFabric ? returnedQty : undefined,
+        metersCount: isFabric ? returnedQty : undefined,
+        rollNumber: payload.returnedRollNumber,
         unitPrice: unitPrice,
         costPrice: costPrice,
         totalValuationRetail: retailValuation,
@@ -2087,9 +2403,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setQuarantinedDefects(prev => [newQuarantineRecord, ...prev]);
 
     // 3. AUDIT LOG & SOUND
+    const defectSummary = isFabric
+      ? `${returnedQty.toFixed(2)}m of defective fabric quarantined`
+      : `${payload.returnedConesCount} spoilt cones (${returnedQty.toFixed(3)}kg) quarantined`;
+
     recordAuditLog(
       'RMA Return & Exchange Processed',
-      `Processed ${payload.resolutionType.replace('_', ' ')} (${rmaId}) for ${payload.customerName}: ${payload.returnedConesCount} spoilt cones (${netWeight.toFixed(3)}kg) quarantined. Defect: ${payload.defectReason}`
+      `Processed ${payload.resolutionType.replace('_', ' ')} (${rmaId}) for ${payload.customerName}: ${defectSummary}. Defect: ${payload.defectReason}`
     );
     playSuccessSound();
 
@@ -2108,12 +2428,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let totalCostValuation = 0;
     let totalNetKg = 0;
+    let totalMeters = 0;
 
     setQuarantinedDefects(prev =>
       prev.map(rec => {
         if (recordIds.includes(rec.id)) {
           totalCostValuation += rec.returnedItem.totalValuationCost;
-          totalNetKg += rec.returnedItem.netWeightKg;
+          if (rec.returnedItem.netWeightKg) totalNetKg += rec.returnedItem.netWeightKg;
+          if (rec.returnedItem.metersCount) totalMeters += rec.returnedItem.metersCount;
           return {
             ...rec,
             quarantineStatus: 'supplier_claim_filed',
@@ -2127,12 +2449,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    const qtySummary = [
+      totalNetKg > 0 ? `${totalNetKg.toFixed(2)}kg yarn` : '',
+      totalMeters > 0 ? `${totalMeters.toFixed(2)}m fabric` : ''
+    ].filter(Boolean).join(' & ');
+
     // Ledger: Move from Quarantine Inventory to Supplier Receivable Claim
     const claimJournal: LedgerEntry = {
       id: `LEDG-CLM-${Date.now().toString().slice(-6)}`,
       timestamp: now,
       transactionRef: claimRef,
-      description: `Supplier Defect Claim Filed against ${supplierName} (${totalNetKg.toFixed(2)}kg yarn defects, ${recordIds.length} batch lots)`,
+      description: `Supplier Defect Claim Filed against ${supplierName} (${qtySummary || `${recordIds.length} lots`})`,
       debitAccount: `1180 - Accounts Receivable (Supplier Claims - ${supplierName})`,
       creditAccount: '1350 - Quarantined Damaged Inventory Asset',
       amount: Number(totalCostValuation.toFixed(2)),
@@ -2144,7 +2471,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     recordAuditLog(
       'Supplier Defect Claim Filed',
-      `Submitted Claim Note ${claimRef} to ${supplierName} for KSh ${totalCostValuation.toLocaleString()} (${totalNetKg.toFixed(2)}kg defect yarn across ${recordIds.length} tickets)`
+      `Submitted Claim Note ${claimRef} to ${supplierName} for KSh ${totalCostValuation.toLocaleString()} (${qtySummary || `${recordIds.length} tickets`})`
     );
     playSuccessSound();
 
@@ -2687,14 +3014,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart([]);
   };
 
-  // POS CHECKOUT logic
+  // POS CHECKOUT logic (Immediate Sales & Forward-Dated Reservations)
   const processPOSCheckout = (
     paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque',
     customerName: string = 'Walk-in Retail Customer',
     customerKraPin: string = '',
     isQuotation: boolean = false,
     applyWHT5: boolean = false,
-    whtCertificateNo: string = ''
+    whtCertificateNo: string = '',
+    isForwardDated: boolean = false,
+    forwardFulfillmentDate: string = '',
+    advanceDepositAmount?: number,
+    fulfillmentNotes: string = ''
   ) => {
     // Check Store 1 and Store 2 restriction
     const locInfo = locations.find(l => l.id === activeLocation);
@@ -2711,14 +3042,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Cart is empty.' };
     }
 
-    // Check stock availability
+    // Check stock availability (accounting for already reserved stock)
     for (const item of cart) {
       const prod = products.find(p => p.id === item.batchId);
-      const locStock = prod?.locationStock[activeLocation] || 0;
-      if (locStock < item.quantity && !isQuotation) {
+      const totalLocStock = prod?.locationStock[activeLocation] || 0;
+      const alreadyReserved = prod?.reservedStock?.[activeLocation] || 0;
+      const netAvailableStock = Math.max(0, totalLocStock - alreadyReserved);
+
+      if (netAvailableStock < item.quantity && !isQuotation) {
+        playAlertSound();
         return {
           success: false,
-          message: `Insufficient stock for ${item.productName} at ${locInfo?.name}. Available: ${locStock} ${item.unit}. Consider auto-rerouting order to Main Store.`
+          message: `Insufficient available stock for "${item.productName}" at ${locInfo?.name}. Net Available (Unreserved): ${netAvailableStock.toFixed(2)} ${item.unit} (Total On-Hand: ${totalLocStock.toFixed(2)}, Reserved: ${alreadyReserved.toFixed(2)}).`
         };
       }
     }
@@ -2734,12 +3069,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const netReceivableAmount = applyWHT5 ? Number((grossTotal - whtAmount).toFixed(2)) : grossTotal;
     const whtCertNumber = applyWHT5 ? (whtCertificateNo || `KRA-WHT-5%-${Date.now().toString().slice(-6)}`) : undefined;
 
-    const receiptNum = `ETR-${Math.floor(1000 + Math.random() * 9000)}-${orders.length + 1}`;
+    const receiptNum = isForwardDated 
+      ? `RES-${Math.floor(1000 + Math.random() * 9000)}-${orders.length + 1}`
+      : `ETR-${Math.floor(1000 + Math.random() * 9000)}-${orders.length + 1}`;
     const orderId = `ORD-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    // Forward-dated reservation specifics
+    const depositPaid = isForwardDated ? Math.min(grossTotal, Math.max(0, advanceDepositAmount ?? grossTotal)) : grossTotal;
+    const balanceDue = isForwardDated ? Number((grossTotal - depositPaid).toFixed(2)) : 0;
+    const targetFulfillmentDate = forwardFulfillmentDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
     const newOrder: SaleOrder = {
       id: orderId,
       receiptNumber: receiptNum,
+      documentType: isForwardDated ? 'advance_booking' : (isQuotation ? 'quotation' : 'receipt'),
       etrDevicePin: etrConfig.taxPin,
       cuSerialNumber: etrConfig.cuSerialNumber,
       originLocation: activeLocation,
@@ -2758,7 +3101,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tareDeduction: item.tareDeduction,
         netBillableWeight: item.netBillableWeight,
         isTareApplied: item.isTareApplied,
-        tareDescription: item.tareDescription
+        tareDescription: item.tareDescription,
+        dyeLot: item.dyeLot,
+        shadeCode: item.shadeCode,
+        yarnCount: item.yarnCount,
+        bagNumber: item.bagNumber
       })),
       subtotal,
       vatAmount,
@@ -2770,22 +3117,89 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       netReceivableAmount: applyWHT5 ? netReceivableAmount : undefined,
       paymentMethod,
       paymentReference: `${(paymentMethod || 'CSH').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`,
-      status: 'completed',
+      status: isForwardDated ? 'reserved' : (isQuotation ? 'draft' : 'completed'),
       operatorId: currentUser.id,
       operatorName: currentUser.name,
       timestamp: new Date().toISOString(),
       isRerouted: false,
-      isQuotation
+      isQuotation,
+      // Forward-Dated Reservation specific attributes
+      isForwardDated,
+      forwardFulfillmentDate: isForwardDated ? targetFulfillmentDate : undefined,
+      advanceDepositPaid: isForwardDated ? depositPaid : undefined,
+      balanceDue: isForwardDated ? balanceDue : undefined,
+      depositPaymentMethod: isForwardDated ? paymentMethod : undefined,
+      depositPaymentReference: isForwardDated ? `DEP-${(paymentMethod || 'CSH').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-5)}` : undefined,
+      reservationStatus: isForwardDated ? 'reserved_active' : undefined,
+      fulfillmentNotes: isForwardDated ? fulfillmentNotes : undefined,
+      isStockReserved: isForwardDated
     };
 
-    if (!isQuotation) {
+    if (isForwardDated) {
+      // FORWARD-DATED RESERVATION MODE:
+      // 1. Lock stock into reservedStock bucket for the active location (Do NOT deduct from total physical locationStock yet)
+      setProducts(prevProducts =>
+        prevProducts.map(prod => {
+          const cartItem = cart.find(c => c.batchId === prod.id);
+          if (cartItem) {
+            const currentReserved = prod.reservedStock?.[activeLocation] || 0;
+            return {
+              ...prod,
+              reservedStock: {
+                ...(prod.reservedStock || {}),
+                [activeLocation]: currentReserved + cartItem.quantity
+              }
+            };
+          }
+          return prod;
+        })
+      );
+
+      // 2. Accounting: Defer revenue recognition. Book customer advance deposit to liability account 2100
+      if (depositPaid > 0) {
+        const depositLedgerEntries: LedgerEntry[] = [
+          {
+            id: `LEDG-DEP-${Date.now().toString().slice(-6)}`,
+            timestamp: new Date().toISOString(),
+            transactionRef: orderId,
+            description: `Forward-Dated Reservation Deposit for ${customerName} (Fulfillment Target: ${targetFulfillmentDate})`,
+            debitAccount: `${paymentMethod} Cash / Inflow Account`,
+            creditAccount: '2100 - Customer Advance Deposits & Forward Order Liabilities',
+            amount: depositPaid,
+            locationId: activeLocation,
+            category: 'Sales'
+          }
+        ];
+        setLedger(prev => [...depositLedgerEntries, ...prev]);
+
+        // Increment cash float if paid via physical cash
+        if (paymentMethod === 'Cash') {
+          setLocations(prevLocs =>
+            prevLocs.map(l => {
+              if (l.id === activeLocation) {
+                const current = l.currentCashBalance ?? l.openingFloat ?? 0;
+                return { ...l, currentCashBalance: current + depositPaid };
+              }
+              return l;
+            })
+          );
+        }
+      }
+
+      // 3. Record Audit Log
+      recordAuditLog(
+        'Forward-Dated Reservation Booked',
+        `Booked Reservation #${receiptNum} for ${customerName} at ${locInfo?.name}. Target Fulfillment: ${targetFulfillmentDate}. Reserved ${cart.length} item lines. Total: KSh ${grossTotal.toLocaleString()}, Deposit Paid: KSh ${depositPaid.toLocaleString()}, Balance Due: KSh ${balanceDue.toLocaleString()}`
+      );
+
+    } else if (!isQuotation) {
+      // IMMEDIATE SALE MODE:
       // 1. Decrement Inventory stock at active location (using pure net billed weight)
       setProducts(prevProducts =>
         prevProducts.map(prod => {
           const cartItem = cart.find(c => c.batchId === prod.id);
           if (cartItem) {
             const currentStock = prod.locationStock[activeLocation] || 0;
-            // The item.quantity in cart is already the net billable weight when tare is applied
             return {
               ...prod,
               locationStock: {
@@ -2857,7 +3271,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const entriesToPost: LedgerEntry[] = [];
 
       if (applyWHT5 && whtAmount > 0) {
-        // Net Cash/Bank collected
         entriesToPost.push({
           id: `LEDG-${Date.now().toString().slice(-6)}`,
           timestamp: new Date().toISOString(),
@@ -2870,7 +3283,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           category: 'Sales'
         });
 
-        // 5% Advance Withholding Tax Credit
         entriesToPost.push({
           id: `LEDG-WHT-${Date.now().toString().slice(-6)}`,
           timestamp: new Date().toISOString(),
@@ -2939,7 +3351,273 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     playSuccessSound();
     setCart([]);
 
-    return { success: true, orderId };
+    return { 
+      success: true, 
+      orderId, 
+      isForwardDated,
+      message: isForwardDated 
+        ? `Forward Reservation #${receiptNum} successfully booked for ${targetFulfillmentDate}!` 
+        : `Sale completed and ETR receipt #${receiptNum} generated!` 
+    };
+  };
+
+  // FULFILL & RELEASE FORWARD-DATED RESERVATION (Trigger eTIMS Fiscal Invoice upon physical dispatch)
+  const fulfillForwardReservation = (
+    orderId: string,
+    finalPaymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque' = 'M-Pesa',
+    finalPaymentReference: string = '',
+    notes: string = ''
+  ) => {
+    const existingOrder = orders.find(o => o.id === orderId);
+    if (!existingOrder) {
+      playAlertSound();
+      return { success: false, message: 'Reservation order not found.' };
+    }
+
+    if (existingOrder.status === 'completed' || existingOrder.reservationStatus === 'fulfilled') {
+      playAlertSound();
+      return { success: false, message: 'This reservation has already been fulfilled and finalized.' };
+    }
+
+    const fulfillLoc = existingOrder.fulfilledByLocation || activeLocation;
+    const locInfo = locations.find(l => l.id === fulfillLoc);
+    const locName = locInfo?.name || fulfillLoc;
+    const nowISO = new Date().toISOString();
+
+    // 1. Decrement physical stock and clear reserved stock
+    setProducts(prevProducts =>
+      prevProducts.map(prod => {
+        const orderItem = existingOrder.items.find(i => i.batchId === prod.id);
+        if (orderItem) {
+          const currentPhysical = prod.locationStock[fulfillLoc] || 0;
+          const currentReserved = prod.reservedStock?.[fulfillLoc] || 0;
+          return {
+            ...prod,
+            locationStock: {
+              ...prod.locationStock,
+              [fulfillLoc]: Math.max(0, currentPhysical - orderItem.quantity)
+            },
+            reservedStock: {
+              ...(prod.reservedStock || {}),
+              [fulfillLoc]: Math.max(0, currentReserved - orderItem.quantity)
+            }
+          };
+        }
+        return prod;
+      })
+    );
+
+    // 2. Financial Ledger recognition:
+    // Move advance deposit from Liability (2100) -> Sales Revenue
+    const depositAmt = existingOrder.advanceDepositPaid || 0;
+    const balanceAmt = existingOrder.balanceDue || 0;
+    const entriesToPost: LedgerEntry[] = [];
+
+    if (depositAmt > 0) {
+      entriesToPost.push({
+        id: `LEDG-FULF-DEP-${Date.now().toString().slice(-6)}`,
+        timestamp: nowISO,
+        transactionRef: existingOrder.id,
+        description: `Revenue Recognized from Advance Customer Deposit (Reservation ${existingOrder.receiptNumber})`,
+        debitAccount: '2100 - Customer Advance Deposits & Forward Order Liabilities',
+        creditAccount: `Sales Revenue (${locName})`,
+        amount: depositAmt,
+        locationId: fulfillLoc,
+        category: 'Sales'
+      });
+    }
+
+    // If remaining balance is collected now at fulfillment:
+    if (balanceAmt > 0) {
+      entriesToPost.push({
+        id: `LEDG-FULF-BAL-${Date.now().toString().slice(-6)}`,
+        timestamp: nowISO,
+        transactionRef: existingOrder.id,
+        description: `Remaining Balance Collected at Fulfillment for ${existingOrder.customerName || 'Client'} (${finalPaymentMethod})`,
+        debitAccount: `${finalPaymentMethod} Cash / Bank Account`,
+        creditAccount: `Sales Revenue (${locName})`,
+        amount: balanceAmt,
+        locationId: fulfillLoc,
+        category: 'Sales'
+      });
+
+      // If cash, increment cash float
+      if (finalPaymentMethod === 'Cash') {
+        setLocations(prevLocs =>
+          prevLocs.map(l => {
+            if (l.id === fulfillLoc) {
+              const cur = l.currentCashBalance ?? l.openingFloat ?? 0;
+              return { ...l, currentCashBalance: cur + balanceAmt };
+            }
+            return l;
+          })
+        );
+      }
+    }
+
+    // 16% Output VAT Liability entry on fulfillment (KRA eTIMS timing requirement)
+    entriesToPost.push({
+      id: `LEDG-VAT-${Date.now().toString().slice(-6)}`,
+      timestamp: nowISO,
+      transactionRef: existingOrder.id,
+      description: `KRA 16% Output VAT Liability for Fulfilled Reservation ${existingOrder.receiptNumber}`,
+      debitAccount: `Sales Revenue (${locName})`,
+      creditAccount: 'KRA Output VAT Liability',
+      amount: existingOrder.vatAmount,
+      locationId: fulfillLoc,
+      category: 'Tax VAT'
+    });
+
+    // COGS & Inventory Asset reduction at cost
+    const totalCostOfItems = existingOrder.items.reduce((sum, item) => {
+      const prod = products.find(p => p.id === item.batchId);
+      return sum + item.quantity * (prod?.costPrice || (item.unitPrice * 0.6));
+    }, 0);
+
+    entriesToPost.push({
+      id: `LEDG-COGS-${Date.now().toString().slice(-6)}`,
+      timestamp: nowISO,
+      transactionRef: existingOrder.id,
+      description: `Cost of Goods Sold on Fulfillment of ${existingOrder.receiptNumber}`,
+      debitAccount: '5000 - Cost of Goods Sold (COGS)',
+      creditAccount: `1200 - Inventory Asset (${locName})`,
+      amount: Number(totalCostOfItems.toFixed(2)),
+      locationId: fulfillLoc,
+      category: 'Adjustment'
+    });
+
+    setLedger(prev => [...entriesToPost, ...prev]);
+
+    // 3. Update the order to completed Tax Invoice with official KRA fiscal signature
+    const etrReceiptNo = `ETR-${Math.floor(1000 + Math.random() * 9000)}-${existingOrder.receiptNumber.replace('RES-', '')}`;
+    const updatedOrder: SaleOrder = {
+      ...existingOrder,
+      receiptNumber: etrReceiptNo,
+      documentType: 'receipt',
+      status: 'completed',
+      reservationStatus: 'fulfilled',
+      fulfilledAt: nowISO,
+      balanceDue: 0,
+      paymentMethod: finalPaymentMethod,
+      paymentReference: finalPaymentReference || `FULF-${finalPaymentMethod.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-5)}`,
+      fulfillmentNotes: notes || existingOrder.fulfillmentNotes || 'Order fulfilled and released to customer.'
+    };
+
+    setOrders(prev => prev.map(o => (o.id === orderId ? updatedOrder : o)));
+    setSelectedReceipt(updatedOrder);
+    playSuccessSound();
+
+    recordAuditLog(
+      'Forward Reservation Fulfilled & Dispatched',
+      `Dispatched and fulfilled reservation ${existingOrder.receiptNumber} (New Fiscal ETR: ${etrReceiptNo}) for ${existingOrder.customerName}. Final Balance of KSh ${balanceAmt.toLocaleString()} cleared via ${finalPaymentMethod}. Inventory and VAT ledger finalized.`
+    );
+
+    return {
+      success: true,
+      order: updatedOrder,
+      message: `Reservation fulfilled successfully! Issued official KRA Fiscal Receipt #${etrReceiptNo}.`
+    };
+  };
+
+  // CANCEL FORWARD RESERVATION & RELEASE RESERVED STOCK
+  const cancelForwardReservation = (
+    orderId: string,
+    refundMethod: 'cash' | 'mpesa' | 'bank' | 'store_credit' = 'mpesa',
+    cancellationReason: string = 'Customer cancelled advance booking'
+  ) => {
+    const existingOrder = orders.find(o => o.id === orderId);
+    if (!existingOrder) {
+      playAlertSound();
+      return { success: false, message: 'Reservation not found.' };
+    }
+
+    if (existingOrder.status === 'completed' || existingOrder.reservationStatus === 'fulfilled') {
+      playAlertSound();
+      return { success: false, message: 'Cannot cancel an order that has already been fulfilled and dispatched.' };
+    }
+
+    const fulfillLoc = existingOrder.fulfilledByLocation || activeLocation;
+    const depositAmt = existingOrder.advanceDepositPaid || 0;
+    const nowISO = new Date().toISOString();
+
+    // 1. Release reserved stock back to sellable pool
+    setProducts(prevProducts =>
+      prevProducts.map(prod => {
+        const orderItem = existingOrder.items.find(i => i.batchId === prod.id);
+        if (orderItem) {
+          const currentReserved = prod.reservedStock?.[fulfillLoc] || 0;
+          return {
+            ...prod,
+            reservedStock: {
+              ...(prod.reservedStock || {}),
+              [fulfillLoc]: Math.max(0, currentReserved - orderItem.quantity)
+            }
+          };
+        }
+        return prod;
+      })
+    );
+
+    // 2. Refund advance deposit if customer paid one
+    if (depositAmt > 0) {
+      const channelAccount = refundMethod === 'cash' 
+        ? 'Cash Drawer Float' 
+        : refundMethod === 'bank' 
+        ? 'Bank Operating Account' 
+        : refundMethod === 'store_credit' 
+        ? 'Customer Store Credit Account' 
+        : 'M-Pesa Till / Paybill';
+
+      const refundEntry: LedgerEntry = {
+        id: `LEDG-REF-${Date.now().toString().slice(-6)}`,
+        timestamp: nowISO,
+        transactionRef: orderId,
+        description: `Advance Deposit Refund on Reservation Cancellation (${existingOrder.receiptNumber}) - Reason: ${cancellationReason}`,
+        debitAccount: '2100 - Customer Advance Deposits & Forward Order Liabilities',
+        creditAccount: channelAccount,
+        amount: depositAmt,
+        locationId: fulfillLoc,
+        category: 'Sales'
+      };
+      setLedger(prev => [refundEntry, ...prev]);
+
+      if (refundMethod === 'cash') {
+        setLocations(prevLocs =>
+          prevLocs.map(l => {
+            if (l.id === fulfillLoc) {
+              const cur = l.currentCashBalance ?? l.openingFloat ?? 0;
+              return { ...l, currentCashBalance: Math.max(0, cur - depositAmt) };
+            }
+            return l;
+          })
+        );
+      }
+    }
+
+    // 3. Update order status to cancelled
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === orderId
+          ? {
+              ...o,
+              status: 'cancelled',
+              reservationStatus: 'cancelled',
+              fulfillmentNotes: `Cancelled on ${new Date().toLocaleDateString()}: ${cancellationReason}`
+            }
+          : o
+      )
+    );
+
+    recordAuditLog(
+      'Forward Reservation Cancelled',
+      `Cancelled reservation ${existingOrder.receiptNumber} for ${existingOrder.customerName}. Released ${existingOrder.items.length} reserved item lines back to sellable floor. Deposit of KSh ${depositAmt.toLocaleString()} refunded via ${refundMethod}.`
+    );
+
+    playAlertSound();
+    return {
+      success: true,
+      message: `Reservation ${existingOrder.receiptNumber} cancelled and reserved stock returned to sellable floor.`
+    };
   };
 
   // CONVERT PROFORMA QUOTATION TO OFFICIAL TAX INVOICE & ETR RECEIPT
@@ -3167,7 +3845,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       proforma: 'PRO',
       receipt: 'RCP',
       delivery_note: 'DEL',
-      credit_note: 'CRN'
+      credit_note: 'CRN',
+      advance_booking: 'ADV'
     };
     const prefix = codeMap[docData.documentType] || 'DOC';
     const docId = `${prefix}-2026-${rawNumber}`;
@@ -5669,7 +6348,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fileSupplierDefectClaim,
         resolveQuarantineRecord,
         isReturnExchangeModalOpen,
-        setIsReturnExchangeModalOpen
+        setIsReturnExchangeModalOpen,
+        fabricRolls,
+        addFabricRoll,
+        addFabricRollBatchIntake,
+        cutFabricFromRoll,
+        logSpoiltFabricMeters,
+        isFabricRollModalOpen,
+        setIsFabricRollModalOpen,
+        fulfillForwardReservation,
+        cancelForwardReservation,
+        isForwardReservationsModalOpen,
+        setIsForwardReservationsModalOpen
       }}
     >
       {children}

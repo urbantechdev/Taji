@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, UnitType } from '../../types';
+import { hasPermission } from '../../utils/rbac';
 import { ReceiveDeliveryModal } from './ReceiveDeliveryModal';
 import { CategoryIntakeModal } from './CategoryIntakeModal';
 import { WeightReconciliationModule } from './WeightReconciliationModule';
@@ -70,8 +71,17 @@ export const InventoryCatalog: React.FC = () => {
     setIsProductImageModalOpen,
     checkProductDuplicate,
     scanAllCatalogDuplicates,
-    restockExistingProduct
+    restockExistingProduct,
+    currentUser,
+    isAdmin
   } = useERP();
+
+  // Role-Based Feature Permission Gates
+  const canAdd = isAdmin || hasPermission(currentUser.role, 'canAddProductBatches');
+  const canViewCost = isAdmin || hasPermission(currentUser.role, 'canViewCostPrice');
+  const canEditPrices = isAdmin || hasPermission(currentUser.role, 'canEditMasterPricing');
+  const canDelete = isAdmin || hasPermission(currentUser.role, 'canDeleteInventory');
+  const canTareWeight = isAdmin || hasPermission(currentUser.role, 'canDispatchTransfers');
 
   const [isDuplicateAuditOpen, setIsDuplicateAuditOpen] = useState(false);
   const [activeInventoryTab, setActiveInventoryTab] = useState<'catalog' | 'weight_reconciliation'>('catalog');
@@ -315,10 +325,17 @@ export const InventoryCatalog: React.FC = () => {
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Physical Stock Units</span>
           <span className="text-base sm:text-xl font-mono font-bold text-amber-400 mt-0.5 block">{totalAssetValuation.totalUnits.toLocaleString()} units</span>
         </div>
-        <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl hover:bg-white/10 transition-colors">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Cost Valuation</span>
-          <span className="text-base sm:text-xl font-mono font-bold text-rose-300 mt-0.5 block">KSh {totalAssetValuation.totalCostValuation.toLocaleString()}</span>
-        </div>
+        {canViewCost ? (
+          <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl hover:bg-white/10 transition-colors">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Cost Valuation</span>
+            <span className="text-base sm:text-xl font-mono font-bold text-rose-300 mt-0.5 block">KSh {totalAssetValuation.totalCostValuation.toLocaleString()}</span>
+          </div>
+        ) : (
+          <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl hover:bg-white/10 transition-colors">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Stock Categories</span>
+            <span className="text-base sm:text-xl font-mono font-bold text-rose-300 mt-0.5 block">Dereec, Fleece, Yarns</span>
+          </div>
+        )}
         <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl hover:bg-white/10 transition-colors">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Retail Valuation</span>
           <span className="text-base sm:text-xl font-mono font-black text-emerald-400 mt-0.5 block">KSh {totalAssetValuation.totalRetailValuation.toLocaleString()}</span>
@@ -362,27 +379,31 @@ export const InventoryCatalog: React.FC = () => {
                 <Boxes className="w-3.5 h-3.5 text-rose-600" />
                 <span>Catalog Stock</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveInventoryTab('weight_reconciliation')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeInventoryTab === 'weight_reconciliation'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-rose-600'
-                }`}
-              >
-                <Scale className="w-3.5 h-3.5" />
-                <span>Gross vs Net Reconciler</span>
-              </button>
+              {canTareWeight && (
+                <button
+                  type="button"
+                  onClick={() => setActiveInventoryTab('weight_reconciliation')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeInventoryTab === 'weight_reconciliation'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-rose-600'
+                  }`}
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                  <span>Gross vs Net Reconciler</span>
+                </button>
+              )}
             </div>
 
-            <button
-              onClick={() => setIsAddBatchModalOpen(true)}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Add Batch</span>
-            </button>
+            {canAdd && (
+              <button
+                onClick={() => setIsAddBatchModalOpen(true)}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Add Batch</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -400,21 +421,23 @@ export const InventoryCatalog: React.FC = () => {
                 {cloudSyncStatus === 'synced' ? 'Cloud: Live' : cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Local Cache'}
               </span>
             </div>
-            <button
-              type="button"
-              disabled={isSyncingManual}
-              onClick={async () => {
-                setIsSyncingManual(true);
-                const res = await syncCloudInventory();
-                setIsSyncingManual(false);
-                setSyncToast(res.message);
-                setTimeout(() => setSyncToast(null), 3000);
-              }}
-              className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
-              title="Force push/pull inventory items to Firestore cloud database"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingManual ? 'animate-spin text-indigo-600' : ''}`} />
-            </button>
+            {canAdd && (
+              <button
+                type="button"
+                disabled={isSyncingManual}
+                onClick={async () => {
+                  setIsSyncingManual(true);
+                  const res = await syncCloudInventory();
+                  setIsSyncingManual(false);
+                  setSyncToast(res.message);
+                  setTimeout(() => setSyncToast(null), 3000);
+                }}
+                className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+                title="Force push/pull inventory items to Firestore cloud database"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingManual ? 'animate-spin text-indigo-600' : ''}`} />
+              </button>
+            )}
           </div>
 
           {/* Master Catalog Tools & Scanners */}
@@ -430,14 +453,16 @@ export const InventoryCatalog: React.FC = () => {
                 <span>Images</span>
               </button>
 
-              <button
-                onClick={() => setIsCategoryPricingOpen(true)}
-                className="px-2.5 py-1.5 hover:bg-indigo-50 text-indigo-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Manage & Bulk Update Category Prices (Dereck, Fleece, Yarns)"
-              >
-                <DollarSign className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Prices</span>
-              </button>
+              {canEditPrices && (
+                <button
+                  onClick={() => setIsCategoryPricingOpen(true)}
+                  className="px-2.5 py-1.5 hover:bg-indigo-50 text-indigo-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Manage & Bulk Update Category Prices (Dereck, Fleece, Yarns)"
+                >
+                  <DollarSign className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Prices</span>
+                </button>
+              )}
 
               <button
                 onClick={() => {
@@ -463,44 +488,50 @@ export const InventoryCatalog: React.FC = () => {
                 <span>Batch QR</span>
               </button>
 
-              <button
-                onClick={() => setIsMobileBarcodeScannerOpen(true)}
-                className="px-2.5 py-1.5 hover:bg-emerald-50 text-emerald-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Activate Phone Camera Barcode Scanner to Add Products Instantly"
-              >
-                <Camera className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Scan to Add</span>
-              </button>
+              {canAdd && (
+                <>
+                  <button
+                    onClick={() => setIsMobileBarcodeScannerOpen(true)}
+                    className="px-2.5 py-1.5 hover:bg-emerald-50 text-emerald-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Activate Phone Camera Barcode Scanner to Add Products Instantly"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Scan to Add</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  setCategoryIntakeCategory(selectedCategory !== 'All' ? selectedCategory : 'Dereck');
-                  setIsCategoryIntakeOpen(true);
-                }}
-                className="px-2.5 py-1.5 hover:bg-pink-50 text-pink-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Category Barcode Scanner Intake Mode for Fleeces, Dereec & Yarns"
-              >
-                <Barcode className="w-3.5 h-3.5 text-pink-600" />
-                <span>Intake Mode</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      setCategoryIntakeCategory(selectedCategory !== 'All' ? selectedCategory : 'Dereck');
+                      setIsCategoryIntakeOpen(true);
+                    }}
+                    className="px-2.5 py-1.5 hover:bg-pink-50 text-pink-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Category Barcode Scanner Intake Mode for Fleeces, Dereec & Yarns"
+                  >
+                    <Barcode className="w-3.5 h-3.5 text-pink-600" />
+                    <span>Intake Mode</span>
+                  </button>
 
-              <button
-                onClick={() => setIsReceiveDeliveryOpen(true)}
-                className="px-2.5 py-1.5 hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Open Barcode Scanner Intake Mode for Delivery Manifests"
-              >
-                <Truck className="w-3.5 h-3.5 text-slate-600" />
-                <span>Delivery</span>
-              </button>
+                  <button
+                    onClick={() => setIsReceiveDeliveryOpen(true)}
+                    className="px-2.5 py-1.5 hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Open Barcode Scanner Intake Mode for Delivery Manifests"
+                  >
+                    <Truck className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Delivery</span>
+                  </button>
+                </>
+              )}
 
-              <button
-                onClick={() => setIsDuplicateAuditOpen(true)}
-                className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Scan and Resolve Product Duplicates to prevent financial audit errors"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
-                <span>Duplication Control</span>
-              </button>
+              {canDelete && (
+                <button
+                  onClick={() => setIsDuplicateAuditOpen(true)}
+                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Scan and Resolve Product Duplicates to prevent financial audit errors"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Duplication Control</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -648,15 +679,19 @@ export const InventoryCatalog: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-rose-50/60 border-b border-rose-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                    <th className="p-4 w-10 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isAllFilteredSelected}
-                        onChange={toggleSelectAllFiltered}
-                        title="Select All Filtered Products"
-                        className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
-                      />
-                    </th>
+                    {canDelete ? (
+                      <th className="p-4 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isAllFilteredSelected}
+                          onChange={toggleSelectAllFiltered}
+                          title="Select All Filtered Products"
+                          className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
+                        />
+                      </th>
+                    ) : (
+                      <th className="p-4 w-10 text-center text-slate-400">#</th>
+                    )}
                     <th className="p-4">Color &amp; Swatch</th>
                     <th className="p-4">Product Batch / SKU</th>
                     <th className="p-4">Category / Composition</th>
@@ -669,7 +704,7 @@ export const InventoryCatalog: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-sans">
-                  {filteredProducts.map(p => {
+                  {filteredProducts.map((p, idx) => {
                     const totalStock = (Object.values(p.locationStock) as number[]).reduce((a: number, b: number) => a + b, 0);
                     const isSelected = selectedProductIds.includes(p.id);
 
@@ -678,14 +713,18 @@ export const InventoryCatalog: React.FC = () => {
                         key={p.id}
                         className={`transition-colors ${isSelected ? 'bg-rose-50/70' : 'hover:bg-rose-50/30'}`}
                       >
-                        {/* Checkbox */}
+                        {/* Checkbox or Row Index */}
                         <td className="p-4 text-center">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectProduct(p.id)}
-                            className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
-                          />
+                          {canDelete ? (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectProduct(p.id)}
+                              className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
+                            />
+                          ) : (
+                            <span className="font-mono text-slate-400 text-[11px]">{idx + 1}</span>
+                          )}
                         </td>
 
                         {/* Color Swatch & Code */}
@@ -736,7 +775,9 @@ export const InventoryCatalog: React.FC = () => {
                         <td className="p-4 font-mono">
                           <p className="font-bold text-rose-700">Retail: {p.unitPriceRetail.toLocaleString()}</p>
                           <p className="text-[10px] text-emerald-600">Bulk: {p.unitPriceBulk.toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-400">Cost: {p.costPrice.toLocaleString()}</p>
+                          {canViewCost && (
+                            <p className="text-[10px] text-slate-400">Cost: {p.costPrice.toLocaleString()}</p>
+                          )}
                         </td>
 
                         {/* Main Store Stock */}
@@ -794,27 +835,33 @@ export const InventoryCatalog: React.FC = () => {
                         {/* Actions: Edit, Delete, QR, Barcode, Tare */}
                         <td className="p-3 text-right">
                           <div className="flex flex-col gap-1 w-40 ml-auto">
-                            <div className="grid grid-cols-2 gap-1">
-                              <button
-                                onClick={() => setEditingProduct(p)}
-                                className="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer"
-                                title="Edit Product, Stock Allocation & Prices"
-                              >
-                                <Edit3 className="w-3 h-3 text-indigo-600" />
-                                <span>Edit</span>
-                              </button>
+                            {(canAdd || canEditPrices || canDelete) && (
+                              <div className={`grid ${canDelete ? 'grid-cols-2' : 'grid-cols-1'} gap-1`}>
+                                {(canAdd || canEditPrices) && (
+                                  <button
+                                    onClick={() => setEditingProduct(p)}
+                                    className="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[11px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Edit Product, Stock Allocation & Prices"
+                                  >
+                                    <Edit3 className="w-3 h-3 text-indigo-600" />
+                                    <span>Edit</span>
+                                  </button>
+                                )}
 
-                              <button
-                                onClick={() => setProductToDelete(p)}
-                                className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 text-[11px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer"
-                                title="Instant Delete Product from Inventory"
-                              >
-                                <Trash2 className="w-3 h-3 text-rose-600" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
+                                {canDelete && (
+                                  <button
+                                    onClick={() => setProductToDelete(p)}
+                                    className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 text-[11px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Instant Delete Product from Inventory"
+                                  >
+                                    <Trash2 className="w-3 h-3 text-rose-600" />
+                                    <span>Delete</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
 
-                            <div className="grid grid-cols-3 gap-1">
+                            <div className={`grid ${canTareWeight ? 'grid-cols-3' : 'grid-cols-2'} gap-1`}>
                               <button
                                 onClick={() => setActiveBatchModal(p)}
                                 className="px-1.5 py-1 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 text-[10px] font-semibold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-0.5 cursor-pointer"
@@ -836,18 +883,20 @@ export const InventoryCatalog: React.FC = () => {
                                 <span>Bar</span>
                               </button>
 
-                              <button
-                                onClick={() => setTareSettingsProduct(p)}
-                                className="px-1.5 py-1 bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200 text-[10px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-0.5 cursor-pointer"
-                                title="Configure Tare & Packaging Weight"
-                              >
-                                <Scale className="w-3 h-3 text-amber-700" />
-                                <span>Tare</span>
-                              </button>
+                              {canTareWeight && (
+                                <button
+                                  onClick={() => setTareSettingsProduct(p)}
+                                  className="px-1.5 py-1 bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200 text-[10px] font-bold rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-0.5 cursor-pointer"
+                                  title="Configure Tare & Packaging Weight"
+                                >
+                                  <Scale className="w-3 h-3 text-amber-700" />
+                                  <span>Tare</span>
+                                </button>
+                              )}
                             </div>
 
                             {/* Dead Stock Flash Clearance Discount Button */}
-                            {deadStockProducts.some(dp => dp.id === p.id) && (
+                            {canEditPrices && deadStockProducts.some(dp => dp.id === p.id) && (
                               <button
                                 onClick={() => {
                                   setDiscountModalBatch(p);

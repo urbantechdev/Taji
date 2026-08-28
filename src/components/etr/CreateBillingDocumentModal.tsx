@@ -335,6 +335,12 @@ export const CreateBillingDocumentModal: React.FC<CreateBillingDocumentModalProp
       icon: RotateCcw,
       color: 'bg-orange-600 text-white border-orange-700',
       desc: 'Fiscal adjustment or returns credit note'
+    },
+    advance_booking: {
+      label: 'Advance Order / Reservation',
+      icon: Calendar,
+      color: 'bg-amber-600 text-white border-amber-700',
+      desc: 'Forward-dated stock reservation booking voucher'
     }
   };
 

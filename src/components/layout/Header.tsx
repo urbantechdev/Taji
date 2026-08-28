@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { UserRole, LocationId } from '../../types';
+import { NavTab } from './Sidebar';
+import { isTabAllowedForRole } from '../../utils/rbac';
 import { MailInboxDrawer } from '../notifications/MailInboxDrawer';
 import { BrandSettingsModal } from '../settings/BrandSettingsModal';
 import { UserProfileModal } from '../profile/UserProfileModal';
@@ -30,6 +32,7 @@ import {
   VolumeX,
   User,
   ChevronDown,
+  ChevronRight,
   Check,
   Briefcase,
   Shield,
@@ -37,10 +40,24 @@ import {
   MapPin,
   Boxes,
   FileSpreadsheet,
-  RotateCcw
+  RotateCcw,
+  Layers,
+  Menu,
+  X,
+  TrendingUp,
+  Building2,
+  BookOpenCheck,
+  Receipt,
+  Users,
+  ClipboardList
 } from 'lucide-react';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  activeTab?: NavTab;
+  setActiveTab?: (tab: NavTab) => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
   const {
     appMode,
     setAppMode,
@@ -68,14 +85,19 @@ export const Header: React.FC = () => {
     isMailDrawerOpen,
     setIsMailDrawerOpen,
     isAdmin,
+    isSuperAdmin,
     lockPlatform,
     setIsReturnExchangeModalOpen,
-    quarantinedDefects
+    quarantinedDefects,
+    setIsFabricRollModalOpen,
+    fabricRolls
   } = useERP();
 
   const [soundOn, setSoundOn] = useState<boolean>(true);
   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState<boolean>(false);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+
   const locationDropdownRef = useRef<HTMLDivElement>(null);
   const roleDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -106,6 +128,7 @@ export const Header: React.FC = () => {
       if (e.key === 'Escape') {
         setIsLocationDropdownOpen(false);
         setIsRoleDropdownOpen(false);
+        setIsMobileMenuOpen(false);
       }
     };
 
@@ -135,8 +158,9 @@ export const Header: React.FC = () => {
   const pendingTransfersCount = pendingTransfersToReceive.length;
   const totalMessageAlerts = unreadMails + pendingTransfersCount;
 
-  const mainStoreLowCount = products.filter(p => p.locationStock.main_store <= p.minReorderLevel).length;
-  const salesShopLowCount = products.filter(p => p.locationStock.sales_shop <= p.minReorderLevel).length;
+  const mainStoreLowCount = products.filter(p => p.locationStock?.main_store <= p.minReorderLevel).length;
+  const salesShopLowCount = products.filter(p => p.locationStock?.sales_shop <= p.minReorderLevel).length;
+  const totalAlertsCount = totalMessageAlerts + mainStoreLowCount + salesShopLowCount + (quarantinedDefects?.length || 0);
 
   const roleOptions: {
     role: UserRole;
@@ -224,7 +248,125 @@ export const Header: React.FC = () => {
     return loc ? loc.name.split(' ')[0] : locId;
   };
 
-  // Dynamic header background style & class based on brand selection (solid #B50044 pink, no gradients)
+  // Nav modules list for the mobile drawer
+  const allNavItems: {
+    id: NavTab;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    desc: string;
+    badge?: string;
+  }[] = [
+    {
+      id: 'dashboard',
+      label: 'Executive Dashboard',
+      icon: LayoutDashboard,
+      desc: 'Real-time KPIs & financial metrics'
+    },
+    {
+      id: 'sales_today',
+      label: 'Sales Today & Cash',
+      icon: TrendingUp,
+      desc: 'Live revenue, bank, M-Pesa & cash drawer',
+      badge: 'Live'
+    },
+    {
+      id: 'branches',
+      label: 'Autonomous Branches',
+      icon: Building2,
+      desc: 'Multi-store P&L, stock nodes & cash floats'
+    },
+    {
+      id: 'pos',
+      label: 'POS Sales Terminal',
+      icon: ShoppingBag,
+      desc: 'Fast barcode checkout & KRA eTIMS invoices'
+    },
+    {
+      id: 'catalog',
+      label: 'Inventory Management',
+      icon: Boxes,
+      desc: 'Yarn cones, dual-tare calibration & stock balances',
+      badge: (mainStoreLowCount + salesShopLowCount) > 0 ? `${mainStoreLowCount + salesShopLowCount} Low` : undefined
+    },
+    {
+      id: 'transfers',
+      label: 'Inter-Store Transfers',
+      icon: ArrowLeftRight,
+      desc: 'Transfer tickets, dispatch & receipt verification',
+      badge: pendingTransfersCount > 0 ? `${pendingTransfersCount} Pending` : undefined
+    },
+    {
+      id: 'ledger',
+      label: 'Accounting Ledger',
+      icon: BookOpenCheck,
+      desc: 'Double-entry audit, VAT & trial balance'
+    },
+    {
+      id: 'etr',
+      label: 'Billing & Invoices',
+      icon: Receipt,
+      desc: 'KRA eTIMS invoices, credit notes & proformas'
+    },
+    {
+      id: 'payroll',
+      label: 'HR & Payroll',
+      icon: Users,
+      desc: 'Staff salary computation, PAYE, NSSF & NHIF'
+    },
+    {
+      id: 'operators',
+      label: 'POS Users & PINs',
+      icon: UserCheck,
+      desc: 'Operator security profiles, shifts & access rules'
+    },
+    {
+      id: 'audit',
+      label: 'Audit Trail',
+      icon: ClipboardList,
+      desc: 'Real-time system operations & tamper-evident logs'
+    },
+    {
+      id: 'gmail',
+      label: 'Store Email Inbox',
+      icon: Mail,
+      desc: 'Official correspondence & customer notices',
+      badge: unreadMails > 0 ? `${unreadMails} New` : undefined
+    }
+  ];
+
+  // Filter nav items by currentUser role
+  const allowedNavItems = allNavItems.filter(item => isTabAllowedForRole(currentUser.role, item.id));
+
+  const handleNavClick = (tab: NavTab) => {
+    playClickSound();
+    if (setActiveTab) {
+      setActiveTab(tab);
+    }
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleSetMode = (mode: 'admin' | 'pos') => {
+    playClickSound();
+    setAppMode(mode);
+    if (mode === 'pos' && setActiveTab) {
+      setActiveTab('pos');
+    }
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleSetLocation = (locId: LocationId) => {
+    playClickSound();
+    setActiveLocation(locId);
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleSetRole = (role: UserRole) => {
+    playClickSound();
+    setActiveRole(role);
+    setIsMobileMenuOpen(false);
+  };
+
+  // Dynamic header background style & class based on brand selection
   const headerBgClass =
     brandSettings.headerBgColor === 'rose'
       ? 'bg-rose-900'
@@ -236,7 +378,7 @@ export const Header: React.FC = () => {
       ? 'bg-amber-950'
       : brandSettings.headerBgColor === 'slate'
       ? 'bg-slate-900'
-      : ''; // Handled via inline style for exact #B50044 pink!
+      : '';
 
   const headerStyle = brandSettings.headerBgColor === 'pink' || !brandSettings.headerBgColor
     ? { backgroundColor: brandSettings.primaryColor || '#B50044' }
@@ -286,375 +428,391 @@ export const Header: React.FC = () => {
 
       {/* Elegant Moving Glass & Light Reflection Overlay */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Soft glossy diagonal reflection beam sweeping across header */}
         <div className="absolute -top-12 -bottom-12 left-0 w-[500px] sm:w-[700px] animate-reflection-sweep pointer-events-none">
-          {/* Main sheen band with bright core specular highlight */}
           <div className="w-full h-full bg-gradient-to-r from-transparent via-white/5 via-white/20 via-pink-100/35 via-white/20 via-white/5 to-transparent blur-lg" />
-          {/* Crisp center glare line */}
           <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-16 bg-gradient-to-r from-transparent via-white/40 to-transparent blur-sm" />
         </div>
       </div>
+
       {/* Direct POS Restriction Notice Banner for Store 1 & Store 2 */}
       {!activeLocInfo?.canSellDirectly && (
-        <div className="bg-slate-950/80 text-amber-300 px-4 py-1.5 text-xs font-medium flex items-center justify-between border-b border-white/10 backdrop-blur-xs">
-          <div className="flex items-center gap-2 max-w-4xl">
+        <div className="bg-slate-950/80 text-amber-300 px-3 sm:px-4 py-1.5 text-xs font-medium flex items-center justify-between border-b border-white/10 backdrop-blur-xs">
+          <div className="flex items-center gap-2 max-w-4xl truncate">
             <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400 animate-pulse" />
-            <span>
-              <strong className="underline text-white">{activeLocInfo?.name} Operational Restriction:</strong> Direct POS sales disabled. Route orders via Transfer Tickets to Main Store.
+            <span className="truncate">
+              <strong className="underline text-white">{activeLocInfo?.name}:</strong> Direct POS disabled. Use Transfer Tickets.
             </span>
           </div>
-          <span className="text-[10px] bg-amber-400/20 text-amber-200 px-2 py-0.5 rounded font-mono uppercase tracking-wider border border-amber-400/30">
-            Transfer Only Node
+          <span className="text-[10px] bg-amber-400/20 text-amber-200 px-2 py-0.5 rounded font-mono uppercase tracking-wider border border-amber-400/30 shrink-0 ml-2">
+            Transfer Only
           </span>
         </div>
       )}
 
-      {/* Main Header Container with responsive padding */}
-      <div className="px-3 sm:px-6 md:px-8 pt-4 sm:pt-6 md:pt-8 pb-5 sm:pb-8 md:pb-10 flex flex-wrap items-center justify-between gap-3 sm:gap-5 relative z-10">
+      {/* Main Header Container: Clean & Uncongested Mobile Bar vs Full Desktop Toolbar */}
+      <div className="px-3 sm:px-6 md:px-8 py-2.5 sm:py-3.5 md:pt-6 md:pb-8 flex items-center justify-between gap-2 sm:gap-4 relative z-10">
         
-        {/* Brand Title & Enlarged Animated Round Logo Frame */}
-        <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
-          <motion.div
-            onClick={() => setIsBrandSettingsModalOpen(true)}
-            title="Click to customize brand logo & settings"
-            animate={{
-              scale: [1, 1.03, 1],
-              boxShadow: [
-                '0 0 0 0px rgba(255, 255, 255, 0.45)',
-                '0 0 0 16px rgba(255, 255, 255, 0)',
-                '0 0 0 0px rgba(255, 255, 255, 0.45)'
-              ]
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: 'easeInOut'
-            }}
-            className="w-14 h-14 sm:w-20 sm:h-20 md:w-26 md:h-26 rounded-full bg-white/25 border-2 sm:border-3 md:border-4 border-white/60 p-1 sm:p-1.5 shadow-2xl ring-2 sm:ring-4 ring-white/20 flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative cursor-pointer group/logo hover:border-white transition-all"
-          >
-            {brandSettings?.logoUrl ? (
-              <motion.img
-                src={brandSettings.logoUrl}
-                alt={brandSettings.brandName || 'Logo'}
-                className="w-full h-full object-cover rounded-full bg-white p-1 shadow-inner group-hover/logo:scale-105 transition-transform"
-                referrerPolicy="no-referrer"
-                animate={{
-                  rotate: [0, 1.5, -1.5, 0]
-                }}
-                transition={{
-                  duration: 6,
-                  repeat: Infinity,
-                  ease: 'easeInOut'
-                }}
-                whileHover={{ scale: 1.1, rotate: 3 }}
-              />
-            ) : (
-              <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl sm:text-3xl md:text-4xl shadow-inner border border-white/30 group-hover/logo:scale-105 transition-transform">
-                {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
+        {/* ========================================================================= */}
+        {/* 1. MOBILE APP HEADER BAR (< 768px): Sleek, App-like, Zero Congestion!   */}
+        {/* ========================================================================= */}
+        <div className="flex md:hidden items-center justify-between w-full">
+          {/* Left: Compact App Brand & Store Location Pill */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div
+              onClick={() => {
+                playClickSound();
+                setIsMobileMenuOpen(true);
+              }}
+              className="w-10 h-10 rounded-full bg-white/20 border-2 border-white/60 p-0.5 shadow-md flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative cursor-pointer active:scale-95 transition-transform"
+              title="Open Navigation Menu"
+            >
+              {brandSettings?.logoUrl ? (
+                <img
+                  src={brandSettings.logoUrl}
+                  alt={brandSettings.brandName || 'Logo'}
+                  className="w-full h-full object-cover rounded-full bg-white p-0.5 shadow-inner"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-base shadow-inner">
+                  {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h1 className="font-ai text-white text-base font-black uppercase tracking-wider truncate drop-shadow-sm">
+                  {brandSettings.brandName}
+                </h1>
+                <span className="px-1.5 py-0.2 rounded text-[8px] font-ai font-black bg-white/20 text-white border border-white/30 tracking-wider uppercase shrink-0">
+                  AI OS
+                </span>
               </div>
-            )}
-          </motion.div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <h1 className="font-ai text-white text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-black uppercase tracking-[0.12em] select-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.3)] transition-all hover:scale-105 duration-200 cursor-default flex items-center">
-                {brandSettings.brandName}
-              </h1>
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-ai font-bold bg-white/20 text-white border border-white/30 backdrop-blur-md tracking-widest uppercase shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                AI OS
-              </span>
+              
+              {/* Active Branch Pill button */}
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  setIsMobileMenuOpen(true);
+                }}
+                className="flex items-center gap-1 text-[11px] font-extrabold text-pink-900 bg-white hover:bg-pink-50 px-2.5 py-0.5 rounded-full border border-white/90 shadow-2xs cursor-pointer mt-1 max-w-[170px] truncate transition-all"
+              >
+                <MapPin className="w-2.5 h-2.5 text-pink-600 shrink-0" />
+                <span className="truncate">{activeLocInfo?.name || getLocationShortLabel(activeLocation)}</span>
+                <ChevronDown className="w-2.5 h-2.5 text-pink-600 opacity-80 shrink-0" />
+              </button>
             </div>
-            
-            {/* Clean White AI Circuit Line */}
-            <div className="flex items-center gap-1.5 opacity-80">
-              <div className="h-[2px] w-12 sm:w-20 md:w-24 bg-gradient-to-r from-white via-white/70 to-transparent rounded-full shadow-xs" />
-              <div className="h-1.5 w-1.5 bg-white rounded-full animate-ping" />
-              <div className="h-[2px] w-4 bg-white/40 rounded-full" />
-            </div>
+          </div>
 
-            <p className="text-xs sm:text-sm text-pink-100 font-medium hidden sm:block mt-0.5 font-sans">
-              {brandSettings.tagline || 'Autonomous Multi-Location ERP, KRA ETR Compliance & Accounting Ledger'}
-            </p>
+          {/* Right: Mobile Quick-Access App Actions (Barcode + Inbox + Hamburger Menu) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Quick Barcode Camera Scanner */}
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                setIsMobileBarcodeScannerOpen(true);
+              }}
+              className="p-2 bg-white hover:bg-emerald-50 text-emerald-700 border border-white/80 rounded-xl transition-all active:scale-95 shadow-xs flex items-center justify-center cursor-pointer"
+              title="Camera Barcode Scanner"
+              aria-label="Camera Barcode Scanner"
+            >
+              <Camera className="w-4 h-4 text-emerald-600" />
+            </button>
+
+            {/* Quick Inbox Notifications */}
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                setIsMailDrawerOpen(true);
+              }}
+              className={`p-2 rounded-xl transition-all active:scale-95 border flex items-center justify-center relative cursor-pointer shadow-xs ${
+                totalMessageAlerts > 0
+                  ? 'bg-amber-400 text-slate-950 border-amber-200 shadow-md font-bold'
+                  : 'bg-white hover:bg-slate-50 border-white/80 text-pink-900'
+              }`}
+              title="Inbox & Messages"
+              aria-label="Inbox"
+            >
+              <Mail className="w-4 h-4 text-pink-800" />
+              {totalMessageAlerts > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-xs">
+                  {totalMessageAlerts}
+                </span>
+              )}
+            </button>
+
+            {/* Hamburger App Menu Toggle Button */}
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                setIsMobileMenuOpen(prev => !prev);
+              }}
+              className={`p-2 rounded-xl transition-all active:scale-95 border flex items-center justify-center relative cursor-pointer shadow-md ${
+                isMobileMenuOpen
+                  ? 'bg-white text-pink-700 border-white ring-2 ring-white/50'
+                  : 'bg-white hover:bg-slate-50 text-pink-800 border-white/90'
+              }`}
+              title="App Menu & System Tools"
+              aria-label="Open App Menu"
+              aria-expanded={isMobileMenuOpen}
+            >
+              {isMobileMenuOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
+              {/* Alert Indicator on Hamburger */}
+              {!isMobileMenuOpen && totalAlertsCount > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white animate-pulse" />
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Center / Right Action Bar Controls - Icons with Short Names */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 relative z-40">
+        {/* ========================================================================= */}
+        {/* 2. DESKTOP HEADER BAR (>= 768px): Full Toolbar with Refined Grouping      */}
+        {/* ========================================================================= */}
+        <div className="hidden md:flex items-center justify-between w-full gap-4">
           
-          {/* Mode Switcher: Admin / POS Toggle */}
-          {isAdmin ? (
-            <div className="bg-black/25 p-1 rounded-xl sm:rounded-2xl flex items-center gap-1 border border-white/20 backdrop-blur-md shadow-inner">
-              <button
-                onClick={() => {
-                  playClickSound();
-                  setAppMode('admin');
-                }}
-                className={`px-2.5 py-1.5 rounded-lg sm:rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  appMode === 'admin'
-                    ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
-                    : 'text-white/80 hover:text-white hover:bg-white/10'
-                }`}
-                title="Switch to Admin Dashboard"
-                aria-label="Admin Dashboard"
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span className="text-xs">Admin</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  playClickSound();
-                  setAppMode('pos');
-                }}
-                className={`px-2.5 py-1.5 rounded-lg sm:rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  appMode === 'pos'
-                    ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
-                    : 'text-white/80 hover:text-white hover:bg-white/10'
-                }`}
-                title="Switch to POS Terminal"
-                aria-label="POS Terminal"
-              >
-                <ShoppingBag className="w-3.5 h-3.5" />
-                <span className="text-xs">POS</span>
-              </button>
-            </div>
-          ) : (
-            <div
-              className="px-3 py-1.5 bg-white/15 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-xs flex items-center gap-1.5 text-xs font-bold"
-              title="POS Terminal (Staff Mode Active)"
-            >
-              <ShoppingBag className="w-3.5 h-3.5 text-pink-200" />
-              <span>POS</span>
-            </div>
-          )}
-
-          {/* Location / Shop Selector (Wide Modern White Dropdown) */}
-          <div className="relative" ref={locationDropdownRef}>
-            <button
-              onClick={() => {
-                playClickSound();
-                setIsLocationDropdownOpen(prev => !prev);
-                setIsRoleDropdownOpen(false);
+          {/* Brand Title & Logo */}
+          <div className="flex items-center gap-3.5 lg:gap-5">
+            <motion.div
+              onClick={() => setIsBrandSettingsModalOpen(true)}
+              title="Click to customize brand logo & settings"
+              animate={{
+                scale: [1, 1.03, 1],
+                boxShadow: [
+                  '0 0 0 0px rgba(255, 255, 255, 0.45)',
+                  '0 0 0 16px rgba(255, 255, 255, 0)',
+                  '0 0 0 0px rgba(255, 255, 255, 0.45)'
+                ]
               }}
-              className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
-                isLocationDropdownOpen
-                  ? 'bg-white text-pink-900 border-white shadow-md font-bold'
-                  : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
-              }`}
-              title={`Active Branch: ${activeLocInfo?.name || 'All Branches'} (Click to switch branch)`}
-              aria-label="Active Branch Location"
-              aria-expanded={isLocationDropdownOpen}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: 'easeInOut'
+              }}
+              className="w-16 h-16 lg:w-22 lg:h-22 rounded-full bg-white/25 border-3 lg:border-4 border-white/60 p-1 lg:p-1.5 shadow-2xl ring-2 lg:ring-4 ring-white/20 flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative cursor-pointer group/logo hover:border-white transition-all"
             >
-              <Building className={`w-3.5 h-3.5 transition-transform shrink-0 ${isLocationDropdownOpen ? 'text-pink-700 scale-110' : 'text-white group-hover:scale-110'}`} />
-              <span className="text-xs font-bold max-w-[70px] sm:max-w-[100px] truncate">
-                {getLocationShortLabel(activeLocation)}
-              </span>
-              <ChevronDown
-                className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
-                  isLocationDropdownOpen ? 'rotate-180 text-pink-700' : 'text-white/70 group-hover:text-white'
-                }`}
-              />
-            </button>
-
-            {/* Modern Animated Location Dropdown Menu (Wide + Clean White Theme) */}
-            <AnimatePresence>
-              {isLocationDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
-                  className="absolute top-full right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-[390px] md:w-[430px] max-w-[430px] bg-white border border-slate-200/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.3)] p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
-                >
-                  <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-pink-100 text-pink-700 flex items-center justify-center border border-pink-200">
-                        <Building className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Branch & Location Hub</p>
-                        <p className="text-[11px] text-slate-500 font-medium">Switch active stock inventory & POS checkout</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-bold px-2.5 py-1 bg-white text-slate-700 rounded-full border border-slate-200 shadow-2xs">
-                      {locations.length} Stores
-                    </span>
-                  </div>
-
-                  <div className="py-1 space-y-1.5 max-h-80 overflow-y-auto pr-1">
-                    {locations.map(loc => {
-                      const isSelected = loc.id === activeLocation;
-                      const stockInLocation = products.reduce((acc, p) => acc + (p.locationStock[loc.id] || 0), 0);
-                      const isHub = loc.type === 'Main Store';
-                      const isRetail = loc.canSellDirectly;
-
-                      return (
-                        <button
-                          key={loc.id}
-                          onClick={() => {
-                            playClickSound();
-                            setActiveLocation(loc.id as LocationId);
-                            setIsLocationDropdownOpen(false);
-                          }}
-                          disabled={!isAdmin && loc.id !== currentStoreLocation}
-                          className={`w-full text-left p-3 rounded-xl transition-all flex items-center justify-between group cursor-pointer border ${
-                            isSelected
-                              ? 'bg-pink-50/90 border-pink-400 text-pink-950 shadow-xs ring-1 ring-pink-500/20'
-                              : 'bg-white hover:bg-slate-50 border-slate-200/80 hover:border-slate-300 text-slate-800 shadow-2xs'
-                          } ${!isAdmin && loc.id !== currentStoreLocation ? 'opacity-40 cursor-not-allowed' : ''}`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                                isHub
-                                  ? 'bg-rose-100 text-rose-700 border-rose-200'
-                                  : isRetail
-                                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                  : 'bg-blue-100 text-blue-700 border-blue-200'
-                              }`}
-                            >
-                              {isHub ? <Warehouse className="w-4.5 h-4.5" /> : <Store className="w-4.5 h-4.5" />}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-black text-slate-900 truncate">{loc.name}</span>
-                                {loc.code && (
-                                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">
-                                    {loc.code}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2.5 mt-1">
-                                <span
-                                  className={`text-[10px] font-bold flex items-center gap-1.5 ${
-                                    loc.canSellDirectly ? 'text-emerald-700' : 'text-amber-700'
-                                  }`}
-                                >
-                                  <span
-                                    className={`w-2 h-2 rounded-full ${
-                                      loc.canSellDirectly ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-                                    }`}
-                                  />
-                                  {loc.canSellDirectly ? 'POS Active' : 'Transfer Hub'}
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-500">
-                                  • {stockInLocation.toLocaleString()} in stock
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {isSelected ? (
-                            <div className="w-6 h-6 rounded-full bg-pink-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            </div>
-                          ) : (
-                            <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-slate-300 transition-colors shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </motion.div>
+              {brandSettings?.logoUrl ? (
+                <motion.img
+                  src={brandSettings.logoUrl}
+                  alt={brandSettings.brandName || 'Logo'}
+                  className="w-full h-full object-cover rounded-full bg-white p-1 shadow-inner group-hover/logo:scale-105 transition-transform"
+                  referrerPolicy="no-referrer"
+                  animate={{
+                    rotate: [0, 1.5, -1.5, 0]
+                  }}
+                  transition={{
+                    duration: 6,
+                    repeat: Infinity,
+                    ease: 'easeInOut'
+                  }}
+                  whileHover={{ scale: 1.1, rotate: 3 }}
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl lg:text-3xl shadow-inner border border-white/30 group-hover/logo:scale-105 transition-transform">
+                  {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
+                </div>
               )}
-            </AnimatePresence>
+            </motion.div>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5">
+                <h1 className="font-ai text-white text-2xl lg:text-3xl xl:text-4xl font-black uppercase tracking-[0.1em] select-none drop-shadow-md">
+                  {brandSettings.brandName}
+                </h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-ai font-bold bg-white/20 text-white border border-white/30 backdrop-blur-md tracking-widest uppercase shadow-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  AI OS
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-1.5 opacity-80">
+                <div className="h-[2px] w-14 lg:w-20 bg-gradient-to-r from-white via-white/70 to-transparent rounded-full" />
+                <div className="h-1.5 w-1.5 bg-white rounded-full animate-ping" />
+                <div className="h-[2px] w-4 bg-white/40 rounded-full" />
+              </div>
+
+              <p className="text-xs text-pink-100 font-medium hidden lg:block font-sans max-w-xl truncate">
+                {brandSettings.tagline || 'Autonomous Multi-Location ERP, KRA ETR Compliance & Accounting Ledger'}
+              </p>
+            </div>
           </div>
 
-          {/* Staff Role Switcher (Wide Modern White Dropdown - Admin Only) */}
-          {isAdmin && (
-            <div className="relative" ref={roleDropdownRef}>
+          {/* Desktop Right Toolbar */}
+          <div className="flex flex-wrap items-center justify-end gap-1.5 lg:gap-2 relative z-40">
+            
+            {/* Mode Switcher: Admin / POS Toggle */}
+            {isAdmin ? (
+              <div className="bg-black/25 p-1 rounded-xl flex items-center gap-1 border border-white/20 backdrop-blur-md shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    setAppMode('admin');
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    appMode === 'admin'
+                      ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Switch to Admin Dashboard"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span className="text-xs">Admin</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    setAppMode('pos');
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    appMode === 'pos'
+                      ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Switch to POS Terminal"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span className="text-xs">POS</span>
+                </button>
+              </div>
+            ) : (
+              <div
+                className="px-3 py-1.5 bg-white/15 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-xs flex items-center gap-1.5 text-xs font-bold"
+                title="POS Terminal (Staff Mode Active)"
+              >
+                <ShoppingBag className="w-3.5 h-3.5 text-pink-200" />
+                <span>POS</span>
+              </div>
+            )}
+
+            {/* Location / Shop Selector */}
+            <div className="relative" ref={locationDropdownRef}>
               <button
+                type="button"
                 onClick={() => {
                   playClickSound();
-                  setIsRoleDropdownOpen(prev => !prev);
-                  setIsLocationDropdownOpen(false);
+                  setIsLocationDropdownOpen(prev => !prev);
+                  setIsRoleDropdownOpen(false);
                 }}
                 className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
-                  isRoleDropdownOpen
-                    ? 'bg-white text-indigo-900 border-white shadow-md font-bold'
+                  isLocationDropdownOpen
+                    ? 'bg-white text-pink-900 border-white shadow-md font-bold'
                     : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
                 }`}
-                title={`Simulate Staff Role: ${roleOptions.find(r => r.role === activeRole)?.title || activeRole} (Click to switch role)`}
-                aria-label="Simulate Staff Role"
-                aria-expanded={isRoleDropdownOpen}
+                title={`Active Branch: ${activeLocInfo?.name || 'All Branches'}`}
               >
-                <UserCheck className={`w-3.5 h-3.5 transition-transform shrink-0 ${isRoleDropdownOpen ? 'text-indigo-700 scale-110' : 'text-white group-hover:scale-110'}`} />
-                <span className="text-xs font-bold max-w-[65px] truncate">
-                  {getRoleShortLabel(activeRole)}
+                <Building className={`w-3.5 h-3.5 transition-transform shrink-0 ${isLocationDropdownOpen ? 'text-pink-700 scale-110' : 'text-white group-hover:scale-110'}`} />
+                <span className="text-xs font-bold max-w-[85px] lg:max-w-[110px] truncate">
+                  {getLocationShortLabel(activeLocation)}
                 </span>
                 <ChevronDown
                   className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
-                    isRoleDropdownOpen ? 'rotate-180 text-indigo-700' : 'text-white/70 group-hover:text-white'
+                    isLocationDropdownOpen ? 'rotate-180 text-pink-700' : 'text-white/70 group-hover:text-white'
                   }`}
                 />
               </button>
 
-              {/* Modern Animated Role Dropdown Menu (Wide + Clean White Theme) */}
+              {/* Location Dropdown Menu */}
               <AnimatePresence>
-                {isRoleDropdownOpen && (
+                {isLocationDropdownOpen && (
                   <motion.div
                     initial={{ opacity: 0, y: 8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.15, ease: 'easeOut' }}
-                    className="absolute top-full right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-[390px] md:w-[430px] max-w-[430px] bg-white border border-slate-200/90 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.3)] p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
+                    className="absolute top-full right-0 mt-2 w-[380px] lg:w-[420px] bg-white border border-slate-200/90 rounded-2xl shadow-2xl p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
                   >
                     <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200">
-                          <ShieldCheck className="w-4 h-4" />
+                        <div className="w-7 h-7 rounded-lg bg-pink-100 text-pink-700 flex items-center justify-center border border-pink-200">
+                          <Building className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Staff Role Simulation</p>
-                          <p className="text-[11px] text-slate-500 font-medium">Test role-specific workflows, permissions & views</p>
+                          <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Branch & Location Hub</p>
+                          <p className="text-[11px] text-slate-500 font-medium">Switch active stock inventory & POS checkout</p>
                         </div>
                       </div>
-                      <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200 shadow-2xs">
-                        Admin Tool
+                      <span className="text-[10px] font-bold px-2.5 py-1 bg-white text-slate-700 rounded-full border border-slate-200 shadow-2xs">
+                        {locations.length} Stores
                       </span>
                     </div>
 
                     <div className="py-1 space-y-1.5 max-h-80 overflow-y-auto pr-1">
-                      {roleOptions.map(r => {
-                        const isSelected = r.role === activeRole;
-                        const IconComponent = r.icon;
+                      {locations.map(loc => {
+                        const isSelected = loc.id === activeLocation;
+                        const stockInLocation = products.reduce((acc, p) => acc + (p.locationStock?.[loc.id] || 0), 0);
+                        const isHub = loc.type === 'Main Store';
+                        const isRetail = loc.canSellDirectly;
 
                         return (
                           <button
-                            key={r.role}
+                            key={loc.id}
+                            type="button"
                             onClick={() => {
                               playClickSound();
-                              setActiveRole(r.role);
-                              setIsRoleDropdownOpen(false);
+                              setActiveLocation(loc.id as LocationId);
+                              setIsLocationDropdownOpen(false);
                             }}
+                            disabled={!isAdmin && loc.id !== currentStoreLocation}
                             className={`w-full text-left p-3 rounded-xl transition-all flex items-center justify-between group cursor-pointer border ${
                               isSelected
-                                ? 'bg-indigo-50/90 border-indigo-400 text-indigo-950 shadow-xs ring-1 ring-indigo-500/20'
+                                ? 'bg-pink-50/90 border-pink-400 text-pink-950 shadow-xs ring-1 ring-pink-500/20'
                                 : 'bg-white hover:bg-slate-50 border-slate-200/80 hover:border-slate-300 text-slate-800 shadow-2xs'
-                            }`}
+                            } ${!isAdmin && loc.id !== currentStoreLocation ? 'opacity-40 cursor-not-allowed' : ''}`}
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <div
-                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-gradient-to-br ${r.color} text-white shadow-xs`}
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                                  isHub
+                                    ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                    : isRetail
+                                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                    : 'bg-blue-100 text-blue-700 border-blue-200'
+                                }`}
                               >
-                                <IconComponent className="w-4.5 h-4.5" />
+                                {isHub ? <Warehouse className="w-4.5 h-4.5" /> : <Store className="w-4.5 h-4.5" />}
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-slate-900 truncate">{r.title}</span>
-                                  <span className="text-[9px] px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold border border-slate-200">
-                                    {r.badge}
+                                  <span className="text-xs font-black text-slate-900 truncate">{loc.name}</span>
+                                  {loc.code && (
+                                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200">
+                                      {loc.code}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2.5 mt-1">
+                                  <span
+                                    className={`text-[10px] font-bold flex items-center gap-1.5 ${
+                                      loc.canSellDirectly ? 'text-emerald-700' : 'text-amber-700'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`w-2 h-2 rounded-full ${
+                                        loc.canSellDirectly ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                                      }`}
+                                    />
+                                    {loc.canSellDirectly ? 'POS Active' : 'Transfer Hub'}
+                                  </span>
+                                  <span className="text-[10px] font-semibold text-slate-500">
+                                    • {stockInLocation.toLocaleString()} in stock
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-slate-500 group-hover:text-slate-600 truncate mt-0.5 leading-snug">
-                                  {r.description}
-                                </p>
                               </div>
                             </div>
 
                             {isSelected ? (
-                              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                              <div className="w-6 h-6 rounded-full bg-pink-600 text-white flex items-center justify-center shrink-0 shadow-md">
                                 <Check className="w-3.5 h-3.5 stroke-[3]" />
                               </div>
                             ) : (
@@ -668,176 +826,272 @@ export const Header: React.FC = () => {
                 )}
               </AnimatePresence>
             </div>
-          )}
 
-          {/* Stock Alert Quick Badges */}
-          {isAdmin && mainStoreLowCount > 0 && (
+            {/* Staff Role Switcher (Admin Only) */}
+            {isAdmin && (
+              <div className="relative" ref={roleDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    setIsRoleDropdownOpen(prev => !prev);
+                    setIsLocationDropdownOpen(false);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
+                    isRoleDropdownOpen
+                      ? 'bg-white text-indigo-900 border-white shadow-md font-bold'
+                      : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                  }`}
+                  title={`Simulate Staff Role: ${roleOptions.find(r => r.role === activeRole)?.title || activeRole}`}
+                >
+                  <UserCheck className={`w-3.5 h-3.5 transition-transform shrink-0 ${isRoleDropdownOpen ? 'text-indigo-700 scale-110' : 'text-white group-hover:scale-110'}`} />
+                  <span className="text-xs font-bold max-w-[75px] lg:max-w-[95px] truncate">
+                    {getRoleShortLabel(activeRole)}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
+                      isRoleDropdownOpen ? 'rotate-180 text-indigo-700' : 'text-white/70 group-hover:text-white'
+                    }`}
+                  />
+                </button>
+
+                {/* Role Dropdown Menu */}
+                <AnimatePresence>
+                  {isRoleDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                      transition={{ duration: 0.15, ease: 'easeOut' }}
+                      className="absolute top-full right-0 mt-2 w-[380px] lg:w-[420px] bg-white border border-slate-200/90 rounded-2xl shadow-2xl p-2.5 z-[9999] text-slate-900 ring-1 ring-black/5 overflow-hidden"
+                    >
+                      <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl mb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200">
+                            <ShieldCheck className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Staff Role Simulation</p>
+                            <p className="text-[11px] text-slate-500 font-medium">Test role-specific workflows & views</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200 shadow-2xs">
+                          Admin Tool
+                        </span>
+                      </div>
+
+                      <div className="py-1 space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                        {roleOptions.map(r => {
+                          const isSelected = r.role === activeRole;
+                          const IconComponent = r.icon;
+
+                          return (
+                            <button
+                              key={r.role}
+                              type="button"
+                              onClick={() => {
+                                playClickSound();
+                                setActiveRole(r.role);
+                                setIsRoleDropdownOpen(false);
+                              }}
+                              className={`w-full text-left p-3 rounded-xl transition-all flex items-center justify-between group cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-indigo-50/90 border-indigo-400 text-indigo-950 shadow-xs ring-1 ring-indigo-500/20'
+                                  : 'bg-white hover:bg-slate-50 border-slate-200/80 hover:border-slate-300 text-slate-800 shadow-2xs'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div
+                                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border bg-gradient-to-br ${r.color} text-white shadow-xs`}
+                                >
+                                  <IconComponent className="w-4.5 h-4.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black text-slate-900 truncate">{r.title}</span>
+                                    <span className="text-[9px] px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold border border-slate-200">
+                                      {r.badge}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 group-hover:text-slate-600 truncate mt-0.5 leading-snug">
+                                    {r.description}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {isSelected ? (
+                                <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                </div>
+                              ) : (
+                                <div className="w-2 h-2 rounded-full bg-slate-200 group-hover:bg-slate-300 transition-colors shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Mail & Pending Transfers Inbox Button */}
             <button
-              onClick={() => setAppMode('admin')}
-              className="relative px-2.5 py-1.5 bg-rose-500/30 hover:bg-rose-500/50 text-rose-100 border border-rose-400/50 rounded-xl backdrop-blur-md cursor-pointer transition-all shadow-xs group flex items-center gap-1.5"
-              title={`Main Store Low Stock Alert: ${mainStoreLowCount} item(s) below reorder level`}
-              aria-label="Main Store Low Stock Alert"
+              type="button"
+              onClick={() => setIsMailDrawerOpen(true)}
+              className={`relative px-2.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
+                totalMessageAlerts > 0
+                  ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-black animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
+                  : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
+              }`}
+              title={`Store Messages & Transfers: ${pendingTransfersCount} pending, ${unreadMails} unread`}
             >
-              <Warehouse className="w-3.5 h-3.5 text-rose-200 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-bold text-white">Hub</span>
-              <span className="bg-rose-600 border border-white text-white font-mono font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
-                {mainStoreLowCount}
-              </span>
+              <Mail className={`w-3.5 h-3.5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
+              <span>Inbox</span>
+              {totalMessageAlerts > 0 && (
+                <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
+                  {totalMessageAlerts}
+                </span>
+              )}
             </button>
-          )}
 
-          {isAdmin && salesShopLowCount > 0 && (
+            {/* Fabric Rolls Button */}
             <button
-              onClick={() => setAppMode('admin')}
-              className="relative px-2.5 py-1.5 bg-amber-500/30 hover:bg-amber-500/50 text-amber-100 border border-amber-400/50 rounded-xl backdrop-blur-md cursor-pointer transition-all shadow-xs group flex items-center gap-1.5"
-              title={`Sales Shop Retail Low Stock Alert: ${salesShopLowCount} item(s) below reorder level`}
-              aria-label="Sales Shop Retail Low Stock Alert"
-            >
-              <Store className="w-3.5 h-3.5 text-amber-200 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-bold text-white">Shop</span>
-              <span className="bg-amber-600 border border-white text-white font-mono font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
-                {salesShopLowCount}
-              </span>
-            </button>
-          )}
-
-          {/* Mail & Pending Transfers Inbox Button */}
-          <button
-            onClick={() => setIsMailDrawerOpen(true)}
-            className={`relative px-2.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
-              totalMessageAlerts > 0
-                ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-black animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
-                : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
-            }`}
-            title={`Store Messages & Pending Transfers: ${pendingTransfersCount} transfer(s) pending to be received, ${unreadMails} message(s)`}
-            aria-label="Messages and Transfer Notifications"
-          >
-            <Mail className={`w-3.5 h-3.5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
-            <span>Inbox</span>
-            {totalMessageAlerts > 0 && (
-              <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
-                {totalMessageAlerts}
-              </span>
-            )}
-          </button>
-
-          {/* RMA / Returns & Exchanges Manager Button */}
-          <button
-            onClick={() => {
-              playClickSound();
-              setIsReturnExchangeModalOpen(true);
-            }}
-            className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white rounded-xl shadow-md shadow-rose-950/20 transition-all cursor-pointer border border-amber-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
-            title="Damaged Cones Returns, 1:1 Exchanges, eTIMS Credit Notes & Supplier Claims"
-            aria-label="Returns and Exchanges RMA"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-amber-200 group-hover:rotate-180 transition-transform duration-500" />
-            <span>RMA / Returns</span>
-            {quarantinedDefects.length > 0 && (
-              <span className="bg-amber-400 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
-                {quarantinedDefects.length}
-              </span>
-            )}
-          </button>
-
-          {/* Mobile Phone Barcode Scanner */}
-          <button
-            onClick={() => setIsMobileBarcodeScannerOpen(true)}
-            className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl shadow-md shadow-emerald-950/20 transition-all cursor-pointer border border-emerald-400/50 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
-            title="Scan Product Barcodes with Phone / Camera to Add Products Instantly"
-            aria-label="Camera Barcode Scanner"
-          >
-            <Camera className="w-3.5 h-3.5 text-emerald-200 group-hover:scale-110 transition-transform" />
-            <span>Barcode</span>
-          </button>
-
-          {/* Batch QR Scanner */}
-          <button
-            onClick={() => setIsQRScannerOpen(true)}
-            className="px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-slate-700 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
-            title="Open Batch QR Scanner"
-            aria-label="QR Code Scanner"
-          >
-            <QrCode className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
-            <span>QR</span>
-          </button>
-
-          {/* Sound Effects Audio Mute / Unmute Toggle (Icon-Only) */}
-          <button
-            onClick={handleToggleSound}
-            className={`p-2.5 border rounded-xl transition-all cursor-pointer flex items-center justify-center ${
-              soundOn
-                ? 'bg-white/15 hover:bg-white/25 border-white/30 text-white shadow-xs'
-                : 'bg-black/30 hover:bg-black/40 border-white/10 text-white/60'
-            }`}
-            title={soundOn ? 'Sound Effects: Enabled (Click to mute)' : 'Sound Effects: Muted (Click to enable)'}
-            aria-label="Toggle Sound Effects"
-          >
-            {soundOn ? (
-              <Volume2 className="w-4 h-4 text-emerald-300" />
-            ) : (
-              <VolumeX className="w-4 h-4 text-rose-300" />
-            )}
-          </button>
-
-          {/* Brand Settings Gear Button (Icon-Only - Admin only) */}
-          {isAdmin && (
-            <button
+              type="button"
               onClick={() => {
                 playClickSound();
-                setIsBrandSettingsModalOpen(true);
+                setIsFabricRollModalOpen(true);
               }}
-              className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95"
-              title="Brand Color, Identity & Logo Settings"
-              aria-label="Brand Settings"
+              className="px-2.5 py-1.5 bg-gradient-to-r from-teal-700 to-emerald-800 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-teal-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+              title="Fabric Rolls & Piece Goods Inventory"
             >
-              <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform" />
+              <Layers className="w-3.5 h-3.5 text-teal-200 group-hover:scale-110 transition-transform" />
+              <span>Fabric</span>
+              {fabricRolls.length > 0 && (
+                <span className="bg-teal-300 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
+                  {fabricRolls.filter(r => r.status !== 'depleted').length}
+                </span>
+              )}
             </button>
-          )}
 
-          {/* Executive User Account Profile (Icon-Only) */}
-          <button
-            onClick={() => setIsUserProfileModalOpen(true)}
-            className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group flex items-center justify-center hover:scale-105 active:scale-95"
-            title={`Executive Account Profile: ${currentUser.name} (${currentUser.role})`}
-            aria-label="Executive Profile"
-          >
-            <User className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
-          </button>
+            {/* RMA / Returns Button */}
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                setIsReturnExchangeModalOpen(true);
+              }}
+              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-amber-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+              title="RMA / Returns & Exchanges"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-200 group-hover:rotate-180 transition-transform duration-500" />
+              <span>RMA</span>
+              {quarantinedDefects.length > 0 && (
+                <span className="bg-amber-400 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
+                  {quarantinedDefects.length}
+                </span>
+              )}
+            </button>
 
-          {/* Lock Session Terminal Button (Icon-Only) */}
-          <button
-            onClick={() => {
-              playClickSound();
-              lockPlatform();
-            }}
-            className="p-2.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center group"
-            title="Lock POS & Terminal Session Immediately"
-            aria-label="Lock Terminal Session"
-          >
-            <Lock className="w-4 h-4 text-rose-300 group-hover:scale-110 transition-transform" />
-          </button>
+            {/* Camera Barcode Scanner */}
+            <button
+              type="button"
+              onClick={() => setIsMobileBarcodeScannerOpen(true)}
+              className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-emerald-400/50 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+              title="Camera Barcode Scanner"
+            >
+              <Camera className="w-3.5 h-3.5 text-emerald-200 group-hover:scale-110 transition-transform" />
+              <span>Barcode</span>
+            </button>
+
+            {/* Batch QR Scanner */}
+            <button
+              type="button"
+              onClick={() => setIsQRScannerOpen(true)}
+              className="px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-slate-700 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+              title="Open Batch QR Scanner"
+            >
+              <QrCode className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
+              <span>QR</span>
+            </button>
+
+            {/* Sound Mute / Unmute */}
+            <button
+              type="button"
+              onClick={handleToggleSound}
+              className={`p-2.5 border rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                soundOn
+                  ? 'bg-white/15 hover:bg-white/25 border-white/30 text-white shadow-xs'
+                  : 'bg-black/30 hover:bg-black/40 border-white/10 text-white/60'
+              }`}
+              title={soundOn ? 'Sound: Enabled' : 'Sound: Muted'}
+            >
+              {soundOn ? (
+                <Volume2 className="w-4 h-4 text-emerald-300" />
+              ) : (
+                <VolumeX className="w-4 h-4 text-rose-300" />
+              )}
+            </button>
+
+            {/* Brand Settings Gear (Admin only) */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  setIsBrandSettingsModalOpen(true);
+                }}
+                className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95"
+                title="Brand Identity & Colors"
+              >
+                <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform" />
+              </button>
+            )}
+
+            {/* Executive User Profile */}
+            <button
+              type="button"
+              onClick={() => setIsUserProfileModalOpen(true)}
+              className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group flex items-center justify-center hover:scale-105 active:scale-95"
+              title={`Profile: ${currentUser.name}`}
+            >
+              <User className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+            </button>
+
+            {/* Lock Session Terminal Button */}
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                lockPlatform();
+              }}
+              className="p-2.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center group"
+              title="Lock Terminal Session"
+            >
+              <Lock className="w-4 h-4 text-rose-300 group-hover:scale-110 transition-transform" />
+            </button>
+
+          </div>
 
         </div>
 
       </div>
 
-      {/* Single Wave Curved Bottom Edge with subtle lighting highlight */}
+      {/* Single Wave Curved Bottom Edge */}
       <div className="absolute left-0 right-0 top-full -mt-0.5 w-full overflow-visible leading-none pointer-events-none z-20">
         <svg
           viewBox="0 0 1440 120"
-          className="relative block w-full h-8 sm:h-12 overflow-visible filter [filter:drop-shadow(0_6px_8px_rgba(0,0,0,0.25))]"
+          className="relative block w-full h-6 sm:h-10 md:h-12 overflow-visible filter [filter:drop-shadow(0_6px_8px_rgba(0,0,0,0.25))]"
           preserveAspectRatio="none"
         >
           <defs>
-            {/* Elegant soft light gradient for the wave edge */}
             <linearGradient id="headerWaveLightGradient" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#ffffff" stopOpacity="0.4" />
               <stop offset="50%" stopColor="#ffd1dc" stopOpacity="0.9" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0.4" />
             </linearGradient>
 
-            {/* Soft subtle glow filter */}
             <filter id="waveSoftGlow" x="-20%" y="-50%" width="140%" height="200%">
               <feGaussianBlur stdDeviation="3" result="blur" />
               <feMerge>
@@ -847,13 +1101,11 @@ export const Header: React.FC = () => {
             </filter>
           </defs>
 
-          {/* Main solid header wave body */}
           <path
             d="M0,0 C480,100 960,-20 1440,60 L1440,0 L0,0 Z"
             style={{ fill: waveFillColor }}
           />
 
-          {/* Subtle soft light halo along the wave */}
           <path
             d="M0,0 C480,100 960,-20 1440,60"
             fill="none"
@@ -863,7 +1115,6 @@ export const Header: React.FC = () => {
             filter="url(#waveSoftGlow)"
           />
 
-          {/* Clean inner highlight stroke */}
           <path
             d="M0,0 C480,100 960,-20 1440,60"
             fill="none"
@@ -872,7 +1123,6 @@ export const Header: React.FC = () => {
             strokeLinecap="round"
           />
 
-          {/* Animated Light Reflection Sheen following the wave curve */}
           <path
             d="M0,0 C480,100 960,-20 1440,60"
             fill="none"
@@ -887,11 +1137,423 @@ export const Header: React.FC = () => {
           />
         </svg>
 
-        {/* Ambient bottom light flare reflection */}
         <div className="absolute inset-x-0 top-2 h-4 bg-gradient-to-r from-pink-500/10 via-white/20 to-pink-500/10 blur-md pointer-events-none" />
       </div>
 
-      {/* Drawers & Modals */}
+      {/* ========================================================================= */}
+      {/* 3. MODERN MOBILE APP FULL-SCREEN NAVIGATION MODAL                         */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 md:hidden flex flex-col">
+            {/* Backdrop Blur Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+
+            {/* Full-Screen App Menu Content Container */}
+            <motion.div
+              initial={{ opacity: 0, y: '100%' }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="relative w-full h-full bg-white text-slate-900 shadow-2xl flex flex-col z-10 overflow-hidden"
+            >
+              
+              {/* Drawer Top Header */}
+              <div className="px-4 py-3.5 bg-gradient-to-r from-pink-50 via-rose-50 to-white border-b border-pink-100/80 flex items-center justify-between shrink-0 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-pink-600 border-2 border-white shadow-xs flex items-center justify-center text-white font-black text-sm">
+                    {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="font-ai text-sm font-black uppercase text-slate-900 tracking-wider">
+                      {brandSettings.brandName}
+                    </h2>
+                    <p className="text-[10px] text-pink-700 font-bold">Mobile Navigation & Tools</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 rounded-xl bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer"
+                  title="Close Menu"
+                  aria-label="Close Menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Drawer Scrollable Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs bg-slate-50/50">
+                
+                {/* User Session & Status Card */}
+                <div className="p-3.5 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-600 to-pink-500 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                      {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-extrabold text-slate-900 truncate text-xs">{currentUser?.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-pink-50 text-pink-700 font-mono font-bold border border-pink-200">
+                          {isSuperAdmin ? 'SUPER ADMIN' : currentUser?.role?.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserProfileModalOpen(true);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                      title="Profile"
+                    >
+                      <User className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        lockPlatform();
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors"
+                      title="Lock Session"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* System Mode Switcher (Admin vs POS) */}
+                {isAdmin && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                      Operating Mode
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 p-1 bg-white border border-slate-200/90 rounded-xl shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => handleSetMode('admin')}
+                        className={`py-2 px-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          appMode === 'admin'
+                            ? 'bg-rose-600 text-white shadow-xs font-black'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        }`}
+                      >
+                        <LayoutDashboard className="w-3.5 h-3.5" />
+                        <span>Admin View</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSetMode('pos')}
+                        className={`py-2 px-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          appMode === 'pos'
+                            ? 'bg-rose-600 text-white shadow-xs font-black'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        }`}
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>POS Terminal</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Branch Location Hub */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                      Active Branch Location
+                    </label>
+                    <span className="text-[10px] font-mono text-pink-700 font-bold">
+                      {getLocationShortLabel(activeLocation)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {locations.map(loc => {
+                      const isSelected = loc.id === activeLocation;
+                      const stockCount = products.reduce((acc, p) => acc + (p.locationStock?.[loc.id] || 0), 0);
+
+                      return (
+                        <button
+                          key={loc.id}
+                          type="button"
+                          onClick={() => handleSetLocation(loc.id as LocationId)}
+                          disabled={!isAdmin && loc.id !== currentStoreLocation}
+                          className={`p-2.5 rounded-xl border text-left transition-all relative cursor-pointer ${
+                            isSelected
+                              ? 'bg-pink-50 border-pink-500 text-pink-950 shadow-xs font-bold ring-1 ring-pink-500/20'
+                              : 'bg-white border-slate-200/90 text-slate-800 hover:bg-slate-50 hover:border-slate-300 shadow-2xs'
+                          } ${!isAdmin && loc.id !== currentStoreLocation ? 'opacity-40 cursor-not-allowed' : ''}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-black text-xs truncate">{loc.name.split(' ')[0]}</span>
+                            {isSelected ? (
+                              <div className="w-4 h-4 rounded-full bg-pink-600 text-white flex items-center justify-center">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </div>
+                            ) : (
+                              <div className="w-2 h-2 rounded-full bg-slate-200" />
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] mt-1.5">
+                            <span className={`font-semibold ${loc.canSellDirectly ? 'text-emerald-700' : 'text-amber-700'}`}>
+                              {loc.canSellDirectly ? 'POS Ready' : 'Hub Only'}
+                            </span>
+                            <span className="font-mono text-slate-500">{stockCount} pcs</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Operations & Quick Tools Bar */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                    Operations & Scanner Tools
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {/* Barcode Camera */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsMobileBarcodeScannerOpen(true);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-emerald-300 text-slate-800 hover:bg-emerald-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs cursor-pointer"
+                    >
+                      <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700 group-hover:scale-110 transition-transform">
+                        <Camera className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-800">Barcode</span>
+                    </button>
+
+                    {/* Batch QR Scanner */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsQRScannerOpen(true);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-indigo-300 text-slate-800 hover:bg-indigo-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs cursor-pointer"
+                    >
+                      <div className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700 group-hover:scale-110 transition-transform">
+                        <QrCode className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-800">QR Scan</span>
+                    </button>
+
+                    {/* Fabric Piece Goods */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsFabricRollModalOpen(true);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-teal-300 text-slate-800 hover:bg-teal-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs relative cursor-pointer"
+                    >
+                      <div className="p-1.5 rounded-lg bg-teal-100 text-teal-700 group-hover:scale-110 transition-transform">
+                        <Layers className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-800">Fabric</span>
+                      {fabricRolls.length > 0 && (
+                        <span className="absolute top-1.5 right-1.5 bg-teal-600 text-white font-black text-[8px] min-w-3.5 h-3.5 px-0.5 rounded-full flex items-center justify-center shadow-xs">
+                          {fabricRolls.filter(r => r.status !== 'depleted').length}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* RMA Returns */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsReturnExchangeModalOpen(true);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-amber-300 text-slate-800 hover:bg-amber-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs relative cursor-pointer"
+                    >
+                      <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700 group-hover:scale-110 transition-transform">
+                        <RotateCcw className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-800">RMA</span>
+                      {quarantinedDefects.length > 0 && (
+                        <span className="absolute top-1.5 right-1.5 bg-amber-500 text-white font-black text-[8px] min-w-3.5 h-3.5 px-0.5 rounded-full flex items-center justify-center shadow-xs">
+                          {quarantinedDefects.length}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Inbox Messages */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsMailDrawerOpen(true);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-rose-300 text-slate-800 hover:bg-rose-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs relative cursor-pointer"
+                    >
+                      <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700 group-hover:scale-110 transition-transform">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-800">Inbox</span>
+                      {totalMessageAlerts > 0 && (
+                        <span className="absolute top-1.5 right-1.5 bg-rose-600 text-white font-black text-[8px] min-w-3.5 h-3.5 px-0.5 rounded-full flex items-center justify-center shadow-xs animate-bounce">
+                          {totalMessageAlerts}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Audio Sound Toggle */}
+                    <button
+                      type="button"
+                      onClick={handleToggleSound}
+                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 text-slate-800 hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-1 text-center shadow-2xs cursor-pointer"
+                    >
+                      <div className={`p-1.5 rounded-lg ${soundOn ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-800">{soundOn ? 'Sound On' : 'Muted'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Primary App Views / Modules Navigation List */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                    Platform Navigation Modules
+                  </label>
+                  <div className="space-y-1.5">
+                    {allowedNavItems.map(item => {
+                      const isActive = activeTab === item.id;
+                      const IconComp = item.icon;
+
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleNavClick(item.id)}
+                          className={`w-full p-3 rounded-2xl flex items-center justify-between transition-all text-left cursor-pointer border ${
+                            isActive
+                              ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white font-black shadow-md border-rose-600 ring-2 ring-pink-500/30'
+                              : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200/90 hover:border-slate-300 shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`p-2 rounded-xl shrink-0 ${isActive ? 'bg-white/20 text-white' : 'bg-pink-50 text-pink-700 border border-pink-100'}`}>
+                              <IconComp className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold truncate">{item.label}</p>
+                              <p className={`text-[10px] truncate mt-0.5 ${isActive ? 'text-white/85' : 'text-slate-500'}`}>
+                                {item.desc}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            {item.badge && (
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full font-mono shadow-2xs ${
+                                isActive ? 'bg-white text-rose-700' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}>
+                                {item.badge}
+                              </span>
+                            )}
+                            <ChevronRight className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Staff Role Simulation (Admin Only) */}
+                {isAdmin && (
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                      Simulate Role (Admin)
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {roleOptions.map(r => {
+                        const isSelected = r.role === activeRole;
+                        return (
+                          <button
+                            key={r.role}
+                            type="button"
+                            onClick={() => handleSetRole(r.role)}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-indigo-50 border-indigo-500 text-indigo-950 font-bold shadow-xs ring-1 ring-indigo-500/20'
+                                : 'bg-white border-slate-200/90 text-slate-800 hover:bg-slate-50 hover:border-slate-300 shadow-2xs'
+                            }`}
+                          >
+                            <p className="text-xs font-bold truncate">{getRoleShortLabel(r.role)}</p>
+                            <p className="text-[9px] text-slate-500 truncate mt-0.5">{r.badge}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Drawer Footer Actions */}
+              <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0">
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickSound();
+                      setIsBrandSettingsModalOpen(true);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Brand Settings</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    lockPlatform();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex-1 py-2.5 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Lock Terminal</span>
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Modals & Drawers */}
       <MailInboxDrawer
         isOpen={isMailDrawerOpen}
         onClose={() => setIsMailDrawerOpen(false)}
@@ -902,3 +1564,4 @@ export const Header: React.FC = () => {
   );
 };
 
+export default Header;

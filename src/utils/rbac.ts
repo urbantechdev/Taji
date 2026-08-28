@@ -36,6 +36,11 @@ export interface RoleMetadata {
     canAddProductBatches: boolean;
     canDispatchTransfers: boolean;
     canReceiveTransfers: boolean;
+    canViewCostPrice: boolean;
+    canEditMasterPricing: boolean;
+    canDeleteInventory: boolean;
+    canAdjustCashFloat: boolean;
+    canAccessSystemSettings: boolean;
   };
 }
 
@@ -75,7 +80,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: true,
       canAddProductBatches: true,
       canDispatchTransfers: true,
-      canReceiveTransfers: true
+      canReceiveTransfers: true,
+      canViewCostPrice: true,
+      canEditMasterPricing: true,
+      canDeleteInventory: true,
+      canAdjustCashFloat: true,
+      canAccessSystemSettings: true
     }
   },
   hr_manager: {
@@ -107,7 +117,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: false,
       canAddProductBatches: false,
       canDispatchTransfers: false,
-      canReceiveTransfers: false
+      canReceiveTransfers: false,
+      canViewCostPrice: false,
+      canEditMasterPricing: false,
+      canDeleteInventory: false,
+      canAdjustCashFloat: false,
+      canAccessSystemSettings: false
     }
   },
   branch_manager: {
@@ -143,7 +158,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: false,
       canAddProductBatches: false,
       canDispatchTransfers: true,
-      canReceiveTransfers: true
+      canReceiveTransfers: true,
+      canViewCostPrice: true,
+      canEditMasterPricing: true,
+      canDeleteInventory: false,
+      canAdjustCashFloat: true,
+      canAccessSystemSettings: false
     }
   },
   accountant: {
@@ -177,7 +197,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: false,
       canAddProductBatches: false,
       canDispatchTransfers: false,
-      canReceiveTransfers: false
+      canReceiveTransfers: false,
+      canViewCostPrice: true,
+      canEditMasterPricing: true,
+      canDeleteInventory: false,
+      canAdjustCashFloat: true,
+      canAccessSystemSettings: false
     }
   },
   sales_shop_cashier: {
@@ -192,7 +217,6 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'pos',
       'sales_today',
       'catalog',
-      'transfers',
       'etr',
       'gmail'
     ],
@@ -209,7 +233,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: false,
       canAddProductBatches: false,
       canDispatchTransfers: false,
-      canReceiveTransfers: true
+      canReceiveTransfers: true,
+      canViewCostPrice: false,
+      canEditMasterPricing: false,
+      canDeleteInventory: false,
+      canAdjustCashFloat: false,
+      canAccessSystemSettings: false
     }
   },
   branch_cashier: {
@@ -224,7 +253,6 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'pos',
       'sales_today',
       'catalog',
-      'transfers',
       'etr',
       'gmail'
     ],
@@ -241,7 +269,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: false,
       canAddProductBatches: false,
       canDispatchTransfers: false,
-      canReceiveTransfers: true
+      canReceiveTransfers: true,
+      canViewCostPrice: false,
+      canEditMasterPricing: false,
+      canDeleteInventory: false,
+      canAdjustCashFloat: false,
+      canAccessSystemSettings: false
     }
   },
   main_store_operator: {
@@ -255,7 +288,6 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     allowedTabs: [
       'catalog',
       'transfers',
-      'pos',
       'branches',
       'audit',
       'gmail'
@@ -268,12 +300,17 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canManageGeneralLedger: false,
       canDisbursePayroll: false,
       canConfigureETR: false,
-      canDirectPOSSale: true,
+      canDirectPOSSale: false,
       canManageBranchExpenses: false,
       canCreateLocations: false,
       canAddProductBatches: true,
       canDispatchTransfers: true,
-      canReceiveTransfers: true
+      canReceiveTransfers: true,
+      canViewCostPrice: true,
+      canEditMasterPricing: false,
+      canDeleteInventory: false,
+      canAdjustCashFloat: false,
+      canAccessSystemSettings: false
     }
   },
   store_1_attendant: {
@@ -302,7 +339,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: false,
       canAddProductBatches: false,
       canDispatchTransfers: false,
-      canReceiveTransfers: true
+      canReceiveTransfers: true,
+      canViewCostPrice: false,
+      canEditMasterPricing: false,
+      canDeleteInventory: false,
+      canAdjustCashFloat: false,
+      canAccessSystemSettings: false
     }
   },
   store_2_attendant: {
@@ -331,7 +373,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: false,
       canAddProductBatches: false,
       canDispatchTransfers: false,
-      canReceiveTransfers: true
+      canReceiveTransfers: true,
+      canViewCostPrice: false,
+      canEditMasterPricing: false,
+      canDeleteInventory: false,
+      canAdjustCashFloat: false,
+      canAccessSystemSettings: false
     }
   },
   pos_cashier: {
@@ -344,8 +391,10 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     defaultLocation: 'sales_shop',
     allowedTabs: [
       'pos',
+      'sales_today',
       'catalog',
-      'etr'
+      'etr',
+      'gmail'
     ],
     permissions: {
       canManageUsers: false,
@@ -360,7 +409,12 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canCreateLocations: false,
       canAddProductBatches: false,
       canDispatchTransfers: false,
-      canReceiveTransfers: false
+      canReceiveTransfers: false,
+      canViewCostPrice: false,
+      canEditMasterPricing: false,
+      canDeleteInventory: false,
+      canAdjustCashFloat: false,
+      canAccessSystemSettings: false
     }
   }
 };

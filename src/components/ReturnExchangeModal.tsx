@@ -99,9 +99,13 @@ export const ReturnExchangeModal: React.FC = () => {
   // Selected returned product
   const returnedProduct = products.find(p => p.id === returnedBatchId);
   const replacementProduct = products.find(p => p.id === replacementBatchId) || returnedProduct;
+  const isFabric = returnedProduct?.category === 'Fleece' || returnedProduct?.category === 'Dereck' || returnedProduct?.unit === 'meter';
+  const isReplacementFabric = replacementProduct?.category === 'Fleece' || replacementProduct?.category === 'Dereck' || replacementProduct?.unit === 'meter';
 
   // Auto-calculated weights & valuations
-  const returnedNetWeightKg = Math.max(0, Number((returnedGrossWeightKg - returnedTareKg).toFixed(3)));
+  const returnedNetWeightKg = isFabric
+    ? Number(returnedGrossWeightKg.toFixed(2))
+    : Math.max(0, Number((returnedGrossWeightKg - returnedTareKg).toFixed(3)));
   const returnedValuationRetail = Number((returnedNetWeightKg * returnedRatePerKg).toFixed(2));
   const returnedValuationCost = Number((returnedNetWeightKg * (returnedProduct?.costPrice || returnedRatePerKg * 0.6)).toFixed(2));
 
@@ -129,12 +133,14 @@ export const ReturnExchangeModal: React.FC = () => {
   // Auto update tare when cones count changes
   const handleConesCountChange = (count: number) => {
     setReturnedConesCount(count);
-    const coneTare = returnedProduct?.tareProfile?.tareWeightPerUnit || 0.070;
-    const computedTare = Number((count * coneTare).toFixed(3));
-    setReturnedTareKg(computedTare);
-    setReturnedGrossWeightKg(Number((count * 2.0 + computedTare).toFixed(3)));
-    setReplacementConesCount(count);
-    setReplacementNetWeightKg(Number((count * 2.0).toFixed(3)));
+    if (!isFabric) {
+      const coneTare = returnedProduct?.tareProfile?.tareWeightPerUnit || 0.070;
+      const computedTare = Number((count * coneTare).toFixed(3));
+      setReturnedTareKg(computedTare);
+      setReturnedGrossWeightKg(Number((count * 2.0 + computedTare).toFixed(3)));
+      setReplacementConesCount(count);
+      setReplacementNetWeightKg(Number((count * 2.0).toFixed(3)));
+    }
   };
 
   const handleProcessSubmit = (e: React.FormEvent) => {
@@ -452,7 +458,7 @@ export const ReturnExchangeModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Step 2: Returned Defective Cones Details */}
+              {/* Step 2: Returned Defective Items Details */}
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center space-x-2">
@@ -460,18 +466,20 @@ export const ReturnExchangeModal: React.FC = () => {
                       2
                     </span>
                     <h3 className="text-sm font-bold text-slate-900">
-                      Returned Spoilt Yarn Cones & Weight Measurements
+                      {isFabric
+                        ? 'Returned Defective Fabric Meters & Quality Assessment'
+                        : 'Returned Spoilt Yarn Cones & Weight Measurements'}
                     </h3>
                   </div>
                   <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-semibold">
-                    Quarantine Intake
+                    {isFabric ? 'Fabric Quarantine Intake' : 'Yarn Quarantine Intake'}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="md:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Select Yarn Batch / Product
+                      Select {isFabric ? 'Fabric' : 'Yarn'} Product Batch
                     </label>
                     <select
                       id="rma-returned-batch-select"
@@ -482,13 +490,16 @@ export const ReturnExchangeModal: React.FC = () => {
                         if (prod) {
                           setReturnedRatePerKg(prod.unitPriceRetail);
                           setSupplierName(prod.manufacturer || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD');
+                          if (prod.category === 'Fleece' || prod.category === 'Dereck' || prod.unit === 'meter') {
+                            setDefectReason('Weft / Warp Slub & Weaving Flaw');
+                          }
                         }
                       }}
                       className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
                     >
                       {products.map(p => (
                         <option key={p.id} value={p.id}>
-                          {p.name} (Lot: {p.dyeLot || 'N/A'}, Shade: {p.shadeCode || 'N/A'}) - KSh {p.unitPriceRetail}/kg
+                          {p.name} ({p.category}) - KSh {p.unitPriceRetail}/{p.unit === 'meter' ? 'm' : 'kg'}
                         </option>
                       ))}
                     </select>
@@ -496,25 +507,35 @@ export const ReturnExchangeModal: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Number of Spoilt Cones
+                      {isFabric ? 'Defective Meters Returned' : 'Number of Spoilt Cones'}
                     </label>
                     <div className="flex items-center space-x-2">
                       <input
                         type="number"
                         id="rma-cones-count-input"
-                        min="1"
-                        max="50"
-                        value={returnedConesCount}
-                        onChange={e => handleConesCountChange(parseInt(e.target.value) || 1)}
+                        step={isFabric ? "0.1" : "1"}
+                        min={isFabric ? "0.1" : "1"}
+                        max="500"
+                        value={isFabric ? returnedGrossWeightKg : returnedConesCount}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value) || 1;
+                          if (isFabric) {
+                            setReturnedGrossWeightKg(val);
+                            setReturnedTareKg(0);
+                            setReplacementNetWeightKg(val);
+                          } else {
+                            handleConesCountChange(Math.round(val));
+                          }
+                        }}
                         className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-bold"
                       />
-                      <span className="text-xs text-slate-500 whitespace-nowrap">Cones</span>
+                      <span className="text-xs text-slate-500 whitespace-nowrap">{isFabric ? 'Meters' : 'Cones'}</span>
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Billing Rate (KSh / Kg)
+                      Billing Rate (KSh / {isFabric ? 'Meter' : 'Kg'})
                     </label>
                     <input
                       type="number"
@@ -525,41 +546,45 @@ export const ReturnExchangeModal: React.FC = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Scale Gross Weight (Kg)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      id="rma-gross-weight-input"
-                      value={returnedGrossWeightKg}
-                      onChange={e => setReturnedGrossWeightKg(parseFloat(e.target.value) || 0)}
-                      className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-bold text-amber-700"
-                    />
-                  </div>
+                  {!isFabric && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Scale Gross Weight (Kg)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.001"
+                          id="rma-gross-weight-input"
+                          value={returnedGrossWeightKg}
+                          onChange={e => setReturnedGrossWeightKg(parseFloat(e.target.value) || 0)}
+                          className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-bold text-amber-700"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Tare Plastic Cone Deduction (Kg)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.001"
+                          id="rma-tare-input"
+                          value={returnedTareKg}
+                          onChange={e => setReturnedTareKg(parseFloat(e.target.value) || 0)}
+                          className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
+                        />
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Tare Plastic Cone Deduction (Kg)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      id="rma-tare-input"
-                      value={returnedTareKg}
-                      onChange={e => setReturnedTareKg(parseFloat(e.target.value) || 0)}
-                      className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Net Billable Weight (Auto)
+                      {isFabric ? 'Net Defect Quantity (Auto)' : 'Net Billable Weight (Auto)'}
                     </label>
                     <div className="w-full text-xs bg-emerald-50 border border-emerald-300 rounded-lg p-2.5 font-bold text-emerald-900 flex items-center justify-between">
-                      <span>{returnedNetWeightKg.toFixed(3)} kg</span>
-                      <span className="text-[10px] text-emerald-700 font-normal">Pure Yarn</span>
+                      <span>{returnedNetWeightKg.toFixed(isFabric ? 2 : 3)} {isFabric ? 'meters' : 'kg'}</span>
+                      <span className="text-[10px] text-emerald-700 font-normal">{isFabric ? 'Linear Fabric' : 'Pure Yarn'}</span>
                     </div>
                   </div>
 
@@ -583,20 +608,35 @@ export const ReturnExchangeModal: React.FC = () => {
                       onChange={e => setDefectReason(e.target.value as DefectReasonType)}
                       className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
                     >
-                      <option value="Broken / Snagged Yarn Ply">Broken / Snagged Yarn Ply</option>
-                      <option value="Dye Lot Color Variation / Bleed">Dye Lot Color Variation / Bleed</option>
-                      <option value="Oil / Grease Stain from Factory Machine">Oil / Grease Stain from Factory Machine</option>
-                      <option value="Weak Tensile Strength / High Breakage">Weak Tensile Strength / High Breakage</option>
-                      <option value="Mold / Moisture Damage">Mold / Moisture Damage</option>
-                      <option value="Uneven Weight / Hollow Cone Core">Uneven Weight / Hollow Cone Core</option>
-                      <option value="Knots & Splicing Defect">Knots & Splicing Defect</option>
-                      <option value="Other Defect">Other Defect</option>
+                      {isFabric ? (
+                        <>
+                          <option value="Weft / Warp Slub & Weaving Flaw">Weft / Warp Slub &amp; Weaving Flaw</option>
+                          <option value="Oil / Machine Grease Stain on Fabric">Oil / Machine Grease Stain on Fabric</option>
+                          <option value="Fabric Hole / Run / Tear">Fabric Hole / Run / Tear</option>
+                          <option value="Color Shading / Dye Streaks across Width">Color Shading / Dye Streaks across Width</option>
+                          <option value="Selvage Edge Damage / Curling">Selvage Edge Damage / Curling</option>
+                          <option value="Uneven Width / Short Meterage on Roll">Uneven Width / Short Meterage on Roll</option>
+                          <option value="Pilling / Uneven Fleece Pile">Pilling / Uneven Fleece Pile</option>
+                          <option value="Other Defect">Other Defect</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="Broken / Snagged Yarn Ply">Broken / Snagged Yarn Ply</option>
+                          <option value="Dye Lot Color Variation / Bleed">Dye Lot Color Variation / Bleed</option>
+                          <option value="Oil / Grease Stain from Factory Machine">Oil / Grease Stain from Factory Machine</option>
+                          <option value="Weak Tensile Strength / High Breakage">Weak Tensile Strength / High Breakage</option>
+                          <option value="Mold / Moisture Damage">Mold / Moisture Damage</option>
+                          <option value="Uneven Weight / Hollow Cone Core">Uneven Weight / Hollow Cone Core</option>
+                          <option value="Knots & Splicing Defect">Knots &amp; Splicing Defect</option>
+                          <option value="Other Defect">Other Defect</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
                   <div className="md:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Yarn Manufacturer / Supplier
+                      Manufacturer / Mill Supplier
                     </label>
                     <input
                       type="text"
@@ -616,7 +656,7 @@ export const ReturnExchangeModal: React.FC = () => {
                       id="rma-notes-input"
                       value={defectNotes}
                       onChange={e => setDefectNotes(e.target.value)}
-                      placeholder="e.g. 2 cones had filament breakage and irregular twist within bale #148"
+                      placeholder={isFabric ? "e.g. 3.5 meters has severe weaving slubs and grease spot midway through roll" : "e.g. 2 cones had filament breakage and irregular twist within bale #148"}
                       className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none"
                     />
                   </div>
@@ -744,7 +784,7 @@ export const ReturnExchangeModal: React.FC = () => {
                         >
                           {products.map(p => (
                             <option key={p.id} value={p.id}>
-                              {p.name} (Stock: {p.locationStock[locationId]?.toFixed(2) || 0} kg)
+                              {p.name} (Stock: {p.locationStock[locationId]?.toFixed(2) || 0} {p.unit === 'meter' ? 'm' : 'kg'})
                             </option>
                           ))}
                         </select>
@@ -752,7 +792,7 @@ export const ReturnExchangeModal: React.FC = () => {
 
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Replacement Cones
+                          {isReplacementFabric ? 'Replacement Rolls / Pieces' : 'Replacement Cones'}
                         </label>
                         <input
                           type="number"
@@ -765,11 +805,11 @@ export const ReturnExchangeModal: React.FC = () => {
 
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Replacement Net Weight (Kg)
+                          {isReplacementFabric ? 'Replacement Meters (m)' : 'Replacement Net Weight (Kg)'}
                         </label>
                         <input
                           type="number"
-                          step="0.001"
+                          step={isReplacementFabric ? "0.1" : "0.001"}
                           id="rma-replacement-net-weight-input"
                           value={replacementNetWeightKg}
                           onChange={e => setReplacementNetWeightKg(parseFloat(e.target.value) || 0)}
@@ -783,7 +823,7 @@ export const ReturnExchangeModal: React.FC = () => {
                       <div>
                         <span className="font-semibold text-slate-700">Valuation Comparison:</span>{' '}
                         <span className="text-slate-500">
-                          Returned: KSh {returnedValuationRetail.toLocaleString()} ({returnedNetWeightKg.toFixed(3)}kg) &rarr; Replacement: KSh {replacementValuationRetail.toLocaleString()} ({replacementNetWeightKg.toFixed(3)}kg)
+                          Returned: KSh {returnedValuationRetail.toLocaleString()} ({returnedNetWeightKg.toFixed(isFabric ? 2 : 3)}{isFabric ? 'm' : 'kg'}) &rarr; Replacement: KSh {replacementValuationRetail.toLocaleString()} ({replacementNetWeightKg.toFixed(isReplacementFabric ? 2 : 3)}{isReplacementFabric ? 'm' : 'kg'})
                         </span>
                       </div>
                       <div className="font-bold">
@@ -1044,10 +1084,18 @@ export const ReturnExchangeModal: React.FC = () => {
                               </div>
                             </td>
                             <td className="p-3 font-bold text-rose-700">
-                              {rec.returnedItem.conesCount} Cones
+                              {rec.returnedItem.unit === 'meter' ||
+                              rec.returnedItem.productName.toLowerCase().includes('fleece') ||
+                              rec.returnedItem.productName.toLowerCase().includes('derec')
+                                ? `${rec.returnedItem.conesCount} Roll/Cutout`
+                                : `${rec.returnedItem.conesCount} Cones`}
                             </td>
                             <td className="p-3 font-bold text-slate-800">
-                              {rec.returnedItem.netWeightKg.toFixed(3)} kg
+                              {rec.returnedItem.unit === 'meter' ||
+                              rec.returnedItem.productName.toLowerCase().includes('fleece') ||
+                              rec.returnedItem.productName.toLowerCase().includes('derec')
+                                ? `${rec.returnedItem.netWeightKg.toFixed(2)} m`
+                                : `${rec.returnedItem.netWeightKg.toFixed(3)} kg`}
                             </td>
                             <td className="p-3 font-semibold text-slate-900">
                               KSh {rec.returnedItem.totalValuationCost.toLocaleString()}

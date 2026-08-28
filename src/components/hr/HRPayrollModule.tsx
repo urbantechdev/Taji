@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { PayrollRecord, StaffMember, UserRole, LocationId } from '../../types';
+import { hasPermission } from '../../utils/rbac';
 import DocumentHeader from '../common/DocumentHeader';
 import {
   calculateKenyaStatutoryDeductions,
@@ -87,7 +88,8 @@ export const HRPayrollModule: React.FC = () => {
     mpesaNumber: ''
   });
 
-  const canManagePersonnel = isAdmin || activeRole === 'admin' || activeRole === 'hr_manager' || currentUser.role === 'admin' || currentUser.role === 'hr_manager';
+  const canManagePersonnel = isAdmin || hasPermission(currentUser.role, 'canManageEmployees');
+  const canProcessPayroll = isAdmin || hasPermission(currentUser.role, 'canProcessPayroll');
 
   const handleGenerateClick = () => {
     if (staff.length === 0) {
@@ -346,13 +348,15 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
               </button>
             )}
 
-            <button
-              onClick={handleGenerateClick}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Calendar className="w-4 h-4 text-rose-400" />
-              <span>Run {selectedMonth} Payroll</span>
-            </button>
+            {canProcessPayroll && (
+              <button
+                onClick={handleGenerateClick}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Calendar className="w-4 h-4 text-rose-400" />
+                <span>Run {selectedMonth} Payroll</span>
+              </button>
+            )}
           </div>
         </div>
 

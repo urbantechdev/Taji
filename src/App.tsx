@@ -30,6 +30,7 @@ import { AuthModal } from './components/auth/AuthModal';
 import { PlatformLockScreen } from './components/auth/PlatformLockScreen';
 import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
 import { ReturnExchangeModal } from './components/ReturnExchangeModal';
+import { FabricRollManagerModal } from './components/FabricRollManagerModal';
 import { Footer } from './components/layout/Footer';
 
 const ERPContent: React.FC = () => {
@@ -114,7 +115,7 @@ const ERPContent: React.FC = () => {
     <div className="h-screen max-h-screen w-full bg-slate-50/80 font-sans text-slate-800 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900 overflow-hidden">
       
       {/* Top Header Bar (Stationary at top) */}
-      <Header />
+      <Header activeTab={effectiveTab} setActiveTab={setActiveTab} />
 
       {/* Main Workspace Body (Stationary Sidebar + Scrollable Body) */}
       <div className="flex-1 flex flex-row overflow-hidden w-full min-h-0 relative">
@@ -181,6 +182,7 @@ const ERPContent: React.FC = () => {
       <PeriodicStatementModal />
       <TodaySalesModal />
       <ReturnExchangeModal />
+      <FabricRollManagerModal />
       <AuthModal />
 
     </div>

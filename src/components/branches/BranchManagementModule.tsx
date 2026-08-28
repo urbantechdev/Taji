@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
+import { hasPermission } from '../../utils/rbac';
 import { LocationInfo, LocationId, BranchExpense, LocationType } from '../../types';
 import {
   Building2,
@@ -51,8 +52,13 @@ export const BranchManagementModule: React.FC = () => {
     setActiveLocation,
     products,
     currentUser,
-    isSuperAdmin
+    isSuperAdmin,
+    isAdmin
   } = useERP();
+
+  const canCreateBranch = isSuperAdmin || isAdmin || hasPermission(currentUser.role, 'canAccessSystemSettings');
+  const canRecordExpenses = isSuperAdmin || isAdmin || hasPermission(currentUser.role, 'canRecordBranchExpenses');
+  const canAdjustFloat = isSuperAdmin || isAdmin || hasPermission(currentUser.role, 'canAdjustCashFloat');
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(activeLocation || 'main_store');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -299,29 +305,35 @@ export const BranchManagementModule: React.FC = () => {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              onClick={() => setIsExpenseModalOpen(true)}
-              className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-xl border border-rose-200 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <Receipt className="w-4 h-4 text-rose-600" />
-              Record Branch Expense
-            </button>
+            {canRecordExpenses && (
+              <button
+                onClick={() => setIsExpenseModalOpen(true)}
+                className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-xl border border-rose-200 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Receipt className="w-4 h-4 text-rose-600" />
+                Record Branch Expense
+              </button>
+            )}
 
-            <button
-              onClick={() => setIsFloatModalOpen(true)}
-              className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-200 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <Wallet className="w-4 h-4 text-emerald-600" />
-              Adjust Cash Float
-            </button>
+            {canAdjustFloat && (
+              <button
+                onClick={() => setIsFloatModalOpen(true)}
+                className="px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-200 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Wallet className="w-4 h-4 text-emerald-600" />
+                Adjust Cash Float
+              </button>
+            )}
 
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Create New Branch
-            </button>
+            {canCreateBranch && (
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Create New Branch
+              </button>
+            )}
           </div>
         </div>
 

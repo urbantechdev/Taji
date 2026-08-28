@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useERP } from '../../context/ERPContext';
+import { hasPermission } from '../../utils/rbac';
 import {
   generateLiveBalanceSheet,
   generateLiveIncomeStatement,
@@ -120,8 +121,14 @@ export const AccountingLedger: React.FC = () => {
     addWithholdingTaxRecord,
     settleWithholdingTaxRecord,
     setIsReturnExchangeModalOpen,
-    quarantinedDefects
+    quarantinedDefects,
+    currentUser,
+    isAdmin
   } = useERP();
+
+  const canManageJournal = isAdmin || hasPermission(currentUser.role, 'canManageLedgerEntries');
+  const canReconcile = isAdmin || hasPermission(currentUser.role, 'canPerformReconciliation');
+  const canGenerateTax = isAdmin || hasPermission(currentUser.role, 'canGenerateTaxReports');
   const [activeSubTab, setActiveSubTab] = useState<LedgerTab>('cfo_advisory');
   const [selectedLocation, setSelectedLocation] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -664,27 +671,31 @@ export const AccountingLedger: React.FC = () => {
               <span>Ledger CSV</span>
             </button>
 
-            <button
-              onClick={() => setIsJournalModalOpen(true)}
-              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Post Journal Voucher</span>
-            </button>
+            {canManageJournal && (
+              <button
+                onClick={() => setIsJournalModalOpen(true)}
+                className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Post Journal Voucher</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => setIsReturnExchangeModalOpen(true)}
-              className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
-              title="Manage Damaged Yarn Returns, Exchanges, Quarantine Ledger & eTIMS Credit Notes"
-            >
-              <RotateCcw className="w-4 h-4 text-amber-200" />
-              <span>RMA Returns &amp; Credit Notes</span>
-              {quarantinedDefects.length > 0 && (
-                <span className="bg-amber-300 text-slate-900 font-black text-[10px] px-1.5 py-0.2 rounded-full">
-                  {quarantinedDefects.length}
-                </span>
-              )}
-            </button>
+            {canManageJournal && (
+              <button
+                onClick={() => setIsReturnExchangeModalOpen(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
+                title="Manage Damaged Yarn Returns, Exchanges, Quarantine Ledger & eTIMS Credit Notes"
+              >
+                <RotateCcw className="w-4 h-4 text-amber-200" />
+                <span>RMA Returns &amp; Credit Notes</span>
+                {quarantinedDefects.length > 0 && (
+                  <span className="bg-amber-300 text-slate-900 font-black text-[10px] px-1.5 py-0.2 rounded-full">
+                    {quarantinedDefects.length}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -762,29 +773,33 @@ export const AccountingLedger: React.FC = () => {
             <span>Cash Flow Statement</span>
           </button>
 
-          <button
-            onClick={() => setActiveSubTab('tax_engine')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-              activeSubTab === 'tax_engine'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <Receipt className="w-3.5 h-3.5" />
-            <span>KRA Tax &amp; iTax Compliance</span>
-          </button>
+          {canGenerateTax && (
+            <button
+              onClick={() => setActiveSubTab('tax_engine')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'tax_engine'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5" />
+              <span>KRA Tax &amp; iTax Compliance</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setActiveSubTab('bank_reconciliation')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-              activeSubTab === 'bank_reconciliation'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>Bank &amp; M-Pesa Reconciliation</span>
-          </button>
+          {canReconcile && (
+            <button
+              onClick={() => setActiveSubTab('bank_reconciliation')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === 'bank_reconciliation'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Bank &amp; M-Pesa Reconciliation</span>
+            </button>
+          )}
         </div>
       </div>
 

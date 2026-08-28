@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
+import { hasPermission } from '../../utils/rbac';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import DocumentHeader from '../common/DocumentHeader';
@@ -39,8 +40,13 @@ export const InterStoreTransfers: React.FC = () => {
     products,
     posSession,
     brandSettings,
-    etrConfig
+    etrConfig,
+    currentUser,
+    isAdmin
   } = useERP();
+
+  const canDispatchTransfers = isAdmin || hasPermission(currentUser.role, 'canDispatchTransfers');
+  const canApproveTransfers = isAdmin || hasPermission(currentUser.role, 'canApproveTransfers');
 
   const [activeTab, setActiveTab] = useState<'pending' | 'fulfilled' | 'all'>('pending');
   const [selectedFulfillTransfer, setSelectedFulfillTransfer] = useState<InterStoreTransfer | null>(null);
@@ -194,13 +200,15 @@ export const InterStoreTransfers: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={() => setIsDispatchModalOpen(true)}
-            className="px-4 py-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-extrabold text-xs rounded-xl shadow-lg border border-white/20 transition-all cursor-pointer flex items-center gap-2 shrink-0 scale-102 hover:scale-105"
-          >
-            <Plus className="w-4 h-4 text-amber-300" />
-            <span>+ Dispatch New Stock Transfer</span>
-          </button>
+          {canDispatchTransfers && (
+            <button
+              onClick={() => setIsDispatchModalOpen(true)}
+              className="px-4 py-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-extrabold text-xs rounded-xl shadow-lg border border-white/20 transition-all cursor-pointer flex items-center gap-2 shrink-0 scale-102 hover:scale-105"
+            >
+              <Plus className="w-4 h-4 text-amber-300" />
+              <span>+ Dispatch New Stock Transfer</span>
+            </button>
+          )}
         </div>
 
         {/* Visual Topology Diagram */}
@@ -406,7 +414,7 @@ export const InterStoreTransfers: React.FC = () => {
                   </div>
 
                   {/* Operational Action Buttons */}
-                  {isPending && (
+                  {isPending && canApproveTransfers && (
                     <div className="pt-2 border-t border-slate-200 flex justify-end gap-2">
                       {isRestock ? (
                         <button

@@ -338,6 +338,7 @@ export interface ProductBatch {
   unitPriceBulk: number; // Bulk price per unit (for Main Store bulk sales / full bag rate)
   costPrice: number; // Internal cost per unit (for inventory valuation)
   locationStock: Record<LocationId, number>; // Stock per store location
+  reservedStock?: Record<LocationId, number>; // Stock reserved for advance / forward-dated orders
   minReorderLevel: number; // Low stock threshold for automatic alert / request
   imageUrl?: string; // High-resolution product image URL
   qrCodeData: string; // Embedded QR payload string
@@ -428,7 +429,16 @@ export interface POSCartItem {
   conesCount?: number;
 }
 
-export type OrderStatus = 'completed' | 'routed_to_main' | 'routed_to_shop' | 'cancelled' | 'pending' | 'draft' | 'dispatched' | 'delivered';
+export type OrderStatus = 
+  | 'completed' 
+  | 'routed_to_main' 
+  | 'routed_to_shop' 
+  | 'cancelled' 
+  | 'pending' 
+  | 'draft' 
+  | 'dispatched' 
+  | 'delivered'
+  | 'reserved';
 
 export type DocumentType = 
   | 'invoice' 
@@ -436,7 +446,8 @@ export type DocumentType =
   | 'proforma' 
   | 'receipt' 
   | 'delivery_note' 
-  | 'credit_note';
+  | 'credit_note'
+  | 'advance_booking';
 
 export interface SaleOrder {
   id: string; // e.g. INV-2026-8891, QUO-2026-1029, DEL-2026-4401, RCP-2026-9021, PRO-2026-3301, CRN-2026-1102
@@ -482,6 +493,18 @@ export interface SaleOrder {
   validityDays?: number;
   isRerouted: boolean;
   isQuotation?: boolean;
+  // Forward-Dated Reservation / Advance Order Fields
+  isForwardDated?: boolean;
+  forwardFulfillmentDate?: string;
+  advanceDepositPaid?: number;
+  balanceDue?: number;
+  depositPaymentMethod?: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque' | 'Credit/On Account';
+  depositPaymentReference?: string;
+  reservationStatus?: 'reserved_active' | 'fulfilled' | 'cancelled';
+  fulfilledAt?: string;
+  fulfillmentNotes?: string;
+  isStockReserved?: boolean;
+  scheduledReleaseDate?: string;
   // Delivery Note & Logistics fields
   deliveryAddress?: string;
   driverName?: string;

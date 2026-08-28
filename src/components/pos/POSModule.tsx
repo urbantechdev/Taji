@@ -3,8 +3,10 @@ import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, LocationId } from '../../types';
+import { hasPermission } from '../../utils/rbac';
 import { HeldCartsModal } from './HeldCartsModal';
 import { ProductDetailModal } from './ProductDetailModal';
+import { ForwardReservationsModal } from './ForwardReservationsModal';
 import { playClickSound, playPopupSound, playSuccessSound, playAlertSound, playAddToCartSound, playBarcodeScanBeep, playScannerErrorBeep } from '../../utils/audio';
 import {
   Search,
@@ -42,7 +44,9 @@ import {
   TrendingUp,
   FileSpreadsheet,
   Lock,
-  RotateCcw
+  RotateCcw,
+  Calendar,
+  CalendarDays
 } from 'lucide-react';
 
 export const POSModule: React.FC = () => {
@@ -70,10 +74,20 @@ export const POSModule: React.FC = () => {
     setIsPeriodicStatementModalOpen,
     categoryPricingConfigs,
     setIsReturnExchangeModalOpen,
-    quarantinedDefects
+    quarantinedDefects,
+    orders,
+    isForwardReservationsModalOpen,
+    setIsForwardReservationsModalOpen,
+    currentUser,
+    isAdmin
   } = useERP();
 
+  const canCloseShift = isAdmin || hasPermission(currentUser.role, 'canCloseShift');
+  const canViewReports = isAdmin || hasPermission(currentUser.role, 'canAccessAuditLedger');
+  const canDispatchTransfers = isAdmin || hasPermission(currentUser.role, 'canDispatchTransfers');
+
   const unreadMails = mailNotifications ? mailNotifications.filter(m => !m.read).length : 0;
+  const activeForwardReservationsCount = orders ? orders.filter(o => o.status === 'reserved' || o.reservationStatus === 'reserved_active').length : 0;
 
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,6 +104,17 @@ export const POSModule: React.FC = () => {
   const [isQuotation, setIsQuotation] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCartExpanded, setIsCartExpanded] = useState(false);
+
+  // Forward-Dated Reservation & Advance Order State
+  const [isForwardDated, setIsForwardDated] = useState(false);
+  const [forwardFulfillmentDate, setForwardFulfillmentDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [depositOption, setDepositOption] = useState<'full' | 'half' | 'custom'>('full');
+  const [customDepositInput, setCustomDepositInput] = useState<number>(0);
+  const [fulfillmentNotes, setFulfillmentNotes] = useState('');
 
   // Digital Scale & Variable Cone Weigher Pad State
   const [isDigitalScaleOpen, setIsDigitalScaleOpen] = useState(false);
@@ -186,16 +211,41 @@ export const POSModule: React.FC = () => {
   const subtotal = Number((totalGross / (1 + etrConfig.vatRate)).toFixed(2));
   const vatAmount = Number((totalGross - subtotal).toFixed(2));
 
+  // Compute calculated deposit amount for forward reservations
+  const netGrossPayable = applyWHT5 ? totalGross - Number((totalGross * 0.05).toFixed(2)) : totalGross;
+  const computedDeposit = isForwardDated
+    ? depositOption === 'full'
+      ? netGrossPayable
+      : depositOption === 'half'
+      ? Math.round(netGrossPayable / 2)
+      : Math.min(netGrossPayable, Math.max(0, customDepositInput))
+    : netGrossPayable;
+  const balanceDue = Math.max(0, netGrossPayable - computedDeposit);
+
   // Handle Checkout
   const handleCheckoutSubmit = () => {
     setCheckoutError(null);
-    const res = processPOSCheckout(paymentMethod, customerName, customerKraPin, isQuotation, applyWHT5, whtCertificateNo);
+    const res = processPOSCheckout(
+      paymentMethod,
+      customerName,
+      customerKraPin,
+      isQuotation,
+      applyWHT5,
+      whtCertificateNo,
+      isForwardDated,
+      forwardFulfillmentDate,
+      computedDeposit,
+      fulfillmentNotes
+    );
     if (!res.success) {
       setCheckoutError(res.message || 'Checkout failed.');
     } else {
       setIsCheckoutModalOpen(false);
       setApplyWHT5(false);
       setWhtCertificateNo('');
+      setIsForwardDated(false);
+      setDepositOption('full');
+      setFulfillmentNotes('');
     }
   };
 
@@ -441,33 +491,54 @@ export const POSModule: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => setIsTodaySalesModalOpen(true)}
-                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
-                  title="View Today's Real-time Sales, Cash at hand, Bank & M-Pesa"
+                  onClick={() => setIsForwardReservationsModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95 border border-amber-300/60"
+                  title="View, Fulfill & Dispatch Forward-Dated Reservations & Advance Bookings"
                 >
-                  <TrendingUp className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Sales Today</span>
+                  <CalendarDays className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Advance Bookings</span>
+                  {activeForwardReservationsCount > 0 && (
+                    <span className="bg-slate-950 text-amber-300 text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+                      {activeForwardReservationsCount}
+                    </span>
+                  )}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsPeriodicStatementModalOpen(true)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
-                  title="Download Daily, Weekly, or Monthly Statements"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Statements</span>
-                </button>
+                {canViewReports && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsTodaySalesModalOpen(true)}
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
+                      title="View Today's Real-time Sales, Cash at hand, Bank & M-Pesa"
+                    >
+                      <TrendingUp className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Sales Today</span>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsShiftClosureModalOpen(true)}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
-                  title="Close Shift at End of Day - Reconcile Cash in Hand vs Bank & M-Pesa"
-                >
-                  <Lock className="w-3.5 h-3.5 text-amber-200" />
-                  <span>Close Shift</span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsPeriodicStatementModalOpen(true)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
+                      title="Download Daily, Weekly, or Monthly Statements"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Statements</span>
+                    </button>
+                  </>
+                )}
+
+                {canCloseShift && (
+                  <button
+                    type="button"
+                    onClick={() => setIsShiftClosureModalOpen(true)}
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
+                    title="Close Shift at End of Day - Reconcile Cash in Hand vs Bank & M-Pesa"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-amber-200" />
+                    <span>Close Shift</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setIsMailDrawerOpen(true)}
@@ -487,14 +558,16 @@ export const POSModule: React.FC = () => {
                   )}
                 </button>
 
-                <button
-                  onClick={() => handleOpenTransferModalWithCart()}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-900 to-rose-900 hover:from-indigo-800 hover:to-rose-800 text-white text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer border border-indigo-700/50 hover:scale-105 active:scale-95"
-                  title="Direct Inter-Store Stock Dispatch & Transfer from POS"
-                >
-                  <ArrowRightLeft className="w-4 h-4 text-amber-400" />
-                  <span>Inter-Store POS Transfer</span>
-                </button>
+                {canDispatchTransfers && (
+                  <button
+                    onClick={() => handleOpenTransferModalWithCart()}
+                    className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-900 to-rose-900 hover:from-indigo-800 hover:to-rose-800 text-white text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer border border-indigo-700/50 hover:scale-105 active:scale-95"
+                    title="Direct Inter-Store Stock Dispatch & Transfer from POS"
+                  >
+                    <ArrowRightLeft className="w-4 h-4 text-amber-400" />
+                    <span>Inter-Store POS Transfer</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setIsQRScannerOpen(true)}
@@ -1264,16 +1337,53 @@ export const POSModule: React.FC = () => {
       {/* CHECKOUT & PAYMENT MODAL */}
       {isCheckoutModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-md w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto border-0 sm:border border-rose-100 space-y-4 p-5 sm:p-6 animate-in fade-in zoom-in duration-200 flex flex-col">
+          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-lg w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[92vh] overflow-y-auto border-0 sm:border border-rose-100 space-y-4 p-5 sm:p-6 animate-in fade-in zoom-in duration-200 flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
-              <h3 className="font-bold text-slate-900 text-base">
-                Payment Capture &amp; ETR Billing
-              </h3>
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-xl ${isForwardDated ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
+                  {isForwardDated ? <CalendarDays className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    {isForwardDated ? 'Forward-Dated Reservation Booking' : 'Payment Capture & ETR Billing'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {isForwardDated ? 'Stock locked now • Deferred KRA Tax Invoice on fulfillment' : 'Real-time sale • Immediate KRA eTIMS receipt'}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setIsCheckoutModalOpen(false)}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Sale Mode Selector Switch */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsForwardDated(false)}
+                className={`py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  !isForwardDated 
+                    ? 'bg-white text-rose-700 shadow-xs border border-rose-200/50' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>⚡ Immediate POS Sale</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsForwardDated(true)}
+                className={`py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  isForwardDated 
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-black border border-amber-400' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>📅 Forward-Dated Order</span>
               </button>
             </div>
 
@@ -1283,7 +1393,7 @@ export const POSModule: React.FC = () => {
               </div>
             )}
 
-            <div className="space-y-3 flex-1 overflow-y-auto">
+            <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
                   Customer Name:
@@ -1296,6 +1406,116 @@ export const POSModule: React.FC = () => {
                   placeholder="e.g. Kipchoge Garment Tailors"
                 />
               </div>
+
+              {/* Forward-Dated Specific Configuration Box */}
+              {isForwardDated && (
+                <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-300 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      Forward Fulfillment Date:
+                    </span>
+                    <span className="text-[10px] uppercase font-bold text-amber-700 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                      Advance Order
+                    </span>
+                  </div>
+
+                  <input
+                    type="date"
+                    value={forwardFulfillmentDate}
+                    min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                    onChange={e => setForwardFulfillmentDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+
+                  {/* Advance Deposit Option Selection */}
+                  <div className="space-y-2 pt-1 border-t border-amber-200">
+                    <label className="text-xs font-bold text-amber-950 block">
+                      Advance Deposit to Collect Today:
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setDepositOption('full')}
+                        className={`py-1.5 px-2 rounded-lg border text-center transition-all ${
+                          depositOption === 'full'
+                            ? 'bg-amber-600 text-white border-amber-600 font-extrabold'
+                            : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/50'
+                        }`}
+                      >
+                        100% Full (KSh {netGrossPayable.toLocaleString()})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDepositOption('half')}
+                        className={`py-1.5 px-2 rounded-lg border text-center transition-all ${
+                          depositOption === 'half'
+                            ? 'bg-amber-600 text-white border-amber-600 font-extrabold'
+                            : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/50'
+                        }`}
+                      >
+                        50% Down (KSh {Math.round(netGrossPayable / 2).toLocaleString()})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDepositOption('custom');
+                          if (!customDepositInput) setCustomDepositInput(Math.round(netGrossPayable * 0.3));
+                        }}
+                        className={`py-1.5 px-2 rounded-lg border text-center transition-all ${
+                          depositOption === 'custom'
+                            ? 'bg-amber-600 text-white border-amber-600 font-extrabold'
+                            : 'bg-white text-slate-700 border-amber-200 hover:bg-amber-100/50'
+                        }`}
+                      >
+                        Custom KSh
+                      </button>
+                    </div>
+
+                    {depositOption === 'custom' && (
+                      <div className="pt-1 flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-600">Custom Deposit:</span>
+                        <div className="relative flex-1">
+                          <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-bold">KSh</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={netGrossPayable}
+                            value={customDepositInput}
+                            onChange={e => setCustomDepositInput(Math.max(0, parseFloat(e.target.value) || 0))}
+                            className="w-full pl-10 pr-2 py-1 bg-white border border-amber-300 rounded-lg text-xs font-mono font-bold text-slate-900"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Deposit Breakdown preview */}
+                    <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200 text-[11px] space-y-1 text-slate-700 font-medium">
+                      <div className="flex justify-between">
+                        <span>Advance Deposit Collected Today:</span>
+                        <span className="font-mono font-bold text-emerald-700">KSh {computedDeposit.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-amber-900 font-bold">
+                        <span>Balance Due on Fulfillment:</span>
+                        <span className="font-mono">KSh {balanceDue.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-amber-950 block mb-1">
+                      Fulfillment &amp; Delivery Instructions (Optional):
+                    </label>
+                    <input
+                      type="text"
+                      value={fulfillmentNotes}
+                      onChange={e => setFulfillmentNotes(e.target.value)}
+                      placeholder="e.g. Customer to collect at Sales Shop on delivery date"
+                      className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
@@ -1312,7 +1532,7 @@ export const POSModule: React.FC = () => {
 
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Payment Method:
+                  {isForwardDated ? 'Deposit Payment Channel:' : 'Payment Method:'}
                 </label>
                 <select
                   value={paymentMethod}
@@ -1327,18 +1547,20 @@ export const POSModule: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="proforma"
-                  checked={isQuotation}
-                  onChange={e => setIsQuotation(e.target.checked)}
-                  className="rounded text-rose-600 focus:ring-rose-500"
-                />
-                <label htmlFor="proforma" className="text-xs font-semibold text-slate-700 cursor-pointer">
-                  Generate Proforma Quotation Only (Do not deduct stock)
-                </label>
-              </div>
+              {!isForwardDated && (
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="proforma"
+                    checked={isQuotation}
+                    onChange={e => setIsQuotation(e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-500"
+                  />
+                  <label htmlFor="proforma" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                    Generate Proforma Quotation Only (Do not deduct stock)
+                  </label>
+                </div>
+              )}
 
               {/* 5% Withholding Tax (WHT) Toggle Section */}
               <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200/90 space-y-2.5">
@@ -1381,32 +1603,46 @@ export const POSModule: React.FC = () => {
                 )}
               </div>
 
-              <div className="bg-rose-50 p-4 rounded-2xl border border-rose-200 text-xs space-y-2">
+              {/* Cost & Tax Summary Banner */}
+              <div className={`${isForwardDated ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'} p-4 rounded-2xl border text-xs space-y-2`}>
                 <div className="flex justify-between font-black text-slate-900 items-baseline">
                   <span className="text-xs uppercase font-extrabold text-slate-700">
-                    {applyWHT5 ? 'Net Amount Collectible:' : 'Grand Total Payable:'}
+                    {isForwardDated ? 'Deposit Payable Today:' : applyWHT5 ? 'Net Amount Collectible:' : 'Grand Total Payable:'}
                   </span>
-                  <span className="text-rose-700 font-mono text-3xl sm:text-4xl font-black tracking-tight">
-                    KSh {(applyWHT5 ? totalGross - Number((totalGross * 0.05).toFixed(2)) : totalGross).toLocaleString()}
+                  <span className={`${isForwardDated ? 'text-amber-700' : 'text-rose-700'} font-mono text-3xl sm:text-4xl font-black tracking-tight`}>
+                    KSh {(isForwardDated ? computedDeposit : netGrossPayable).toLocaleString()}
                   </span>
                 </div>
 
-                {applyWHT5 && (
-                  <div className="bg-white/90 p-2.5 rounded-xl border border-rose-200 space-y-1 text-[11px] text-slate-700 font-medium">
+                {isForwardDated ? (
+                  <div className="bg-white/90 p-2.5 rounded-xl border border-amber-200 space-y-1 text-[11px] text-slate-700 font-medium">
                     <div className="flex justify-between">
-                      <span>Gross Invoice Value:</span>
+                      <span>Total Reserved Order Value:</span>
                       <span className="font-mono font-bold text-slate-900">KSh {totalGross.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-amber-800 font-semibold">
-                      <span>Less 5% Withholding Tax (WHT):</span>
-                      <span className="font-mono font-bold">- KSh {Number((totalGross * 0.05).toFixed(2)).toLocaleString()}</span>
+                      <span>Balance on Target Date ({forwardFulfillmentDate}):</span>
+                      <span className="font-mono font-bold">KSh {balanceDue.toLocaleString()}</span>
                     </div>
                   </div>
+                ) : (
+                  applyWHT5 && (
+                    <div className="bg-white/90 p-2.5 rounded-xl border border-rose-200 space-y-1 text-[11px] text-slate-700 font-medium">
+                      <div className="flex justify-between">
+                        <span>Gross Invoice Value:</span>
+                        <span className="font-mono font-bold text-slate-900">KSh {totalGross.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-amber-800 font-semibold">
+                        <span>Less 5% Withholding Tax (WHT):</span>
+                        <span className="font-mono font-bold">- KSh {Number((totalGross * 0.05).toFixed(2)).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )
                 )}
 
-                <p className="text-[11px] text-slate-600 font-medium border-t border-rose-200/60 pt-1.5 flex justify-between items-center">
-                  <span>Includes 16% KRA VAT: <strong className="font-mono text-slate-900 font-bold">KSh {vatAmount.toLocaleString()}</strong></span>
-                  <span className="bg-white px-2 py-0.5 rounded border border-rose-200 text-[10px] font-mono font-bold text-rose-800">PIN: {etrConfig.taxPin}</span>
+                <p className="text-[11px] text-slate-600 font-medium border-t border-slate-200/60 pt-1.5 flex justify-between items-center">
+                  <span>{isForwardDated ? 'KRA eTIMS invoice triggered upon fulfillment' : `Includes 16% KRA VAT: KSh ${vatAmount.toLocaleString()}`}</span>
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200 text-[10px] font-mono font-bold text-slate-800">PIN: {etrConfig.taxPin}</span>
                 </p>
               </div>
             </div>
@@ -1420,9 +1656,13 @@ export const POSModule: React.FC = () => {
               </button>
               <button
                 onClick={handleCheckoutSubmit}
-                className="w-1/2 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors"
+                className={`w-1/2 py-3 text-white font-bold text-xs rounded-xl shadow transition-colors ${
+                  isForwardDated
+                    ? 'bg-amber-600 hover:bg-amber-700 text-slate-950 font-black'
+                    : 'bg-rose-600 hover:bg-rose-700'
+                }`}
               >
-                Confirm &amp; Issue ETR
+                {isForwardDated ? 'Confirm & Lock Stock Reservation' : 'Confirm & Issue ETR'}
               </button>
             </div>
           </div>
@@ -2197,6 +2437,9 @@ export const POSModule: React.FC = () => {
           canSellDirectly={activeLocInfo?.canSellDirectly ?? true}
         />
       )}
+
+      {/* FORWARD-DATED RESERVATIONS & ADVANCE ORDERS MODAL */}
+      <ForwardReservationsModal />
 
     </div>
   );

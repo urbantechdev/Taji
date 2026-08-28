@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
+import { hasPermission } from '../../utils/rbac';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { SaleOrder, DocumentType } from '../../types';
@@ -45,8 +46,13 @@ export const ETRModule: React.FC = () => {
     updateETRConfig,
     setSelectedReceipt,
     convertQuotationToInvoice,
-    deleteBillingDocument
+    deleteBillingDocument,
+    currentUser,
+    isAdmin
   } = useERP();
+
+  const canCreateBilling = isAdmin || hasPermission(currentUser.role, 'canProcessSales') || hasPermission(currentUser.role, 'canGenerateTaxReports');
+  const canDeleteBilling = isAdmin || hasPermission(currentUser.role, 'canManageLedgerEntries');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterTab, setActiveFilterTab] = useState<
@@ -189,13 +195,15 @@ export const ETRModule: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2.5 relative z-10">
           {/* Create Document Action Button */}
-          <button
-            onClick={() => handleOpenCreateModal('invoice')}
-            className="px-4 py-2.5 bg-white text-rose-700 hover:bg-rose-50 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer"
-          >
-            <Plus className="w-4 h-4 text-rose-600" />
-            <span>Create Document</span>
-          </button>
+          {canCreateBilling && (
+            <button
+              onClick={() => handleOpenCreateModal('invoice')}
+              className="px-4 py-2.5 bg-white text-rose-700 hover:bg-rose-50 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-rose-600" />
+              <span>Create Document</span>
+            </button>
+          )}
 
           <button
             onClick={handleExportMasterCSV}
@@ -576,7 +584,7 @@ export const ETRModule: React.FC = () => {
                         </button>
 
                         {/* Convert quotation shortcut */}
-                        {isQuotation && (
+                        {isQuotation && canCreateBilling && (
                           <button
                             onClick={() => setConvertingQuotation(order)}
                             className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
@@ -597,13 +605,15 @@ export const ETRModule: React.FC = () => {
                         </button>
 
                         {/* Delete document button */}
-                        <button
-                          onClick={() => handleDeleteDocument(order)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center cursor-pointer"
-                          title="Delete Document Record"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {canDeleteBilling && (
+                          <button
+                            onClick={() => handleDeleteDocument(order)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+                            title="Delete Document Record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </td>
 
                     </tr>
