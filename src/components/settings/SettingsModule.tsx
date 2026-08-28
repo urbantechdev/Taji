@@ -87,38 +87,38 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ initialSubTab = 
     <div className="space-y-6 pb-12" id="settings-module-root">
       
       {/* Top Main Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 text-white rounded-2xl sm:rounded-3xl p-3 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-600 to-rose-700 text-white flex items-center justify-center shadow-lg shrink-0 border border-pink-400/30">
-              <Settings className="w-7 h-7 animate-spin-slow" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5 sm:gap-4">
+            <div className="w-9 h-9 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-pink-600 to-rose-700 text-white flex items-center justify-center shadow-lg shrink-0 border border-pink-400/30">
+              <Settings className="w-4 h-4 sm:w-7 sm:h-7 animate-spin-slow" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                <h1 className="text-base sm:text-2xl font-black tracking-tight text-white">
                   System Settings &amp; Governance Center
                 </h1>
-                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40 uppercase tracking-wider">
-                  Admin Central
+                <span className="text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40 uppercase tracking-wider">
+                  Admin
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1">
+              <p className="text-[11px] sm:text-sm text-slate-300 font-medium mt-0.5 line-clamp-2 sm:line-clamp-none">
                 Configure master product pricing, role permissions, KRA accounting, staff user accounts &amp; real fabric barcodes.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-xs font-mono text-slate-300 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-[10px] sm:text-xs font-mono text-slate-300 flex items-center gap-1.5 sm:gap-2">
+              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>{brandSettings.brandName || 'TAJI'} ERP Core v2.6</span>
             </div>
           </div>
         </div>
 
         {/* Sub-Tabs Nav Pill Strip */}
-        <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="mt-3 sm:mt-6 pt-2.5 sm:pt-5 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeSubTab === tab.id;

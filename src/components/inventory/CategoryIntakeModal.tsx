@@ -41,7 +41,6 @@ export interface CategoryPresetConfig {
   themeGradient: string;
   badgeBg: string;
   badgeText: string;
-  presetBarcodes: { code: string; label: string; colorName: string; colorHex: string }[];
 }
 
 const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
@@ -56,13 +55,7 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
     iconText: '🧵',
     themeGradient: 'from-blue-950 via-slate-900 to-indigo-950',
     badgeBg: 'bg-blue-100 text-blue-800 border-blue-200',
-    badgeText: 'text-blue-700',
-    presetBarcodes: [
-      { code: 'DRC-ROYAL-NAVY-01', label: 'Royal Navy Dereec', colorName: 'Royal Navy', colorHex: '#1E3A8A' },
-      { code: 'DRC-CRIMSON-RED-02', label: 'Crimson Red Dereec', colorName: 'Crimson Red', colorHex: '#DC2626' },
-      { code: 'DRC-EMERALD-GRN-03', label: 'Deep Emerald Dereec', colorName: 'Deep Emerald', colorHex: '#047857' },
-      { code: 'DRC-MIDNIGHT-BLK-04', label: 'Midnight Black Dereec', colorName: 'Midnight Black', colorHex: '#0F172A' }
-    ]
+    badgeText: 'text-blue-700'
   },
   Fleece: {
     category: 'Fleece',
@@ -75,13 +68,7 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
     iconText: '🧥',
     themeGradient: 'from-amber-950 via-slate-900 to-rose-950',
     badgeBg: 'bg-amber-100 text-amber-900 border-amber-200',
-    badgeText: 'text-amber-700',
-    presetBarcodes: [
-      { code: 'FLC-CHARCOAL-HTH-01', label: 'Heather Charcoal Fleece', colorName: 'Heather Charcoal', colorHex: '#374151' },
-      { code: 'FLC-ARCTIC-BLU-02', label: 'Arctic Glacier Fleece', colorName: 'Arctic Glacier', colorHex: '#0284C7' },
-      { code: 'FLC-DESERT-SND-03', label: 'Desert Camel Fleece', colorName: 'Desert Camel', colorHex: '#D97706' },
-      { code: 'FLC-FOREST-PIN-04', label: 'Pine Forest Fleece', colorName: 'Pine Forest', colorHex: '#15803D' }
-    ]
+    badgeText: 'text-amber-700'
   },
   Yarns: {
     category: 'Yarns',
@@ -94,13 +81,7 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
     iconText: '🧶',
     themeGradient: 'from-purple-950 via-slate-900 to-pink-950',
     badgeBg: 'bg-purple-100 text-purple-800 border-purple-200',
-    badgeText: 'text-purple-700',
-    presetBarcodes: [
-      { code: 'MIX GREY-4251', label: 'Shade: MIX GREY-4251 (Oster India)', colorName: 'Mix Grey', colorHex: '#94A3B8' },
-      { code: '26E081', label: 'Lot Barcode: 26E081 (Dye Lot)', colorName: 'Mix Grey', colorHex: '#94A3B8' },
-      { code: 'YRN-IVORY-WHT-01', label: 'Pure Ivory White (2/24 NM)', colorName: 'Pure Ivory', colorHex: '#F8FAFC' },
-      { code: 'YRN-ONYX-BLK-04', label: 'Onyx Black (2/24 NM)', colorName: 'Onyx Black', colorHex: '#000000' }
-    ]
+    badgeText: 'text-purple-700'
   }
 };
 
@@ -522,28 +503,28 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-rose-100/60 overflow-hidden my-auto flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center p-0 sm:p-5 bg-slate-950/90 sm:bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-hidden sm:overflow-y-auto">
+      <div className="relative w-full max-w-5xl bg-white rounded-none sm:rounded-3xl shadow-2xl border-0 sm:border border-rose-100/60 overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[92vh]">
         <RightEdgeBlend variant="rainbow" />
         <ReflectionOverlay opacity={0.06} />
 
         {/* Modal Top Header */}
-        <div className="relative bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-5 text-white border-b border-rose-500/20 shrink-0">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-rose-600/30 border border-rose-400/40 rounded-2xl text-amber-400 shadow-md">
-                <Barcode className="w-6 h-6" />
+        <div className="relative bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 p-3.5 sm:p-5 text-white border-b border-rose-500/20 shrink-0">
+          <div className="flex items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="p-2 sm:p-2.5 bg-rose-600/30 border border-rose-400/40 rounded-xl sm:rounded-2xl text-amber-400 shadow-md shrink-0">
+                <Barcode className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-base sm:text-lg text-white">
-                    Category-Specific Barcode Inventory Intake
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <h3 className="font-extrabold text-sm sm:text-lg text-white truncate">
+                    Category Inventory Intake
                   </h3>
-                  <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Automated Intake
+                  <span className="bg-amber-400 text-slate-950 text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                    Automated
                   </span>
                 </div>
-                <p className="text-xs text-rose-200/80 mt-0.5">
+                <p className="text-[11px] sm:text-xs text-rose-200/80 mt-0.5 hidden sm:block">
                   Scan barcodes for Fleeces, Dereec &amp; Yarns to auto-register items, allocate stock, and compute business asset value
                 </p>
               </div>
@@ -554,7 +535,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                 playClickSound();
                 onClose();
               }}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
@@ -562,7 +543,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
         </div>
 
         {/* Main Modal Body */}
-        <div className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1">
+        <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1 overscroll-contain">
 
           {/* If Session is Completed -> Show Completion Summary Screen */}
           {completionResult ? (
@@ -1005,36 +986,6 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                   </div>
                 )}
 
-                {/* Quick 1-Click Simulation Barcode Test Pills */}
-                <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-extrabold uppercase text-slate-500">Quick Test Barcode Simulator ({selectedCategory}):</span>
-                    <span className="text-[10px] text-slate-400">Click any barcode to simulate instant scan</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {currentPreset.presetBarcodes.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleScanBarcode(preset.code)}
-                        className="px-2.5 py-1 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-300 rounded-xl text-xs font-mono font-bold text-slate-800 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-                      >
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: preset.colorHex }} />
-                        <span>{preset.code}</span>
-                        <span className="text-[10px] text-slate-400 font-sans">({preset.colorName})</span>
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => handleScanBarcode(`${selectedCategory.slice(0, 3).toUpperCase()}-NEW-${Math.floor(1000 + Math.random() * 9000)}`)}
-                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 rounded-xl text-xs font-mono font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
-                    >
-                      <Plus className="w-3 h-3 text-amber-700" />
-                      <span>Simulate Brand New Barcode</span>
-                    </button>
-                  </div>
-                </div>
-
                 {/* Scanned Items Session Table */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs font-bold text-slate-700">
@@ -1062,7 +1013,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                       <Barcode className="w-8 h-8 text-slate-300 mx-auto" />
                       <p className="text-xs font-bold text-slate-600">No items scanned in this session yet.</p>
                       <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                        Point your barcode scanner at physical bolts, cones, or garments, or click a test barcode above to start adding stock.
+                        Point your camera or barcode scanner at physical bolts, cones, or garments to register intake inventory.
                       </p>
                     </div>
                   ) : (

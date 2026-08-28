@@ -155,34 +155,34 @@ export const FabricRollManagerModal: React.FC = () => {
   return (
     <div
       id="fabric-roll-modal-overlay"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center bg-slate-950 sm:bg-black/60 backdrop-blur-sm p-0 sm:p-4 overflow-hidden sm:overflow-y-auto animate-in fade-in duration-200"
     >
       <div
         id="fabric-roll-modal-card"
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full h-[100dvh] sm:h-auto max-w-5xl overflow-hidden flex flex-col sm:max-h-[92vh]"
       >
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-teal-900 via-emerald-900 to-slate-950 text-white px-5 py-4 flex items-center justify-between border-b border-emerald-800/60 shadow-inner">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center shadow-md">
-              <Layers className="w-5 h-5 text-slate-950 stroke-[2.5]" />
+        <div className="bg-gradient-to-r from-teal-900 via-emerald-900 to-slate-950 text-white px-3.5 sm:px-5 py-3 sm:py-4 flex items-center justify-between border-b border-emerald-800/60 shadow-inner shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center shadow-md shrink-0">
+              <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-slate-950 stroke-[2.5]" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5">
-                  Fabric Piece Goods &amp; Roll Inventory
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h2 className="text-sm sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 truncate">
+                  Fabric Piece Goods &amp; Rolls
                 </h2>
-                <span className="bg-teal-400/20 text-teal-300 font-bold text-[10px] px-2 py-0.5 rounded-full border border-teal-400/30">
-                  Fleece &amp; Dereec (Meters)
+                <span className="bg-teal-400/20 text-teal-300 font-bold text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border border-teal-400/30 shrink-0">
+                  Meters
                 </span>
               </div>
-              <p className="text-xs text-teal-200/90 font-medium">
+              <p className="text-[11px] sm:text-xs text-teal-200/90 font-medium hidden sm:block">
                 Variable meterage per roll intake, piece cutting, remnant bundle discounts &amp; defect cutout quarantine
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={() => {
                 setIsFabricRollModalOpen(false);

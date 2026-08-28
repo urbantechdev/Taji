@@ -41,12 +41,124 @@ interface MobileBottomNavProps {
 
 const roles: { role: UserRole; label: string; location: LocationId }[] = [
   { role: 'admin', label: 'Admin / Executive', location: 'main_store' },
+  { role: 'accountant', label: 'Finance & Accounting', location: 'main_store' },
+  { role: 'hr_manager', label: 'HR Manager', location: 'main_store' },
+  { role: 'branch_manager', label: 'Branch Manager', location: 'sales_shop' },
   { role: 'main_store_operator', label: 'Main Store Operator', location: 'main_store' },
   { role: 'sales_shop_cashier', label: 'Sales Shop Cashier', location: 'sales_shop' },
   { role: 'store_1_attendant', label: 'Store 1 Attendant', location: 'store_1' },
-  { role: 'store_2_attendant', label: 'Store 2 Attendant', location: 'store_2' },
-  { role: 'accountant', label: 'Accountant', location: 'main_store' }
+  { role: 'store_2_attendant', label: 'Store 2 Attendant', location: 'store_2' }
 ];
+
+const ROLE_PRIMARY_PRIORITIES: Record<UserRole, NavTab[]> = {
+  admin: ['dashboard', 'pos', 'catalog', 'transfers'],
+  accountant: ['ledger', 'sales_today', 'etr', 'payroll'],
+  hr_manager: ['payroll', 'operators', 'dashboard', 'branches'],
+  branch_manager: ['dashboard', 'pos', 'catalog', 'ledger'],
+  sales_shop_cashier: ['pos', 'sales_today', 'catalog', 'etr'],
+  branch_cashier: ['pos', 'sales_today', 'catalog', 'etr'],
+  pos_cashier: ['pos', 'sales_today', 'catalog', 'etr'],
+  main_store_operator: ['catalog', 'transfers', 'branches', 'audit'],
+  store_1_attendant: ['transfers', 'catalog', 'gmail', 'guide'],
+  store_2_attendant: ['transfers', 'catalog', 'gmail', 'guide']
+};
+
+const ALL_TABS_META: Record<
+  NavTab,
+  {
+    label: string;
+    shortLabel: string;
+    icon: React.ReactNode;
+    desc: string;
+    isInventoryHighlight?: boolean;
+  }
+> = {
+  dashboard: {
+    label: 'Executive Dashboard',
+    shortLabel: 'Overview',
+    icon: <LayoutDashboard className="w-5 h-5" />,
+    desc: 'Executive multi-branch stats & metrics'
+  },
+  sales_today: {
+    label: 'Sales Today & Cash',
+    shortLabel: 'Today',
+    icon: <TrendingUp className="w-5 h-5 text-rose-600" />,
+    desc: 'Live revenue, bank, mpesa & cash'
+  },
+  pos: {
+    label: 'POS Sales & Orders',
+    shortLabel: 'POS',
+    icon: <ShoppingCart className="w-5 h-5" />,
+    desc: 'Retail counter sale & held carts'
+  },
+  catalog: {
+    label: 'Inventory Management',
+    shortLabel: 'Inventory',
+    icon: <Boxes className="w-5 h-5" />,
+    desc: 'Stock counts, meters & reorders',
+    isInventoryHighlight: true
+  },
+  transfers: {
+    label: 'Inter-Store Transfers',
+    shortLabel: 'Transfers',
+    icon: <ArrowLeftRight className="w-5 h-5" />,
+    desc: 'Dispatch & receive store stock'
+  },
+  branches: {
+    label: 'Autonomous Branches',
+    shortLabel: 'Branches',
+    icon: <Building2 className="w-5 h-5 text-indigo-500" />,
+    desc: 'Branch P&L & Cash Floats'
+  },
+  ledger: {
+    label: 'Accounting Ledger',
+    shortLabel: 'Ledger',
+    icon: <BookOpenCheck className="w-5 h-5 text-rose-500" />,
+    desc: 'Double-entry audit & balances'
+  },
+  etr: {
+    label: 'Billing & Invoices',
+    shortLabel: 'Billing',
+    icon: <Receipt className="w-5 h-5 text-pink-500" />,
+    desc: 'Invoices, receipts & quotes'
+  },
+  payroll: {
+    label: 'HR & Payroll',
+    shortLabel: 'Payroll',
+    icon: <Users className="w-5 h-5 text-purple-500" />,
+    desc: 'PAYE, NSSF, NHIF payslips'
+  },
+  operators: {
+    label: 'POS Users & PINs',
+    shortLabel: 'Team',
+    icon: <UserCheck className="w-5 h-5 text-teal-600" />,
+    desc: 'Cashier accounts & permissions'
+  },
+  audit: {
+    label: 'Audit Trail',
+    shortLabel: 'Audit',
+    icon: <ClipboardList className="w-5 h-5 text-amber-500" />,
+    desc: 'System operation logs'
+  },
+  gmail: {
+    label: 'Store Inbox',
+    shortLabel: 'Inbox',
+    icon: <Mail className="w-5 h-5 text-red-500" />,
+    desc: 'Read & send store emails'
+  },
+  settings: {
+    label: 'Platform Settings',
+    shortLabel: 'Settings',
+    icon: <Settings className="w-5 h-5 text-rose-500" />,
+    desc: 'Pricing, roles, barcodes & finance'
+  },
+  guide: {
+    label: 'User Guide & Manual',
+    shortLabel: 'Guide',
+    icon: <BookOpen className="w-5 h-5 text-amber-500" />,
+    desc: 'How-to guides, yarn tare & calibration'
+  }
+};
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeTab,
@@ -78,6 +190,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     lockPlatform
   } = useERP();
 
+  const effectiveRole = activeRole || currentUser.role;
+
   const unreadMails = mailNotifications.filter(m => !m.read).length;
 
   const mainStoreLowCount = products.filter(
@@ -88,98 +202,57 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     p => p.locationStock ? (p.locationStock.sales_shop ?? 0) <= p.minReorderLevel : false
   ).length;
 
-  const allPrimaryNav: { id: NavTab; label: string; icon: React.ReactNode }[] = [
-    {
-      id: 'dashboard',
-      label: 'Overview',
-      icon: <LayoutDashboard className="w-5 h-5" />
-    },
-    {
-      id: 'pos',
-      label: 'POS Sales',
-      icon: <ShoppingCart className="w-5 h-5" />
-    },
-    {
-      id: 'catalog',
-      label: 'Inventory',
-      icon: <Boxes className="w-5 h-5" />
-    },
-    {
-      id: 'transfers',
-      label: 'Transfers',
-      icon: <ArrowLeftRight className="w-5 h-5" />
+  // Strict RBAC filtering for permitted tabs
+  const allowedTabIds: NavTab[] = (
+    [
+      'dashboard',
+      'sales_today',
+      'branches',
+      'pos',
+      'catalog',
+      'transfers',
+      'ledger',
+      'etr',
+      'payroll',
+      'operators',
+      'audit',
+      'gmail',
+      'settings',
+      'guide'
+    ] as NavTab[]
+  ).filter(tabId => isTabAllowedForRole(effectiveRole, tabId));
+
+  // Determine top 4 primary tabs based on role priority
+  const priorityList = ROLE_PRIMARY_PRIORITIES[effectiveRole] || ['dashboard', 'pos', 'catalog', 'transfers'];
+  
+  const primaryTabIds: NavTab[] = [];
+  priorityList.forEach(tab => {
+    if (allowedTabIds.includes(tab) && !primaryTabIds.includes(tab) && primaryTabIds.length < 4) {
+      primaryTabIds.push(tab);
     }
-  ];
-
-  const allSecondaryNav: { id: NavTab; label: string; icon: React.ReactNode; desc: string }[] = [
-    {
-      id: 'sales_today',
-      label: 'Sales Today & Cash',
-      icon: <TrendingUp className="w-5 h-5 text-rose-600" />,
-      desc: 'Live revenue, bank, mpesa & cash'
-    },
-    {
-      id: 'branches',
-      label: 'Autonomous Branches',
-      icon: <Building2 className="w-5 h-5 text-indigo-500" />,
-      desc: 'Branch P&L & Cash Floats'
-    },
-    {
-      id: 'ledger',
-      label: 'Accounting Ledger',
-      icon: <BookOpenCheck className="w-5 h-5 text-rose-500" />,
-      desc: 'Double-entry audit & balances'
-    },
-    {
-      id: 'etr',
-      label: 'Billing & Invoices',
-      icon: <Receipt className="w-5 h-5 text-pink-500" />,
-      desc: 'Invoices, receipts & quotes'
-    },
-    {
-      id: 'payroll',
-      label: 'HR & Payroll',
-      icon: <Users className="w-5 h-5 text-purple-500" />,
-      desc: 'PAYE, NSSF, NHIF payslips'
-    },
-    {
-      id: 'audit',
-      label: 'Audit Trail',
-      icon: <ClipboardList className="w-5 h-5 text-amber-500" />,
-      desc: 'System operation logs'
-    },
-    {
-      id: 'gmail',
-      label: 'Inbox',
-      icon: <Mail className="w-5 h-5 text-red-500" />,
-      desc: 'Read & send store emails'
-    },
-    {
-      id: 'settings',
-      label: 'Platform Settings',
-      icon: <Settings className="w-5 h-5 text-rose-500" />,
-      desc: 'Pricing, roles, barcodes & finance'
-    },
-    {
-      id: 'guide',
-      label: 'User Guide & Manual',
-      icon: <BookOpen className="w-5 h-5 text-amber-500" />,
-      desc: 'How-to guides, yarn tare & meter calibration'
+  });
+  allowedTabIds.forEach(tab => {
+    if (!primaryTabIds.includes(tab) && primaryTabIds.length < 4) {
+      primaryTabIds.push(tab);
     }
-  ];
+  });
 
-  // RBAC filter: Only show tabs permitted for the user's role
-  const primaryNav = allPrimaryNav.filter(item => isTabAllowedForRole(currentUser.role, item.id));
-  const secondaryNav = allSecondaryNav.filter(item => isTabAllowedForRole(currentUser.role, item.id));
+  // Secondary tabs are whatever allowed tabs remain for this role
+  const secondaryTabIds = allowedTabIds.filter(tab => !primaryTabIds.includes(tab));
 
-  // If primaryNav is empty, pull first allowed items from secondaryNav
-  const displayPrimaryNav = primaryNav.length > 0
-    ? primaryNav
-    : secondaryNav.slice(0, 4).map(item => ({ id: item.id, label: item.label.split(' ')[0], icon: item.icon }));
+  const displayPrimaryNav = primaryTabIds.map(id => ({
+    id,
+    label: ALL_TABS_META[id]?.shortLabel || id,
+    icon: ALL_TABS_META[id]?.icon,
+    isInventoryHighlight: ALL_TABS_META[id]?.isInventoryHighlight
+  }));
 
-  const displaySecondaryNav = primaryNav.length > 0
-    ? secondaryNav
-    : secondaryNav.slice(4);
+  const displaySecondaryNav = secondaryTabIds.map(id => ({
+    id,
+    label: ALL_TABS_META[id]?.label || id,
+    icon: ALL_TABS_META[id]?.icon,
+    desc: ALL_TABS_META[id]?.desc || ''
+  }));
 
   const handleSelectTab = (tab: NavTab) => {
     playClickSound();
@@ -193,6 +266,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   };
 
   const isSecondaryActive = displaySecondaryNav.some(item => item.id === activeTab);
+  const canSwitchMode = isTabAllowedForRole(effectiveRole, 'dashboard') && isTabAllowedForRole(effectiveRole, 'pos');
+  const canUseBarcode = isTabAllowedForRole(effectiveRole, 'pos') || isTabAllowedForRole(effectiveRole, 'catalog') || isTabAllowedForRole(effectiveRole, 'transfers');
+  const canAccessSettings = isTabAllowedForRole(effectiveRole, 'settings') || isAdmin;
 
   return (
     <>
@@ -221,41 +297,43 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               </button>
             </div>
 
-            {/* Mobile Header Item 1: App Mode Switcher */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                System Mode
-              </label>
-              <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 border border-slate-200/80">
-                <button
-                  onClick={() => {
-                    setAppMode('admin');
-                  }}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                    appMode === 'admin'
-                      ? 'bg-rose-600 text-white shadow-md'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Admin Dashboard</span>
-                </button>
+            {/* Mobile Header Item 1: App Mode Switcher (Visible if role has access to both Admin & POS) */}
+            {canSwitchMode && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  System Mode
+                </label>
+                <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 border border-slate-200/80">
+                  <button
+                    onClick={() => {
+                      setAppMode('admin');
+                    }}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      appMode === 'admin'
+                        ? 'bg-rose-600 text-white shadow-md'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span>Admin Dashboard</span>
+                  </button>
 
-                <button
-                  onClick={() => {
-                    setAppMode('pos');
-                  }}
-                  className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                    appMode === 'pos'
-                      ? 'bg-rose-600 text-white shadow-md'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  <span>POS Terminal</span>
-                </button>
+                  <button
+                    onClick={() => {
+                      setAppMode('pos');
+                    }}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      appMode === 'pos'
+                        ? 'bg-rose-600 text-white shadow-md'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    <span>POS Terminal</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Mobile Header Item 2 & 3: Location Selector & Role Switcher */}
             <div className="grid grid-cols-2 gap-2.5">
@@ -304,17 +382,30 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 Quick Action Tools
               </label>
               <div className="grid grid-cols-4 gap-2">
-                {/* Barcode Scanner (Camera Instant Add) */}
-                <button
-                  onClick={() => {
-                    setIsMobileBarcodeScannerOpen(true);
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className="flex flex-col items-center justify-center p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl hover:bg-emerald-100 transition-colors shadow-xs group"
-                >
-                  <Camera className="w-5 h-5 text-emerald-700 group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-black text-emerald-950 mt-1">Barcode</span>
-                </button>
+                {/* Barcode Scanner (Camera Instant Add - only if role has POS or stock permissions) */}
+                {canUseBarcode ? (
+                  <button
+                    onClick={() => {
+                      setIsMobileBarcodeScannerOpen(true);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl hover:bg-emerald-100 transition-colors shadow-xs group"
+                  >
+                    <Camera className="w-5 h-5 text-emerald-700 group-hover:scale-110 transition-transform" />
+                    <span className="text-[10px] font-black text-emerald-950 mt-1">Barcode</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setIsQRScannerOpen(true);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center p-2.5 bg-indigo-50 border border-indigo-200/80 rounded-xl hover:bg-indigo-100 transition-colors"
+                  >
+                    <QrCode className="w-5 h-5 text-indigo-600" />
+                    <span className="text-[10px] font-bold text-indigo-900 mt-1">QR Code</span>
+                  </button>
+                )}
 
                 {/* Inbox Notifications */}
                 <button
@@ -333,29 +424,43 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   )}
                 </button>
 
-                {/* QR Scanner */}
-                <button
-                  onClick={() => {
-                    setIsQRScannerOpen(true);
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  <QrCode className="w-5 h-5 text-indigo-600" />
-                  <span className="text-[10px] font-bold text-slate-700 mt-1">Scan QR</span>
-                </button>
+                {/* QR Scanner (if barcode was rendered) */}
+                {canUseBarcode && (
+                  <button
+                    onClick={() => {
+                      setIsQRScannerOpen(true);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:bg-slate-100 transition-colors"
+                  >
+                    <QrCode className="w-5 h-5 text-indigo-600" />
+                    <span className="text-[10px] font-bold text-slate-700 mt-1">Scan QR</span>
+                  </button>
+                )}
 
-                {/* Brand Settings */}
-                <button
-                  onClick={() => {
-                    setIsBrandSettingsModalOpen(true);
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  <Settings className="w-5 h-5 text-amber-600" />
-                  <span className="text-[10px] font-bold text-slate-700 mt-1">Settings</span>
-                </button>
+                {/* Brand / Platform Settings (Admin / Settings permission only) */}
+                {canAccessSettings ? (
+                  <button
+                    onClick={() => {
+                      setIsBrandSettingsModalOpen(true);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:bg-slate-100 transition-colors"
+                  >
+                    <Settings className="w-5 h-5 text-amber-600" />
+                    <span className="text-[10px] font-bold text-slate-700 mt-1">Settings</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      handleSelectTab('guide');
+                    }}
+                    className="flex flex-col items-center justify-center p-2.5 bg-amber-50 border border-amber-200/80 rounded-xl hover:bg-amber-100 transition-colors"
+                  >
+                    <BookOpen className="w-5 h-5 text-amber-600" />
+                    <span className="text-[10px] font-bold text-amber-900 mt-1">Guide</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -430,37 +535,39 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             )}
 
             {/* Mobile Navigation Modules Grid */}
-            <div className="space-y-1.5 pt-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Platform Navigation Modules
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {secondaryNav.map(item => {
-                  const isActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleSelectTab(item.id)}
-                      className={`flex items-center gap-3.5 p-3 rounded-2xl border text-left transition-all ${
-                        isActive
-                          ? 'bg-gradient-to-r from-rose-600 to-pink-600 border-rose-500 text-white shadow-lg'
-                          : 'bg-slate-50 border-slate-200/80 text-slate-800 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className={`p-2.5 rounded-xl shrink-0 ${isActive ? 'bg-white/20' : 'bg-slate-100'}`}>
-                        {item.icon}
-                      </div>
-                      <div>
-                        <p className="font-bold text-xs">{item.label}</p>
-                        <p className={`text-[10px] leading-tight ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
-                          {item.desc}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
+            {displaySecondaryNav.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Platform Navigation Modules
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {displaySecondaryNav.map(item => {
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleSelectTab(item.id)}
+                        className={`flex items-center gap-3.5 p-3 rounded-2xl border text-left transition-all ${
+                          isActive
+                            ? 'bg-gradient-to-r from-rose-600 to-pink-600 border-rose-500 text-white shadow-lg'
+                            : 'bg-slate-50 border-slate-200/80 text-slate-800 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className={`p-2.5 rounded-xl shrink-0 ${isActive ? 'bg-white/20' : 'bg-slate-100'}`}>
+                          {item.icon}
+                        </div>
+                        <div>
+                          <p className="font-bold text-xs">{item.label}</p>
+                          <p className={`text-[10px] leading-tight ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
+                            {item.desc}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
           </div>
         </div>

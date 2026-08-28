@@ -219,36 +219,36 @@ export const ReturnExchangeModal: React.FC = () => {
   return (
     <div
       id="return-exchange-modal-overlay"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center bg-slate-950 sm:bg-black/60 backdrop-blur-sm p-0 sm:p-4 overflow-hidden sm:overflow-y-auto animate-in fade-in duration-200"
     >
       <div
         id="return-exchange-modal-card"
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[92vh]"
       >
         {/* Header */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <RotateCcw className="w-5 h-5" />
+        <div className="bg-slate-900 text-white px-3.5 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-lg font-bold tracking-tight text-white">
-                  Damaged Yarn Cones, RMA Returns & Exchanges
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                <h2 className="text-sm sm:text-lg font-bold tracking-tight text-white truncate">
+                  RMA Returns &amp; Exchanges
                 </h2>
-                <span className="px-2 py-0.5 text-xs font-semibold bg-amber-500/20 text-amber-300 rounded border border-amber-500/30">
-                  Dual-Ledger & Quarantine
+                <span className="px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-xs font-semibold bg-amber-500/20 text-amber-300 rounded border border-amber-500/30 shrink-0">
+                  Quarantine
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Process spoilt cones from sold bales, balance store stock, manage eTIMS credit notes & file supplier claims
+              <p className="text-[11px] sm:text-xs text-slate-400 hidden sm:block">
+                Process spoilt cones from sold bales, balance store stock, manage eTIMS credit notes &amp; file supplier claims
               </p>
             </div>
           </div>
           <button
             id="close-return-exchange-modal-btn"
             onClick={() => setIsReturnExchangeModalOpen(false)}
-            className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-slate-400 hover:text-white p-1.5 sm:p-2 rounded-xl hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

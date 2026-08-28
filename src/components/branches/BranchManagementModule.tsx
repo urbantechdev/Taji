@@ -285,18 +285,18 @@ export const BranchManagementModule: React.FC = () => {
       </AnimatePresence>
 
       {/* Header Banner */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-rose-100 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white p-3 sm:p-6 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-2 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2.5 bg-gradient-to-tr from-rose-600 to-pink-600 rounded-xl text-white shadow-md">
-                <Building2 className="w-6 h-6" />
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              <div className="p-1.5 sm:p-2.5 bg-gradient-to-tr from-rose-600 to-pink-600 rounded-lg sm:rounded-xl text-white shadow-md shrink-0">
+                <Building2 className="w-4 h-4 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                <h2 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight">
                   Autonomous Branch &amp; Financial Management
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-500 font-medium">
+                <p className="text-[11px] sm:text-sm text-slate-500 font-medium line-clamp-2 sm:line-clamp-none">
                   Create new independent branches, manage branch cash floats, record operating expenses, and inspect autonomous Profit &amp; Loss accounts.
                 </p>
               </div>

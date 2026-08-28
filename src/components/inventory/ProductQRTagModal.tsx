@@ -112,8 +112,8 @@ export const ProductQRTagModal: React.FC<ProductQRTagModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/70 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto animate-fadeIn">
-      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl max-w-md w-full h-auto max-h-[96dvh] sm:max-h-[90vh] p-5 sm:p-6 space-y-4 border border-rose-100 overflow-y-auto flex flex-col justify-between text-slate-900">
+    <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center bg-slate-950 sm:bg-slate-950/70 backdrop-blur-sm p-0 sm:p-4 overflow-hidden sm:overflow-y-auto animate-fadeIn">
+      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-md w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] p-4 sm:p-6 space-y-4 border-0 sm:border border-rose-100 overflow-y-auto flex flex-col justify-between text-slate-900">
         
         {/* MODAL HEADER */}
         <div className="space-y-3">

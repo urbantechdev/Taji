@@ -104,7 +104,7 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
   const [selectedIconModule, setSelectedIconModule] = useState<string>('all');
   const [iconSearchQuery, setIconSearchQuery] = useState('');
   const [hoveredCapability, setHoveredCapability] = useState<ButtonCapability | null>(BUTTON_CAPABILITIES[0]);
-  const [activeSimulatorTab, setActiveSimulatorTab] = useState<'cards' | 'live_toolbar'>('cards');
+  const [activeInspectorTab, setActiveInspectorTab] = useState<'cards' | 'live_toolbar'>('cards');
 
   // Filter articles based on search query and selected category
   const filteredArticles = useMemo(() => {
@@ -221,23 +221,23 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
     <div id="user-guide-module" className="space-y-6 animate-in fade-in duration-300">
       
       {/* Hero Banner with Search & Natural Language Query Box */}
-      <div className="relative rounded-3xl bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-6 sm:p-8 md:p-10 shadow-2xl border border-rose-500/20 overflow-hidden">
+      <div className="relative rounded-2xl sm:rounded-3xl bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-3 sm:p-8 md:p-10 shadow-2xl border border-rose-500/20 overflow-hidden">
         <ReflectionOverlay />
 
-        <div className="relative z-10 max-w-4xl mx-auto space-y-6 text-center">
+        <div className="relative z-10 max-w-4xl mx-auto space-y-2.5 sm:space-y-6 text-center">
           
           {/* Header Tag */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-400/30 text-rose-300 text-xs font-bold tracking-wide uppercase">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-rose-500/20 border border-rose-400/30 text-rose-300 text-[10px] sm:text-xs font-bold tracking-wide uppercase">
+            <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
             <span>Interactive Knowledge Base &amp; Capability Helper</span>
           </div>
 
           {/* Main Title */}
-          <div className="space-y-2">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+          <div className="space-y-1 sm:space-y-2">
+            <h1 className="text-lg sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">
               How can we help you navigate Taji ERP?
             </h1>
-            <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto font-medium">
+            <p className="text-xs sm:text-base text-slate-300 max-w-2xl mx-auto font-medium line-clamp-2 sm:line-clamp-none">
               Ask any question, search step-by-step guides for Fleece, Dereec &amp; Yarns, or explore button &amp; icon capabilities across the platform.
             </p>
           </div>
@@ -245,14 +245,14 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
           {/* Interactive Search Bar */}
           <div className="relative max-w-2xl mx-auto">
             <div className="relative flex items-center">
-              <Search className="w-5 h-5 text-rose-400 absolute left-4 pointer-events-none" />
+              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400 absolute left-3.5 sm:left-4 pointer-events-none" />
               <input
                 id="user-guide-search-input"
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Ask e.g. 'How to set yarn tare', 'Adjust fleece meters', 'Option 1 roll discount', 'POS checkout'..."
-                className="w-full pl-12 pr-12 py-3.5 sm:py-4 bg-white/10 hover:bg-white/15 focus:bg-white text-white focus:text-slate-900 placeholder:text-slate-400 rounded-2xl border border-white/20 focus:border-rose-500 shadow-xl focus:outline-hidden focus:ring-4 focus:ring-rose-500/30 transition-all text-sm sm:text-base font-medium"
+                placeholder="Ask e.g. 'How to set yarn tare', 'Adjust fleece meters', 'POS checkout'..."
+                className="w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-2 sm:py-4 bg-white/10 hover:bg-white/15 focus:bg-white text-white focus:text-slate-900 placeholder:text-slate-400 rounded-xl sm:rounded-2xl border border-white/20 focus:border-rose-500 shadow-xl focus:outline-hidden focus:ring-4 focus:ring-rose-500/30 transition-all text-xs sm:text-base font-medium"
               />
               {searchQuery && (
                 <button
@@ -390,7 +390,7 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-wider">
                   <Sparkles className="w-4 h-4" />
-                  <span>Live Hover &amp; Click Simulator</span>
+                  <span>Live Icon &amp; Action Explorer</span>
                 </div>
                 <h3 className="text-lg sm:text-xl font-bold text-white">
                   Interactive Button &amp; Icon Capability Inspector

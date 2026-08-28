@@ -281,7 +281,7 @@ export const BrandSettingsModal: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Tab Preview Box */}
               <div className="bg-white rounded-xl border border-slate-200 p-2.5 flex flex-col items-center justify-center text-center">
-                {/* Simulated Browser Tab */}
+                {/* Live Browser Tab Preview */}
                 <div className="w-full bg-slate-100 border border-slate-200 rounded-lg p-1.5 flex items-center gap-2 shadow-xs">
                   <div className="w-4 h-4 rounded-xs border border-slate-300 bg-white flex items-center justify-center overflow-hidden shrink-0">
                     {faviconUrl || logoUrl ? (

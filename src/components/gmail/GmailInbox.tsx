@@ -226,28 +226,28 @@ export const GmailInbox: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-2 sm:p-6 lg:p-8 space-y-3 sm:space-y-6 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-rose-900 via-pink-900 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-2xl border border-rose-500/30">
+      <div className="relative overflow-hidden bg-gradient-to-r from-rose-900 via-pink-900 to-slate-900 text-white p-3 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl border border-rose-500/30">
         <ReflectionOverlay />
         <RightEdgeBlend variant="rainbow" />
 
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 bg-pink-950/80 text-pink-300 px-3 py-1 rounded-full text-xs font-bold border border-pink-700/50">
-              <Mail className="w-3.5 h-3.5 text-pink-400" />
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-6">
+          <div className="space-y-1.5 sm:space-y-2">
+            <div className="inline-flex items-center gap-1.5 sm:gap-2 bg-pink-950/80 text-pink-300 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border border-pink-700/50">
+              <Mail className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-pink-400" />
               <span>Mail Workspace</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+            <h1 className="text-lg sm:text-3xl font-black tracking-tight text-white flex items-center gap-2 sm:gap-3">
               <span>Inbox</span>
             </h1>
-            <p className="text-xs sm:text-sm text-pink-100 max-w-2xl leading-relaxed">
+            <p className="text-[11px] sm:text-sm text-pink-100 max-w-2xl leading-relaxed line-clamp-2 sm:line-clamp-none">
               Read, search, and send store communications, supplier purchase orders, and customer dispatch receipts.
             </p>
           </div>
 
           {/* Account Status / Google Login Pill */}
-          <div className="shrink-0 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-xl">
+          <div className="shrink-0 bg-white/10 backdrop-blur-md p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-white/20 shadow-xl w-full md:w-auto">
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
                 {userProfile?.picture ? (

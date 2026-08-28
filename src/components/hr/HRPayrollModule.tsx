@@ -319,18 +319,18 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
     <div className="space-y-6">
       
       {/* Top Header Card */}
-      <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-2 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
-                <Users className="w-5 h-5" />
+              <div className="p-1.5 sm:p-2 bg-rose-50 text-rose-600 rounded-lg sm:rounded-xl">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h2 className="font-bold text-slate-900 text-lg">
+                <h2 className="font-bold text-slate-900 text-sm sm:text-lg">
                   Human Resources, Staff Onboarding &amp; Payroll
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 sm:line-clamp-none">
                   Admin &amp; HR employee onboarding, statutory KRA tax compliance, and automated payroll runs.
                 </p>
               </div>

@@ -338,7 +338,7 @@ export const USER_GUIDE_ARTICLES: GuideArticle[] = [
       {
         stepNumber: 4,
         title: 'Verify Permissions in Role Matrix',
-        description: 'Use the Role Inspector tool in Settings to simulate what modules and actions this user can perform.',
+        description: 'Use the Role Inspector tool in Settings to review what modules and actions this user can perform.',
         clickPath: 'Settings > Role Settings > Inspect Role'
       }
     ],

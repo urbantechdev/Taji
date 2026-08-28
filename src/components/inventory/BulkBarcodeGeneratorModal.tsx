@@ -349,25 +349,25 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-fadeIn">
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-6xl w-full h-[95vh] flex flex-col border border-slate-200 overflow-hidden text-slate-900">
+    <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center bg-slate-950 sm:bg-slate-950/70 backdrop-blur-md p-0 sm:p-4 overflow-hidden sm:overflow-y-auto animate-fadeIn">
+      <div className="bg-white rounded-none sm:rounded-3xl shadow-2xl max-w-6xl w-full h-[100dvh] sm:h-[95vh] flex flex-col border-0 sm:border border-slate-200 overflow-hidden text-slate-900">
         
         {/* MODAL HEADER */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white flex items-center justify-between border-b border-rose-500/20 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
-              <Barcode className="w-6 h-6" />
+        <div className="p-3.5 sm:p-5 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white flex items-center justify-between border-b border-rose-500/20 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+              <Barcode className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-base sm:text-lg text-white">
-                  Bulk Product Barcode &amp; QR Label Generator
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="font-extrabold text-sm sm:text-lg text-white truncate">
+                  Bulk Barcode &amp; QR Label Generator
                 </h3>
-                <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 rounded-full text-[10px] font-bold border border-rose-500/30">
-                  A4 &amp; Thermal Sticker Ready
+                <span className="px-1.5 sm:px-2 py-0.5 bg-rose-500/20 text-rose-300 rounded-full text-[9px] sm:text-[10px] font-bold border border-rose-500/30 shrink-0">
+                  Labels
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-400 hidden sm:block">
                 Batch generate, preview and print EAN/Code-128 barcode labels with live price &amp; category tags
               </p>
             </div>
@@ -674,7 +674,7 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
               </div>
             </div>
 
-            {/* LIVE STICKER PREVIEW GRID (Simulating physical sheet) */}
+            {/* LIVE STICKER PREVIEW GRID (Physical A4 & thermal label sheet) */}
             <div className="flex-1 overflow-y-auto p-4 bg-slate-200/60 rounded-2xl border border-slate-300 shadow-inner">
               {selectedProductList.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">

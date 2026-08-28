@@ -33,7 +33,6 @@ import { MailNotificationPopup } from './components/notifications/MailNotificati
 import { ReturnExchangeModal } from './components/ReturnExchangeModal';
 import { FabricRollManagerModal } from './components/FabricRollManagerModal';
 import { UserGuideModule } from './components/docs/UserGuideModule';
-import { FloatingGuideWidget } from './components/guide/FloatingGuideWidget';
 import { Footer } from './components/layout/Footer';
 
 const ERPContent: React.FC = () => {
@@ -175,9 +174,6 @@ const ERPContent: React.FC = () => {
 
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav activeTab={effectiveTab} setActiveTab={setActiveTab} appMode={appMode} />
-
-      {/* Floating Interactive User Guide & Help Widget */}
-      <FloatingGuideWidget onNavigateToTab={setActiveTab} />
 
       {/* Global Toast / Popups & Modals */}
       <MailNotificationPopup />

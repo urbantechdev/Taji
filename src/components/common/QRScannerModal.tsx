@@ -37,6 +37,7 @@ export const QRScannerModal: React.FC = () => {
   const {
     isQRScannerOpen,
     setIsQRScannerOpen,
+    setIsMobileBarcodeScannerOpen,
     products,
     locations,
     activeLocation,
@@ -51,7 +52,7 @@ export const QRScannerModal: React.FC = () => {
   } = useERP();
 
   // Scanner Operating Modes
-  const [activeScanMode, setActiveScanMode] = useState<'camera' | 'upload' | 'manual' | 'recent'>('camera');
+  const [activeScanMode, setActiveScanMode] = useState<'camera' | 'upload' | 'manual'>('camera');
   
   // Camera & Device State
   const [cameraPermission, setCameraPermission] = useState<'pending' | 'granted' | 'denied'>('pending');
@@ -565,36 +566,49 @@ export const QRScannerModal: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center bg-slate-950 sm:bg-slate-950/85 backdrop-blur-md p-0 sm:p-4 overflow-hidden sm:overflow-y-auto animate-in fade-in duration-200">
       
       {/* Hidden container for file scanning */}
       <div id="qr-temp-file-decoder" className="hidden" />
 
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] flex flex-col border border-rose-100 overflow-hidden">
+      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-3xl w-full h-[100dvh] sm:h-auto sm:max-h-[95vh] flex flex-col border-0 sm:border border-rose-100 overflow-hidden">
         
         {/* MODAL HEADER */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-4 flex items-center justify-between border-b border-rose-900/50">
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between border-b border-rose-900/50 shrink-0">
           <ReflectionOverlay />
-          <div className="flex items-center gap-2.5 relative z-10">
-            <div className="p-2 bg-rose-600/30 rounded-xl border border-rose-400/30 text-rose-300">
-              <QrCode className="w-5 h-5" />
+          <div className="flex items-center gap-2.5 relative z-10 min-w-0">
+            <div className="p-1.5 sm:p-2 bg-rose-600/30 rounded-xl border border-rose-400/30 text-rose-300 shrink-0">
+              <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-black text-sm sm:text-base text-white tracking-wide">
-                  {brandSettings.brandName || 'TAJI'} Product Batch QR &amp; Barcode Scanner
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="font-black text-xs sm:text-base text-white tracking-wide truncate">
+                  {brandSettings.brandName || 'TAJI'} QR &amp; Barcode Scanner
                 </h3>
-                <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 text-[10px] font-bold rounded-full border border-rose-500/30">
-                  Live Vision
+                <span className="px-1.5 sm:px-2 py-0.5 bg-rose-500/20 text-rose-300 text-[9px] sm:text-[10px] font-bold rounded-full border border-rose-500/30 shrink-0">
+                  Live
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300">
+              <p className="text-[11px] text-slate-300 hidden sm:block">
                 Instant batch traceability, POS checkout, multi-store stock balance, and intake.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 relative z-10">
+          <div className="flex items-center gap-1.5 sm:gap-2 relative z-10 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsQRScannerOpen(false);
+                setIsMobileBarcodeScannerOpen(true);
+              }}
+              className="px-2.5 py-1 bg-gradient-to-r from-indigo-600 to-rose-600 hover:from-indigo-500 hover:to-rose-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+              title="Switch to 3-Step Barcode Scanner Wizard"
+            >
+              <Barcode className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Barcode Wizard</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setAutoMinimizeOnScan(!autoMinimizeOnScan)}
@@ -679,18 +693,6 @@ export const QRScannerModal: React.FC = () => {
           >
             <Barcode className="w-3.5 h-3.5" />
             <span>Manual / Scanner Gun</span>
-          </button>
-
-          <button
-            onClick={() => setActiveScanMode('recent')}
-            className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeScanMode === 'recent'
-                ? 'bg-white text-rose-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Quick Test ({products.length})</span>
           </button>
         </div>
 
@@ -890,47 +892,6 @@ export const QRScannerModal: React.FC = () => {
                 </p>
               </div>
             </form>
-          )}
-
-          {/* TAB 4: QUICK SIMULATION / ALL BATCHES */}
-          {activeScanMode === 'recent' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700">
-                  Active Batches in Inventory ({products.length}):
-                </span>
-                <span className="text-[11px] text-slate-500">Click any batch to simulate live scan</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-                {products.map(p => {
-                  const totalStock = Object.values(p.locationStock || {}).reduce<number>((acc, q) => acc + (Number(q) || 0), 0);
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => onDecodedCallback(p.qrCodeData || p.sku)}
-                      className="p-2.5 bg-slate-50 hover:bg-rose-50/60 border border-slate-200 hover:border-rose-300 rounded-xl text-left transition-all flex items-center gap-2.5 cursor-pointer group"
-                    >
-                      <div
-                        className="w-5 h-5 rounded-full border border-white shadow-xs shrink-0"
-                        style={{ backgroundColor: p.colorHex || '#e11d48' }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-slate-900 text-xs truncate group-hover:text-rose-700">
-                          {p.name}
-                        </p>
-                        <p className="text-[10px] text-slate-500 font-mono">
-                          SKU: {p.sku} • Stock: {totalStock} {p.unit}
-                        </p>
-                      </div>
-                      <span className="text-[11px] font-bold text-slate-900 font-mono shrink-0">
-                        KSh {p.unitPriceRetail.toLocaleString()}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           )}
 
           {/* DECODED PRODUCT INSPECTOR CARD & MULTI-ACTION HUB */}

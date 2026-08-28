@@ -160,16 +160,16 @@ export const AuditLogsModule: React.FC = () => {
     <div className="space-y-6">
       
       {/* Top Header */}
-      <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-2 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-rose-600" />
-              <h2 className="font-bold text-slate-900 text-lg">
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600" />
+              <h2 className="font-bold text-slate-900 text-sm sm:text-lg">
                 Autonomous Forensic Auditor &amp; Security Surveillance
               </h2>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2 sm:line-clamp-none">
               Continuous internal control verification, real-time fraud &amp; anomaly detection, ETR fiscal signature checks, and external audit dossier generation.
             </p>
           </div>
@@ -181,7 +181,7 @@ export const AuditLogsModule: React.FC = () => {
               className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 text-rose-600 ${isLoadingAudit ? 'animate-spin' : ''}`} />
-              {isLoadingAudit ? 'Scanning Logs...' : 'Re-run Forensic Audit'}
+              {isLoadingAudit ? 'Scanning...' : 'Re-run Forensic Audit'}
             </button>
 
             <button
@@ -189,30 +189,30 @@ export const AuditLogsModule: React.FC = () => {
               className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <Download className="w-4 h-4 text-rose-400" />
-              Export Auditor Dossier (CSV)
+              Export Dossier (CSV)
             </button>
           </div>
         </div>
       </div>
 
       {/* FORENSIC AUDIT AI SUMMARY CARD */}
-      <div className="bg-gradient-to-br from-slate-900 via-[#191e24] to-slate-950 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden border border-slate-700/70 space-y-5">
+      <div className="bg-gradient-to-br from-slate-900 via-[#191e24] to-slate-950 p-3 sm:p-6 rounded-2xl sm:rounded-3xl text-white shadow-xl relative overflow-hidden border border-slate-700/70 space-y-2.5 sm:space-y-5">
         <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700/80 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex flex-col items-center justify-center text-white shadow-lg shrink-0">
-              <span className="text-xl font-black">{auditReport?.forensicScore || 98}</span>
-              <span className="text-[9px] font-bold tracking-wider uppercase opacity-80">/ 100</span>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4 border-b border-slate-700/80 pb-2.5 sm:pb-4">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex flex-col items-center justify-center text-white shadow-lg shrink-0">
+              <span className="text-base sm:text-xl font-black">{auditReport?.forensicScore || 98}</span>
+              <span className="text-[7px] sm:text-[9px] font-bold tracking-wider uppercase opacity-80">/ 100</span>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-black text-base text-white">Forensic Audit Verdict:</h3>
-                <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-xs font-bold rounded-full border border-emerald-500/40">
-                  {auditReport?.auditOpinion || 'Unqualified / Clean Opinion'}
+                <h3 className="font-black text-xs sm:text-base text-white">Forensic Audit Verdict:</h3>
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold rounded-full border border-emerald-500/40">
+                  {auditReport?.auditOpinion || 'Clean Opinion'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 line-clamp-2 sm:line-clamp-none">
                 {auditReport?.overallVerdict || 'Financial ledger and operational logs show 100% mathematical integrity with zero unexplained variances.'}
               </p>
             </div>

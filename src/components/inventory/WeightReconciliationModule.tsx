@@ -46,11 +46,11 @@ export const WeightReconciliationModule: React.FC = () => {
   } = useERP();
 
   // Active Sub-Tab within Weight Reconciler
-  const [activeTab, setActiveTab] = useState<'simulator' | 'audit_log' | 'matrix' | 'accounting_flow'>('simulator');
+  const [activeTab, setActiveTab] = useState<'calculator' | 'audit_log' | 'matrix' | 'accounting_flow'>('calculator');
   const [searchFilter, setSearchFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState<string>('All');
   
-  // Interactive Simulator State
+  // Interactive Scale Calculator State
   const [simBatchId, setSimBatchId] = useState<string>(products.find(p => p.category === 'Yarns')?.id || products[0]?.id || '');
   const [simGrossWeight, setSimGrossWeight] = useState<number>(5.250); // Scale says 5.250 kg
   const [simContainerCount, setSimContainerCount] = useState<number>(5); // 5 cones
@@ -62,7 +62,7 @@ export const WeightReconciliationModule: React.FC = () => {
 
   const selectedProduct = products.find(p => p.id === simBatchId) || products[0];
 
-  // Calculated Tare Values for Simulator
+  // Calculated Tare Values for Calculator
   const effectiveTarePerUnit = simOverrideTare
     ? simManualTareKg
     : (selectedProduct?.tareProfile?.tareWeightPerUnit ?? (selectedProduct?.category === 'Yarns' ? 0.050 : 0.250));
@@ -99,45 +99,45 @@ export const WeightReconciliationModule: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Top Banner: Explanation of Gross vs Net Problem & Our Engine Solution */}
-      <div className="relative overflow-hidden bg-slate-900 rounded-3xl p-6 sm:p-8 text-white border border-slate-800 shadow-xl">
+      <div className="relative overflow-hidden bg-slate-900 rounded-2xl sm:rounded-3xl p-3 sm:p-8 text-white border border-slate-800 shadow-xl">
         <ReflectionOverlay />
         <RightEdgeBlend variant="rose" />
 
-        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-full text-xs font-mono font-bold tracking-wider uppercase flex items-center gap-1.5">
-                <Scale className="w-3.5 h-3.5" />
+        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 sm:gap-6">
+          <div className="space-y-1.5 sm:space-y-2 max-w-3xl">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-full text-[10px] sm:text-xs font-mono font-bold tracking-wider uppercase flex items-center gap-1">
+                <Scale className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 Gross-to-Net Weight Governance
               </span>
-              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-bold flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
+              <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 Balance Sheet Integrity Shield
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Dual-Weight (Gross vs Net) & Inventory Balance Sheet Reconciler
+            <h1 className="text-base sm:text-3xl font-black tracking-tight text-white">
+              Dual-Weight (Gross vs Net) &amp; Inventory Balance Sheet Reconciler
             </h1>
-            <p className="text-slate-300 text-sm leading-relaxed">
+            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed line-clamp-2 sm:line-clamp-none">
               Eliminates financial conflict and inventory balance sheet distortions when textiles, fleeces, or yarn cones are received in <strong className="text-rose-400">Net Weight</strong> and weighed on store scales in <strong className="text-amber-400">Gross Weight</strong> with cone/core packaging.
             </p>
           </div>
 
           {/* Quick Metrics Badge Group */}
-          <div className="grid grid-cols-2 gap-3 w-full lg:w-auto shrink-0">
-            <div className="p-3.5 bg-slate-800/80 border border-slate-700/80 rounded-2xl">
-              <p className="text-[11px] text-slate-400 font-medium">Tare Weight Reconciled</p>
-              <p className="text-lg sm:text-xl font-black font-mono text-amber-400 mt-0.5">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full lg:w-auto shrink-0">
+            <div className="p-2.5 sm:p-3.5 bg-slate-800/80 border border-slate-700/80 rounded-xl sm:rounded-2xl">
+              <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">Tare Weight Reconciled</p>
+              <p className="text-sm sm:text-xl font-black font-mono text-amber-400 mt-0.5">
                 {totalLogsTare.toFixed(3)} kg
               </p>
-              <p className="text-[10px] text-slate-400 mt-1">{filteredLogs.length} audit transactions</p>
+              <p className="text-[9px] sm:text-[10px] text-slate-400 mt-0.5">{filteredLogs.length} audit transactions</p>
             </div>
-            <div className="p-3.5 bg-slate-800/80 border border-slate-700/80 rounded-2xl">
-              <p className="text-[11px] text-slate-400 font-medium">Valuation Protected</p>
-              <p className="text-lg sm:text-xl font-black font-mono text-emerald-400 mt-0.5">
+            <div className="p-2.5 sm:p-3.5 bg-slate-800/80 border border-slate-700/80 rounded-2xl">
+              <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">Valuation Protected</p>
+              <p className="text-sm sm:text-xl font-black font-mono text-emerald-400 mt-0.5">
                 KSh {totalFinancialProtected.toLocaleString()}
               </p>
-              <p className="text-[10px] text-emerald-400/80 mt-1">Zero balance sheet distortion</p>
+              <p className="text-[9px] sm:text-[10px] text-emerald-400/80 mt-0.5">Zero balance sheet distortion</p>
             </div>
           </div>
         </div>
@@ -148,15 +148,15 @@ export const WeightReconciliationModule: React.FC = () => {
         <div className="flex items-center gap-2 overflow-x-auto">
           <button
             type="button"
-            onClick={() => { playClickSound(); setActiveTab('simulator'); }}
+            onClick={() => { playClickSound(); setActiveTab('calculator'); }}
             className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'simulator'
+              activeTab === 'calculator'
                 ? 'bg-rose-600 text-white shadow-md'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >
             <Calculator className="w-4 h-4" />
-            <span>Interactive Scale Simulator</span>
+            <span>Scale & Tare Calculator</span>
           </button>
 
           <button
@@ -230,9 +230,9 @@ export const WeightReconciliationModule: React.FC = () => {
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* 1. INTERACTIVE SCALE CONVERTER & FINANCIAL SIMULATOR */}
+      {/* 1. SCALE CONVERTER & FINANCIAL CONVERSION CALCULATOR */}
       {/* ------------------------------------------------------------- */}
-      {activeTab === 'simulator' && (
+      {activeTab === 'calculator' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Input Controls */}
           <div className="lg:col-span-5 bg-white rounded-2xl border border-rose-100 p-6 space-y-5 shadow-xs">

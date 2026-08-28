@@ -160,18 +160,18 @@ export const TodaySalesView: React.FC = () => {
     <div id="today-sales-view-root" className="space-y-6">
       
       {/* Top Header & Action Controls */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="bg-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5 sm:gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            <h2 className="text-base sm:text-xl font-extrabold text-slate-900 tracking-tight">
               Sales Today Dashboard
             </h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200 flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[10px] sm:text-xs font-bold border border-rose-200 flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-rose-500" />
               Live Real-Time
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <span>Date: {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </p>

@@ -635,17 +635,17 @@ export const AccountingLedger: React.FC = () => {
     <div className="space-y-6">
       
       {/* Top Header */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-rose-100 shadow-xs space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
-              <BookOpenCheck className="w-5 h-5" />
+      <div className="bg-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-2 sm:space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-4">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="p-1.5 sm:p-2.5 bg-rose-50 text-rose-600 rounded-lg sm:rounded-xl border border-rose-100 shrink-0">
+              <BookOpenCheck className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h2 className="font-extrabold text-slate-900 text-lg tracking-tight">
+              <h2 className="font-extrabold text-slate-900 text-sm sm:text-lg tracking-tight">
                 Autonomous Finance Manager &amp; Accounting Engine
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2 sm:line-clamp-none">
                 Self-balancing double-entry ledger, live 3-statement financial modeling (Balance Sheet, P&amp;L, Cash Flow), and statutory KRA eTIMS compliance.
               </p>
             </div>
@@ -810,24 +810,24 @@ export const AccountingLedger: React.FC = () => {
         <div className="space-y-6 animate-in fade-in duration-200">
           
           {/* CFO Score & Summary Banner */}
-          <div className="bg-gradient-to-br from-slate-900 via-[#1e232d] to-slate-950 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden border border-slate-700/60">
+          <div className="bg-gradient-to-br from-slate-900 via-[#1e232d] to-slate-950 p-3 sm:p-6 rounded-2xl sm:rounded-3xl text-white shadow-xl relative overflow-hidden border border-slate-700/60">
             <div className="absolute top-0 right-0 w-96 h-96 bg-rose-600/15 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
 
-            <div className="relative z-10 space-y-5">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700/80 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl text-white shadow-md shadow-rose-950/50">
-                    <Sparkles className="w-6 h-6" />
+            <div className="relative z-10 space-y-2.5 sm:space-y-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4 border-b border-slate-700/80 pb-2.5 sm:pb-4">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="p-2 sm:p-3 bg-gradient-to-br from-rose-500 to-pink-600 rounded-xl sm:rounded-2xl text-white shadow-md shadow-rose-950/50 shrink-0">
+                    <Sparkles className="w-4 h-4 sm:w-6 sm:h-6" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-black text-lg text-white tracking-tight">Autonomous Virtual CFO Assessment</h3>
-                      <span className="bg-rose-500/20 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-500/40">
-                        Zero-Accountant Mode Active
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <h3 className="font-black text-xs sm:text-lg text-white tracking-tight">Autonomous Virtual CFO Assessment</h3>
+                      <span className="bg-rose-500/20 text-rose-300 text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full border border-rose-500/40">
+                        Zero-Accountant
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-[11px] sm:text-xs text-slate-400 line-clamp-2 sm:line-clamp-none">
                       Real-time statutory treasury analysis, working capital optimization, and automated tax advisory.
                     </p>
                   </div>
@@ -3104,22 +3104,22 @@ export const AccountingLedger: React.FC = () => {
         <div className="space-y-6 animate-in fade-in duration-200">
           
           {/* Header Action Banner */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden border border-slate-700/60">
+          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-3 sm:p-6 rounded-2xl sm:rounded-3xl text-white shadow-xl relative overflow-hidden border border-slate-700/60">
             <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-600/15 rounded-full blur-3xl pointer-events-none" />
             
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5 border-b border-slate-700/80 pb-5">
-              <div className="flex items-center gap-3.5">
-                <div className="p-3.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl text-white shadow-lg shadow-emerald-950/40">
-                  <FileSpreadsheet className="w-7 h-7" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-5 border-b border-slate-700/80 pb-2.5 sm:pb-5">
+              <div className="flex items-center gap-2.5 sm:gap-3.5">
+                <div className="p-2 sm:p-3.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl sm:rounded-2xl text-white shadow-lg shadow-emerald-950/40 shrink-0">
+                  <FileSpreadsheet className="w-5 h-5 sm:w-7 sm:h-7" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-xl text-white tracking-tight">Financial Statement Generation Hub</h3>
-                    <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/40">
-                      Audit-Certified &amp; IFRS Compliant
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <h3 className="font-black text-xs sm:text-xl text-white tracking-tight">Financial Statement Hub</h3>
+                    <span className="bg-emerald-500/20 text-emerald-300 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/40">
+                      IFRS Compliant
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 mt-0.5">
+                  <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5 line-clamp-2 sm:line-clamp-none">
                     Generate Full Consolidated P&amp;L + Balance Sheet or export separate statements for Safaricom M-Pesa, Commercial Bank, and PDQ Card terminals.
                   </p>
                 </div>

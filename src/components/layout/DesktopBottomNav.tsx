@@ -43,6 +43,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
 }) => {
   const [isReadmeOpen, setIsReadmeOpen] = useState(false);
   const {
+    activeRole,
     currentUser,
     transfers,
     orders,
@@ -51,6 +52,8 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
     products,
     isAdmin
   } = useERP();
+
+  const effectiveRole = activeRole || currentUser.role;
 
   const unreadMailCount = mailNotifications ? mailNotifications.filter(m => !m.read).length : 0;
 
@@ -143,9 +146,9 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
     }
   ];
 
-  // RBAC Filter: Only show tabs permitted for the current user's role!
+  // RBAC Filter: Strictly only show tabs permitted for the user's role level!
   const navItems = allNavItems.filter(item =>
-    isTabAllowedForRole(currentUser.role, item.id)
+    isTabAllowedForRole(effectiveRole, item.id)
   );
 
   // If no items are permitted, do not render bottom navigation

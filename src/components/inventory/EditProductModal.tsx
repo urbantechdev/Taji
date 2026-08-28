@@ -148,37 +148,37 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col my-6 max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center p-0 sm:p-4 bg-slate-950/90 sm:bg-slate-950/70 backdrop-blur-sm overflow-hidden sm:overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:my-6 sm:max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-inner text-white font-bold"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shadow-inner text-white font-bold shrink-0"
               style={{ backgroundColor: colorHex }}
             >
-              <Tag className="w-5 h-5 drop-shadow" />
+              <Tag className="w-4 h-4 sm:w-5 sm:h-5 drop-shadow" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold">
-                  {brandSettings.brandName || 'TAJI'} Item Master Editor
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="text-sm sm:text-lg font-bold truncate">
+                  Item Master Editor
                 </h3>
-                <span className="px-2 py-0.5 text-xs font-semibold rounded-md bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                <span className="px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-xs font-semibold rounded-md bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 truncate max-w-[100px] sm:max-w-none">
                   {product.id}
                 </span>
-                <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30">
-                  <Cloud className="w-3 h-3" /> Global Cloud Sync
+                <span className="hidden sm:flex items-center gap-1 text-xs text-emerald-400 font-medium px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30">
+                  <Cloud className="w-3 h-3" /> Global Sync
                 </span>
               </div>
-              <p className="text-xs text-slate-300">
+              <p className="text-[11px] sm:text-xs text-slate-300 hidden sm:block">
                 {brandSettings.brandName || 'TAJI'} Enterprise Cloud Database • Real-time synchronization across all stores and devices.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-white p-1.5 sm:p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

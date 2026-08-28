@@ -858,8 +858,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
             {isAdmin && (
               <div className="relative" ref={roleDropdownRef}>
                 <CapabilityTooltip
-                  title="Staff Role Simulation"
-                  description="Test workflows, permissions, and tab restrictions as Cashier, Attendant, Warehouse, Manager, or Accountant."
+                  title="Switch Staff Role"
+                  description="Switch active operating context and permissions between Cashier, Attendant, Warehouse, Manager, or Accountant."
                   roleRequired="Admin Only"
                   shortcut="Alt + U"
                   placement="bottom"
@@ -877,7 +877,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                         ? 'bg-white text-indigo-900 border-white shadow-md font-bold'
                         : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
                     }`}
-                    title={`Simulate Staff Role: ${roleOptions.find(r => r.role === activeRole)?.title || activeRole}`}
+                    title={`Active Staff Role: ${roleOptions.find(r => r.role === activeRole)?.title || activeRole}`}
                   >
                     <UserCheck className={`w-3.5 h-3.5 transition-transform shrink-0 ${isRoleDropdownOpen ? 'text-indigo-700 scale-110' : 'text-white group-hover:scale-110'}`} />
                     <span className="text-xs font-bold max-w-[75px] lg:max-w-[95px] truncate">
@@ -907,8 +907,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                             <ShieldCheck className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Staff Role Simulation</p>
-                            <p className="text-[11px] text-slate-500 font-medium">Test role-specific workflows & views</p>
+                            <p className="text-xs font-black text-slate-900 uppercase tracking-wider">Switch Staff Role</p>
+                            <p className="text-[11px] text-slate-500 font-medium">Select role-specific view & permissions</p>
                           </div>
                         </div>
                         <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200 shadow-2xs">
@@ -1642,11 +1642,11 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                   </div>
                 </div>
 
-                {/* Staff Role Simulation (Admin Only) */}
+                {/* Staff Role Switcher (Admin Only) */}
                 {isAdmin && (
                   <div className="space-y-1.5 pt-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
-                      Simulate Role (Admin)
+                      Switch Role (Admin)
                     </label>
                     <div className="grid grid-cols-2 gap-1.5">
                       {roleOptions.map(r => {

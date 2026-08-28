@@ -64,7 +64,7 @@ export const ProductPriceSettings: React.FC = () => {
   const [standardRollLengthMeters, setStandardRollLengthMeters] = useState<number>(activeConfig.standardRollLengthMeters ?? (selectedCategory === 'Fleece' ? 70 : 50));
   const [looseMeterDiscountPct, setLooseMeterDiscountPct] = useState<number>(activeConfig.looseMeterDiscountPct ?? 10);
   const [enableHybridRollPricing, setEnableHybridRollPricing] = useState<boolean>(activeConfig.enableHybridRollPricing ?? (selectedCategory !== 'Yarns'));
-  const [simulatedMeters, setSimulatedMeters] = useState<number>(100);
+  const [calcMeters, setCalcMeters] = useState<number>(100);
 
   // Strategy values
   const [percentValue, setPercentValue] = useState<number>(10);
@@ -617,22 +617,22 @@ export const ProductPriceSettings: React.FC = () => {
               </div>
             </div>
 
-            {/* Interactive Live Simulator */}
+            {/* Interactive Live Calculator */}
             <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-200 space-y-2 text-xs">
               <div className="flex items-center justify-between border-b border-indigo-100 pb-1.5">
                 <span className="font-bold text-indigo-900 flex items-center gap-1">
                   <Calculator className="w-3.5 h-3.5 text-indigo-600" />
-                  Live Option 1 Math Simulator
+                  Live Option 1 Price Breakdown
                 </span>
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-500">Test Quantity:</span>
+                  <span className="text-[10px] text-slate-500">Sample Quantity:</span>
                   {[70, 100, 140, 175].map(qty => (
                     <button
                       key={qty}
                       type="button"
-                      onClick={() => setSimulatedMeters(qty)}
+                      onClick={() => setCalcMeters(qty)}
                       className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors ${
-                        simulatedMeters === qty
+                        calcMeters === qty
                           ? 'bg-indigo-600 text-white'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
@@ -644,14 +644,14 @@ export const ProductPriceSettings: React.FC = () => {
               </div>
 
               {(() => {
-                const rolls = Math.floor(simulatedMeters / (standardRollLengthMeters || 70));
-                const loose = simulatedMeters % (standardRollLengthMeters || 70);
+                const rolls = Math.floor(calcMeters / (standardRollLengthMeters || 70));
+                const loose = calcMeters % (standardRollLengthMeters || 70);
                 const rollMtrs = rolls * (standardRollLengthMeters || 70);
                 const discountedLooseRate = Math.round(retailPrice * (1 - looseMeterDiscountPct / 100));
                 const rollCost = rollMtrs * bulkPrice;
                 const looseCost = loose * discountedLooseRate;
                 const totalOption1 = rollCost + looseCost;
-                const fullRetailCost = simulatedMeters * retailPrice;
+                const fullRetailCost = calcMeters * retailPrice;
                 const totalSavings = Math.max(0, fullRetailCost - totalOption1);
 
                 return (

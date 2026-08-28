@@ -61,7 +61,7 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
   const [autoDeductTareAtPOS, setAutoDeductTareAtPOS] = useState<boolean>(catConfig.autoDeductTareAtPOS ?? true);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
-  // Live Scale Simulator
+  // Live Scale Calculator
   const [simScaleGross, setSimScaleGross] = useState<number>(2.080);
   const [simConeCount, setSimConeCount] = useState<number>(1);
 
@@ -111,8 +111,8 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
     }
   };
 
-  // Calculate simulated preview price for an item
-  const getSimulatedPrices = (p: ProductBatch) => {
+  // Calculate preview price for an item
+  const getCalculatedPrices = (p: ProductBatch) => {
     let newRetail = p.unitPriceRetail;
     let newBulk = p.unitPriceBulk;
     let newCost = p.costPrice;
@@ -210,29 +210,30 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
   const pricePerConeRetail = weightPerCone * calcRetailPerKg;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col my-6 max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center p-0 sm:p-4 bg-slate-950/90 sm:bg-slate-950/70 backdrop-blur-sm overflow-hidden sm:overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:my-6 sm:max-h-[92vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner">
-              <DollarSign className="w-5 h-5" />
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner shrink-0">
+              <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold">Category Pricing & Bale Tier Architecture</h3>
-                <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30">
-                  <Cloud className="w-3 h-3" /> Live Firestore Sync
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="text-sm sm:text-lg font-bold truncate">Category Pricing Architecture</h3>
+                <span className="flex items-center gap-1 text-[9px] sm:text-xs text-emerald-400 font-medium px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30 shrink-0">
+                  <Cloud className="w-3 h-3" /> Live Sync
                 </span>
               </div>
-              <p className="text-xs text-slate-300">
+              <p className="text-[11px] sm:text-xs text-slate-300 hidden sm:block">
                 Configure Wholesale (Full Bale/Roll) vs Retail (Single Cone/Cut Piece) pricing and auto-synchronize to all checkout stations.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-white p-1.5 sm:p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+            title="Close"
           >
             <X className="w-5 h-5" />
           </button>
@@ -371,10 +372,10 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
                   </ul>
                 </div>
 
-                {/* Interactive Simulator Box */}
+                {/* Interactive Economics Box */}
                 <div className="lg:col-span-6 bg-white/10 border border-white/15 p-3 rounded-xl space-y-2.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
-                    Live Bale Economics Simulator (24 KG Bag / 12 Cones)
+                    Bale Economics & Batch Yield Calculator (24 KG Bag / 12 Cones)
                   </span>
                   
                   <div className="grid grid-cols-3 gap-2">
@@ -581,7 +582,7 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
               <div className="flex items-center justify-between border-b border-white/10 pb-2">
                 <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
                   <Scale className="w-4 h-4 text-amber-400" />
-                  Live Scale Testing & Ledger Impact Simulator
+                  Live Scale Weight & Ledger Impact Calculator
                 </span>
                 <span className="text-[11px] text-slate-300 font-mono">
                   Formula: (Gross - Tare) × Rate/KG
@@ -592,7 +593,7 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
                 {/* Inputs */}
                 <div className="sm:col-span-6 grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Simulate Measured Weight (KG)</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">Sample Measured Weight (KG)</label>
                     <input
                       type="number"
                       step="0.001"
@@ -850,7 +851,7 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
                 Live Pricing Preview ({categoryProducts.length} Items in {selectedCat})
               </h4>
               <span className="text-xs text-indigo-600 font-semibold">
-                Simulated changes before applying
+                Calculated changes before applying
               </span>
             </div>
 
@@ -875,7 +876,7 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
                     </tr>
                   ) : (
                     categoryProducts.map(p => {
-                      const { newRetail, newBulk, newCost } = getSimulatedPrices(p);
+                      const { newRetail, newBulk, newCost } = getCalculatedPrices(p);
                       const isChanged = newRetail !== p.unitPriceRetail;
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition-colors">

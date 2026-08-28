@@ -424,16 +424,16 @@ export const POSModule: React.FC = () => {
       
       {/* DIRECT POS DISABLED ALERT BANNER FOR STORE 1 & STORE 2 */}
       {!activeLocInfo?.canSellDirectly && (
-        <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 via-rose-500 to-pink-600 text-white p-5 rounded-2xl shadow-lg shadow-rose-200 flex flex-col md:flex-row items-center justify-between gap-4 group">
+        <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 via-rose-500 to-pink-600 text-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl shadow-lg shadow-rose-200 flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-4 group">
           <ReflectionOverlay />
           <RightEdgeBlend variant="sunset" />
-          <div className="flex items-start gap-3 relative z-10">
-            <ShieldAlert className="w-6 h-6 text-amber-200 shrink-0 mt-1 animate-pulse" />
+          <div className="flex items-start gap-2 sm:gap-3 relative z-10">
+            <ShieldAlert className="w-4 h-4 sm:w-6 sm:h-6 text-amber-200 shrink-0 mt-0.5 sm:mt-1 animate-pulse" />
             <div>
-              <h3 className="font-bold text-base">
+              <h3 className="font-bold text-xs sm:text-base">
                 Direct POS Sales Disabled at {activeLocInfo?.name}
               </h3>
-              <p className="text-xs text-rose-100 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-rose-100 mt-0.5 line-clamp-2 sm:line-clamp-none">
                 Per enterprise operational rules, Store 1 &amp; Store 2 do not collect cash or dispatch directly. Add customer items to ticket and click below to route to Main Store for billing and fulfillment.
               </p>
             </div>
@@ -441,7 +441,7 @@ export const POSModule: React.FC = () => {
           {cart.length > 0 && (
             <button
               onClick={() => setIsRerouteModalOpen(true)}
-              className="px-5 py-2.5 bg-white text-rose-700 font-bold text-xs rounded-xl shadow-md hover:bg-rose-50 shrink-0 flex items-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 relative z-10"
+              className="w-full sm:w-auto px-3.5 sm:px-5 py-2 sm:py-2.5 bg-white text-rose-700 font-bold text-xs rounded-xl shadow-md hover:bg-rose-50 shrink-0 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-105 active:scale-95 relative z-10"
             >
               <ArrowRightLeft className="w-4 h-4 text-rose-600 animate-spin-slow" />
               Route Order Ticket to Main Store ({cart.length} items)
@@ -457,7 +457,7 @@ export const POSModule: React.FC = () => {
         <div className="lg:col-span-7 xl:col-span-8 space-y-4">
           
           {/* Controls: Search & Category Tabs */}
-          <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-xs space-y-3">
+          <div className="bg-white p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-2 sm:space-y-3">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               
               {/* Category Filter Pills */}

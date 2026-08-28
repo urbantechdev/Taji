@@ -65,39 +65,39 @@ export const DuplicateBarcodeAlertModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border-2 border-rose-500 w-full max-w-xl overflow-hidden flex flex-col my-4 transform animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center p-0 sm:p-4 bg-slate-950/90 sm:bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden sm:overflow-y-auto">
+      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border-2 border-rose-500 w-full max-w-xl overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:my-4 transform animate-in zoom-in-95 duration-200">
         
         {/* Header with High-Visibility Duplicate Warning */}
-        <div className="bg-gradient-to-r from-rose-700 via-rose-600 to-amber-700 px-6 py-4 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shadow-inner text-white">
-              <ShieldAlert className="w-6 h-6 animate-pulse" />
+        <div className="bg-gradient-to-r from-rose-700 via-rose-600 to-amber-700 px-4 sm:px-6 py-3.5 sm:py-4 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/20 flex items-center justify-center shadow-inner text-white shrink-0">
+              <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider px-2 py-0.5 bg-white/20 rounded-full border border-white/30">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-[9px] sm:text-xs font-black uppercase tracking-wider px-1.5 sm:px-2 py-0.5 bg-white/20 rounded-full border border-white/30 shrink-0">
                   Scan Blocked
                 </span>
-                <h3 className="text-lg font-extrabold tracking-tight">
+                <h3 className="text-sm sm:text-lg font-extrabold tracking-tight truncate">
                   Duplicate Item Detected!
                 </h3>
               </div>
-              <p className="text-xs text-rose-100 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-rose-100 mt-0.5 hidden sm:block">
                 This barcode already exists in the system to prevent double-counting.
               </p>
             </div>
           </div>
           <button
             onClick={dismissDuplicateAlert}
-            className="text-white/80 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors"
+            className="text-white/80 hover:text-white p-1.5 sm:p-2 rounded-xl hover:bg-white/10 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 overflow-y-auto max-h-[75vh]">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1 sm:max-h-[75vh] overscroll-contain">
           
           {/* Main Alert Banner */}
           <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3">

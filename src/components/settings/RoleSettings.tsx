@@ -140,10 +140,10 @@ export const RoleSettings: React.FC = () => {
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  const handleSimulateRole = (role: UserRole) => {
+  const handleSwitchRole = (role: UserRole) => {
     playClickSound();
     setActiveRole(role);
-    setFeedback(`Switched active test role to ${ROLE_DEFINITIONS[role].title}`);
+    setFeedback(`Switched active role to ${ROLE_DEFINITIONS[role].title}`);
     setTimeout(() => setFeedback(null), 3000);
   };
 
@@ -172,7 +172,7 @@ export const RoleSettings: React.FC = () => {
         <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-bold text-slate-700">Active Test Role:</span>
+            <span className="text-xs font-bold text-slate-700">Active Role:</span>
           </div>
           <span className="text-xs font-black text-purple-700 font-mono bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
             {getRoleMetadata(activeRole).shortLabel}
@@ -245,18 +245,18 @@ export const RoleSettings: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Role Tester Action */}
+          {/* Quick Role Switcher Action */}
           <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-xs space-y-2 border border-slate-800">
             <h5 className="text-xs font-black uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" />
-              Role Simulation Sandbox
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Active Role Switcher
             </h5>
             <p className="text-[11px] text-slate-300">
-              Instantly test the interface and permissions as <strong>{currentRoleMeta.shortLabel}</strong>.
+              Operate the interface and permissions as <strong>{currentRoleMeta.shortLabel}</strong>.
             </p>
             <button
               type="button"
-              onClick={() => handleSimulateRole(selectedRole)}
+              onClick={() => handleSwitchRole(selectedRole)}
               className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black transition-colors cursor-pointer flex items-center justify-center gap-2"
             >
               <span>Switch to this Role</span>

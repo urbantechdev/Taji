@@ -208,20 +208,20 @@ export const POSOperatorManager: React.FC = () => {
   const managersCount = posOperators.filter(op => op.role === 'branch_manager' || op.role === 'accountant').length;
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-4 sm:p-8 space-y-6">
+    <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xl p-3 sm:p-8 space-y-3 sm:space-y-6">
       
       {/* Executive Header Banner */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2.5 sm:gap-4 pb-3 sm:pb-6 border-b border-slate-100">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-extrabold">
+          <div className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] sm:text-[11px] font-extrabold">
             <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
             <span>Master User &amp; Role Access Control (RBAC)</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Users className="w-6 h-6 text-rose-600" />
+          <h2 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6 text-rose-600" />
             User Accounts &amp; Role Separation
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 sm:line-clamp-none">
             Only the Executive Administrator has the capacity to create new users, configure roles, and assign branch locations.
           </p>
         </div>
@@ -308,13 +308,13 @@ export const POSOperatorManager: React.FC = () => {
       )}
 
       {/* Interactive 6-Digit PIN Tester & Verifier Tool */}
-      <div className="p-5 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white rounded-3xl shadow-xl space-y-3 relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-rose-500/30 pb-3">
+      <div className="p-2.5 sm:p-5 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white rounded-2xl sm:rounded-3xl shadow-xl space-y-2 sm:space-y-3 relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 border-b border-rose-500/30 pb-2 sm:pb-3">
           <div className="flex items-center gap-2">
-            <KeyRound className="w-5 h-5 text-rose-400" />
+            <KeyRound className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400" />
             <div>
-              <h3 className="font-extrabold text-sm text-white">Live PIN Passcode Verifier</h3>
-              <p className="text-[11px] text-rose-200">Test any 6-digit PIN code to verify user identity, role permissions, and branch allocation</p>
+              <h3 className="font-extrabold text-xs sm:text-sm text-white">Live PIN Passcode Verifier</h3>
+              <p className="text-[10px] sm:text-[11px] text-rose-200 line-clamp-1 sm:line-clamp-none">Test any 6-digit PIN code to verify user identity, role permissions, and branch allocation</p>
             </div>
           </div>
           <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0">

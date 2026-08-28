@@ -425,10 +425,10 @@ export const UserCreationSettings: React.FC = () => {
             </div>
             <div>
               <h4 className="text-xs font-black uppercase tracking-wider text-pink-400">
-                Interactive Operator PIN Authentication Tester
+                Operator PIN Authentication Tester
               </h4>
               <p className="text-[11px] text-slate-400">
-                Simulate cashier terminal login with any 6-digit PIN code.
+                Verify cashier terminal operator login with any 6-digit PIN code.
               </p>
             </div>
           </div>

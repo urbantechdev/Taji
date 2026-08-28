@@ -203,28 +203,28 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl border border-rose-100 overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 bg-slate-950 sm:bg-slate-950/75 backdrop-blur-md flex flex-col sm:items-center sm:justify-center p-0 sm:p-4 overflow-hidden sm:overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-5xl rounded-none sm:rounded-3xl shadow-2xl border-0 sm:border border-rose-100 overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[92vh]">
         
         {/* Modal Top Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-rose-950 to-slate-950 text-white p-4 sm:p-5 flex items-center justify-between shadow-lg">
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-rose-950 to-slate-950 text-white p-3.5 sm:p-5 flex items-center justify-between shadow-lg shrink-0">
           <ReflectionOverlay />
           <RightEdgeBlend variant="rainbow" />
 
-          <div className="flex items-center gap-3 relative z-10">
-            <div className="w-10 h-10 rounded-2xl bg-rose-600/30 border border-rose-400/40 text-rose-300 flex items-center justify-center shadow-inner">
-              <Barcode className="w-6 h-6 animate-pulse text-amber-300" />
+          <div className="flex items-center gap-2.5 sm:gap-3 relative z-10 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-rose-600/30 border border-rose-400/40 text-rose-300 flex items-center justify-center shadow-inner shrink-0">
+              <Barcode className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse text-amber-300" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-base tracking-tight text-white">
-                  Barcode Inventory Intake &amp; Asset Valuation
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white truncate">
+                  Barcode Inventory Intake
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/30 text-rose-200 border border-rose-400/30">
-                  Live Scanner Mode
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-rose-500/30 text-rose-200 border border-rose-400/30 shrink-0">
+                  Live Scanner
                 </span>
               </div>
-              <p className="text-xs text-rose-200/90 font-medium">
+              <p className="text-[11px] sm:text-xs text-rose-200/90 font-medium hidden sm:block">
                 Auto-Product Creation on Unrecognized Barcodes • Real-Time Dynamic Valuation
               </p>
             </div>
@@ -232,7 +232,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:rotate-90 relative z-10"
+            className="p-1.5 sm:p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-all cursor-pointer hover:rotate-90 relative z-10 shrink-0"
             title="Close"
           >
             <X className="w-5 h-5" />
@@ -497,47 +497,6 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
                   <span>Scan Intake</span>
                 </button>
               </form>
-
-              {/* Quick Barcode Simulator Buttons for testing */}
-              <div className="pt-2 border-t border-rose-100 flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Test Barcode Presets:
-                </span>
-                {products.slice(0, 3).map(p => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      setBarcodeInput(p.barcode || p.sku);
-                      scanDeliveryBarcode(selectedDeliveryId, p.barcode || p.sku);
-                      playAddToCartSound();
-                      setFeedbackMsg({
-                        type: 'success',
-                        text: `Simulated scan of ${p.name} (+${scanQty})`
-                      });
-                      setBarcodeInput('');
-                    }}
-                    className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-[10px] font-mono font-bold text-slate-700 shadow-2xs cursor-pointer"
-                  >
-                    {p.name.split(' ')[0]} ({p.barcode || p.sku})
-                  </button>
-                ))}
-                
-                {/* Unrecognized barcode simulator */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const testNewCode = `NEW-BARCODE-${Math.floor(1000 + Math.random() * 9000)}`;
-                    setBarcodeInput(testNewCode);
-                    setUnrecognizedBarcode(testNewCode);
-                    setNewProductName(`Imported Fabric (${testNewCode.slice(-4)})`);
-                    playAlertSound();
-                  }}
-                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg text-[10px] font-bold shadow-2xs cursor-pointer"
-                >
-                  ⚡ Simulate New / Unrecognized Barcode
-                </button>
-              </div>
 
               {/* Alert Feedback Banner */}
               {feedbackMsg && (
