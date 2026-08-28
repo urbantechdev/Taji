@@ -18,7 +18,8 @@ import {
   BookOpen,
   Download,
   TrendingUp,
-  Building2
+  Building2,
+  Settings
 } from 'lucide-react';
 import { ReadmeModal } from '../docs/ReadmeModal';
 import { downloadReadmeMarkdown } from '../../utils/downloadReadme';
@@ -128,6 +129,17 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
       id: 'audit',
       label: 'Audit',
       icon: ShieldCheck,
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: Settings,
+    },
+    {
+      id: 'guide',
+      label: 'Guide',
+      icon: BookOpen,
+      badge: 'Help'
     }
   ];
 
@@ -372,6 +384,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
       <ReadmeModal
         isOpen={isReadmeOpen}
         onClose={() => setIsReadmeOpen(false)}
+        onNavigateToGuide={() => setActiveTab('guide')}
       />
     </div>
   );

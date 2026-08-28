@@ -49,7 +49,9 @@ import {
   BookOpenCheck,
   Receipt,
   Users,
-  ClipboardList
+  ClipboardList,
+  BookOpen,
+  HelpCircle
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -331,6 +333,18 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
       icon: Mail,
       desc: 'Official correspondence & customer notices',
       badge: unreadMails > 0 ? `${unreadMails} New` : undefined
+    },
+    {
+      id: 'settings',
+      label: 'System & Governance Settings',
+      icon: Settings,
+      desc: 'Product prices, roles, KRA fiscal, users & barcodes'
+    },
+    {
+      id: 'guide',
+      label: 'User Guide & Knowledge Base',
+      icon: BookOpen,
+      desc: 'Step-by-step guides, yarn/fleece tare, meter adjustments & shortcuts'
     }
   ];
 
@@ -450,109 +464,84 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
       )}
 
       {/* Main Header Container: Clean & Uncongested Mobile Bar vs Full Desktop Toolbar */}
-      <div className="px-3 sm:px-6 md:px-8 py-2.5 sm:py-3.5 md:pt-6 md:pb-8 flex items-center justify-between gap-2 sm:gap-4 relative z-10">
+      <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 md:pt-6 md:pb-8 flex items-center justify-between gap-3 sm:gap-4 relative z-10">
         
         {/* ========================================================================= */}
-        {/* 1. MOBILE APP HEADER BAR (< 768px): Sleek, App-like, Zero Congestion!   */}
+        {/* 1. MOBILE APP HEADER BAR (< 768px): Minimal & Clean, All Items in Menu   */}
         {/* ========================================================================= */}
         <div className="flex md:hidden items-center justify-between w-full">
-          {/* Left: Compact App Brand & Store Location Pill */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              onClick={() => {
-                playClickSound();
-                setIsMobileMenuOpen(true);
+          {/* Left: Brand Avatar & Name */}
+          <div
+            onClick={() => {
+              playClickSound();
+              setIsMobileMenuOpen(true);
+            }}
+            className="flex items-center gap-3.5 min-w-0 cursor-pointer active:scale-98 transition-transform"
+            title="Open Menu & System Tools"
+          >
+            <motion.div
+              animate={{
+                scale: [1, 1.03, 1],
+                boxShadow: [
+                  '0 0 0 0px rgba(255, 255, 255, 0.45)',
+                  '0 0 0 12px rgba(255, 255, 255, 0)',
+                  '0 0 0 0px rgba(255, 255, 255, 0.45)'
+                ]
               }}
-              className="w-10 h-10 rounded-full bg-white/20 border-2 border-white/60 p-0.5 shadow-md flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative cursor-pointer active:scale-95 transition-transform"
-              title="Open Navigation Menu"
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: 'easeInOut'
+              }}
+              className="w-22 h-22 rounded-full bg-white/20 border-3 border-white/80 p-1 shadow-xl flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative"
             >
               {brandSettings?.logoUrl ? (
-                <img
+                <motion.img
                   src={brandSettings.logoUrl}
                   alt={brandSettings.brandName || 'Logo'}
                   className="w-full h-full object-cover rounded-full bg-white p-0.5 shadow-inner"
                   referrerPolicy="no-referrer"
+                  animate={{
+                    rotate: [0, 2, -2, 0]
+                  }}
+                  transition={{
+                    duration: 6,
+                    repeat: Infinity,
+                    ease: 'easeInOut'
+                  }}
                 />
               ) : (
-                <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-base shadow-inner">
+                <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl shadow-inner">
                   {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
                 </div>
               )}
-            </div>
+            </motion.div>
 
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h1 className="font-ai text-white text-base font-black uppercase tracking-wider truncate drop-shadow-sm">
+                <h1 className="font-ai text-white text-lg font-black uppercase tracking-wider truncate drop-shadow-sm leading-tight">
                   {brandSettings.brandName}
                 </h1>
-                <span className="px-1.5 py-0.2 rounded text-[8px] font-ai font-black bg-white/20 text-white border border-white/30 tracking-wider uppercase shrink-0">
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-ai font-black bg-white/20 text-white border border-white/30 tracking-wider uppercase shrink-0">
                   AI OS
                 </span>
               </div>
-              
-              {/* Active Branch Pill button */}
-              <button
-                type="button"
-                onClick={() => {
-                  playClickSound();
-                  setIsMobileMenuOpen(true);
-                }}
-                className="flex items-center gap-1 text-[11px] font-extrabold text-pink-900 bg-white hover:bg-pink-50 px-2.5 py-0.5 rounded-full border border-white/90 shadow-2xs cursor-pointer mt-1 max-w-[170px] truncate transition-all"
-              >
-                <MapPin className="w-2.5 h-2.5 text-pink-600 shrink-0" />
+              <p className="text-[12px] text-pink-100 font-semibold truncate flex items-center gap-1 mt-0.5">
+                <MapPin className="w-3.5 h-3.5 text-pink-200 shrink-0" />
                 <span className="truncate">{activeLocInfo?.name || getLocationShortLabel(activeLocation)}</span>
-                <ChevronDown className="w-2.5 h-2.5 text-pink-600 opacity-80 shrink-0" />
-              </button>
+              </p>
             </div>
           </div>
 
-          {/* Right: Mobile Quick-Access App Actions (Barcode + Inbox + Hamburger Menu) */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Quick Barcode Camera Scanner */}
-            <button
-              type="button"
-              onClick={() => {
-                playClickSound();
-                setIsMobileBarcodeScannerOpen(true);
-              }}
-              className="p-2 bg-white hover:bg-emerald-50 text-emerald-700 border border-white/80 rounded-xl transition-all active:scale-95 shadow-xs flex items-center justify-center cursor-pointer"
-              title="Camera Barcode Scanner"
-              aria-label="Camera Barcode Scanner"
-            >
-              <Camera className="w-4 h-4 text-emerald-600" />
-            </button>
-
-            {/* Quick Inbox Notifications */}
-            <button
-              type="button"
-              onClick={() => {
-                playClickSound();
-                setIsMailDrawerOpen(true);
-              }}
-              className={`p-2 rounded-xl transition-all active:scale-95 border flex items-center justify-center relative cursor-pointer shadow-xs ${
-                totalMessageAlerts > 0
-                  ? 'bg-amber-400 text-slate-950 border-amber-200 shadow-md font-bold'
-                  : 'bg-white hover:bg-slate-50 border-white/80 text-pink-900'
-              }`}
-              title="Inbox & Messages"
-              aria-label="Inbox"
-            >
-              <Mail className="w-4 h-4 text-pink-800" />
-              {totalMessageAlerts > 0 && (
-                <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-white shadow-xs">
-                  {totalMessageAlerts}
-                </span>
-              )}
-            </button>
-
-            {/* Hamburger App Menu Toggle Button */}
+          {/* Right: Hamburger Menu Toggle Button with Notification Counter */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => {
                 playClickSound();
                 setIsMobileMenuOpen(prev => !prev);
               }}
-              className={`p-2 rounded-xl transition-all active:scale-95 border flex items-center justify-center relative cursor-pointer shadow-md ${
+              className={`p-3 rounded-2xl transition-all active:scale-95 border flex items-center justify-center relative cursor-pointer shadow-md ${
                 isMobileMenuOpen
                   ? 'bg-white text-pink-700 border-white ring-2 ring-white/50'
                   : 'bg-white hover:bg-slate-50 text-pink-800 border-white/90'
@@ -562,13 +551,15 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               aria-expanded={isMobileMenuOpen}
             >
               {isMobileMenuOpen ? (
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               ) : (
-                <Menu className="w-5 h-5" />
+                <Menu className="w-6 h-6" />
               )}
               {/* Alert Indicator on Hamburger */}
-              {!isMobileMenuOpen && totalAlertsCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white animate-pulse" />
+              {!isMobileMenuOpen && (totalAlertsCount > 0 || totalMessageAlerts > 0) && (
+                <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center border-2 border-white shadow-xs animate-bounce">
+                  {totalAlertsCount + totalMessageAlerts}
+                </span>
               )}
             </button>
           </div>
@@ -1034,16 +1025,44 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               )}
             </button>
 
-            {/* Brand Settings Gear (Admin only) */}
+            {/* User Guide & Knowledge Helper (All Roles) */}
+            <button
+              id="header-user-guide-btn"
+              type="button"
+              onClick={() => {
+                playClickSound();
+                if (setActiveTab) {
+                  setActiveTab('guide');
+                }
+              }}
+              className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95 border ${
+                activeTab === 'guide'
+                  ? 'bg-amber-400 text-slate-900 border-amber-300 shadow-md font-bold'
+                  : 'bg-white/10 hover:bg-amber-500/20 border-white/20 text-amber-300'
+              }`}
+              title="User Guide: Search How-To, Yarn Tare & Meter Guides"
+            >
+              <BookOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </button>
+
+            {/* System Settings & Governance (Admin only) */}
             {isAdmin && (
               <button
                 type="button"
                 onClick={() => {
                   playClickSound();
-                  setIsBrandSettingsModalOpen(true);
+                  if (setActiveTab) {
+                    setActiveTab('settings');
+                  } else {
+                    setIsBrandSettingsModalOpen(true);
+                  }
                 }}
-                className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95"
-                title="Brand Identity & Colors"
+                className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95 border ${
+                  activeTab === 'settings'
+                    ? 'bg-white text-pink-700 border-white shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                }`}
+                title="System Settings, Roles, Pricing & Barcodes"
               >
                 <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform" />
               </button>

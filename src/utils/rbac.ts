@@ -21,6 +21,8 @@ export interface RoleMetadata {
     | 'gmail'
     | 'operators'
     | 'branches'
+    | 'settings'
+    | 'guide'
   >;
   permissions: {
     canManageUsers: boolean;
@@ -65,7 +67,9 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'payroll',
       'operators',
       'audit',
-      'gmail'
+      'gmail',
+      'settings',
+      'guide'
     ],
     permissions: {
       canManageUsers: true,
@@ -102,7 +106,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'branches',
       'operators',
       'audit',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: true,
@@ -143,7 +148,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'ledger',
       'etr',
       'audit',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: false,
@@ -182,7 +188,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'payroll',
       'branches',
       'audit',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: false,
@@ -218,7 +225,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'sales_today',
       'catalog',
       'etr',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: false,
@@ -254,7 +262,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'sales_today',
       'catalog',
       'etr',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: false,
@@ -290,7 +299,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'transfers',
       'branches',
       'audit',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: false,
@@ -324,7 +334,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     allowedTabs: [
       'transfers',
       'catalog',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: false,
@@ -358,7 +369,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     allowedTabs: [
       'transfers',
       'catalog',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: false,
@@ -394,7 +406,8 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'sales_today',
       'catalog',
       'etr',
-      'gmail'
+      'gmail',
+      'guide'
     ],
     permissions: {
       canManageUsers: false,

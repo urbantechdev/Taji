@@ -126,9 +126,9 @@ export const AccountingLedger: React.FC = () => {
     isAdmin
   } = useERP();
 
-  const canManageJournal = isAdmin || hasPermission(currentUser.role, 'canManageLedgerEntries');
-  const canReconcile = isAdmin || hasPermission(currentUser.role, 'canPerformReconciliation');
-  const canGenerateTax = isAdmin || hasPermission(currentUser.role, 'canGenerateTaxReports');
+  const canManageJournal = isAdmin || hasPermission(currentUser.role, 'canManageGeneralLedger');
+  const canReconcile = isAdmin || hasPermission(currentUser.role, 'canManageGeneralLedger') || hasPermission(currentUser.role, 'canExecuteForensicAudit');
+  const canGenerateTax = isAdmin || hasPermission(currentUser.role, 'canConfigureETR') || hasPermission(currentUser.role, 'canManageGeneralLedger');
   const [activeSubTab, setActiveSubTab] = useState<LedgerTab>('cfo_advisory');
   const [selectedLocation, setSelectedLocation] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');

@@ -51,8 +51,8 @@ export const ETRModule: React.FC = () => {
     isAdmin
   } = useERP();
 
-  const canCreateBilling = isAdmin || hasPermission(currentUser.role, 'canProcessSales') || hasPermission(currentUser.role, 'canGenerateTaxReports');
-  const canDeleteBilling = isAdmin || hasPermission(currentUser.role, 'canManageLedgerEntries');
+  const canCreateBilling = isAdmin || hasPermission(currentUser.role, 'canDirectPOSSale') || hasPermission(currentUser.role, 'canConfigureETR');
+  const canDeleteBilling = isAdmin || hasPermission(currentUser.role, 'canManageGeneralLedger');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterTab, setActiveFilterTab] = useState<

@@ -22,6 +22,7 @@ import { ShiftZReportModal } from './components/pos/ShiftZReportModal';
 import { PeriodicStatementModal } from './components/dashboard/PeriodicStatementModal';
 import { TodaySalesModal } from './components/dashboard/TodaySalesModal';
 import { GmailInbox } from './components/gmail/GmailInbox';
+import { SettingsModule } from './components/settings/SettingsModule';
 import { ETRReceiptModal } from './components/common/ETRReceiptModal';
 import { QRScannerModal } from './components/common/QRScannerModal';
 import { MobileBarcodeScannerModal } from './components/common/MobileBarcodeScannerModal';
@@ -31,6 +32,8 @@ import { PlatformLockScreen } from './components/auth/PlatformLockScreen';
 import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
 import { ReturnExchangeModal } from './components/ReturnExchangeModal';
 import { FabricRollManagerModal } from './components/FabricRollManagerModal';
+import { UserGuideModule } from './components/docs/UserGuideModule';
+import { FloatingGuideWidget } from './components/guide/FloatingGuideWidget';
 import { Footer } from './components/layout/Footer';
 
 const ERPContent: React.FC = () => {
@@ -153,6 +156,8 @@ const ERPContent: React.FC = () => {
                     {effectiveTab === 'operators' && <POSOperatorManager />}
                     {effectiveTab === 'audit' && <AuditLogsModule />}
                     {effectiveTab === 'gmail' && <GmailInbox />}
+                    {effectiveTab === 'settings' && <SettingsModule />}
+                    {effectiveTab === 'guide' && <UserGuideModule onNavigateToTab={setActiveTab} />}
                   </>
                 )}
               </motion.div>
@@ -170,6 +175,9 @@ const ERPContent: React.FC = () => {
 
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav activeTab={effectiveTab} setActiveTab={setActiveTab} appMode={appMode} />
+
+      {/* Floating Interactive User Guide & Help Widget */}
+      <FloatingGuideWidget onNavigateToTab={setActiveTab} />
 
       {/* Global Toast / Popups & Modals */}
       <MailNotificationPopup />

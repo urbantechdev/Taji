@@ -16,7 +16,9 @@ import {
   Shield,
   User,
   Settings,
-  TrendingUp
+  TrendingUp,
+  BookOpen,
+  HelpCircle
 } from 'lucide-react';
 
 export type NavTab =
@@ -31,7 +33,9 @@ export type NavTab =
   | 'audit'
   | 'gmail'
   | 'operators'
-  | 'branches';
+  | 'branches'
+  | 'settings'
+  | 'guide';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -108,6 +112,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       label: 'Inbox',
       icon: <Mail className="w-4 h-4" />,
     },
+    {
+      id: 'settings',
+      label: 'Platform Settings',
+      icon: <Settings className="w-4 h-4 text-rose-500" />,
+    },
+    {
+      id: 'guide',
+      label: 'User Guide & Manual',
+      icon: <BookOpen className="w-4 h-4 text-amber-400" />,
+      badge: 'Help'
+    }
   ];
 
   // RBAC Filter: Only show tabs permitted for the current user's role

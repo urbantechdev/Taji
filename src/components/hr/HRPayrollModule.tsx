@@ -88,8 +88,8 @@ export const HRPayrollModule: React.FC = () => {
     mpesaNumber: ''
   });
 
-  const canManagePersonnel = isAdmin || hasPermission(currentUser.role, 'canManageEmployees');
-  const canProcessPayroll = isAdmin || hasPermission(currentUser.role, 'canProcessPayroll');
+  const canManagePersonnel = isAdmin || hasPermission(currentUser.role, 'canManageStaff');
+  const canProcessPayroll = isAdmin || hasPermission(currentUser.role, 'canDisbursePayroll');
 
   const handleGenerateClick = () => {
     if (staff.length === 0) {

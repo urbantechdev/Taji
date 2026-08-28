@@ -82,8 +82,8 @@ export const POSModule: React.FC = () => {
     isAdmin
   } = useERP();
 
-  const canCloseShift = isAdmin || hasPermission(currentUser.role, 'canCloseShift');
-  const canViewReports = isAdmin || hasPermission(currentUser.role, 'canAccessAuditLedger');
+  const canCloseShift = isAdmin || hasPermission(currentUser.role, 'canDirectPOSSale') || hasPermission(currentUser.role, 'canAdjustCashFloat');
+  const canViewReports = isAdmin || hasPermission(currentUser.role, 'canExecuteForensicAudit') || hasPermission(currentUser.role, 'canManageGeneralLedger');
   const canDispatchTransfers = isAdmin || hasPermission(currentUser.role, 'canDispatchTransfers');
 
   const unreadMails = mailNotifications ? mailNotifications.filter(m => !m.read).length : 0;

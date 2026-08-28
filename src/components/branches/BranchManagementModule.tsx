@@ -57,7 +57,7 @@ export const BranchManagementModule: React.FC = () => {
   } = useERP();
 
   const canCreateBranch = isSuperAdmin || isAdmin || hasPermission(currentUser.role, 'canAccessSystemSettings');
-  const canRecordExpenses = isSuperAdmin || isAdmin || hasPermission(currentUser.role, 'canRecordBranchExpenses');
+  const canRecordExpenses = isSuperAdmin || isAdmin || hasPermission(currentUser.role, 'canManageBranchExpenses');
   const canAdjustFloat = isSuperAdmin || isAdmin || hasPermission(currentUser.role, 'canAdjustCashFloat');
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(activeLocation || 'main_store');

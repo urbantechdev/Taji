@@ -25,9 +25,10 @@ import ReflectionOverlay from '../common/ReflectionOverlay';
 interface ReadmeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onNavigateToGuide?: () => void;
 }
 
-export const ReadmeModal: React.FC<ReadmeModalProps> = ({ isOpen, onClose }) => {
+export const ReadmeModal: React.FC<ReadmeModalProps> = ({ isOpen, onClose, onNavigateToGuide }) => {
   const [copied, setCopied] = useState(false);
   const [activeViewTab, setActiveViewTab] = useState<'formatted' | 'raw'>('formatted');
   const [searchQuery, setSearchQuery] = useState('');
@@ -159,6 +160,20 @@ export const ReadmeModal: React.FC<ReadmeModalProps> = ({ isOpen, onClose }) => 
                 </>
               )}
             </button>
+
+            {onNavigateToGuide && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onNavigateToGuide();
+                }}
+                className="px-3 py-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-rose-600" />
+                <span>Searchable How-To Guides</span>
+              </button>
+            )}
           </div>
 
           {/* Search Box */}

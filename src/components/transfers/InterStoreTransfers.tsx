@@ -46,7 +46,7 @@ export const InterStoreTransfers: React.FC = () => {
   } = useERP();
 
   const canDispatchTransfers = isAdmin || hasPermission(currentUser.role, 'canDispatchTransfers');
-  const canApproveTransfers = isAdmin || hasPermission(currentUser.role, 'canApproveTransfers');
+  const canApproveTransfers = isAdmin || hasPermission(currentUser.role, 'canReceiveTransfers');
 
   const [activeTab, setActiveTab] = useState<'pending' | 'fulfilled' | 'all'>('pending');
   const [selectedFulfillTransfer, setSelectedFulfillTransfer] = useState<InterStoreTransfer | null>(null);

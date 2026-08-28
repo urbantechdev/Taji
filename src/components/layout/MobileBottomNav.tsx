@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { NavTab } from './Sidebar';
 import { useERP } from '../../context/ERPContext';
 import { LocationId, UserRole } from '../../types';
@@ -28,7 +29,8 @@ import {
   Store,
   Warehouse,
   Building2,
-  TrendingUp
+  TrendingUp,
+  BookOpen
 } from 'lucide-react';
 
 interface MobileBottomNavProps {
@@ -151,6 +153,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       label: 'Inbox',
       icon: <Mail className="w-5 h-5 text-red-500" />,
       desc: 'Read & send store emails'
+    },
+    {
+      id: 'settings',
+      label: 'Platform Settings',
+      icon: <Settings className="w-5 h-5 text-rose-500" />,
+      desc: 'Pricing, roles, barcodes & finance'
+    },
+    {
+      id: 'guide',
+      label: 'User Guide & Manual',
+      icon: <BookOpen className="w-5 h-5 text-amber-500" />,
+      desc: 'How-to guides, yarn tare & meter calibration'
     }
   ];
 
@@ -169,6 +183,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   const handleSelectTab = (tab: NavTab) => {
     playClickSound();
+    if (tab === 'pos') {
+      setAppMode('pos');
+    } else if (isAdmin) {
+      setAppMode('admin');
+    }
     setActiveTab(tab);
     setIsMoreMenuOpen(false);
   };
@@ -451,6 +470,85 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-center justify-around py-1.5 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] text-slate-600 md:hidden">
         {displayPrimaryNav.map(item => {
           const isActive = activeTab === item.id;
+          const isInventory = item.id === 'catalog';
+
+          if (isInventory) {
+            return (
+              <div key={item.id} className="relative -mt-7 flex flex-col items-center shrink-0">
+                <motion.button
+                  type="button"
+                  onClick={() => handleSelectTab(item.id)}
+                  animate={{
+                    scale: isActive ? [1, 1.07, 1] : [1, 1.04, 1],
+                    boxShadow: isActive
+                      ? [
+                          '0 0 0 0px rgba(244, 63, 94, 0.55), 0 6px 20px rgba(225, 29, 72, 0.5)',
+                          '0 0 0 16px rgba(244, 63, 94, 0), 0 10px 30px rgba(225, 29, 72, 0.75)',
+                          '0 0 0 0px rgba(244, 63, 94, 0.55), 0 6px 20px rgba(225, 29, 72, 0.5)'
+                        ]
+                      : [
+                          '0 0 0 0px rgba(244, 63, 94, 0.4), 0 4px 14px rgba(225, 29, 72, 0.35)',
+                          '0 0 0 12px rgba(244, 63, 94, 0), 0 8px 24px rgba(225, 29, 72, 0.55)',
+                          '0 0 0 0px rgba(244, 63, 94, 0.4), 0 4px 14px rgba(225, 29, 72, 0.35)'
+                        ]
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: 'easeInOut'
+                  }}
+                  whileTap={{ scale: 0.9 }}
+                  className={`w-15 h-15 rounded-full p-1 border-3 border-white shadow-2xl flex items-center justify-center relative cursor-pointer backdrop-blur-md overflow-hidden active:scale-95 transition-all ${
+                    isActive
+                      ? 'bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 ring-4 ring-pink-500/40'
+                      : 'bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 ring-3 ring-rose-400/25'
+                  }`}
+                  title="Inventory & Stock Catalog"
+                  aria-label="Inventory"
+                >
+                  {/* Subtle Light Reflection Sweep */}
+                  <motion.div
+                    className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/35 to-transparent -translate-x-full pointer-events-none z-0"
+                    animate={{
+                      translateX: ['-100%', '200%']
+                    }}
+                    transition={{
+                      duration: 2.8,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                      repeatDelay: 1.2
+                    }}
+                  />
+
+                  <motion.div
+                    animate={{
+                      rotate: [0, 4, -4, 0],
+                      scale: [1, 1.08, 1]
+                    }}
+                    transition={{
+                      duration: 4.5,
+                      repeat: Infinity,
+                      ease: 'easeInOut'
+                    }}
+                    className="w-full h-full rounded-full flex items-center justify-center text-white relative z-10"
+                  >
+                    <Boxes className="w-7 h-7 text-white drop-shadow-md stroke-[2.3]" />
+                  </motion.div>
+
+                  {/* Stock low count alert indicator badge */}
+                  {(mainStoreLowCount + salesShopLowCount > 0) && (
+                    <span className="absolute top-0 right-0 bg-amber-400 text-slate-950 font-black text-[9px] min-w-4.5 h-4.5 px-0.5 rounded-full flex items-center justify-center border-2 border-white shadow-md z-20 animate-bounce">
+                      {mainStoreLowCount + salesShopLowCount}
+                    </span>
+                  )}
+                </motion.button>
+                <span className={`text-[10.5px] mt-1 tracking-tight font-extrabold ${isActive ? 'text-rose-600' : 'text-slate-700'}`}>
+                  {item.label}
+                </span>
+              </div>
+            );
+          }
+
           return (
             <button
               key={item.id}
@@ -489,19 +587,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             )}
           </button>
         )}
-
-        {/* Quick Lock Session Button */}
-        <button
-          onClick={() => {
-            playClickSound();
-            lockPlatform();
-          }}
-          className="flex flex-col items-center justify-center py-1 px-2 text-rose-600 font-bold"
-          title="Lock Terminal Session"
-        >
-          <Lock className="w-5 h-5 text-rose-500" />
-          <span className="text-[10px] mt-0.5 tracking-tight">Lock</span>
-        </button>
       </nav>
     </>
   );
