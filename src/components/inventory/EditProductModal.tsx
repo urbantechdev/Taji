@@ -32,7 +32,8 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
     deleteProductBatch,
     locations,
     isSuperAdmin,
-    isAdmin
+    isAdmin,
+    brandSettings
   } = useERP();
 
   // Form State
@@ -50,6 +51,17 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
   const [costPrice, setCostPrice] = useState<number>(product.costPrice);
   const [minReorderLevel, setMinReorderLevel] = useState<number>(product.minReorderLevel);
   const [imageUrl, setImageUrl] = useState<string>(product.imageUrl || '');
+
+  // Yarn Specifications (Defaults: 24.000kg Net, 24.840kg Gross, 12 Cones)
+  const [yarnCount, setYarnCount] = useState<string>(product.yarnCount || '2/24 NM');
+  const [dyeLot, setDyeLot] = useState<string>(product.dyeLot || '');
+  const [shadeCode, setShadeCode] = useState<string>(product.shadeCode || '');
+  const [bagNumber, setBagNumber] = useState<string>(product.bagNumber || '');
+  const [packagesCount, setPackagesCount] = useState<number>(product.packagesCount || 12);
+  const [netWeightKg, setNetWeightKg] = useState<number>(product.netWeightKg || 24.000);
+  const [grossWeightKg, setGrossWeightKg] = useState<number>(product.grossWeightKg || 24.840);
+  const [tareWeightKg, setTareWeightKg] = useState<number>(product.tareWeightKg || 0.840);
+  const [manufacturer, setManufacturer] = useState<string>(product.manufacturer || (brandSettings.brandName ? `${brandSettings.brandName} TEXTILES` : 'TAJI TEXTILES'));
 
   // Branch Stocks
   const [locationStock, setLocationStock] = useState<Record<LocationId, number>>({
@@ -98,6 +110,16 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
       costPrice: Number(costPrice),
       minReorderLevel: Number(minReorderLevel),
       imageUrl: imageUrl.trim() || undefined,
+      yarnCount: category === 'Yarns' ? yarnCount : undefined,
+      dyeLot: category === 'Yarns' ? dyeLot : undefined,
+      shadeCode: category === 'Yarns' ? shadeCode : undefined,
+      bagNumber: category === 'Yarns' ? bagNumber : undefined,
+      packagesCount: category === 'Yarns' ? Number(packagesCount) : undefined,
+      netWeightKg: category === 'Yarns' ? Number(netWeightKg) : undefined,
+      grossWeightKg: category === 'Yarns' ? Number(grossWeightKg) : undefined,
+      tareWeightKg: category === 'Yarns' ? Number(tareWeightKg) : undefined,
+      weightPerPackageKg: category === 'Yarns' && packagesCount > 0 ? Number((netWeightKg / packagesCount).toFixed(3)) : undefined,
+      manufacturer: category === 'Yarns' ? manufacturer : undefined,
       locationStock
     };
 
@@ -139,7 +161,9 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold">Edit Inventory Item</h3>
+                <h3 className="text-lg font-bold">
+                  {brandSettings.brandName || 'TAJI'} Item Master Editor
+                </h3>
                 <span className="px-2 py-0.5 text-xs font-semibold rounded-md bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
                   {product.id}
                 </span>
@@ -148,13 +172,13 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
                 </span>
               </div>
               <p className="text-xs text-slate-300">
-                Changes persist directly to the Firestore cloud database and update in real-time across all phones, laptops, and tablets.
+                {brandSettings.brandName || 'TAJI'} Enterprise Cloud Database • Real-time synchronization across all stores and devices.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors"
+            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -339,6 +363,194 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
               />
             </div>
           </div>
+
+          {/* Yarn Specific Batch Specifications & Mass Configurator */}
+          {category === 'Yarns' && (
+            <div className="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/10 p-4 rounded-xl border-2 border-amber-300 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-amber-700" />
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                      <span>Yarn Bale Batch &amp; Weight Specifications</span>
+                      <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                        Default: 24.000 KG Net / 24.840 KG Gross (12 pcs)
+                      </span>
+                    </h4>
+                    <span className="text-[11px] text-slate-500">
+                      Configure full bale (12 cones) or half batch (6 cones) mass calibration.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNetWeightKg(24.000);
+                      setGrossWeightKg(24.840);
+                      setTareWeightKg(0.840);
+                      setPackagesCount(12);
+                    }}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                      netWeightKg === 24.000 && packagesCount === 12
+                        ? 'bg-rose-600 text-white border-rose-600'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    Full Batch (12 pcs • 24kg)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNetWeightKg(12.000);
+                      setGrossWeightKg(12.420);
+                      setTareWeightKg(0.420);
+                      setPackagesCount(6);
+                    }}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                      netWeightKg === 12.000 && packagesCount === 6
+                        ? 'bg-amber-600 text-white border-amber-600'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    Half Batch (6 pcs • 12kg)
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                    Net Mass (KG) *
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0.1"
+                      value={netWeightKg}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setNetWeightKg(val);
+                        if (grossWeightKg > val) {
+                          setTareWeightKg(Number((grossWeightKg - val).toFixed(3)));
+                        }
+                      }}
+                      className="w-full font-mono font-bold text-rose-800 text-sm focus:outline-none"
+                    />
+                    <span className="text-[10px] font-bold text-slate-400">KG</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                    Gross Mass (KG) *
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0.1"
+                      value={grossWeightKg}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setGrossWeightKg(val);
+                        if (val > netWeightKg) {
+                          setTareWeightKg(Number((val - netWeightKg).toFixed(3)));
+                        }
+                      }}
+                      className="w-full font-mono font-bold text-slate-900 text-sm focus:outline-none"
+                    />
+                    <span className="text-[10px] font-bold text-slate-400">KG</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                    Tare Deduction (KG)
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={tareWeightKg}
+                      onChange={e => setTareWeightKg(Number(e.target.value))}
+                      className="w-full font-mono font-bold text-amber-700 text-sm focus:outline-none"
+                    />
+                    <span className="text-[10px] font-bold text-slate-400">KG</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                    Batch Cones / Pieces *
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={packagesCount}
+                      onChange={e => setPackagesCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full font-mono font-bold text-indigo-700 text-sm focus:outline-none"
+                    />
+                    <span className="text-[10px] font-bold text-slate-400">PCS</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                    Dye Lot
+                  </label>
+                  <input
+                    type="text"
+                    value={dyeLot}
+                    onChange={e => setDyeLot(e.target.value)}
+                    placeholder="e.g. 26E081"
+                    className="w-full font-mono text-slate-800 text-xs focus:outline-none"
+                  />
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                    Shade Code
+                  </label>
+                  <input
+                    type="text"
+                    value={shadeCode}
+                    onChange={e => setShadeCode(e.target.value)}
+                    placeholder="e.g. MIX GREY-4251"
+                    className="w-full font-mono text-slate-800 text-xs focus:outline-none"
+                  />
+                </div>
+
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                    Bag / Bale #
+                  </label>
+                  <input
+                    type="text"
+                    value={bagNumber}
+                    onChange={e => setBagNumber(e.target.value)}
+                    placeholder="e.g. 148"
+                    className="w-full font-mono text-slate-800 text-xs focus:outline-none"
+                  />
+                </div>
+
+                <div className="bg-amber-100/70 p-2.5 rounded-xl border border-amber-200 flex flex-col justify-between">
+                  <span className="text-[10px] font-extrabold uppercase text-amber-900 block">
+                    Weight Per Cone
+                  </span>
+                  <span className="font-mono font-black text-xs text-amber-950">
+                    {packagesCount > 0 ? (netWeightKg / packagesCount).toFixed(3) : '2.000'} KG / cone
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Pricing & Financial Margins */}
           <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">

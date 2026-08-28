@@ -49,6 +49,7 @@ import {
 } from '../types';
 import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
 import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
+import { calculateRollPricing } from '../utils/rollPricingEngine';
 import {
   LOCATIONS,
   INITIAL_BRANCH_EXPENSES,
@@ -140,6 +141,15 @@ interface ERPContextType {
   addToCart: (batch: ProductBatch, quantity?: number, isBulk?: boolean) => void;
   removeFromCart: (batchId: string) => void;
   updateCartQuantity: (batchId: string, quantity: number) => void;
+  updateCartItemRollPricing: (
+    batchId: string,
+    options: {
+      looseDiscountPct?: number;
+      standardRollMeters?: number;
+      pricingMode?: 'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail' | 'custom';
+      customLooseRate?: number;
+    }
+  ) => void;
   clearCart: () => void;
 
   // Hold Cart Feature
@@ -970,6 +980,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       coneTareWeightKg: 0.250,
       baleTareWeightKg: 0.500,
       autoDeductTareAtPOS: true,
+      standardRollLengthMeters: 50,
+      looseMeterDiscountPct: 10,
+      enableHybridRollPricing: true,
       lastUpdated: new Date().toISOString()
     },
     Fleece: {
@@ -982,6 +995,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       coneTareWeightKg: 0.250,
       baleTareWeightKg: 0.500,
       autoDeductTareAtPOS: true,
+      standardRollLengthMeters: 70,
+      looseMeterDiscountPct: 10,
+      enableHybridRollPricing: true,
       lastUpdated: new Date().toISOString()
     },
     Yarns: {
@@ -994,6 +1010,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       coneTareWeightKg: 0.070, // Standard 70g empty paper/plastic cone spool
       baleTareWeightKg: 0.840, // Standard 840g bale bag & packaging
       autoDeductTareAtPOS: true,
+      standardRollLengthMeters: 0,
+      looseMeterDiscountPct: 0,
+      enableHybridRollPricing: false,
       lastUpdated: new Date().toISOString()
     }
   };
@@ -2966,16 +2985,43 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const available = batch.locationStock[activeLocation] || 0;
     const price = (isBulk && activeLocation === 'main_store') ? batch.unitPriceBulk : batch.unitPriceRetail;
 
+    const catConfig = categoryPricingConfigs[batch.category] || DEFAULT_CATEGORY_PRICING[batch.category];
+    const stdRollMeters = batch.standardRollLengthMeters ?? catConfig?.standardRollLengthMeters ?? (batch.category === 'Fleece' ? 70 : (batch.category === 'Dereck' ? 50 : 0));
+    const looseDiscount = catConfig?.looseMeterDiscountPct ?? 10;
+
     setCart(prev => {
       const existing = prev.find(item => item.batchId === batch.id);
       if (existing) {
         const newQty = existing.quantity + quantity;
+        const rollPricing = calculateRollPricing({
+          quantity: newQty,
+          unitPriceRetail: batch.unitPriceRetail,
+          unitPriceBulk: batch.unitPriceBulk,
+          category: batch.category,
+          unit: batch.unit,
+          standardRollMeters: existing.rollPricing?.standardRollMeters ?? stdRollMeters,
+          looseDiscountPct: existing.rollPricing?.looseDiscountPct ?? looseDiscount,
+          pricingMode: existing.rollPricing?.pricingMode ?? 'hybrid_discounted_loose'
+        }) || undefined;
+
         return prev.map(item =>
           item.batchId === batch.id
-            ? { ...item, quantity: newQty, availableStock: available }
+            ? { ...item, quantity: newQty, availableStock: available, rollPricing }
             : item
         );
       }
+
+      const rollPricing = calculateRollPricing({
+        quantity,
+        unitPriceRetail: batch.unitPriceRetail,
+        unitPriceBulk: batch.unitPriceBulk,
+        category: batch.category,
+        unit: batch.unit,
+        standardRollMeters: stdRollMeters,
+        looseDiscountPct: looseDiscount,
+        pricingMode: 'hybrid_discounted_loose'
+      }) || undefined;
+
       return [
         ...prev,
         {
@@ -2988,7 +3034,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           unitPrice: price,
           quantity,
           isBulk,
-          availableStock: available
+          availableStock: available,
+          rollPricing
         }
       ];
     });
@@ -3005,7 +3052,67 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     setCart(prev =>
-      prev.map(item => (item.batchId === batchId ? { ...item, quantity } : item))
+      prev.map(item => {
+        if (item.batchId !== batchId) return item;
+        const prod = products.find(p => p.id === batchId);
+        const catConfig = prod ? (categoryPricingConfigs[prod.category] || DEFAULT_CATEGORY_PRICING[prod.category]) : undefined;
+        const stdRollMeters = item.rollPricing?.standardRollMeters ?? prod?.standardRollLengthMeters ?? catConfig?.standardRollLengthMeters ?? (prod?.category === 'Fleece' ? 70 : 50);
+        const looseDiscount = item.rollPricing?.looseDiscountPct ?? catConfig?.looseMeterDiscountPct ?? 10;
+        const pricingMode = item.rollPricing?.pricingMode ?? 'hybrid_discounted_loose';
+
+        const rollPricing = prod ? (calculateRollPricing({
+          quantity,
+          unitPriceRetail: prod.unitPriceRetail,
+          unitPriceBulk: prod.unitPriceBulk,
+          category: prod.category,
+          unit: prod.unit,
+          standardRollMeters: stdRollMeters,
+          looseDiscountPct: looseDiscount,
+          pricingMode
+        }) || undefined) : item.rollPricing;
+
+        return { ...item, quantity, rollPricing };
+      })
+    );
+  };
+
+  const updateCartItemRollPricing = (
+    batchId: string,
+    options: {
+      looseDiscountPct?: number;
+      standardRollMeters?: number;
+      pricingMode?: 'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail' | 'custom';
+      customLooseRate?: number;
+    }
+  ) => {
+    setCart(prev =>
+      prev.map(item => {
+        if (item.batchId !== batchId) return item;
+        const prod = products.find(p => p.id === batchId);
+        if (!prod) return item;
+
+        const catConfig = categoryPricingConfigs[prod.category] || DEFAULT_CATEGORY_PRICING[prod.category];
+        const stdRollMeters = options.standardRollMeters ?? item.rollPricing?.standardRollMeters ?? prod.standardRollLengthMeters ?? catConfig?.standardRollLengthMeters ?? (prod.category === 'Fleece' ? 70 : 50);
+        const looseDiscount = options.looseDiscountPct !== undefined ? options.looseDiscountPct : (item.rollPricing?.looseDiscountPct ?? catConfig?.looseMeterDiscountPct ?? 10);
+        const pricingMode = options.pricingMode ?? item.rollPricing?.pricingMode ?? 'hybrid_discounted_loose';
+
+        const rollPricing = calculateRollPricing({
+          quantity: item.quantity,
+          unitPriceRetail: prod.unitPriceRetail,
+          unitPriceBulk: prod.unitPriceBulk,
+          category: prod.category,
+          unit: prod.unit,
+          standardRollMeters: stdRollMeters,
+          looseDiscountPct: looseDiscount,
+          pricingMode,
+          customLooseRate: options.customLooseRate
+        }) || undefined;
+
+        return {
+          ...item,
+          rollPricing
+        };
+      })
     );
   };
 
@@ -3058,8 +3165,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // Calculate totals & 16% KRA VAT breakdown
-    const grossTotal = cart.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
+    // Calculate totals & 16% KRA VAT breakdown (accounting for Option 1 roll pricing)
+    const grossTotal = cart.reduce((acc, item) => {
+      const lineTotal = item.rollPricing && item.rollPricing.totalPrice > 0 
+        ? item.rollPricing.totalPrice 
+        : item.unitPrice * item.quantity;
+      return acc + lineTotal;
+    }, 0);
     const subtotal = Number((grossTotal / (1 + etrConfig.vatRate)).toFixed(2));
     const vatAmount = Number((grossTotal - subtotal).toFixed(2));
 
@@ -3089,24 +3201,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fulfilledByLocation: activeLocation,
       customerName,
       customerKraPin: customerKraPin || undefined,
-      items: cart.map(item => ({
-        batchId: item.batchId,
-        productName: item.productName,
-        category: item.category,
-        unit: item.unit,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.unitPrice * item.quantity,
-        scaleGrossWeight: item.scaleGrossWeight,
-        tareDeduction: item.tareDeduction,
-        netBillableWeight: item.netBillableWeight,
-        isTareApplied: item.isTareApplied,
-        tareDescription: item.tareDescription,
-        dyeLot: item.dyeLot,
-        shadeCode: item.shadeCode,
-        yarnCount: item.yarnCount,
-        bagNumber: item.bagNumber
-      })),
+      items: cart.map(item => {
+        const itemLineTotal = item.rollPricing && item.rollPricing.totalPrice > 0
+          ? item.rollPricing.totalPrice
+          : item.unitPrice * item.quantity;
+        return {
+          batchId: item.batchId,
+          productName: item.productName,
+          category: item.category,
+          unit: item.unit,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: itemLineTotal,
+          scaleGrossWeight: item.scaleGrossWeight,
+          tareDeduction: item.tareDeduction,
+          netBillableWeight: item.netBillableWeight,
+          isTareApplied: item.isTareApplied,
+          tareDescription: item.tareDescription,
+          dyeLot: item.dyeLot,
+          shadeCode: item.shadeCode,
+          yarnCount: item.yarnCount,
+          bagNumber: item.bagNumber,
+          rollPricing: item.rollPricing
+        };
+      }),
       subtotal,
       vatAmount,
       grandTotal: grossTotal,
@@ -3147,7 +3265,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...prod,
               reservedStock: {
                 ...(prod.reservedStock || {}),
-                [activeLocation]: currentReserved + cartItem.quantity
+                [activeLocation]: Number((currentReserved + cartItem.quantity).toFixed(3))
               }
             };
           }
@@ -3204,7 +3322,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...prod,
               locationStock: {
                 ...prod.locationStock,
-                [activeLocation]: Math.max(0, currentStock - cartItem.quantity)
+                [activeLocation]: Math.max(0, Number((currentStock - cartItem.quantity).toFixed(3)))
               }
             };
           }
@@ -5098,6 +5216,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           shadeCode: item.shadeCode || existing.shadeCode,
           bagNumber: item.bagNumber || existing.bagNumber,
           packagesCount: item.packagesCount || existing.packagesCount,
+          weightPerPackageKg: item.weightPerPackageKg || existing.weightPerPackageKg,
+          grossWeightKg: item.grossWeightKg || existing.grossWeightKg,
+          netWeightKg: item.netWeightKg || existing.netWeightKg,
+          tareWeightKg: item.tareWeightKg || existing.tareWeightKg,
           manufacturer: item.manufacturer || existing.manufacturer,
           locationStock: {
             ...existing.locationStock,
@@ -6221,6 +6343,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addToCart,
         removeFromCart,
         updateCartQuantity,
+        updateCartItemRollPricing,
         clearCart,
         heldCarts,
         holdCurrentCart,

@@ -21,6 +21,7 @@ import {
   Scale
 } from 'lucide-react';
 import ReflectionOverlay from '../common/ReflectionOverlay';
+import { ProductQRTagModal } from '../inventory/ProductQRTagModal';
 
 interface ProductDetailModalProps {
   product: ProductBatch | null;
@@ -46,6 +47,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   }, []);
 
   const [quantity, setQuantity] = useState<number>(1);
+  const [showQRModal, setShowQRModal] = useState<boolean>(false);
   const currentLocStock = product.locationStock[activeLocation] || 0;
   const totalEnterpriseStock = (Object.values(product.locationStock) as number[]).reduce((a, b) => a + b, 0);
   const isOutOfStock = currentLocStock <= 0;
@@ -162,15 +164,23 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </p>
                 </div>
 
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase">
-                    <QrCode className="w-3 h-3 text-slate-700" />
-                    <span>QR Data</span>
+                <button
+                  type="button"
+                  onClick={() => { playClickSound(); setShowQRModal(true); }}
+                  className="p-2.5 bg-slate-50 hover:bg-rose-50/70 border border-slate-200 hover:border-rose-300 rounded-xl text-left transition-colors cursor-pointer group"
+                  title="View authentic scannable QR code & printable batch sticker"
+                >
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase">
+                    <div className="flex items-center gap-1">
+                      <QrCode className="w-3 h-3 text-rose-600 group-hover:scale-110 transition-transform" />
+                      <span>QR Tag</span>
+                    </div>
+                    <span className="text-[9px] text-rose-600 font-semibold group-hover:underline">View</span>
                   </div>
                   <p className="font-mono font-bold text-slate-700 mt-0.5 text-[10.5px] truncate">
                     {product.qrCodeData || product.sku}
                   </p>
-                </div>
+                </button>
 
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
                   <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase">
@@ -363,6 +373,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
         </div>
       </div>
+
+      {showQRModal && (
+        <ProductQRTagModal
+          product={product}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
     </div>
   );
 };

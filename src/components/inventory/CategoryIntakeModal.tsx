@@ -7,6 +7,8 @@ import {
   Barcode,
   Scan,
   PackagePlus,
+  Package,
+  Scale,
   CheckCircle2,
   AlertCircle,
   Sparkles,
@@ -159,6 +161,31 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
   const [retailPrice, setRetailPrice] = useState<number>(CATEGORY_PRESETS[initialCategory].defaultRetailPrice);
   const [unit, setUnit] = useState<UnitType>(CATEGORY_PRESETS[initialCategory].defaultUnit);
 
+  // Yarn Batch Specification & Mass Configuration State (Default: 24.000kg Net, 24.840kg Gross, 12 Cones/Pcs)
+  const [yarnBatchMode, setYarnBatchMode] = useState<'full' | 'half' | 'custom'>('full');
+  const [yarnNetWeightKg, setYarnNetWeightKg] = useState<number>(24.000);
+  const [yarnGrossWeightKg, setYarnGrossWeightKg] = useState<number>(24.840);
+  const [yarnTareWeightKg, setYarnTareWeightKg] = useState<number>(0.840);
+  const [yarnPackagesCount, setYarnPackagesCount] = useState<number>(12);
+  const [editingItemBatchId, setEditingItemBatchId] = useState<string | null>(null);
+
+  // Helper to switch yarn batch preset (Full 24kg vs Half 12kg vs Custom)
+  const handleApplyYarnBatchPreset = (mode: 'full' | 'half') => {
+    playClickSound();
+    setYarnBatchMode(mode);
+    if (mode === 'full') {
+      setYarnNetWeightKg(24.000);
+      setYarnGrossWeightKg(24.840);
+      setYarnTareWeightKg(0.840);
+      setYarnPackagesCount(12);
+    } else if (mode === 'half') {
+      setYarnNetWeightKg(12.000);
+      setYarnGrossWeightKg(12.420);
+      setYarnTareWeightKg(0.420);
+      setYarnPackagesCount(6);
+    }
+  };
+
   // Scanning State
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scanQuantity, setScanQuantity] = useState<number>(1);
@@ -269,8 +296,14 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
       let itemQty = qtyToAdd;
 
       if (selectedCategory === 'Yarns' && (isOsterBale || !existingProduct)) {
+        const activeNet = yarnNetWeightKg > 0 ? yarnNetWeightKg : 24.000;
+        const activeGross = yarnGrossWeightKg > 0 ? yarnGrossWeightKg : 24.840;
+        const activeTare = yarnTareWeightKg > 0 ? yarnTareWeightKg : Number((activeGross - activeNet).toFixed(3));
+        const activePcs = yarnPackagesCount > 0 ? yarnPackagesCount : 12;
+        const activeWtPerPkg = activePcs > 0 ? Number((activeNet / activePcs).toFixed(3)) : 2.0;
+
         if (isOsterBale) {
-          name = 'Yarns - Mix Grey (Oster India 2/24 NM Acrylic)';
+          name = `Yarns - Mix Grey (Oster India 2/24 NM Acrylic${yarnBatchMode === 'half' ? ' - Half Batch' : ''})`;
           colorName = 'Mix Grey';
           colorHex = '#94A3B8';
           itemFiber = '100% ACRYLIC (HB) DYED YARN';
@@ -279,25 +312,28 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
           dyeLot = '26E081';
           shadeCode = 'MIX GREY-4251';
           bagNumber = '148';
-          packagesCount = 12;
-          weightPerPackageKg = 2.0;
-          grossWeightKg = 24.840;
-          netWeightKg = 24.000;
-          tareWeightKg = 0.840;
+          packagesCount = activePcs;
+          weightPerPackageKg = activeWtPerPkg;
+          grossWeightKg = activeGross;
+          netWeightKg = activeNet;
+          tareWeightKg = activeTare;
           manufacturer = 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD';
           countryOfOrigin = 'INDIA';
           yarnType = 'MACHINE KNITTING';
-          itemQty = 24.0;
+          itemQty = activeNet;
         } else {
           yarnCount = '2/24 NM';
           dyeLot = codeUpper.startsWith('LOT-') ? codeUpper : 'LOT-A1';
           shadeCode = codeUpper;
-          packagesCount = 12;
-          grossWeightKg = 24.840;
-          netWeightKg = 24.000;
-          tareWeightKg = 0.840;
+          packagesCount = activePcs;
+          weightPerPackageKg = activeWtPerPkg;
+          grossWeightKg = activeGross;
+          netWeightKg = activeNet;
+          tareWeightKg = activeTare;
           manufacturer = 'OSTER INDIA PVT LTD';
-          itemQty = 24.0;
+          countryOfOrigin = 'INDIA';
+          yarnType = 'MACHINE KNITTING';
+          itemQty = activeNet;
         }
       }
 
@@ -334,10 +370,10 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
       setScanFeedback({
         type: 'success',
         message: isOsterBale
-          ? `Scanned Oster India Yarn Bale: Shade ${shadeCode} | Lot ${dyeLot} | ${itemQty} KG (12 Cones)`
+          ? `Scanned Oster India Yarn Bale: Shade ${shadeCode} | Lot ${dyeLot} | ${itemQty} KG Net (${packagesCount || 12} Cones)`
           : existingProduct
           ? `Scanned: Existing Product "${name}" (+${itemQty} ${unit})`
-          : `Auto-Registered: New ${selectedCategory} Item (${codeUpper}) with Wholesale KSh ${wholesalePrice} & Retail KSh ${retailPrice}`
+          : `Auto-Registered: New ${selectedCategory} Item (${codeUpper}) with Wholesale KSh ${wholesalePrice} & Retail KSh ${retailPrice} (${packagesCount || 12} pcs)`
       });
     }
 
@@ -345,6 +381,73 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     setBarcodeInput('');
     setScanQuantity(1);
     barcodeInputRef.current?.focus();
+  };
+
+  // Switch batch preset for a specific scanned line item
+  const handleToggleItemBatchPreset = (itemId: string, mode: 'full' | 'half') => {
+    playClickSound();
+    setScannedItems(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        if (mode === 'full') {
+          return {
+            ...item,
+            packagesCount: 12,
+            netWeightKg: 24.000,
+            grossWeightKg: 24.840,
+            tareWeightKg: 0.840,
+            weightPerPackageKg: 2.000,
+            quantity: 24.000
+          };
+        } else {
+          return {
+            ...item,
+            packagesCount: 6,
+            netWeightKg: 12.000,
+            grossWeightKg: 12.420,
+            tareWeightKg: 0.420,
+            weightPerPackageKg: 2.000,
+            quantity: 12.000
+          };
+        }
+      })
+    );
+  };
+
+  // Custom mass & count update for specific item in manifest
+  const handleUpdateItemBatchDetails = (
+    itemId: string,
+    updates: {
+      netWeightKg?: number;
+      grossWeightKg?: number;
+      tareWeightKg?: number;
+      packagesCount?: number;
+      dyeLot?: string;
+      shadeCode?: string;
+      bagNumber?: string;
+    }
+  ) => {
+    setScannedItems(prev =>
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        const newNet = updates.netWeightKg !== undefined ? updates.netWeightKg : (item.netWeightKg || 24.000);
+        const newGross = updates.grossWeightKg !== undefined ? updates.grossWeightKg : (item.grossWeightKg || 24.840);
+        const newTare = updates.tareWeightKg !== undefined ? updates.tareWeightKg : Number((newGross - newNet).toFixed(3));
+        const newPcs = updates.packagesCount !== undefined ? updates.packagesCount : (item.packagesCount || 12);
+        const newWtPerPkg = newPcs > 0 ? Number((newNet / newPcs).toFixed(3)) : 2.0;
+
+        return {
+          ...item,
+          ...updates,
+          netWeightKg: newNet,
+          grossWeightKg: newGross,
+          tareWeightKg: newTare,
+          packagesCount: newPcs,
+          weightPerPackageKg: newWtPerPkg,
+          quantity: newNet
+        };
+      })
+    );
   };
 
   // Remove item from session manifest
@@ -676,6 +779,160 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                   </div>
                 </div>
 
+                {/* YARN SPECIFIC MASS & BATCH SIZE CONTROLS (Default: 24.000kg Net, 24.840kg Gross, 12 pcs) */}
+                {selectedCategory === 'Yarns' && (
+                  <div className="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/10 border-2 border-amber-300/80 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Scale className="w-4 h-4 text-amber-700" />
+                        <div>
+                          <span className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                            <span>Yarn Bale Weight &amp; Batch Defaults</span>
+                            <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.2 rounded-md">
+                              Standard 12 Cones / 24 KG Net
+                            </span>
+                          </span>
+                          <span className="text-[11px] text-slate-500 block">
+                            Set default gross/net mass for incoming yarn bales, or switch to half batch (6 pcs) when receiving split bags.
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Quick Preset Buttons: Full Batch vs Half Batch vs Custom */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleApplyYarnBatchPreset('full')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs flex items-center gap-1 ${
+                            yarnBatchMode === 'full' && yarnNetWeightKg === 24.000
+                              ? 'bg-rose-600 text-white ring-2 ring-rose-500/30'
+                              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                          }`}
+                        >
+                          <Package className="w-3.5 h-3.5" />
+                          <span>Full Batch (12 pcs • 24kg)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyYarnBatchPreset('half')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs flex items-center gap-1 ${
+                            yarnBatchMode === 'half' || (yarnNetWeightKg === 12.000 && yarnPackagesCount === 6)
+                              ? 'bg-amber-600 text-white ring-2 ring-amber-500/30'
+                              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Half Batch (6 pcs • 12kg)</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Numeric Live Weight & Cones Fields */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2 border-t border-amber-200/60 text-xs">
+                      <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
+                        <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-0.5">
+                          Net Mass (KG) *
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.001"
+                            min="0.1"
+                            value={yarnNetWeightKg}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setYarnNetWeightKg(val);
+                              setYarnBatchMode('custom');
+                              // auto update tare if gross is greater
+                              if (yarnGrossWeightKg > val) {
+                                setYarnTareWeightKg(Number((yarnGrossWeightKg - val).toFixed(3)));
+                              }
+                            }}
+                            className="w-full font-mono font-black text-rose-800 text-sm focus:outline-none"
+                          />
+                          <span className="text-[10px] font-bold text-slate-400">KG</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
+                        <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-0.5">
+                          Gross Mass (KG) *
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.001"
+                            min="0.1"
+                            value={yarnGrossWeightKg}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setYarnGrossWeightKg(val);
+                              setYarnBatchMode('custom');
+                              if (val > yarnNetWeightKg) {
+                                setYarnTareWeightKg(Number((val - yarnNetWeightKg).toFixed(3)));
+                              }
+                            }}
+                            className="w-full font-mono font-black text-slate-900 text-sm focus:outline-none"
+                          />
+                          <span className="text-[10px] font-bold text-slate-400">KG</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
+                        <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-0.5">
+                          Tare Deduction (KG)
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            value={yarnTareWeightKg}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setYarnTareWeightKg(val);
+                              setYarnBatchMode('custom');
+                            }}
+                            className="w-full font-mono font-bold text-amber-700 text-sm focus:outline-none"
+                          />
+                          <span className="text-[10px] font-bold text-slate-400">KG</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
+                        <label className="text-[10px] font-extrabold uppercase text-slate-500 block mb-0.5">
+                          Batch Cones / Pieces *
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            value={yarnPackagesCount}
+                            onChange={e => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              setYarnPackagesCount(val);
+                              setYarnBatchMode('custom');
+                            }}
+                            className="w-full font-mono font-black text-indigo-700 text-sm focus:outline-none"
+                          />
+                          <span className="text-[10px] font-bold text-slate-400">PCS</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-amber-100/60 p-2 rounded-xl border border-amber-200 flex flex-col justify-between col-span-2 sm:col-span-1">
+                        <span className="text-[10px] font-extrabold uppercase text-amber-900 block">
+                          Weight Per Cone
+                        </span>
+                        <span className="font-mono font-black text-xs text-amber-950">
+                          {yarnPackagesCount > 0 ? (yarnNetWeightKg / yarnPackagesCount).toFixed(3) : '2.000'} KG / pc
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Barcode Scanner Input Form */}
                 <form
                   onSubmit={(e) => {
@@ -823,60 +1080,196 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {scannedItems.map(item => (
-                            <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="p-2.5 font-mono font-bold text-rose-700">
-                                {item.barcode}
-                              </td>
-                              <td className="p-2.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.colorHex }} />
-                                  <div>
-                                    <span className="font-bold text-slate-900 block">{item.name}</span>
-                                    <span className="text-[10px] text-slate-400 block">{item.fiberComposition}</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="p-2.5">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItemQuantity(item.id, item.quantity - 1)}
-                                    className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs cursor-pointer"
-                                  >
-                                    -
-                                  </button>
-                                  <span className="font-mono font-bold text-slate-900 px-1">{item.quantity}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItemQuantity(item.id, item.quantity + 1)}
-                                    className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs cursor-pointer"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="p-2.5 text-right font-mono text-slate-600">
-                                KSh {item.wholesalePrice.toLocaleString()}
-                              </td>
-                              <td className="p-2.5 text-right font-mono font-bold text-rose-800">
-                                KSh {(item.quantity * item.wholesalePrice).toLocaleString()}
-                              </td>
-                              <td className="p-2.5 text-right font-mono font-bold text-emerald-700">
-                                KSh {(item.quantity * item.retailPrice).toLocaleString()}
-                              </td>
-                              <td className="p-2.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveSessionItem(item.id)}
-                                  className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
-                                  title="Remove item"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {scannedItems.map(item => {
+                            const isYarn = item.category === 'Yarns';
+                            const isEditingThis = editingItemBatchId === item.id;
+                            const isHalfBatch = item.packagesCount === 6 || (item.netWeightKg === 12.000);
+
+                            return (
+                              <React.Fragment key={item.id}>
+                                <tr className={`hover:bg-slate-50/80 transition-colors ${isEditingThis ? 'bg-amber-50/60' : ''}`}>
+                                  <td className="p-2.5 font-mono font-bold text-rose-700">
+                                    {item.barcode}
+                                  </td>
+                                  <td className="p-2.5">
+                                    <div className="flex items-start gap-2">
+                                      <span className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ backgroundColor: item.colorHex }} />
+                                      <div>
+                                        <span className="font-bold text-slate-900 block">{item.name}</span>
+                                        <span className="text-[10px] text-slate-400 block">{item.fiberComposition}</span>
+                                        
+                                        {/* Yarn Specific Batch & Mass Badge */}
+                                        {isYarn && (
+                                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                              isHalfBatch
+                                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                                : 'bg-rose-100 text-rose-900 border-rose-300'
+                                            }`}>
+                                              {isHalfBatch ? '🌓 Half Batch' : '📦 Full Batch'}: {item.packagesCount || 12} pcs • Net: {Number(item.netWeightKg || item.quantity || 24).toFixed(3)} kg | Gross: {Number(item.grossWeightKg || 24.840).toFixed(3)} kg
+                                            </span>
+
+                                            {/* Quick Batch Presets Switcher for this Line Item */}
+                                            <div className="inline-flex items-center gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleToggleItemBatchPreset(item.id, 'full')}
+                                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors cursor-pointer ${
+                                                  !isHalfBatch && (item.netWeightKg === 24.000 || item.quantity === 24.000)
+                                                    ? 'bg-rose-600 text-white border-rose-600'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                }`}
+                                                title="Set to standard Full Batch (12 pcs / 24.000 kg Net)"
+                                              >
+                                                Full (24kg/12pcs)
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() => handleToggleItemBatchPreset(item.id, 'half')}
+                                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-colors cursor-pointer ${
+                                                  isHalfBatch
+                                                    ? 'bg-amber-600 text-white border-amber-600'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                }`}
+                                                title="Set to Half Batch (6 pcs / 12.000 kg Net / 12.420 kg Gross)"
+                                              >
+                                                Half (12kg/6pcs)
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() => setEditingItemBatchId(isEditingThis ? null : item.id)}
+                                                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 cursor-pointer"
+                                                title="Custom edit mass and pieces"
+                                              >
+                                                {isEditingThis ? 'Close Edit' : 'Edit Mass...'}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateItemQuantity(item.id, item.quantity - 1)}
+                                        className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs cursor-pointer"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="font-mono font-bold text-slate-900 px-1">{item.quantity}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateItemQuantity(item.id, item.quantity + 1)}
+                                        className="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs cursor-pointer"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono text-slate-600">
+                                    KSh {item.wholesalePrice.toLocaleString()}
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono font-bold text-rose-800">
+                                    KSh {(item.quantity * item.wholesalePrice).toLocaleString()}
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono font-bold text-emerald-700">
+                                    KSh {(item.quantity * item.retailPrice).toLocaleString()}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveSessionItem(item.id)}
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                                      title="Remove item"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+
+                                {/* Inline Item Custom Mass / Pcs Editor */}
+                                {isEditingThis && isYarn && (
+                                  <tr className="bg-amber-50/80 border-b border-amber-200">
+                                    <td colSpan={7} className="p-3">
+                                      <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-sm space-y-2">
+                                        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                                          <span className="flex items-center gap-1.5 text-amber-900">
+                                            <Scale className="w-3.5 h-3.5 text-amber-600" />
+                                            <span>Customize Batch Mass &amp; Pieces for {item.barcode}</span>
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingItemBatchId(null)}
+                                            className="text-[11px] text-slate-400 hover:text-slate-600 font-bold"
+                                          >
+                                            Done
+                                          </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block">Net Mass (KG)</label>
+                                            <input
+                                              type="number"
+                                              step="0.001"
+                                              value={item.netWeightKg || item.quantity || 24.000}
+                                              onChange={e => handleUpdateItemBatchDetails(item.id, { netWeightKg: Number(e.target.value) })}
+                                              className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-slate-900 text-xs"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block">Gross Mass (KG)</label>
+                                            <input
+                                              type="number"
+                                              step="0.001"
+                                              value={item.grossWeightKg || 24.840}
+                                              onChange={e => handleUpdateItemBatchDetails(item.id, { grossWeightKg: Number(e.target.value) })}
+                                              className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-slate-900 text-xs"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block">Tare Deduction (KG)</label>
+                                            <input
+                                              type="number"
+                                              step="0.001"
+                                              value={item.tareWeightKg || 0.840}
+                                              onChange={e => handleUpdateItemBatchDetails(item.id, { tareWeightKg: Number(e.target.value) })}
+                                              className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-amber-800 text-xs"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block">Cones / Pieces</label>
+                                            <input
+                                              type="number"
+                                              step="1"
+                                              min="1"
+                                              value={item.packagesCount || 12}
+                                              onChange={e => handleUpdateItemBatchDetails(item.id, { packagesCount: parseInt(e.target.value) || 12 })}
+                                              className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-indigo-900 text-xs"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-bold text-slate-500 block">Dye Lot / Shade</label>
+                                            <input
+                                              type="text"
+                                              value={item.dyeLot || ''}
+                                              placeholder="e.g. 26E081"
+                                              onChange={e => handleUpdateItemBatchDetails(item.id, { dyeLot: e.target.value })}
+                                              className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono text-slate-900 text-xs"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

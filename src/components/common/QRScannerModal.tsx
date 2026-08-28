@@ -27,7 +27,10 @@ import {
   Info,
   RefreshCw,
   Barcode,
-  Volume2
+  Volume2,
+  Minimize2,
+  Maximize2,
+  Radio
 } from 'lucide-react';
 
 export const QRScannerModal: React.FC = () => {
@@ -43,7 +46,8 @@ export const QRScannerModal: React.FC = () => {
     setScannedResult,
     updateProductBatch,
     scanToAddProduct,
-    recordAuditLog
+    recordAuditLog,
+    brandSettings
   } = useERP();
 
   // Scanner Operating Modes
@@ -55,6 +59,10 @@ export const QRScannerModal: React.FC = () => {
   const [availableCameras, setAvailableCameras] = useState<Array<{ id: string; label: string }>>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [torchOn, setTorchOn] = useState(false);
+
+  // Scanner Viewport State (Fullscreen & Minimized After Scan)
+  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  const [autoMinimizeOnScan, setAutoMinimizeOnScan] = useState<boolean>(true);
 
   // Scanned Match State
   const [scannedProduct, setScannedProduct] = useState<ProductBatch | null>(null);
@@ -73,6 +81,13 @@ export const QRScannerModal: React.FC = () => {
   const isProcessingScanRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scannerContainerId = 'batch-qr-camera-stream-view';
+
+  // Reset minimized state when modal opens
+  useEffect(() => {
+    if (isQRScannerOpen) {
+      setIsMinimized(false);
+    }
+  }, [isQRScannerOpen]);
 
   // Synchronize restockLocation with active store node
   useEffect(() => {
@@ -305,6 +320,11 @@ export const QRScannerModal: React.FC = () => {
         message: `Batch Identified: "${matched.name}" (${matched.sku}) • Ready for POS Cart, Restock, or Catalog inspection.`
       });
       recordAuditLog('Product Batch QR Scanned', `Scanned QR batch code for ${matched.sku} (${matched.name})`);
+
+      // Auto-minimize after scan to allow immediate next scan
+      if (autoMinimizeOnScan) {
+        setIsMinimized(true);
+      }
     } else {
       // Play alert error buzz
       playScannerErrorBeep();
@@ -430,13 +450,127 @@ export const QRScannerModal: React.FC = () => {
 
   if (!isQRScannerOpen) return null;
 
+  // MINIMIZED VIEW DOCK (Allows inspecting scanned product & 1-tap expanding for next scan)
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-4 sm:bottom-6 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[620px] z-50 animate-in slide-in-from-bottom-6 duration-200">
+        <div className="bg-slate-950/95 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-rose-500/50 p-4 text-white space-y-3">
+          
+          {/* Header Row */}
+          <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+              </span>
+              <span className="text-xs font-black uppercase tracking-wider text-rose-400">
+                {brandSettings.brandName || 'TAJI'} QR Batch Vision • Ready
+              </span>
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                ({activeLocation})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setAutoMinimizeOnScan(!autoMinimizeOnScan)}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                  autoMinimizeOnScan
+                    ? 'bg-rose-950/90 text-rose-300 border-rose-500/40'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}
+                title="Toggle Auto-Minimize mode after each scan"
+              >
+                Auto-Min: {autoMinimizeOnScan ? 'ON' : 'OFF'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsQRScannerOpen(false);
+                  setScannedResult(null);
+                  setActionFeedback(null);
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Close Scanner"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Last Scanned Item Summary Pill */}
+          {scannedProduct ? (
+            <div className="p-2.5 rounded-xl border bg-slate-900/90 border-rose-500/40 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-rose-600/30 border border-rose-500/40 flex items-center justify-center text-rose-400 font-bold shrink-0">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{scannedProduct.name}</p>
+                  <p className="font-mono text-[10px] text-slate-300">
+                    SKU: <strong className="text-rose-300">{scannedProduct.sku}</strong> • Stock: <strong>{Object.values(scannedProduct.locationStock || {}).reduce((a, b) => a + Number(b || 0), 0)} {scannedProduct.unit}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    addToCart(scannedProduct, 1);
+                    playSuccessSound();
+                    setActionFeedback({ type: 'success', message: `Added 1 unit of "${scannedProduct.name}" to POS Cart!` });
+                  }}
+                  className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>+ POS Cart</span>
+                </button>
+              </div>
+            </div>
+          ) : rawDecodedToken ? (
+            <div className="p-2.5 rounded-xl border bg-amber-950/80 border-amber-500/40 text-amber-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">Unmatched Code: {rawDecodedToken}</p>
+                  <p className="text-[10px] text-amber-300/80">Tap below to register batch or scan next.</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-2 bg-slate-900/80 rounded-xl text-center text-xs text-slate-400">
+              Ready to scan next product batch. Tap button below or use camera.
+            </div>
+          )}
+
+          {/* Action Row: Big "Scan Next Batch" Button */}
+          <div className="flex items-stretch gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setIsMinimized(false)}
+              className="flex-1 py-3 px-4 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 active:scale-98 text-white font-black text-sm rounded-xl shadow-lg shadow-rose-950/50 flex items-center justify-center gap-2 transition-all cursor-pointer border border-rose-400/40"
+            >
+              <Camera className="w-5 h-5 animate-pulse" />
+              <span>Scan Next Batch / QR (Full Camera)</span>
+              <Maximize2 className="w-4 h-4 ml-1 opacity-80" />
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
       
       {/* Hidden container for file scanning */}
       <div id="qr-temp-file-decoder" className="hidden" />
 
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col border border-rose-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] flex flex-col border border-rose-100 overflow-hidden">
         
         {/* MODAL HEADER */}
         <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-4 flex items-center justify-between border-b border-rose-900/50">
@@ -448,7 +582,7 @@ export const QRScannerModal: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-black text-sm sm:text-base text-white tracking-wide">
-                  Product Batch QR &amp; Barcode Scanner
+                  {brandSettings.brandName || 'TAJI'} Product Batch QR &amp; Barcode Scanner
                 </h3>
                 <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 text-[10px] font-bold rounded-full border border-rose-500/30">
                   Live Vision
@@ -461,6 +595,31 @@ export const QRScannerModal: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 relative z-10">
+            <button
+              type="button"
+              onClick={() => setAutoMinimizeOnScan(!autoMinimizeOnScan)}
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                autoMinimizeOnScan
+                  ? 'bg-rose-950 text-rose-300 border-rose-500/40'
+                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+              }`}
+              title="Toggle Auto-Minimize mode after each scan"
+            >
+              <Radio className={`w-3 h-3 ${autoMinimizeOnScan ? 'text-rose-400 animate-pulse' : 'text-slate-500'}`} />
+              <span className="hidden sm:inline">Auto-Min:</span>
+              <span>{autoMinimizeOnScan ? 'ON' : 'OFF'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsMinimized(true)}
+              className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-xs font-semibold text-rose-200 flex items-center gap-1 transition-colors cursor-pointer"
+              title="Minimize to floating bottom dock"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Minimize</span>
+            </button>
+
             <button
               onClick={() => playBarcodeScanBeep(true)}
               className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-xs font-semibold text-rose-200 flex items-center gap-1.5 transition-colors cursor-pointer"

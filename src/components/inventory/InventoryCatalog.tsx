@@ -12,11 +12,13 @@ import { CategoryPricingModal } from './CategoryPricingModal';
 import { ProductImageManagerModal } from './ProductImageManagerModal';
 import { BulkBarcodeGeneratorModal } from './BulkBarcodeGeneratorModal';
 import { DuplicateAuditModal } from './DuplicateAuditModal';
+import { ProductQRTagModal } from './ProductQRTagModal';
 import {
   Boxes,
   Layers,
   Search,
   Plus,
+  PackagePlus,
   QrCode,
   Filter,
   Sparkles,
@@ -73,7 +75,8 @@ export const InventoryCatalog: React.FC = () => {
     scanAllCatalogDuplicates,
     restockExistingProduct,
     currentUser,
-    isAdmin
+    isAdmin,
+    brandSettings
   } = useERP();
 
   // Role-Based Feature Permission Gates
@@ -133,6 +136,58 @@ export const InventoryCatalog: React.FC = () => {
   const [newMinLevel, setNewMinLevel] = useState(50);
   const [newMainStock, setNewMainStock] = useState(300);
 
+  // Yarn Specifications State (Defaults: 24.000kg Net, 24.840kg Gross, 12 Cones per batch)
+  const [yarnNetWeightKg, setYarnNetWeightKg] = useState<number>(24.000);
+  const [yarnGrossWeightKg, setYarnGrossWeightKg] = useState<number>(24.840);
+  const [yarnTareWeightKg, setYarnTareWeightKg] = useState<number>(0.840);
+  const [yarnPackagesCount, setYarnPackagesCount] = useState<number>(12);
+  const [yarnBatchPreset, setYarnBatchPreset] = useState<'full' | 'half' | 'custom'>('full');
+
+  // Auto configure yarn defaults when switching to Yarns category
+  const handleCategorySelectInAdd = (cat: CategoryType) => {
+    setNewCategory(cat);
+    if (cat === 'Yarns') {
+      setNewUnit('kg');
+      setNewComposition('100% ACRYLIC (HB) DYED YARN');
+      setNewRetailPrice(850);
+      setNewBulkPrice(700);
+      setNewCostPrice(550);
+      setYarnNetWeightKg(24.000);
+      setYarnGrossWeightKg(24.840);
+      setYarnTareWeightKg(0.840);
+      setYarnPackagesCount(12);
+      setYarnBatchPreset('full');
+    } else if (cat === 'Fleece') {
+      setNewUnit('meter');
+      setNewComposition('Heavyweight Thermal Polar Fleece 320 GSM');
+      setNewRetailPrice(1650);
+      setNewBulkPrice(1300);
+      setNewCostPrice(900);
+    } else {
+      setNewUnit('meter');
+      setNewComposition('100% Superfine Polyester Dereec Weave');
+      setNewRetailPrice(1250);
+      setNewBulkPrice(950);
+      setNewCostPrice(650);
+    }
+  };
+
+  // Helper for applying Yarn presets (Full 24kg / 12 pcs vs Half 12kg / 6 pcs)
+  const handleApplyYarnPreset = (preset: 'full' | 'half') => {
+    setYarnBatchPreset(preset);
+    if (preset === 'full') {
+      setYarnNetWeightKg(24.000);
+      setYarnGrossWeightKg(24.840);
+      setYarnTareWeightKg(0.840);
+      setYarnPackagesCount(12);
+    } else if (preset === 'half') {
+      setYarnNetWeightKg(12.000);
+      setYarnGrossWeightKg(12.420);
+      setYarnTareWeightKg(0.420);
+      setYarnPackagesCount(6);
+    }
+  };
+
   // Low stock counts
   const mainStoreLowCount = products.filter(p => p.locationStock.main_store <= p.minReorderLevel).length;
   const salesShopLowCount = products.filter(p => p.locationStock.sales_shop <= p.minReorderLevel).length;
@@ -185,6 +240,8 @@ export const InventoryCatalog: React.FC = () => {
     e.preventDefault();
     if (!newName || !newSku) return;
 
+    const isYarns = newCategory === 'Yarns';
+
     const res = await addProductBatch({
       sku: newSku.toUpperCase(),
       barcode: newBarcode.trim() ? newBarcode.trim().toUpperCase() : newSku.toUpperCase(),
@@ -194,7 +251,7 @@ export const InventoryCatalog: React.FC = () => {
       fiberComposition: newComposition,
       colorName: newColorName,
       colorHex: newColorHex,
-      unit: newUnit,
+      unit: isYarns ? 'kg' : newUnit,
       unitPriceRetail: Number(newRetailPrice),
       unitPriceBulk: Number(newBulkPrice),
       costPrice: Number(newCostPrice),
@@ -204,7 +261,15 @@ export const InventoryCatalog: React.FC = () => {
         store_1: 20,
         store_2: 15
       },
-      minReorderLevel: Number(newMinLevel)
+      minReorderLevel: Number(newMinLevel),
+      ...(isYarns ? {
+        netWeightKg: Number(yarnNetWeightKg) || 24.000,
+        grossWeightKg: Number(yarnGrossWeightKg) || 24.840,
+        tareWeightKg: Number(yarnTareWeightKg) || 0.840,
+        packagesCount: Number(yarnPackagesCount) || 12,
+        yarnCount: '2/24 NM',
+        manufacturer: brandSettings.brandName ? `${brandSettings.brandName} TEXTILES` : 'TAJI TEXTILES'
+      } : {})
     });
 
     setIsAddBatchModalOpen(false);
@@ -921,121 +986,56 @@ export const InventoryCatalog: React.FC = () => {
         </>
       )}
 
-      {/* BATCH QR CODE GENERATOR & TAG MODAL */}
+      {/* AUTHENTIC BATCH QR CODE GENERATOR & TAG MODAL */}
       {activeBatchModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-sm w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] p-5 sm:p-6 space-y-4 border-0 sm:border border-rose-100 animate-in fade-in zoom-in duration-200 overflow-y-auto flex flex-col justify-between sm:justify-start">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-rose-600" />
-                  <h3 className="font-bold text-slate-900 text-base">
-                    Product Batch QR Tag
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setActiveBatchModal(null)}
-                  className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Printable QR Tag Card */}
-              <div className="p-4 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 space-y-3 text-center">
-                {activeBatchModal.imageUrl && (
-                  <div className="relative w-full h-24 rounded-xl overflow-hidden shadow-xs border border-slate-200">
-                    <img
-                      src={activeBatchModal.imageUrl}
-                      alt={activeBatchModal.name}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div
-                      className="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white shadow-md"
-                      style={{ backgroundColor: activeBatchModal.colorHex }}
-                      title={activeBatchModal.colorName}
-                    />
-                  </div>
-                )}
-                {!activeBatchModal.imageUrl && (
-                  <div
-                    className="w-10 h-10 rounded-full mx-auto border-2 border-white shadow-md"
-                    style={{ backgroundColor: activeBatchModal.colorHex }}
-                  />
-                )}
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">
-                    {activeBatchModal.name}
-                  </h4>
-                  <p className="text-xs text-rose-700 font-semibold">
-                    {activeBatchModal.colorName} ({activeBatchModal.colorHex})
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                    SKU: {activeBatchModal.sku} • ID: {activeBatchModal.id}
-                  </p>
-                </div>
-
-                {/* QR Code Payload Simulation */}
-                <div className="bg-white p-3 rounded-xl border border-slate-200 inline-block shadow-xs">
-                  <QrCode className="w-24 h-24 mx-auto text-slate-900" />
-                  <span className="text-[8px] font-mono text-slate-400 uppercase mt-1 block">
-                    Scannable Batch QR Token
-                  </span>
-                </div>
-
-                <div className="text-[10px] text-slate-600 space-y-0.5">
-                  <p>Fiber: {activeBatchModal.fiberComposition}</p>
-                  <p>Retail: KSh {activeBatchModal.unitPriceRetail} / {activeBatchModal.unit}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-4">
-              <button
-                onClick={() => {
-                  const target = activeBatchModal;
-                  setActiveBatchModal(null);
-                  setProductToDelete(target);
-                }}
-                className="px-3 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Instant Delete this product from inventory"
-              >
-                <Trash2 className="w-4 h-4 text-rose-600" />
-                <span>Delete Batch</span>
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                Print Batch Tag
-              </button>
-            </div>
-          </div>
-        </div>
+        <ProductQRTagModal
+          product={activeBatchModal}
+          onClose={() => setActiveBatchModal(null)}
+          onDeleteRequest={(target) => {
+            setActiveBatchModal(null);
+            setProductToDelete(target);
+          }}
+        />
       )}
 
       {/* ADD PRODUCT BATCH MODAL */}
       {isAddBatchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-lg w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] p-5 sm:p-6 space-y-4 border-0 sm:border border-rose-100 animate-in fade-in zoom-in duration-200 overflow-y-auto flex flex-col justify-between sm:justify-start">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
-              <h3 className="font-bold text-slate-900 text-base">
-                Catalog New Textile Batch
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/75 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-xl w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[92vh] border-0 sm:border border-rose-200 animate-in fade-in zoom-in duration-200 overflow-hidden flex flex-col">
+            
+            {/* Platform Branded Modal Header */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-rose-900/50 shrink-0">
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-rose-600/30 border border-rose-400/30 flex items-center justify-center text-rose-300 shadow-md">
+                  <PackagePlus className="w-5 h-5 text-rose-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-sm sm:text-base text-white tracking-wide">
+                      {brandSettings.brandName || 'TAJI'} Enterprise Product Studio
+                    </h3>
+                    <span className="px-2 py-0.5 bg-rose-500/20 text-rose-300 text-[10px] font-bold rounded-full border border-rose-500/30">
+                      Catalog Master
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    {brandSettings.brandName || 'TAJI'} Cloud Inventory • Register verified textile or yarn batch
+                  </p>
+                </div>
+              </div>
+
               <button
                 onClick={() => setIsAddBatchModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-100"
+                className="text-slate-400 hover:text-white cursor-pointer p-1.5 rounded-xl hover:bg-white/10 transition-colors relative z-10"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-4 text-xs font-sans">
+            <form onSubmit={handleAddSubmit} className="p-4 sm:p-6 space-y-4 text-xs font-sans overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">SKU Code:</label>
+                  <label className="font-bold text-slate-700 block mb-1">SKU Code *:</label>
                   <input
                     type="text"
                     required
@@ -1102,15 +1102,15 @@ export const InventoryCatalog: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Category:</label>
+                  <label className="font-bold text-slate-700 block mb-1">Category *:</label>
                   <select
                     value={newCategory}
-                    onChange={e => setNewCategory(e.target.value as CategoryType)}
+                    onChange={e => handleCategorySelectInAdd(e.target.value as CategoryType)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none"
                   >
-                    <option value="Dereck">Dereck</option>
-                    <option value="Fleece">Fleece</option>
-                    <option value="Yarns">Yarns</option>
+                    <option value="Dereck">Dereck (Weave / Suitings)</option>
+                    <option value="Fleece">Fleece (Polar / Sherpa)</option>
+                    <option value="Yarns">Yarns (Knitting &amp; Weaving)</option>
                   </select>
                 </div>
                 <div>
@@ -1119,27 +1119,147 @@ export const InventoryCatalog: React.FC = () => {
                     type="text"
                     value={newSubCategory}
                     onChange={e => setNewSubCategory(e.target.value)}
-                    placeholder="e.g. Heavy Suiting Line"
+                    placeholder={newCategory === 'Yarns' ? 'e.g. 2/24 NM Acrylic HB' : 'e.g. Heavy Suiting Line'}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Product Batch Name:</label>
+                <label className="font-bold text-slate-700 block mb-1">Product Batch Name *:</label>
                 <input
                   type="text"
                   required
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
-                  placeholder="e.g. Heavy Dereck Suiting Weave"
+                  placeholder={newCategory === 'Yarns' ? 'e.g. 2/24 NM Acrylic Mix Grey (24.000 KG)' : 'e.g. Heavy Dereck Suiting Weave'}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
                 />
               </div>
 
+              {/* SPECIALIZED YARNS MASS & PACKAGING CONFIGURATION */}
+              {newCategory === 'Yarns' && (
+                <div className="p-3.5 bg-gradient-to-br from-purple-50 via-pink-50/50 to-slate-50 border-2 border-purple-300/80 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Scale className="w-4 h-4 text-purple-700" />
+                      <span className="font-black text-xs text-purple-900">
+                        Yarn Batch Mass &amp; Packaging Specs
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 bg-purple-200 text-purple-800 rounded-full">
+                      Default: 24.000 kg / 12 Pcs
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-purple-800 leading-snug">
+                    Standard industry yarn bags have <strong>24.000 kg Net Mass</strong>, <strong>24.840 kg Gross Mass</strong>, and <strong>12 Cones / Pcs</strong>. Select preset or edit custom values below:
+                  </p>
+
+                  {/* Quick Preset Buttons (Full Bag vs Half Bag) */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyYarnPreset('full')}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                        yarnBatchPreset === 'full'
+                          ? 'bg-purple-700 text-white border-purple-800 shadow-xs'
+                          : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-100'
+                      }`}
+                    >
+                      Full Bag (24.000 kg / 12 pcs)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyYarnPreset('half')}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                        yarnBatchPreset === 'half'
+                          ? 'bg-purple-700 text-white border-purple-800 shadow-xs'
+                          : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-100'
+                      }`}
+                    >
+                      Half Bag (12.000 kg / 6 pcs)
+                    </button>
+                  </div>
+
+                  {/* Editable Yarn Mass & Pieces Fields */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                    <div>
+                      <label className="text-[10px] font-bold text-purple-900 block mb-0.5">
+                        Net Mass (KG):
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={yarnNetWeightKg}
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          setYarnNetWeightKg(val);
+                          setYarnGrossWeightKg(Number((val + yarnTareWeightKg).toFixed(3)));
+                          setYarnBatchPreset('custom');
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-purple-300 rounded-lg font-mono font-bold text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-purple-900 block mb-0.5">
+                        Gross Mass (KG):
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={yarnGrossWeightKg}
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          setYarnGrossWeightKg(val);
+                          setYarnTareWeightKg(Number((val - yarnNetWeightKg).toFixed(3)));
+                          setYarnBatchPreset('custom');
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-purple-300 rounded-lg font-mono font-bold text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-purple-900 block mb-0.5">
+                        Tare Weight (KG):
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={yarnTareWeightKg}
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          setYarnTareWeightKg(val);
+                          setYarnGrossWeightKg(Number((yarnNetWeightKg + val).toFixed(3)));
+                          setYarnBatchPreset('custom');
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-purple-300 rounded-lg font-mono font-bold text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-purple-900 block mb-0.5">
+                        Cones / Pcs:
+                      </label>
+                      <input
+                        type="number"
+                        value={yarnPackagesCount}
+                        onChange={e => {
+                          setYarnPackagesCount(Number(e.target.value));
+                          setYarnBatchPreset('custom');
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-purple-300 rounded-lg font-mono font-bold text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Color Name:</label>
+                  <label className="font-bold text-slate-700 block mb-1">Color Name *:</label>
                   <input
                     type="text"
                     required
@@ -1175,16 +1295,17 @@ export const InventoryCatalog: React.FC = () => {
                     type="text"
                     value={newComposition}
                     onChange={e => setNewComposition(e.target.value)}
-                    placeholder="e.g. 80% Wool, 20% Polyester"
+                    placeholder={newCategory === 'Yarns' ? '100% ACRYLIC (HB) DYED YARN' : 'e.g. 80% Wool, 20% Polyester'}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none"
                   />
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">Unit Type:</label>
                   <select
-                    value={newUnit}
+                    value={newCategory === 'Yarns' ? 'kg' : newUnit}
                     onChange={e => setNewUnit(e.target.value as UnitType)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    disabled={newCategory === 'Yarns'}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none disabled:opacity-70"
                   >
                     <option value="meter">Meter</option>
                     <option value="kg">Kilogram (kg)</option>
@@ -1202,7 +1323,7 @@ export const InventoryCatalog: React.FC = () => {
                     type="number"
                     value={newRetailPrice}
                     onChange={e => setNewRetailPrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold focus:ring-2 focus:ring-rose-500 focus:outline-none text-emerald-700"
                   />
                 </div>
                 <div>
@@ -1225,19 +1346,20 @@ export const InventoryCatalog: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAddBatchModalOpen(false)}
-                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors"
+                  className="w-1/2 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  Catalog Product
+                  <PackagePlus className="w-4 h-4" />
+                  <span>Catalog Product Batch</span>
                 </button>
               </div>
             </form>

@@ -7,6 +7,7 @@ import { hasPermission } from '../../utils/rbac';
 import { HeldCartsModal } from './HeldCartsModal';
 import { ProductDetailModal } from './ProductDetailModal';
 import { ForwardReservationsModal } from './ForwardReservationsModal';
+import { CartQuantityInput } from './CartQuantityInput';
 import { playClickSound, playPopupSound, playSuccessSound, playAlertSound, playAddToCartSound, playBarcodeScanBeep, playScannerErrorBeep } from '../../utils/audio';
 import {
   Search,
@@ -46,8 +47,12 @@ import {
   Lock,
   RotateCcw,
   Calendar,
-  CalendarDays
+  CalendarDays,
+  Scissors,
+  Tag,
+  Sliders
 } from 'lucide-react';
+import { formatRollPricingSummary } from '../../utils/rollPricingEngine';
 
 export const POSModule: React.FC = () => {
   const {
@@ -58,6 +63,7 @@ export const POSModule: React.FC = () => {
     addToCart,
     removeFromCart,
     updateCartQuantity,
+    updateCartItemRollPricing,
     clearCart,
     processPOSCheckout,
     createOrderRerouteTicket,
@@ -133,6 +139,12 @@ export const POSModule: React.FC = () => {
   const [tareInputCoreCount, setTareInputCoreCount] = useState<number>(1);
   const [tareInputCustomPerUnit, setTareInputCustomPerUnit] = useState<number>(0.050);
 
+  // Option 1 Split Roll & Loose Meter Pricing In-Line Drawer State
+  const [activeRollPricingBatchId, setActiveRollPricingBatchId] = useState<string | null>(null);
+  const [rollPricingModalDiscountPct, setRollPricingModalDiscountPct] = useState<number>(10);
+  const [rollPricingModalStandardMeters, setRollPricingModalStandardMeters] = useState<number>(70);
+  const [rollPricingModalMode, setRollPricingModalMode] = useState<'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail'>('hybrid_discounted_loose');
+
   // Product Quick View Modal State
   const [selectedViewProduct, setSelectedViewProduct] = useState<ProductBatch | null>(null);
 
@@ -206,8 +218,13 @@ export const POSModule: React.FC = () => {
     return matchesCat && matchesSearch;
   });
 
-  // Calculate cart totals
-  const totalGross = cart.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
+  // Calculate cart totals (prioritizing Option 1 rollPricing.totalPrice if present)
+  const totalGross = cart.reduce((acc, item) => {
+    const itemTotal = (item.rollPricing && item.rollPricing.totalPrice > 0)
+      ? item.rollPricing.totalPrice
+      : item.unitPrice * item.quantity;
+    return acc + itemTotal;
+  }, 0);
   const subtotal = Number((totalGross / (1 + etrConfig.vatRate)).toFixed(2));
   const vatAmount = Number((totalGross - subtotal).toFixed(2));
 
@@ -934,13 +951,20 @@ export const POSModule: React.FC = () => {
                 {cart.map(item => {
                   const prod = products.find(p => p.id === item.batchId);
                   const isTareOpen = activeTareItemBatchId === item.batchId;
+                  const isRollPricingOpen = activeRollPricingBatchId === item.batchId;
                   const defaultTareKg = prod?.tareProfile?.tareWeightPerUnit ?? (prod?.category === 'Yarns' ? 0.050 : 0.250);
+                  const effectiveLineTotal = (item.rollPricing && item.rollPricing.totalPrice > 0)
+                    ? item.rollPricing.totalPrice
+                    : item.unitPrice * item.quantity;
+                  const isFabric = item.unit === 'meter' || item.unit === 'roll' || item.unit === 'yard' || item.category === 'Fleece' || item.category === 'Dereck';
 
                   return (
                     <div
                       key={item.batchId}
                       className={`p-3 rounded-xl border transition-all space-y-2 ${
-                        item.isTareApplied
+                        item.rollPricing?.isHybridApplied
+                          ? 'bg-indigo-50/40 border-indigo-200'
+                          : item.isTareApplied
                           ? 'bg-rose-50/50 border-rose-200'
                           : 'bg-slate-50 border-slate-200'
                       }`}
@@ -975,6 +999,32 @@ export const POSModule: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
+                          {isFabric && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playClickSound();
+                                if (activeRollPricingBatchId === item.batchId) {
+                                  setActiveRollPricingBatchId(null);
+                                } else {
+                                  setActiveRollPricingBatchId(item.batchId);
+                                  setRollPricingModalDiscountPct(item.rollPricing?.looseDiscountPct ?? 10);
+                                  setRollPricingModalStandardMeters(item.rollPricing?.standardRollMeters ?? (item.category === 'Fleece' ? 70 : 50));
+                                  setRollPricingModalMode(item.rollPricing?.pricingMode ?? 'hybrid_discounted_loose');
+                                }
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition-all cursor-pointer ${
+                                item.rollPricing?.isHybridApplied
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                              }`}
+                              title="Option 1 Split Roll & Discounted Loose Pricing"
+                            >
+                              <Scissors className="w-3 h-3" />
+                              <span>{item.rollPricing?.isHybridApplied ? 'Option 1 Split' : '✂️ Roll Pricing'}</span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => {
@@ -983,13 +1033,13 @@ export const POSModule: React.FC = () => {
                             }}
                             className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition-all cursor-pointer ${
                               item.isTareApplied
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                                : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                             }`}
                             title="Open Digital Scale & Variable Weight Calculator"
                           >
                             <Scale className="w-3 h-3" />
-                            <span>{item.isTareApplied ? 'Tare Active' : '⚖️ Weigh / Tare'}</span>
+                            <span>{item.isTareApplied ? 'Tare Active' : '⚖️ Tare'}</span>
                           </button>
 
                           <button
@@ -1001,6 +1051,156 @@ export const POSModule: React.FC = () => {
                           </button>
                         </div>
                       </div>
+
+                      {/* Option 1 Roll & Loose Meters Breakdown Badge */}
+                      {item.rollPricing && (
+                        <div className="p-2.5 bg-white border border-indigo-200 rounded-xl space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-indigo-950">
+                            <span className="flex items-center gap-1">
+                              <Boxes className="w-3.5 h-3.5 text-indigo-600" />
+                              {item.rollPricing.isHybridApplied
+                                ? 'Option 1: Roll + Discounted Loose Cut'
+                                : item.rollPricing.pricingMode === 'all_wholesale'
+                                ? 'All Wholesale Pricing'
+                                : item.rollPricing.pricingMode === 'all_retail'
+                                ? 'All Retail Pricing'
+                                : 'Fabric Roll Pricing'}
+                            </span>
+                            {item.rollPricing.savingsAmount > 0 && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
+                                Saves KSh {item.rollPricing.savingsAmount.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-[10px] text-slate-600 space-y-0.5 font-mono">
+                            {item.rollPricing.fullRollsCount > 0 && (
+                              <div className="flex justify-between">
+                                <span>📦 {item.rollPricing.fullRollsCount} Full Roll ({item.rollPricing.fullRollMeters}m @ KSh {item.rollPricing.wholesaleRatePerMeter.toLocaleString()}/m W/S):</span>
+                                <strong className="text-slate-900 font-sans">KSh {item.rollPricing.fullRollsSubtotal.toLocaleString()}</strong>
+                              </div>
+                            )}
+                            {item.rollPricing.looseMeters > 0 && (
+                              <div className="flex justify-between text-indigo-900">
+                                <span>✂️ {item.rollPricing.looseMeters}m Loose Cut @ KSh {item.rollPricing.discountedLooseRatePerMeter.toLocaleString()}/m (-{item.rollPricing.looseDiscountPct}% Disc):</span>
+                                <strong className="text-indigo-800 font-sans">KSh {item.rollPricing.looseMetersSubtotal.toLocaleString()}</strong>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* In-Line Option 1 Roll Pricing Drawer */}
+                      {isRollPricingOpen && (
+                        <div className="p-3 bg-white rounded-xl border border-indigo-300 shadow-xs space-y-2.5 animate-fade-in text-xs">
+                          <div className="flex items-center justify-between border-b border-indigo-100 pb-1.5">
+                            <span className="font-bold text-indigo-950 text-[11px] flex items-center gap-1">
+                              <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                              Option 1 Hybrid Roll Split Config
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              Batch: {item.batchId}
+                            </span>
+                          </div>
+
+                          {/* Mode Switch */}
+                          <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-lg text-[10px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => setRollPricingModalMode('hybrid_discounted_loose')}
+                              className={`py-1 rounded text-center cursor-pointer transition-colors ${
+                                rollPricingModalMode === 'hybrid_discounted_loose'
+                                  ? 'bg-indigo-600 text-white shadow-2xs'
+                                  : 'text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              Option 1 Hybrid
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRollPricingModalMode('all_wholesale')}
+                              className={`py-1 rounded text-center cursor-pointer transition-colors ${
+                                rollPricingModalMode === 'all_wholesale'
+                                  ? 'bg-indigo-600 text-white shadow-2xs'
+                                  : 'text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              All Wholesale
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRollPricingModalMode('all_retail')}
+                              className={`py-1 rounded text-center cursor-pointer transition-colors ${
+                                rollPricingModalMode === 'all_retail'
+                                  ? 'bg-indigo-600 text-white shadow-2xs'
+                                  : 'text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              All Retail
+                            </button>
+                          </div>
+
+                          {rollPricingModalMode === 'hybrid_discounted_loose' && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Roll Size (Meters)</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={rollPricingModalStandardMeters}
+                                  onChange={(e) => setRollPricingModalStandardMeters(Math.max(1, parseInt(e.target.value) || 1))}
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Loose Discount %</label>
+                                <div className="flex items-center gap-1">
+                                  {[5, 10, 15, 20].map(pct => (
+                                    <button
+                                      key={pct}
+                                      type="button"
+                                      onClick={() => setRollPricingModalDiscountPct(pct)}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
+                                        rollPricingModalDiscountPct === pct
+                                          ? 'bg-indigo-600 text-white'
+                                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                      }`}
+                                    >
+                                      {pct}%
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-end gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setActiveRollPricingBatchId(null)}
+                              className="px-2 py-1 text-[10px] font-bold text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playSuccessSound();
+                                updateCartItemRollPricing(item.batchId, {
+                                  looseDiscountPct: rollPricingModalDiscountPct,
+                                  standardRollMeters: rollPricingModalStandardMeters,
+                                  pricingMode: rollPricingModalMode
+                                });
+                                setActiveRollPricingBatchId(null);
+                              }}
+                              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg shadow-xs cursor-pointer flex items-center gap-1"
+                            >
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>Apply Roll Pricing</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Tare Applied Tag */}
                       {item.isTareApplied && item.tareDeduction && item.tareDeduction > 0 && (
@@ -1103,58 +1303,31 @@ export const POSModule: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Quantity Controls & Line Total */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-200 flex-wrap gap-2">
-                        <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-lg p-1">
-                          <button
-                            onClick={() => updateCartQuantity(item.batchId, Math.max(0.1, Number((item.quantity - 1).toFixed(3))))}
-                            className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="font-black font-mono text-sm px-2.5 min-w-[30px] text-center text-slate-900">
-                            {typeof item.quantity === 'number' ? item.quantity.toFixed(item.unit === 'meter' || item.unit === 'kg' ? 2 : 0) : item.quantity}
-                          </span>
-                          <button
-                            onClick={() => updateCartQuantity(item.batchId, Number((item.quantity + 1).toFixed(3)))}
-                            className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="text-[10px] text-slate-500 uppercase font-bold">{item.unit}</span>
-                        </div>
-
-                        {/* Quick Preset Buttons for Yarns */}
-                        {prod?.category === 'Yarns' && (
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
+                      {/* Quantity Decimal Controls & Line Total */}
+                      <div className="pt-2 border-t border-slate-200 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 max-w-[200px]">
+                            <CartQuantityInput
+                              value={item.quantity}
+                              unit={item.unit}
+                              category={prod?.category || item.category}
+                              onChange={(newQty) => updateCartQuantity(item.batchId, newQty)}
+                              showPresets={true}
+                              size="sm"
+                              onOpenScale={() => {
                                 playClickSound();
-                                updateCartQuantity(item.batchId, 2.0);
+                                handleOpenDigitalScale(prod, item.scaleGrossWeight || item.quantity, item);
                               }}
-                              className="px-1.5 py-0.5 text-[9px] font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded cursor-pointer"
-                              title="Set quantity to 1 Cone (2.0 KG)"
-                            >
-                              1 Cone (2kg)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                playClickSound();
-                                updateCartQuantity(item.batchId, 24.0);
-                              }}
-                              className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded cursor-pointer"
-                              title="Set quantity to 1 Full Bale (24.0 KG)"
-                            >
-                              Full Bale (24kg)
-                            </button>
+                            />
                           </div>
-                        )}
 
-                        <span className="font-mono font-black text-slate-900 text-sm sm:text-base ml-auto">
-                          KSh {(item.unitPrice * item.quantity).toLocaleString()}
-                        </span>
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-500 block">Line Total</span>
+                            <span className="font-mono font-black text-slate-900 text-sm sm:text-base">
+                              KSh {effectiveLineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1394,6 +1567,89 @@ export const POSModule: React.FC = () => {
             )}
 
             <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
+              
+              {/* EDITABLE CART ITEMS & WEIGHED QUANTITIES IN CHECKOUT WINDOW */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Scale className="w-4 h-4 text-rose-600" />
+                    <span className="font-extrabold text-slate-900 text-xs">
+                      Cart Line Items &amp; Weighed Quantities
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-rose-100 text-rose-800 rounded-full font-mono">
+                    {cart.length} {cart.length === 1 ? 'item' : 'items'}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  Weighed a yarn cone or cut fabric? Edit exact decimal KGS or meters (e.g. <strong className="text-purple-800">1.43 kg</strong>) below:
+                </p>
+
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+                  {cart.map((item) => {
+                    const prod = products.find(p => p.id === item.batchId);
+                    return (
+                      <div
+                        key={item.batchId}
+                        className="p-2.5 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div
+                              className="w-3.5 h-3.5 rounded-full border border-slate-200 shrink-0"
+                              style={{ backgroundColor: item.colorHex }}
+                            />
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 text-xs truncate">
+                                {item.productName}
+                              </p>
+                              <p className="text-[10px] text-slate-500 font-mono">
+                                {item.colorName} • KSh {item.unitPrice.toLocaleString()} / {item.unit}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(item.batchId)}
+                            className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                            title="Remove from checkout"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Direct Decimal Quantity Input Inside Checkout Window */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                          <div className="flex-1 max-w-[210px]">
+                            <CartQuantityInput
+                              value={item.quantity}
+                              unit={item.unit}
+                              category={prod?.category || item.category}
+                              onChange={(newQty) => updateCartQuantity(item.batchId, newQty)}
+                              showPresets={true}
+                              size="sm"
+                              onOpenScale={() => {
+                                playClickSound();
+                                handleOpenDigitalScale(prod, item.scaleGrossWeight || item.quantity, item);
+                              }}
+                            />
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-[9px] text-slate-400 block font-sans">Line Total</span>
+                            <span className="font-mono font-black text-xs sm:text-sm text-slate-900">
+                              KSh {(item.unitPrice * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
                   Customer Name:
@@ -2109,7 +2365,7 @@ export const POSModule: React.FC = () => {
                         Quick Weight Presets:
                       </span>
                       <div className="flex flex-wrap gap-1.5">
-                        {[1.920, 1.950, 2.000, 2.050, 2.080, 2.100, 2.150, 24.000].map(val => (
+                        {[1.430, 1.920, 1.950, 2.000, 2.050, 2.080, 2.100, 2.150, 12.000, 24.000].map(val => (
                           <button
                             key={val}
                             type="button"

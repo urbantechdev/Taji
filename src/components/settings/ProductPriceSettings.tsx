@@ -48,7 +48,10 @@ export const ProductPriceSettings: React.FC = () => {
     pricePerKgRate: selectedCategory === 'Dereck' ? 1200 : selectedCategory === 'Yarns' ? 750 : 1500,
     coneTareWeightKg: 0.070,
     baleTareWeightKg: 0.840,
-    autoDeductTareAtPOS: true
+    autoDeductTareAtPOS: true,
+    standardRollLengthMeters: selectedCategory === 'Fleece' ? 70 : selectedCategory === 'Dereck' ? 50 : 0,
+    looseMeterDiscountPct: 10,
+    enableHybridRollPricing: selectedCategory !== 'Yarns'
   };
 
   const [retailPrice, setRetailPrice] = useState<number>(activeConfig.defaultRetailPrice);
@@ -58,6 +61,10 @@ export const ProductPriceSettings: React.FC = () => {
   const [coneTareWeightKg, setConeTareWeightKg] = useState<number>(activeConfig.coneTareWeightKg ?? 0.070);
   const [baleTareWeightKg, setBaleTareWeightKg] = useState<number>(activeConfig.baleTareWeightKg ?? 0.840);
   const [autoDeductTareAtPOS, setAutoDeductTareAtPOS] = useState<boolean>(activeConfig.autoDeductTareAtPOS ?? true);
+  const [standardRollLengthMeters, setStandardRollLengthMeters] = useState<number>(activeConfig.standardRollLengthMeters ?? (selectedCategory === 'Fleece' ? 70 : 50));
+  const [looseMeterDiscountPct, setLooseMeterDiscountPct] = useState<number>(activeConfig.looseMeterDiscountPct ?? 10);
+  const [enableHybridRollPricing, setEnableHybridRollPricing] = useState<boolean>(activeConfig.enableHybridRollPricing ?? (selectedCategory !== 'Yarns'));
+  const [simulatedMeters, setSimulatedMeters] = useState<number>(100);
 
   // Strategy values
   const [percentValue, setPercentValue] = useState<number>(10);
@@ -84,7 +91,10 @@ export const ProductPriceSettings: React.FC = () => {
       pricePerKgRate: cat === 'Dereck' ? 1200 : cat === 'Yarns' ? 750 : 1500,
       coneTareWeightKg: 0.070,
       baleTareWeightKg: 0.840,
-      autoDeductTareAtPOS: true
+      autoDeductTareAtPOS: true,
+      standardRollLengthMeters: cat === 'Fleece' ? 70 : cat === 'Dereck' ? 50 : 0,
+      looseMeterDiscountPct: 10,
+      enableHybridRollPricing: cat !== 'Yarns'
     };
     setRetailPrice(cfg.defaultRetailPrice);
     setBulkPrice(cfg.defaultBulkPrice);
@@ -93,6 +103,9 @@ export const ProductPriceSettings: React.FC = () => {
     setConeTareWeightKg(cfg.coneTareWeightKg ?? 0.070);
     setBaleTareWeightKg(cfg.baleTareWeightKg ?? 0.840);
     setAutoDeductTareAtPOS(cfg.autoDeductTareAtPOS ?? true);
+    setStandardRollLengthMeters(cfg.standardRollLengthMeters ?? (cat === 'Fleece' ? 70 : 50));
+    setLooseMeterDiscountPct(cfg.looseMeterDiscountPct ?? 10);
+    setEnableHybridRollPricing(cfg.enableHybridRollPricing ?? (cat !== 'Yarns'));
     setStatusMessage(null);
   };
 
@@ -129,7 +142,10 @@ export const ProductPriceSettings: React.FC = () => {
         coneTareWeightKg,
         baleTareWeightKg,
         autoDeductTareAtPOS,
-        marginPercentage: projectedGrossMargin
+        marginPercentage: projectedGrossMargin,
+        standardRollLengthMeters,
+        looseMeterDiscountPct,
+        enableHybridRollPricing
       });
 
       // 2. Apply updates across all product batches in the category
@@ -141,6 +157,9 @@ export const ProductPriceSettings: React.FC = () => {
         coneTareWeightKg,
         baleTareWeightKg,
         autoDeductTareAtPOS,
+        standardRollLengthMeters,
+        looseMeterDiscountPct,
+        enableHybridRollPricing,
         adjustmentType: strategy,
         percentageValue: strategy === 'markup_from_cost' ? markupPercent : percentValue
       });
@@ -265,7 +284,7 @@ export const ProductPriceSettings: React.FC = () => {
 
       {/* Category Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-        {(['Dereck', 'Yarns'] as CategoryType[]).map(cat => {
+        {(['Dereck', 'Fleece', 'Yarns'] as CategoryType[]).map(cat => {
           const isSelected = selectedCategory === cat;
           const count = products.filter(p => p.category === cat).length;
           return (
@@ -280,7 +299,13 @@ export const ProductPriceSettings: React.FC = () => {
               }`}
             >
               <Boxes className="w-4 h-4" />
-              <span>{cat === 'Dereck' ? 'Dereec & Fleece Fabrics' : 'Yarns & Cones'}</span>
+              <span>
+                {cat === 'Dereck'
+                  ? 'Dereec Fabric'
+                  : cat === 'Fleece'
+                  ? 'Fleece Fabric (70m Rolls)'
+                  : 'Yarns & Cones'}
+              </span>
               <span
                 className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
                   isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
@@ -516,6 +541,133 @@ export const ProductPriceSettings: React.FC = () => {
               <label htmlFor="autoDeductTare" className="text-xs font-bold text-slate-700 cursor-pointer">
                 Auto-deduct tare weight at POS terminal when weighing scales are connected
               </label>
+            </div>
+          </div>
+
+          {/* Option 1: Roll & Loose Meters Discount Engine */}
+          <div className="pt-2 border-t border-slate-100 space-y-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                <Boxes className="w-4 h-4 text-indigo-700" />
+                3. Option 1: Roll &amp; Loose Meter Discounting (Wholesale Rolls + Discounted Cut)
+              </h4>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  id="enableHybrid"
+                  checked={enableHybridRollPricing}
+                  onChange={e => setEnableHybridRollPricing(e.target.checked)}
+                  className="w-4 h-4 rounded text-indigo-600 accent-indigo-600 cursor-pointer"
+                />
+                <label htmlFor="enableHybrid" className="text-xs font-bold text-indigo-900 cursor-pointer">
+                  Enabled for {selectedCategory}
+                </label>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-indigo-800 leading-tight">
+              When a client buys more than 1 roll (e.g. 100m when a roll is 70m), the full roll is billed at <strong>Wholesale (KSh {bulkPrice.toLocaleString()}/m)</strong> and the remaining cut meters (30m) are taken from a retail roll and discounted by <strong>{looseMeterDiscountPct}%</strong>.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Standard Roll Length (Meters per Roll)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={standardRollLengthMeters}
+                  onChange={e => setStandardRollLengthMeters(Math.max(1, parseInt(e.target.value) || 1))}
+                  placeholder="e.g. 70 for Fleece, 50 for Dereck"
+                  className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  e.g. 70m for Fleece Roll, 50m for Dereck
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Loose Meter Cut Discount % (Option 1)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={looseMeterDiscountPct}
+                    onChange={e => setLooseMeterDiscountPct(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
+                    className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-hidden"
+                  />
+                  <span className="text-xs font-bold text-indigo-900">%</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Discount applied strictly to the cut/loose portion
+                </span>
+              </div>
+            </div>
+
+            {/* Interactive Live Simulator */}
+            <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-200 space-y-2 text-xs">
+              <div className="flex items-center justify-between border-b border-indigo-100 pb-1.5">
+                <span className="font-bold text-indigo-900 flex items-center gap-1">
+                  <Calculator className="w-3.5 h-3.5 text-indigo-600" />
+                  Live Option 1 Math Simulator
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-slate-500">Test Quantity:</span>
+                  {[70, 100, 140, 175].map(qty => (
+                    <button
+                      key={qty}
+                      type="button"
+                      onClick={() => setSimulatedMeters(qty)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors ${
+                        simulatedMeters === qty
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {qty}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {(() => {
+                const rolls = Math.floor(simulatedMeters / (standardRollLengthMeters || 70));
+                const loose = simulatedMeters % (standardRollLengthMeters || 70);
+                const rollMtrs = rolls * (standardRollLengthMeters || 70);
+                const discountedLooseRate = Math.round(retailPrice * (1 - looseMeterDiscountPct / 100));
+                const rollCost = rollMtrs * bulkPrice;
+                const looseCost = loose * discountedLooseRate;
+                const totalOption1 = rollCost + looseCost;
+                const fullRetailCost = simulatedMeters * retailPrice;
+                const totalSavings = Math.max(0, fullRetailCost - totalOption1);
+
+                return (
+                  <div className="space-y-1.5 text-[11px] font-mono">
+                    <div className="flex justify-between text-slate-700">
+                      <span>• Full Rolls ({rolls}x {standardRollLengthMeters || 70}m = {rollMtrs}m @ Wholesale KSh {bulkPrice.toLocaleString()}):</span>
+                      <strong className="text-slate-900">KSh {rollCost.toLocaleString()}</strong>
+                    </div>
+                    {loose > 0 && (
+                      <div className="flex justify-between text-indigo-900">
+                        <span>• Loose Cut ({loose}m @ Retail KSh {retailPrice.toLocaleString()} - {looseMeterDiscountPct}% Disc = KSh {discountedLooseRate.toLocaleString()}/m):</span>
+                        <strong className="text-indigo-800">KSh {looseCost.toLocaleString()}</strong>
+                      </div>
+                    )}
+                    <div className="pt-1 border-t border-indigo-100 flex justify-between items-center text-xs font-bold font-sans">
+                      <span className="text-slate-900">Option 1 Billed Total:</span>
+                      <span className="text-indigo-900 font-mono font-black text-sm">KSh {totalOption1.toLocaleString()}</span>
+                    </div>
+                    <div className="text-[10px] text-emerald-700 font-sans font-bold flex items-center justify-between">
+                      <span>Customer Savings vs Pure Retail Cut:</span>
+                      <span>Saved KSh {totalSavings.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

@@ -108,6 +108,24 @@ export type UnitType = 'kg' | 'roll' | 'meter' | 'skein' | 'yard';
 
 export type CloudSyncStatus = 'synced' | 'syncing' | 'offline';
 
+export interface RollPricingBreakdown {
+  isHybridApplied: boolean;
+  pricingMode: 'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail' | 'custom';
+  standardRollMeters: number; // e.g. 70m for Fleece, 50m for Dereck
+  fullRollsCount: number; // e.g. 1
+  fullRollMeters: number; // e.g. 70
+  looseMeters: number; // e.g. 30
+  wholesaleRatePerMeter: number; // e.g. KSh 450 / 1350
+  retailRatePerMeter: number; // e.g. KSh 600 / 1600
+  looseDiscountPct: number; // e.g. 10% (Option 1)
+  discountedLooseRatePerMeter: number; // e.g. KSh 540 / 1440
+  fullRollsSubtotal: number; // 70 * 450 = 31,500
+  looseMetersSubtotal: number; // 30 * 540 = 16,200
+  totalPrice: number; // 31,500 + 16,200 = 47,700
+  effectiveRatePerMeter: number; // 47,700 / 100 = 477/m
+  savingsAmount: number; // vs full retail
+}
+
 export interface CategoryPricingConfig {
   category: CategoryType;
   defaultRetailPrice: number;
@@ -118,6 +136,10 @@ export interface CategoryPricingConfig {
   coneTareWeightKg?: number; // e.g. 0.070 kg (70g plastic / paper spool tare)
   baleTareWeightKg?: number; // e.g. 0.840 kg (outer bag tare)
   autoDeductTareAtPOS?: boolean; // Enable auto-deduction on scale input
+  // Option 1: Whole Roll Wholesale + Discounted Loose Cut Meters
+  standardRollLengthMeters?: number; // e.g. 70m for Fleece, 50m for Dereck
+  looseMeterDiscountPct?: number; // Default 10% discount on loose cut meters
+  enableHybridRollPricing?: boolean; // Auto-split rolls vs loose cut
   lastUpdated?: string;
   updatedBy?: string;
 }
@@ -343,6 +365,7 @@ export interface ProductBatch {
   imageUrl?: string; // High-resolution product image URL
   qrCodeData: string; // Embedded QR payload string
   tareProfile?: TareProfile; // Dual-weight Tare Configuration
+  standardRollLengthMeters?: number; // e.g. 70m for Fleece, 50m for Dereck roll size
 
   // Manufacturer & Bale Label Metadata
   manufacturer?: string; // e.g. "UDEY UDYOG UNIT OF OSTER INDIA PVT LTD"
@@ -427,6 +450,8 @@ export interface POSCartItem {
   bagNumber?: string;
   isFullBag?: boolean;
   conesCount?: number;
+  // Option 1: Whole Roll Wholesale + Discounted Loose Cut Meters
+  rollPricing?: RollPricingBreakdown;
 }
 
 export type OrderStatus = 
@@ -478,6 +503,7 @@ export interface SaleOrder {
     shadeCode?: string;
     yarnCount?: string;
     bagNumber?: string;
+    rollPricing?: RollPricingBreakdown;
   }[];
   subtotal: number;
   vatAmount: number; // 16% VAT

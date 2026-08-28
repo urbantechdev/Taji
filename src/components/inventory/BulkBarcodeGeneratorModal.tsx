@@ -29,6 +29,7 @@ import {
   Grid
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
+import { generateRealQRCodeDataURL, generateRealBarcodeDataURL } from '../../utils/realQrBarcode';
 
 interface BulkBarcodeGeneratorModalProps {
   isOpen: boolean;
@@ -172,107 +173,19 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
 
   const totalLabelsToPrint = selectedProductList.length * Math.max(1, copiesPerItem);
 
-  // SVG Barcode visual generator (Code 128 pseudo-pattern generator for instant high-speed canvas/SVG rendering)
-  const generateBarcodeSvgDataUrl = (code: string): string => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 240;
-    canvas.height = 70;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = '#000000';
-    let x = 12;
-    // Generate deterministic clean barcode lines based on characters
-    const str = code.toUpperCase();
-    const bitArray: number[] = [1, 0, 1, 0]; // Start quiet zone
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i);
-      const pattern = [
-        (charCode % 2) + 1,
-        ((charCode >> 1) % 2) + 1,
-        ((charCode >> 2) % 2) + 1,
-        ((charCode >> 3) % 2) + 1
-      ];
-      pattern.forEach((p, idx) => {
-        bitArray.push(idx % 2 === 0 ? 1 : 0);
-        if (p > 1) bitArray.push(idx % 2 === 0 ? 1 : 0);
-      });
-    }
-    bitArray.push(1, 1, 0, 0, 1, 0, 1); // Stop pattern
-
-    const barWidth = Math.max(1.8, (canvas.width - 24) / bitArray.length);
-    bitArray.forEach(bit => {
-      if (bit === 1) {
-        ctx.fillRect(x, 8, barWidth + 0.2, 42);
-      }
-      x += barWidth;
+  // Real Barcode & QR Code generators using ISO/IEC standards
+  const generateBarcodeDataUrl = (code: string): string => {
+    return generateRealBarcodeDataURL(code, {
+      format: 'CODE128',
+      width: 2,
+      height: 48,
+      displayValue: true,
+      fontSize: 10
     });
-
-    // Human-readable text underneath
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(code, canvas.width / 2, 62);
-
-    return canvas.toDataURL('image/png');
-  };
-
-  // Generate QR Code Data URL on canvas
-  const generateQrCodeDataUrl = (text: string): string => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 90;
-    canvas.height = 90;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, 90, 90);
-
-    ctx.fillStyle = '#000000';
-    // Draw QR outer markers
-    const drawFinder = (x: number, y: number) => {
-      ctx.fillRect(x, y, 22, 22);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(x + 3, y + 3, 16, 16);
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(x + 6, y + 6, 10, 10);
-    };
-
-    drawFinder(6, 6);
-    drawFinder(62, 6);
-    drawFinder(6, 62);
-
-    // Pseudorandom consistent data grid based on string hash
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-      hash = (hash << 5) - hash + text.charCodeAt(i);
-      hash |= 0;
-    }
-
-    for (let row = 0; row < 15; row++) {
-      for (let col = 0; col < 15; col++) {
-        // Skip finders
-        if (
-          (row < 5 && col < 5) ||
-          (row < 5 && col > 9) ||
-          (row > 9 && col < 5)
-        ) {
-          continue;
-        }
-        const bit = ((hash ^ (row * 31 + col * 17)) & 1) === 1;
-        if (bit) {
-          ctx.fillRect(6 + col * 5.2, 6 + row * 5.2, 4.2, 4.2);
-        }
-      }
-    }
-
-    return canvas.toDataURL('image/png');
   };
 
   // EXPORT STICKER SHEET AS PRINT-READY PDF
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (selectedProductList.length === 0) return;
     setIsGeneratingPdf(true);
     playClickSound();
@@ -299,7 +212,7 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.text(
-        `Bulk Barcode Sticker Sheet | Generated on ${new Date().toLocaleDateString()} | Total Labels: ${totalLabelsToPrint}`,
+        `Bulk Barcode Sticker Sheet | ISO/IEC Real Barcodes | Generated on ${new Date().toLocaleDateString()} | Total Labels: ${totalLabelsToPrint}`,
         12,
         17
       );
@@ -323,7 +236,9 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
         }
       });
 
-      allLabelsToRender.forEach((item, index) => {
+      for (let index = 0; index < allLabelsToRender.length; index++) {
+        const item = allLabelsToRender[index];
+
         // Check page overflow
         if (currentY + rowHeight > pageHeight - 10) {
           doc.addPage();
@@ -365,18 +280,26 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
           doc.text(`Color: ${item.colorName}`, currentX + 3, currentY + 12.5);
         }
 
-        // Barcode Image
-        const barcodeImg = generateBarcodeSvgDataUrl(item.barcode);
-        const qrImg = generateQrCodeDataUrl(item.barcode);
+        // Real Barcode and QR Images
+        const barcodeImg = generateBarcodeDataUrl(item.barcode);
+        const qrImg = await generateRealQRCodeDataURL(item.barcode, { width: 140, margin: 1 });
 
         if (barcodeFormat === 'QR') {
-          doc.addImage(qrImg, 'PNG', currentX + (colWidth - 18) / 2, currentY + 14, 18, 18);
+          if (qrImg) {
+            doc.addImage(qrImg, 'PNG', currentX + (colWidth - 18) / 2, currentY + 14, 18, 18);
+          }
         } else if (barcodeFormat === 'CODE128') {
-          doc.addImage(barcodeImg, 'PNG', currentX + 3, currentY + 13, colWidth - 6, 13);
+          if (barcodeImg) {
+            doc.addImage(barcodeImg, 'PNG', currentX + 3, currentY + 13, colWidth - 6, 13);
+          }
         } else {
           // BOTH: Barcode on left, QR on right
-          doc.addImage(barcodeImg, 'PNG', currentX + 3, currentY + 13.5, colWidth - 19, 11);
-          doc.addImage(qrImg, 'PNG', currentX + colWidth - 15, currentY + 13, 12, 12);
+          if (barcodeImg) {
+            doc.addImage(barcodeImg, 'PNG', currentX + 3, currentY + 13.5, colWidth - 19, 11);
+          }
+          if (qrImg) {
+            doc.addImage(qrImg, 'PNG', currentX + colWidth - 15, currentY + 13, 12, 12);
+          }
         }
 
         // Price Footer
@@ -406,7 +329,7 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
         } else {
           currentX += colWidth + 4;
         }
-      });
+      }
 
       doc.save(`Zamoda_Bulk_Barcodes_${new Date().toISOString().slice(0, 10)}.pdf`);
       playSuccessSound();
@@ -768,77 +691,16 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
                   'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
                 }`}>
                   {selectedProductList.map((item, idx) => (
-                    <div
+                    <BulkStickerItemCard
                       key={`${item.id}-${idx}`}
-                      className="bg-white border-2 border-slate-300 rounded-xl p-3 shadow-md relative group hover:border-rose-400 transition-colors flex flex-col justify-between"
-                    >
-                      {/* Top store title & category */}
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                        <span className="text-[9px] font-black text-slate-700 uppercase truncate">
-                          {customStoreHeader}
-                        </span>
-                        {includeCategory && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-50 text-rose-700 rounded-md border border-rose-200 uppercase">
-                            {item.category}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Product Name & Specs */}
-                      <div className="mt-1.5">
-                        <p className="text-xs font-black text-slate-900 truncate" title={item.name}>
-                          {item.name}
-                        </p>
-                        {includeColor && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full border border-slate-300 shrink-0"
-                              style={{ backgroundColor: item.colorHex }}
-                            />
-                            <span className="text-[10px] text-slate-500 font-medium truncate">
-                              {item.colorName}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Barcode & QR Visualization */}
-                      <div className="my-2 p-1.5 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center gap-2">
-                        {barcodeFormat !== 'QR' && (
-                          <img
-                            src={generateBarcodeSvgDataUrl(item.barcode)}
-                            alt={item.barcode}
-                            className="h-10 object-contain max-w-[140px]"
-                          />
-                        )}
-                        {barcodeFormat !== 'CODE128' && (
-                          <img
-                            src={generateQrCodeDataUrl(item.barcode)}
-                            alt="QR"
-                            className="w-10 h-10 object-contain shrink-0"
-                          />
-                        )}
-                      </div>
-
-                      {/* Footer: Price & SKU */}
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                        {includePrice ? (
-                          <span className="text-xs font-black text-emerald-600">
-                            KSh {item.price.toLocaleString()}
-                            <span className="text-[9px] font-normal text-slate-500">/{item.unit}</span>
-                          </span>
-                        ) : <span />}
-
-                        <span className="text-[10px] font-mono font-bold text-slate-600">
-                          {item.sku}
-                        </span>
-                      </div>
-
-                      {/* Copies Badge */}
-                      <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-xs border border-white">
-                        ×{copiesPerItem}
-                      </div>
-                    </div>
+                      item={item}
+                      customStoreHeader={customStoreHeader}
+                      includeCategory={includeCategory}
+                      includeColor={includeColor}
+                      includePrice={includePrice}
+                      barcodeFormat={barcodeFormat}
+                      copiesPerItem={copiesPerItem}
+                    />
                   ))}
                 </div>
               )}
@@ -863,6 +725,134 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
 
         </div>
 
+      </div>
+    </div>
+  );
+};
+
+interface BulkStickerItemCardProps {
+  item: {
+    id: string;
+    name: string;
+    sku: string;
+    barcode: string;
+    category: string;
+    colorName: string;
+    colorHex: string;
+    price: number;
+    unit: string;
+  };
+  customStoreHeader: string;
+  includeCategory: boolean;
+  includeColor: boolean;
+  includePrice: boolean;
+  barcodeFormat: 'CODE128' | 'EAN13' | 'QR' | 'BOTH';
+  copiesPerItem: number;
+}
+
+const BulkStickerItemCard: React.FC<BulkStickerItemCardProps> = ({
+  item,
+  customStoreHeader,
+  includeCategory,
+  includeColor,
+  includePrice,
+  barcodeFormat,
+  copiesPerItem
+}) => {
+  const [qrUrl, setQrUrl] = useState<string>('');
+  const [barcodeUrl, setBarcodeUrl] = useState<string>('');
+
+  useEffect(() => {
+    let mounted = true;
+    const generate = async () => {
+      const bUrl = generateRealBarcodeDataURL(item.barcode, {
+        format: 'CODE128',
+        width: 2,
+        height: 44,
+        displayValue: true,
+        fontSize: 10
+      });
+      const qUrl = await generateRealQRCodeDataURL(item.barcode, { width: 120, margin: 1 });
+      if (mounted) {
+        setBarcodeUrl(bUrl);
+        setQrUrl(qUrl);
+      }
+    };
+    generate();
+    return () => {
+      mounted = false;
+    };
+  }, [item.barcode]);
+
+  return (
+    <div className="bg-white border-2 border-slate-300 rounded-xl p-3 shadow-md relative group hover:border-rose-400 transition-colors flex flex-col justify-between">
+      {/* Top store title & category */}
+      <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+        <span className="text-[9px] font-black text-slate-700 uppercase truncate">
+          {customStoreHeader}
+        </span>
+        {includeCategory && (
+          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-50 text-rose-700 rounded-md border border-rose-200 uppercase">
+            {item.category}
+          </span>
+        )}
+      </div>
+
+      {/* Product Name & Specs */}
+      <div className="mt-1.5">
+        <p className="text-xs font-black text-slate-900 truncate" title={item.name}>
+          {item.name}
+        </p>
+        {includeColor && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <span
+              className="w-2.5 h-2.5 rounded-full border border-slate-300 shrink-0"
+              style={{ backgroundColor: item.colorHex }}
+            />
+            <span className="text-[10px] text-slate-500 font-medium truncate">
+              {item.colorName}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Real Barcode & QR Visualization */}
+      <div className="my-2 p-1.5 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center gap-2 min-h-[48px]">
+        {barcodeFormat !== 'QR' && barcodeUrl && (
+          <img
+            src={barcodeUrl}
+            alt={item.barcode}
+            className="h-10 object-contain max-w-[140px]"
+          />
+        )}
+        {barcodeFormat !== 'CODE128' && qrUrl && (
+          <img
+            src={qrUrl}
+            alt="Real QR"
+            className="w-10 h-10 object-contain shrink-0 rounded"
+          />
+        )}
+      </div>
+
+      {/* Footer: Price & SKU */}
+      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+        {includePrice ? (
+          <span className="text-xs font-black text-emerald-600">
+            KSh {item.price.toLocaleString()}
+            <span className="text-[9px] font-normal text-slate-500">/{item.unit}</span>
+          </span>
+        ) : (
+          <span />
+        )}
+
+        <span className="text-[10px] font-mono font-bold text-slate-600">
+          {item.sku}
+        </span>
+      </div>
+
+      {/* Copies Badge */}
+      <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-xs border border-white">
+        ×{copiesPerItem}
       </div>
     </div>
   );
