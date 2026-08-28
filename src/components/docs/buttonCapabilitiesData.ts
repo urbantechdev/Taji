@@ -2,7 +2,7 @@ export interface ButtonCapability {
   id: string;
   name: string;
   iconName: string;
-  module: 'header' | 'pos' | 'inventory' | 'transfers' | 'ledger' | 'settings' | 'general';
+  module: 'header' | 'pos' | 'inventory' | 'transfers' | 'ledger' | 'settings' | 'branches' | 'hr' | 'audit' | 'general';
   moduleLabel: string;
   locationDescription: string;
   capabilities: string[];
@@ -18,7 +18,7 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
     iconName: 'Scissors',
     module: 'inventory',
     moduleLabel: 'Inventory & Stock',
-    locationDescription: 'Inventory Catalog toolbar or product cards (Scissors icon)',
+    locationDescription: 'Inventory Catalog toolbar or product cards (Scissors icon ✂️)',
     capabilities: [
       'Manage individual Fleece and Dereec fabric rolls with exact meter tracking',
       'Batch intake multiple rolls with custom comma-separated meter lengths (e.g. 52.4, 48.0, 63.8)',
@@ -36,7 +36,7 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
     iconName: 'Scale',
     module: 'inventory',
     moduleLabel: 'Inventory & Stock',
-    locationDescription: 'Inventory Catalog cards & Settings > Product Price Settings',
+    locationDescription: 'Inventory Catalog cards & Settings > Product Price Settings (Scale icon ⚖️)',
     capabilities: [
       'Calibrate standard cone core tare (70g) and bale cardboard tare (0.840kg) for yarn',
       'Toggle auto-deduct tare at POS digital scale checkout',
@@ -44,7 +44,8 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
       'Prevent billing customers for packaging weights and plastic spools'
     ],
     requiredRole: 'Admin, Branch Manager, Accountant',
-    proTip: 'Set Oster India bale tare once in category settings to apply across all future yarn intakes automatically.'
+    proTip: 'Set Oster India bale tare once in category settings to apply across all future yarn intakes automatically.',
+    shortcut: 'Alt + T'
   },
   {
     id: 'btn-category-intake',
@@ -60,7 +61,25 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
       'Auto-generate serial roll numbers and batch barcodes on the fly'
     ],
     requiredRole: 'Admin, Branch Manager, Warehouse Operator',
-    proTip: 'Set "Scan Qty" to your standard roll length (e.g. 50m) to auto-fill every scanned roll with one trigger pull.'
+    proTip: 'Set "Scan Qty" to your standard roll length (e.g. 50m) to auto-fill every scanned roll with one trigger pull.',
+    shortcut: 'Alt + I'
+  },
+  {
+    id: 'btn-pos-roll-pricing',
+    name: 'Option 1 Hybrid Roll Pricing Calculator',
+    iconName: 'Tag',
+    module: 'pos',
+    moduleLabel: 'POS Terminal & Cart',
+    locationDescription: 'POS Terminal cart items (Roll Pricing Tag / Calculator)',
+    capabilities: [
+      'Automatically calculates whole rolls at discounted wholesale pricing (e.g., KES 440/m for Fleece, KES 220/m for Dereec)',
+      'Calculates loose cut remainder meters with percentage discount (e.g., 10% off retail KES 470/m or KES 230/m)',
+      'Allows cashiers to preview exact savings and cost breakdown for customer transparency',
+      'Supports manual override between All Wholesale, All Retail, or Custom hybrid rates'
+    ],
+    requiredRole: 'All POS Cashiers, Branch Managers, Admin',
+    proTip: 'Option 1 gives customers the best transparent pricing when purchasing 1 full roll plus loose cut meters.',
+    shortcut: 'Alt + P'
   },
   {
     id: 'btn-pos-hold-cart',
@@ -76,7 +95,8 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
       'Auto-save customer phone number or name for reference'
     ],
     requiredRole: 'All POS Cashiers, Branch Managers, Admin',
-    proTip: 'Useful when a customer steps away to pick additional yarn colors or verify fabric meterage.'
+    proTip: 'Useful when a customer steps away to pick additional yarn colors or verify fabric meterage.',
+    shortcut: 'Alt + H'
   },
   {
     id: 'btn-close-shift-z-report',
@@ -92,7 +112,25 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
       'Lock terminal till and prepare float for incoming cashier shift'
     ],
     requiredRole: 'Cashiers, Branch Managers, Accountants, Admin',
-    proTip: 'Always compare physical notes in drawer with system cash balance before clicking "Finalize Shift".'
+    proTip: 'Always compare physical notes in drawer with system cash balance before clicking "Finalize Shift".',
+    shortcut: 'Alt + Z'
+  },
+  {
+    id: 'btn-rma-quarantine',
+    name: 'RMA / Returns & Defect Quarantine',
+    iconName: 'RotateCcw',
+    module: 'header',
+    moduleLabel: 'Header & Customer Care',
+    locationDescription: 'Top right header bar (Rotate RMA icon 🔄)',
+    capabilities: [
+      'Process customer fabric returns, yarn exchanges, and damaged item claims',
+      'Inspect return reasons (e.g. weave flaw, wrong shade, customer over-order)',
+      'Quarantine defective rolls to prevent accidental resale at retail branches',
+      'Issue store credit vouchers or trigger automatic KRA eTIMS credit notes'
+    ],
+    requiredRole: 'Branch Managers, Accountants, Admin',
+    proTip: 'Quarantined rolls remain isolated in defect inventory until approved for supplier return or write-off.',
+    shortcut: 'Alt + M'
   },
   {
     id: 'btn-barcode-qr-studio',
@@ -108,22 +146,24 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
       'Generate 12-up PDF sticker sheets ready for standard A4 adhesive paper'
     ],
     requiredRole: 'Admin, Branch Manager, Warehouse Operator',
-    proTip: 'Thermal labels include GSM, Color, Price per Meter, and Barcode for rapid counter scanning.'
+    proTip: 'Thermal labels include GSM, Color, Price per Meter, and Barcode for rapid counter scanning.',
+    shortcut: 'Alt + B'
   },
   {
     id: 'btn-user-guide-helper',
     name: 'Interactive User Guide & Search',
-    iconName: 'HelpCircle',
+    iconName: 'BookOpen',
     module: 'header',
     moduleLabel: 'Top Navigation & Header',
-    locationDescription: 'Top right header bar (Help / Book icon) or left navigation menu',
+    locationDescription: 'Top right header bar (Book icon 📖) or floating quick-help button',
     capabilities: [
       'Ask any question in natural language (e.g. "How to set yarn tare" or "Adjust fleece meters")',
       'Explore step-by-step guides with direct "Jump to Feature" shortcut buttons',
       'Lookup button and icon capabilities across the entire ERP platform',
-      'Toggle live Capability Inspector Mode with contextual hover hints'
+      'Download formatted PDF or Markdown official User Manual'
     ],
-    requiredRole: 'Accessible to all 9 system user roles'
+    requiredRole: 'Accessible to all 9 system user roles',
+    shortcut: 'Alt + G'
   },
   {
     id: 'btn-lock-platform',
@@ -131,7 +171,7 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
     iconName: 'Lock',
     module: 'header',
     moduleLabel: 'Top Navigation & Header',
-    locationDescription: 'Top right header bar (Red Lock icon)',
+    locationDescription: 'Top right header bar (Red Lock icon 🔒)',
     capabilities: [
       'Instantly freeze and lock the terminal workspace with a secure backdrop',
       'Requires employee 6-digit PIN or Google Admin login to unlock',
@@ -139,7 +179,8 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
       'Keeps active carts and open tabs safely preserved in memory'
     ],
     requiredRole: 'All roles & operators',
-    proTip: 'Click whenever stepping away from the counter or handing over the workstation.'
+    proTip: 'Click whenever stepping away from the counter or handing over the workstation.',
+    shortcut: 'Alt + L'
   },
   {
     id: 'btn-sound-toggle',
@@ -147,7 +188,7 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
     iconName: 'Volume2',
     module: 'header',
     moduleLabel: 'Top Navigation & Header',
-    locationDescription: 'Top right header bar (Speaker icon)',
+    locationDescription: 'Top right header bar (Speaker icon 🔊)',
     capabilities: [
       'Toggle audio sound effects across the application',
       'Provides instant audio feedback on barcode scans, cart additions, errors, and checkout success',
@@ -174,10 +215,10 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
   {
     id: 'btn-record-expense-voucher',
     name: 'Record Branch Expense Voucher',
-    iconName: 'BookOpenCheck',
-    module: 'ledger',
-    moduleLabel: 'Accounting & Ledger',
-    locationDescription: 'Accounting Ledger > Expense Vouchers tab',
+    iconName: 'Receipt',
+    module: 'branches',
+    moduleLabel: 'Branches & Accounting',
+    locationDescription: 'Branch Management & Accounting Ledger > Record Expense',
     capabilities: [
       'Record petty cash disbursements for store utility, transport, tea, packaging, or maintenance',
       'Upload or capture digital photos of vendor physical receipts',
@@ -185,6 +226,21 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
       'Automatically post balanced debit/credit journals to the general ledger upon approval'
     ],
     requiredRole: 'Branch Manager, Accountant, Admin'
+  },
+  {
+    id: 'btn-adjust-cash-float',
+    name: 'Adjust Cash Float & Till Opening Balance',
+    iconName: 'Wallet',
+    module: 'branches',
+    moduleLabel: 'Branch Management',
+    locationDescription: 'Branch Management action bar (Wallet icon 💳)',
+    capabilities: [
+      'Top-up or deduct physical cash float in branch sales cash register',
+      'Record reason for float adjustments with timestamp and cashier PIN signature',
+      'Reconciles cash-in-drawer for shift opening and end-of-day Z-Report verification'
+    ],
+    requiredRole: 'Branch Manager, Accountant, Admin',
+    proTip: 'Set cash float at morning shift opening to ensure cashiers have small notes for change.'
   },
   {
     id: 'btn-camera-scanner',
@@ -198,5 +254,36 @@ export const BUTTON_CAPABILITIES: ButtonCapability[] = [
       'Ideal for floor stock audits, inventory intake, and fast checkout without a physical scanner gun'
     ],
     requiredRole: 'All roles'
+  },
+  {
+    id: 'btn-today-sales-view',
+    name: 'Sales Today & Cash Reconciliation',
+    iconName: 'TrendingUp',
+    module: 'header',
+    moduleLabel: 'Executive Analytics',
+    locationDescription: 'Sidebar & Desktop Dock (Live Sales Today)',
+    capabilities: [
+      'View real-time today gross sales, net revenue, and collected 16% VAT',
+      'Breakdown sales across Cash, M-Pesa Till, Bank Transfer, and Card payments',
+      'Inspect line-by-line hourly transactions and cashier performance',
+      'Export today ledger summary for daily banking deposit'
+    ],
+    requiredRole: 'Admin, Branch Manager, Accountant, Cashier'
+  },
+  {
+    id: 'btn-forensic-audit',
+    name: 'Tamper-Evident Forensic Audit Trail',
+    iconName: 'ClipboardList',
+    module: 'audit',
+    moduleLabel: 'Governance & Security',
+    locationDescription: 'Sidebar & Bottom Dock (Operator Audit Trail)',
+    capabilities: [
+      'Immutable cryptographic hash-chain logging of every inventory, price, or financial action',
+      'Verify digital signatures to detect unauthorized data modifications or fraud',
+      'Filter logs by operator, timestamp, action type, and branch location',
+      'Export forensic audit certificates for external KRA and financial audits'
+    ],
+    requiredRole: 'Admin, Accountant, HR Manager'
   }
 ];
+

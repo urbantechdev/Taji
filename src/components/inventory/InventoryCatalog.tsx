@@ -143,15 +143,15 @@ export const InventoryCatalog: React.FC = () => {
   const [yarnPackagesCount, setYarnPackagesCount] = useState<number>(12);
   const [yarnBatchPreset, setYarnBatchPreset] = useState<'full' | 'half' | 'custom'>('full');
 
-  // Auto configure yarn defaults when switching to Yarns category
+  // Auto configure defaults when switching category (Fleece wholesale 440, retail 470 /m; Dereec wholesale 220, retail 230 /m; Yarns wholesale 950, retail 950 /kg)
   const handleCategorySelectInAdd = (cat: CategoryType) => {
     setNewCategory(cat);
     if (cat === 'Yarns') {
       setNewUnit('kg');
       setNewComposition('100% ACRYLIC (HB) DYED YARN');
-      setNewRetailPrice(850);
-      setNewBulkPrice(700);
-      setNewCostPrice(550);
+      setNewRetailPrice(950);
+      setNewBulkPrice(950);
+      setNewCostPrice(650);
       setYarnNetWeightKg(24.000);
       setYarnGrossWeightKg(24.840);
       setYarnTareWeightKg(0.840);
@@ -160,15 +160,15 @@ export const InventoryCatalog: React.FC = () => {
     } else if (cat === 'Fleece') {
       setNewUnit('meter');
       setNewComposition('Heavyweight Thermal Polar Fleece 320 GSM');
-      setNewRetailPrice(1650);
-      setNewBulkPrice(1300);
-      setNewCostPrice(900);
+      setNewRetailPrice(470);
+      setNewBulkPrice(440);
+      setNewCostPrice(320);
     } else {
       setNewUnit('meter');
       setNewComposition('100% Superfine Polyester Dereec Weave');
-      setNewRetailPrice(1250);
-      setNewBulkPrice(950);
-      setNewCostPrice(650);
+      setNewRetailPrice(230);
+      setNewBulkPrice(220);
+      setNewCostPrice(160);
     }
   };
 

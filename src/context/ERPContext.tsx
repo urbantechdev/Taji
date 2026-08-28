@@ -307,6 +307,9 @@ interface ERPContextType {
       coneTareWeightKg?: number;
       baleTareWeightKg?: number;
       autoDeductTareAtPOS?: boolean;
+      standardRollLengthMeters?: number;
+      looseMeterDiscountPct?: number;
+      enableHybridRollPricing?: boolean;
       adjustmentType?: 'set_exact' | 'increase_percent' | 'decrease_percent' | 'markup_from_cost';
       percentageValue?: number;
     }
@@ -968,15 +971,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('syncing');
   const [lastCloudSync, setLastCloudSync] = useState<Date | null>(null);
 
-  // Category Pricing Configurations
+  // Category Pricing Configurations (Fleece Wholesale 440 / Retail 470; Dereec Wholesale 220 / Retail 230; Yarns Wholesale 950 / Retail 950)
   const DEFAULT_CATEGORY_PRICING: Record<CategoryType, CategoryPricingConfig> = {
     Dereck: {
       category: 'Dereck',
-      defaultRetailPrice: 1200,
-      defaultBulkPrice: 950,
-      defaultCostPrice: 600,
-      marginPercentage: 100,
-      pricePerKgRate: 1200,
+      defaultRetailPrice: 230, // KSh 230 per meter
+      defaultBulkPrice: 220,   // KSh 220 per meter (wholesale roll)
+      defaultCostPrice: 160,
+      marginPercentage: 44,
+      pricePerKgRate: 230,
       coneTareWeightKg: 0.250,
       baleTareWeightKg: 0.500,
       autoDeductTareAtPOS: true,
@@ -987,11 +990,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     Fleece: {
       category: 'Fleece',
-      defaultRetailPrice: 1600,
-      defaultBulkPrice: 1350,
-      defaultCostPrice: 850,
-      marginPercentage: 88,
-      pricePerKgRate: 1600,
+      defaultRetailPrice: 470, // KSh 470 per meter
+      defaultBulkPrice: 440,   // KSh 440 per meter (wholesale roll)
+      defaultCostPrice: 320,
+      marginPercentage: 47,
+      pricePerKgRate: 470,
       coneTareWeightKg: 0.250,
       baleTareWeightKg: 0.500,
       autoDeductTareAtPOS: true,
@@ -1002,11 +1005,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     Yarns: {
       category: 'Yarns',
-      defaultRetailPrice: 850,
-      defaultBulkPrice: 680,
-      defaultCostPrice: 420,
-      marginPercentage: 102,
-      pricePerKgRate: 750, // Default 1 KG = KSh 750 (Single cone rate) or custom
+      defaultRetailPrice: 950, // Standard KSh 950 per KG
+      defaultBulkPrice: 950,   // Standard KSh 950 per KG (wholesale)
+      defaultCostPrice: 650,
+      marginPercentage: 46,
+      pricePerKgRate: 950,     // Standard 1 KG = KSh 950
       coneTareWeightKg: 0.070, // Standard 70g empty paper/plastic cone spool
       baleTareWeightKg: 0.840, // Standard 840g bale bag & packaging
       autoDeductTareAtPOS: true,
@@ -1071,7 +1074,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [categoryPricingConfigs, setCategoryPricingConfigs] = useState<Record<CategoryType, CategoryPricingConfig>>(() => {
     try {
-      const saved = localStorage.getItem('urban_interior_category_pricing');
+      const saved = localStorage.getItem('urban_interior_category_pricing_v4');
       if (saved) {
         return JSON.parse(saved);
       }
@@ -1091,7 +1094,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     try {
-      localStorage.setItem('urban_interior_category_pricing', JSON.stringify(categoryPricingConfigs));
+      localStorage.setItem('urban_interior_category_pricing_v4', JSON.stringify(categoryPricingConfigs));
     } catch (e) {
       console.warn('Error saving category pricing configs to localStorage:', e);
     }
@@ -5585,6 +5588,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       coneTareWeightKg?: number;
       baleTareWeightKg?: number;
       autoDeductTareAtPOS?: boolean;
+      standardRollLengthMeters?: number;
+      looseMeterDiscountPct?: number;
+      enableHybridRollPricing?: boolean;
     }
   ) => {
     const matchingProducts = products.filter(p => p.category === category);
@@ -5631,6 +5637,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           unitPriceRetail: newRetail,
           unitPriceBulk: newBulk,
           costPrice: newCost,
+          standardRollLengthMeters: priceUpdates.standardRollLengthMeters ?? p.standardRollLengthMeters,
           qrCodeData: JSON.stringify({
             sku: p.sku,
             batch: p.id,
@@ -5650,14 +5657,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       [category]: {
         category,
-        defaultRetailPrice: priceUpdates.retailPrice || prev[category]?.defaultRetailPrice || 1200,
-        defaultBulkPrice: priceUpdates.bulkPrice || prev[category]?.defaultBulkPrice || 950,
-        defaultCostPrice: priceUpdates.costPrice || prev[category]?.defaultCostPrice || 600,
+        defaultRetailPrice: priceUpdates.retailPrice || prev[category]?.defaultRetailPrice || (category === 'Fleece' ? 470 : category === 'Dereck' ? 230 : 950),
+        defaultBulkPrice: priceUpdates.bulkPrice || prev[category]?.defaultBulkPrice || (category === 'Fleece' ? 440 : category === 'Dereck' ? 220 : 950),
+        defaultCostPrice: priceUpdates.costPrice || prev[category]?.defaultCostPrice || (category === 'Fleece' ? 320 : category === 'Dereck' ? 160 : 650),
         marginPercentage: priceUpdates.percentageValue || prev[category]?.marginPercentage || 50,
-        pricePerKgRate: priceUpdates.pricePerKgRate || prev[category]?.pricePerKgRate || (category === 'Yarns' ? 750 : 1200),
+        pricePerKgRate: priceUpdates.pricePerKgRate || prev[category]?.pricePerKgRate || (category === 'Fleece' ? 470 : category === 'Dereck' ? 230 : 950),
         coneTareWeightKg: typeof priceUpdates.coneTareWeightKg === 'number' ? priceUpdates.coneTareWeightKg : prev[category]?.coneTareWeightKg ?? 0.070,
         baleTareWeightKg: typeof priceUpdates.baleTareWeightKg === 'number' ? priceUpdates.baleTareWeightKg : prev[category]?.baleTareWeightKg ?? 0.840,
         autoDeductTareAtPOS: priceUpdates.autoDeductTareAtPOS ?? prev[category]?.autoDeductTareAtPOS ?? true,
+        standardRollLengthMeters: priceUpdates.standardRollLengthMeters ?? prev[category]?.standardRollLengthMeters ?? (category === 'Fleece' ? 70 : 50),
+        looseMeterDiscountPct: priceUpdates.looseMeterDiscountPct ?? prev[category]?.looseMeterDiscountPct ?? 10,
+        enableHybridRollPricing: priceUpdates.enableHybridRollPricing ?? prev[category]?.enableHybridRollPricing ?? true,
         lastUpdated: new Date().toISOString(),
         updatedBy: currentUser.name || 'Admin'
       }

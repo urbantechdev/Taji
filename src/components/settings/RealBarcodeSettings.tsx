@@ -68,7 +68,7 @@ export const RealBarcodeSettings: React.FC = () => {
       sku: 'FLC-2026-BLK-320',
       name: 'Polar Fleece Heavy 320gsm',
       category: 'Fleece',
-      price: 1650,
+      price: 470,
       color: 'Midnight Black',
       fiber: '100% Poly Fleece',
       meterage: 50
@@ -78,7 +78,7 @@ export const RealBarcodeSettings: React.FC = () => {
       sku: 'DRC-2026-NVY-400',
       name: 'Heavy Dereec Twill Weave',
       category: 'Dereec',
-      price: 1250,
+      price: 230,
       color: 'Navy Blue',
       fiber: '80% Poly / 20% Cotton',
       meterage: 60
@@ -88,26 +88,26 @@ export const RealBarcodeSettings: React.FC = () => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
-  // Fleece quick presets
+  // Fleece quick presets (Standard default retail KES 470 / meter)
   const fleecePresets = [
-    { sku: 'FLC-2026-BLK-320', name: 'Polar Fleece Heavy 320gsm', price: 1650, color: 'Midnight Black', fiber: '100% Poly Fleece', meterage: 50 },
-    { sku: 'FLC-2026-RED-300', name: 'Anti-Pill Sherpa Fleece', price: 1750, color: 'Crimson Red', fiber: '100% Acrylic Sherpa', meterage: 45 },
-    { sku: 'FLC-2026-HGR-280', name: 'Micro Fleece Athletic Liner', price: 1550, color: 'Heather Grey', fiber: '100% Poly Microfleece', meterage: 70 },
-    { sku: 'FLC-2026-ROY-320', name: 'Brushed Tracksuit Fleece', price: 1650, color: 'Royal Blue', fiber: '65% Cotton / 35% Poly', meterage: 55 },
+    { sku: 'FLC-2026-BLK-320', name: 'Polar Fleece Heavy 320gsm', price: 470, color: 'Midnight Black', fiber: '100% Poly Fleece', meterage: 50 },
+    { sku: 'FLC-2026-RED-300', name: 'Anti-Pill Sherpa Fleece', price: 470, color: 'Crimson Red', fiber: '100% Acrylic Sherpa', meterage: 45 },
+    { sku: 'FLC-2026-HGR-280', name: 'Micro Fleece Athletic Liner', price: 470, color: 'Heather Grey', fiber: '100% Poly Microfleece', meterage: 70 },
+    { sku: 'FLC-2026-ROY-320', name: 'Brushed Tracksuit Fleece', price: 470, color: 'Royal Blue', fiber: '65% Cotton / 35% Poly', meterage: 55 },
   ];
 
-  // Dereec quick presets
+  // Dereec quick presets (Standard default retail KES 230 / meter)
   const dereecPresets = [
-    { sku: 'DRC-2026-NVY-400', name: 'Heavy Dereec Twill Weave', price: 1250, color: 'Navy Blue', fiber: '80% Poly / 20% Cotton', meterage: 60 },
-    { sku: 'DRC-2026-BLK-380', name: 'Matte Dereec Sports Weave', price: 1250, color: 'Jet Black', fiber: '100% Textured Poly', meterage: 65 },
-    { sku: 'DRC-2026-WHT-360', name: 'Bleached Dereec Uniform Twill', price: 1150, color: 'Optical White', fiber: '65% Poly / 35% Cotton', meterage: 80 },
-    { sku: 'DRC-2026-EMR-400', name: 'Stretch Dereec Interlock', price: 1350, color: 'Emerald Green', fiber: '95% Poly / 5% Elastane', meterage: 50 },
+    { sku: 'DRC-2026-NVY-400', name: 'Heavy Dereec Twill Weave', price: 230, color: 'Navy Blue', fiber: '80% Poly / 20% Cotton', meterage: 60 },
+    { sku: 'DRC-2026-BLK-380', name: 'Matte Dereec Sports Weave', price: 230, color: 'Jet Black', fiber: '100% Textured Poly', meterage: 65 },
+    { sku: 'DRC-2026-WHT-360', name: 'Bleached Dereec Uniform Twill', price: 230, color: 'Optical White', fiber: '65% Poly / 35% Cotton', meterage: 80 },
+    { sku: 'DRC-2026-EMR-400', name: 'Stretch Dereec Interlock', price: 230, color: 'Emerald Green', fiber: '95% Poly / 5% Elastane', meterage: 50 },
   ];
 
-  // Yarns quick presets
+  // Yarns quick presets (Standard default retail KES 950 / kg)
   const yarnsPresets = [
-    { sku: 'YRN-2026-30S-WHT', name: 'Combed Cotton Yarn 30s Cone', price: 850, color: 'Raw Ecru', fiber: '100% Combed Cotton', meterage: 2 },
-    { sku: 'YRN-2026-40S-BLK', name: 'Spun Polyester Yarn 40/2 Cone', price: 750, color: 'Black 001', fiber: '100% Spun Poly', meterage: 2 },
+    { sku: 'YRN-2026-30S-WHT', name: 'Combed Cotton Yarn 30s Cone', price: 950, color: 'Raw Ecru', fiber: '100% Combed Cotton', meterage: 2 },
+    { sku: 'YRN-2026-40S-BLK', name: 'Spun Polyester Yarn 40/2 Cone', price: 950, color: 'Black 001', fiber: '100% Spun Poly', meterage: 2 },
   ];
 
   const handleApplyPreset = (preset: typeof fleecePresets[0], categoryType: 'Fleece' | 'Dereck' | 'Yarns') => {

@@ -48,9 +48,9 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
   Dereck: {
     category: 'Dereck',
     label: 'Dereec (Dereck Textile)',
-    subTitle: 'Superfine dress & suit polyester textile weaves',
-    defaultWholesalePrice: 650,
-    defaultRetailPrice: 1250,
+    subTitle: 'Superfine dress & suit polyester textile weaves (per meter)',
+    defaultWholesalePrice: 220, // KSh 220 per meter wholesale
+    defaultRetailPrice: 230,    // KSh 230 per meter retail
     defaultUnit: 'meter',
     defaultComposition: '100% Superfine Polyester Dereec Weave',
     iconText: '🧵',
@@ -67,9 +67,9 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
   Fleece: {
     category: 'Fleece',
     label: 'Fleeces (Polar & Sherpa)',
-    subTitle: 'Heavyweight thermal winter & outdoor fleece',
-    defaultWholesalePrice: 850,
-    defaultRetailPrice: 1650,
+    subTitle: 'Heavyweight thermal winter & outdoor fleece (per meter)',
+    defaultWholesalePrice: 440, // KSh 440 per meter wholesale
+    defaultRetailPrice: 470,    // KSh 470 per meter retail
     defaultUnit: 'meter',
     defaultComposition: 'Heavyweight Thermal Polar Fleece 320 GSM',
     iconText: '🧥',
@@ -86,9 +86,9 @@ const CATEGORY_PRESETS: Record<CategoryType, CategoryPresetConfig> = {
   Yarns: {
     category: 'Yarns',
     label: 'Yarns (Knitting & Weaving)',
-    subTitle: 'Oster India 2/24 NM acrylic & spun yarn bales (24 KG Bags)',
-    defaultWholesalePrice: 650,
-    defaultRetailPrice: 850,
+    subTitle: 'Oster India 2/24 NM acrylic & spun yarn bales (per KG)',
+    defaultWholesalePrice: 950, // Standard KSh 950 per KG wholesale
+    defaultRetailPrice: 950,    // Standard KSh 950 per KG retail
     defaultUnit: 'kg',
     defaultComposition: '100% ACRYLIC (HB) DYED YARN',
     iconText: '🧶',

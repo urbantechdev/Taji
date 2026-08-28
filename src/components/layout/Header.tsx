@@ -7,6 +7,7 @@ import { isTabAllowedForRole } from '../../utils/rbac';
 import { MailInboxDrawer } from '../notifications/MailInboxDrawer';
 import { BrandSettingsModal } from '../settings/BrandSettingsModal';
 import { UserProfileModal } from '../profile/UserProfileModal';
+import { CapabilityTooltip } from '../guide/CapabilityTooltip';
 import { isSoundEnabled, toggleSound, playClickSound } from '../../utils/audio';
 import {
   Store,
@@ -413,7 +414,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
 
   return (
     <header
-      className={`${headerBgClass} text-white sticky top-0 z-40 relative shadow-lg transition-colors duration-300 overflow-visible`}
+      className={`${headerBgClass} text-white sticky top-0 z-50 relative shadow-lg transition-colors duration-300 overflow-visible`}
       style={headerStyle}
     >
       {/* Glass Light Reflection Sheen Custom CSS Animations */}
@@ -642,76 +643,111 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
             {/* Mode Switcher: Admin / POS Toggle */}
             {isAdmin ? (
               <div className="bg-black/25 p-1 rounded-xl flex items-center gap-1 border border-white/20 backdrop-blur-md shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => {
-                    playClickSound();
-                    setAppMode('admin');
-                  }}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    appMode === 'admin'
-                      ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
-                  }`}
-                  title="Switch to Admin Dashboard"
+                <CapabilityTooltip
+                  title="Executive Admin Dashboard"
+                  description="Access global sales analytics, inventory adjustments, double-entry ledger & system settings."
+                  roleRequired="Admin, Branch Manager"
+                  shortcut="Alt + 1"
+                  placement="bottom"
+                  align="left"
                 >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
-                  <span className="text-xs">Admin</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickSound();
+                      setAppMode('admin');
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      appMode === 'admin'
+                        ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="Switch to Admin Dashboard"
+                  >
+                    <LayoutDashboard className="w-3.5 h-3.5" />
+                    <span className="text-xs">Admin</span>
+                  </button>
+                </CapabilityTooltip>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    playClickSound();
-                    setAppMode('pos');
-                  }}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    appMode === 'pos'
-                      ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
-                      : 'text-white/80 hover:text-white hover:bg-white/10'
-                  }`}
-                  title="Switch to POS Terminal"
+                <CapabilityTooltip
+                  title="Retail POS Terminal"
+                  description="Open high-speed cash/M-Pesa checkout till with barcode scanner and Option 1 roll pricing."
+                  roleRequired="All Roles"
+                  shortcut="Alt + 2"
+                  placement="bottom"
+                  align="left"
                 >
-                  <ShoppingBag className="w-3.5 h-3.5" />
-                  <span className="text-xs">POS</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickSound();
+                      setAppMode('pos');
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      appMode === 'pos'
+                        ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="Switch to POS Terminal"
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span className="text-xs">POS</span>
+                  </button>
+                </CapabilityTooltip>
               </div>
             ) : (
-              <div
-                className="px-3 py-1.5 bg-white/15 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-xs flex items-center gap-1.5 text-xs font-bold"
-                title="POS Terminal (Staff Mode Active)"
+              <CapabilityTooltip
+                title="Staff POS Mode Active"
+                description="Current terminal restricted to fast counter sales and inventory lookups."
+                roleRequired="Cashier, Attendant"
+                placement="bottom"
+                align="left"
               >
-                <ShoppingBag className="w-3.5 h-3.5 text-pink-200" />
-                <span>POS</span>
-              </div>
+                <div
+                  className="px-3 py-1.5 bg-white/15 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-xs flex items-center gap-1.5 text-xs font-bold"
+                  title="POS Terminal (Staff Mode Active)"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 text-pink-200" />
+                  <span>POS</span>
+                </div>
+              </CapabilityTooltip>
             )}
 
             {/* Location / Shop Selector */}
             <div className="relative" ref={locationDropdownRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  playClickSound();
-                  setIsLocationDropdownOpen(prev => !prev);
-                  setIsRoleDropdownOpen(false);
-                }}
-                className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
-                  isLocationDropdownOpen
-                    ? 'bg-white text-pink-900 border-white shadow-md font-bold'
-                    : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
-                }`}
-                title={`Active Branch: ${activeLocInfo?.name || 'All Branches'}`}
+              <CapabilityTooltip
+                title="Branch & Store Selector"
+                description="Switch active inventory depot, stock levels, and POS checkout shop."
+                roleRequired="Admin, Manager"
+                shortcut="Alt + L"
+                placement="bottom"
+                align="center"
               >
-                <Building className={`w-3.5 h-3.5 transition-transform shrink-0 ${isLocationDropdownOpen ? 'text-pink-700 scale-110' : 'text-white group-hover:scale-110'}`} />
-                <span className="text-xs font-bold max-w-[85px] lg:max-w-[110px] truncate">
-                  {getLocationShortLabel(activeLocation)}
-                </span>
-                <ChevronDown
-                  className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
-                    isLocationDropdownOpen ? 'rotate-180 text-pink-700' : 'text-white/70 group-hover:text-white'
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    setIsLocationDropdownOpen(prev => !prev);
+                    setIsRoleDropdownOpen(false);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
+                    isLocationDropdownOpen
+                      ? 'bg-white text-pink-900 border-white shadow-md font-bold'
+                      : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
                   }`}
-                />
-              </button>
+                  title={`Active Branch: ${activeLocInfo?.name || 'All Branches'}`}
+                >
+                  <Building className={`w-3.5 h-3.5 transition-transform shrink-0 ${isLocationDropdownOpen ? 'text-pink-700 scale-110' : 'text-white group-hover:scale-110'}`} />
+                  <span className="text-xs font-bold max-w-[85px] lg:max-w-[110px] truncate">
+                    {getLocationShortLabel(activeLocation)}
+                  </span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
+                      isLocationDropdownOpen ? 'rotate-180 text-pink-700' : 'text-white/70 group-hover:text-white'
+                    }`}
+                  />
+                </button>
+              </CapabilityTooltip>
 
               {/* Location Dropdown Menu */}
               <AnimatePresence>
@@ -821,30 +857,39 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
             {/* Staff Role Switcher (Admin Only) */}
             {isAdmin && (
               <div className="relative" ref={roleDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playClickSound();
-                    setIsRoleDropdownOpen(prev => !prev);
-                    setIsLocationDropdownOpen(false);
-                  }}
-                  className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
-                    isRoleDropdownOpen
-                      ? 'bg-white text-indigo-900 border-white shadow-md font-bold'
-                      : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
-                  }`}
-                  title={`Simulate Staff Role: ${roleOptions.find(r => r.role === activeRole)?.title || activeRole}`}
+                <CapabilityTooltip
+                  title="Staff Role Simulation"
+                  description="Test workflows, permissions, and tab restrictions as Cashier, Attendant, Warehouse, Manager, or Accountant."
+                  roleRequired="Admin Only"
+                  shortcut="Alt + U"
+                  placement="bottom"
+                  align="center"
                 >
-                  <UserCheck className={`w-3.5 h-3.5 transition-transform shrink-0 ${isRoleDropdownOpen ? 'text-indigo-700 scale-110' : 'text-white group-hover:scale-110'}`} />
-                  <span className="text-xs font-bold max-w-[75px] lg:max-w-[95px] truncate">
-                    {getRoleShortLabel(activeRole)}
-                  </span>
-                  <ChevronDown
-                    className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
-                      isRoleDropdownOpen ? 'rotate-180 text-indigo-700' : 'text-white/70 group-hover:text-white'
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickSound();
+                      setIsRoleDropdownOpen(prev => !prev);
+                      setIsLocationDropdownOpen(false);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
+                      isRoleDropdownOpen
+                        ? 'bg-white text-indigo-900 border-white shadow-md font-bold'
+                        : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
                     }`}
-                  />
-                </button>
+                    title={`Simulate Staff Role: ${roleOptions.find(r => r.role === activeRole)?.title || activeRole}`}
+                  >
+                    <UserCheck className={`w-3.5 h-3.5 transition-transform shrink-0 ${isRoleDropdownOpen ? 'text-indigo-700 scale-110' : 'text-white group-hover:scale-110'}`} />
+                    <span className="text-xs font-bold max-w-[75px] lg:max-w-[95px] truncate">
+                      {getRoleShortLabel(activeRole)}
+                    </span>
+                    <ChevronDown
+                      className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
+                        isRoleDropdownOpen ? 'rotate-180 text-indigo-700' : 'text-white/70 group-hover:text-white'
+                      }`}
+                    />
+                  </button>
+                </CapabilityTooltip>
 
                 {/* Role Dropdown Menu */}
                 <AnimatePresence>
@@ -928,168 +973,260 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
             )}
 
             {/* Mail & Pending Transfers Inbox Button */}
-            <button
-              type="button"
-              onClick={() => setIsMailDrawerOpen(true)}
-              className={`relative px-2.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
-                totalMessageAlerts > 0
-                  ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-black animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
-                  : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
-              }`}
-              title={`Store Messages & Transfers: ${pendingTransfersCount} pending, ${unreadMails} unread`}
+            <CapabilityTooltip
+              title="Store Messages & Waybills"
+              description="View internal branch communications, low stock alerts, and receive inter-store transfer waybills."
+              roleRequired="All Roles"
+              shortcut="Alt + I"
+              tip={`${pendingTransfersCount} pending transfers, ${unreadMails} unread notifications.`}
+              placement="bottom"
+              align="center"
             >
-              <Mail className={`w-3.5 h-3.5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
-              <span>Inbox</span>
-              {totalMessageAlerts > 0 && (
-                <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
-                  {totalMessageAlerts}
-                </span>
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsMailDrawerOpen(true)}
+                className={`relative px-2.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
+                  totalMessageAlerts > 0
+                    ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-black animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
+                    : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
+                }`}
+                title={`Store Messages & Transfers: ${pendingTransfersCount} pending, ${unreadMails} unread`}
+              >
+                <Mail className={`w-3.5 h-3.5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
+                <span>Inbox</span>
+                {totalMessageAlerts > 0 && (
+                  <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
+                    {totalMessageAlerts}
+                  </span>
+                )}
+              </button>
+            </CapabilityTooltip>
 
             {/* Fabric Rolls Button */}
-            <button
-              type="button"
-              onClick={() => {
-                playClickSound();
-                setIsFabricRollModalOpen(true);
-              }}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-teal-700 to-emerald-800 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-teal-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
-              title="Fabric Rolls & Piece Goods Inventory"
+            <CapabilityTooltip
+              title="Fabric Roll Manager (Scissors)"
+              description="Manage individual Fleece and Dereec fabric rolls with exact meter tracking, batch intake, and roll cutting."
+              roleRequired="Admin, Branch Manager, Warehouse Operator"
+              shortcut="Alt + R"
+              tip="Manage piece goods and print roll barcodes."
+              placement="bottom"
+              align="center"
             >
-              <Layers className="w-3.5 h-3.5 text-teal-200 group-hover:scale-110 transition-transform" />
-              <span>Fabric</span>
-              {fabricRolls.length > 0 && (
-                <span className="bg-teal-300 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
-                  {fabricRolls.filter(r => r.status !== 'depleted').length}
-                </span>
-              )}
-            </button>
-
-            {/* RMA / Returns Button */}
-            <button
-              type="button"
-              onClick={() => {
-                playClickSound();
-                setIsReturnExchangeModalOpen(true);
-              }}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-amber-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
-              title="RMA / Returns & Exchanges"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-200 group-hover:rotate-180 transition-transform duration-500" />
-              <span>RMA</span>
-              {quarantinedDefects.length > 0 && (
-                <span className="bg-amber-400 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
-                  {quarantinedDefects.length}
-                </span>
-              )}
-            </button>
-
-            {/* Camera Barcode Scanner */}
-            <button
-              type="button"
-              onClick={() => setIsMobileBarcodeScannerOpen(true)}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-emerald-400/50 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
-              title="Camera Barcode Scanner"
-            >
-              <Camera className="w-3.5 h-3.5 text-emerald-200 group-hover:scale-110 transition-transform" />
-              <span>Barcode</span>
-            </button>
-
-            {/* Batch QR Scanner */}
-            <button
-              type="button"
-              onClick={() => setIsQRScannerOpen(true)}
-              className="px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-slate-700 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
-              title="Open Batch QR Scanner"
-            >
-              <QrCode className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
-              <span>QR</span>
-            </button>
-
-            {/* Sound Mute / Unmute */}
-            <button
-              type="button"
-              onClick={handleToggleSound}
-              className={`p-2.5 border rounded-xl transition-all cursor-pointer flex items-center justify-center ${
-                soundOn
-                  ? 'bg-white/15 hover:bg-white/25 border-white/30 text-white shadow-xs'
-                  : 'bg-black/30 hover:bg-black/40 border-white/10 text-white/60'
-              }`}
-              title={soundOn ? 'Sound: Enabled' : 'Sound: Muted'}
-            >
-              {soundOn ? (
-                <Volume2 className="w-4 h-4 text-emerald-300" />
-              ) : (
-                <VolumeX className="w-4 h-4 text-rose-300" />
-              )}
-            </button>
-
-            {/* User Guide & Knowledge Helper (All Roles) */}
-            <button
-              id="header-user-guide-btn"
-              type="button"
-              onClick={() => {
-                playClickSound();
-                if (setActiveTab) {
-                  setActiveTab('guide');
-                }
-              }}
-              className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95 border ${
-                activeTab === 'guide'
-                  ? 'bg-amber-400 text-slate-900 border-amber-300 shadow-md font-bold'
-                  : 'bg-white/10 hover:bg-amber-500/20 border-white/20 text-amber-300'
-              }`}
-              title="User Guide: Search How-To, Yarn Tare & Meter Guides"
-            >
-              <BookOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            </button>
-
-            {/* System Settings & Governance (Admin only) */}
-            {isAdmin && (
               <button
                 type="button"
                 onClick={() => {
                   playClickSound();
+                  setIsFabricRollModalOpen(true);
+                }}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-teal-700 to-emerald-800 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-teal-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+                title="Fabric Rolls & Piece Goods Inventory"
+              >
+                <Layers className="w-3.5 h-3.5 text-teal-200 group-hover:scale-110 transition-transform" />
+                <span>Fabric</span>
+                {fabricRolls.length > 0 && (
+                  <span className="bg-teal-300 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
+                    {fabricRolls.filter(r => r.status !== 'depleted').length}
+                  </span>
+                )}
+              </button>
+            </CapabilityTooltip>
+
+            {/* RMA / Returns Button */}
+            <CapabilityTooltip
+              title="RMA Returns & Defect Quarantine"
+              description="Process customer fabric returns, yarn defect claims, and quarantine damaged rolls."
+              roleRequired="Branch Manager, Accountant, Admin"
+              shortcut="Alt + M"
+              tip="Quarantined items are isolated from active inventory."
+              placement="bottom"
+              align="center"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  setIsReturnExchangeModalOpen(true);
+                }}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-amber-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+                title="RMA / Returns & Exchanges"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-200 group-hover:rotate-180 transition-transform duration-500" />
+                <span>RMA</span>
+                {quarantinedDefects.length > 0 && (
+                  <span className="bg-amber-400 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
+                    {quarantinedDefects.length}
+                  </span>
+                )}
+              </button>
+            </CapabilityTooltip>
+
+            {/* Camera Barcode Scanner */}
+            <CapabilityTooltip
+              title="Camera Barcode Scanner"
+              description="Use smartphone or tablet camera to scan 1D Code 128 barcodes and 2D QR codes."
+              roleRequired="All Roles"
+              tip="Useful for floor audits & stocktaking."
+              placement="bottom"
+              align="center"
+            >
+              <button
+                type="button"
+                onClick={() => setIsMobileBarcodeScannerOpen(true)}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-emerald-400/50 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+                title="Camera Barcode Scanner"
+              >
+                <Camera className="w-3.5 h-3.5 text-emerald-200 group-hover:scale-110 transition-transform" />
+                <span>Barcode</span>
+              </button>
+            </CapabilityTooltip>
+
+            {/* Batch QR Scanner */}
+            <CapabilityTooltip
+              title="Batch QR Scanner"
+              description="Scan 2D QR codes on fabric rolls, customer receipts, and transfer waybills."
+              roleRequired="All Roles"
+              placement="bottom"
+              align="center"
+            >
+              <button
+                type="button"
+                onClick={() => setIsQRScannerOpen(true)}
+                className="px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-slate-700 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+                title="Open Batch QR Scanner"
+              >
+                <QrCode className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
+                <span>QR</span>
+              </button>
+            </CapabilityTooltip>
+
+            {/* Sound Mute / Unmute */}
+            <CapabilityTooltip
+              title="Audio Synthesizer & Feedback"
+              description="Toggle synthesized sound effects on barcode scans, carts, errors, and checkout success."
+              roleRequired="All Users"
+              placement="bottom"
+              align="right"
+            >
+              <button
+                type="button"
+                onClick={handleToggleSound}
+                className={`p-2.5 border rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                  soundOn
+                    ? 'bg-white/15 hover:bg-white/25 border-white/30 text-white shadow-xs'
+                    : 'bg-black/30 hover:bg-black/40 border-white/10 text-white/60'
+                }`}
+                title={soundOn ? 'Sound: Enabled' : 'Sound: Muted'}
+              >
+                {soundOn ? (
+                  <Volume2 className="w-4 h-4 text-emerald-300" />
+                ) : (
+                  <VolumeX className="w-4 h-4 text-rose-300" />
+                )}
+              </button>
+            </CapabilityTooltip>
+
+            {/* User Guide & Knowledge Helper (All Roles) */}
+            <CapabilityTooltip
+              title="Interactive User Guide & Search"
+              description="Ask any question, explore step-by-step guides for Fleece/Yarns, and inspect button capabilities."
+              roleRequired="All Roles"
+              shortcut="Alt + G"
+              tip="Includes live button explorer and downloadable manuals."
+              placement="bottom"
+              align="right"
+            >
+              <button
+                id="header-user-guide-btn"
+                type="button"
+                onClick={() => {
+                  playClickSound();
                   if (setActiveTab) {
-                    setActiveTab('settings');
-                  } else {
-                    setIsBrandSettingsModalOpen(true);
+                    setActiveTab('guide');
                   }
                 }}
                 className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95 border ${
-                  activeTab === 'settings'
-                    ? 'bg-white text-pink-700 border-white shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                  activeTab === 'guide'
+                    ? 'bg-amber-400 text-slate-900 border-amber-300 shadow-md font-bold'
+                    : 'bg-white/10 hover:bg-amber-500/20 border-white/20 text-amber-300'
                 }`}
-                title="System Settings, Roles, Pricing & Barcodes"
+                title="User Guide: Search How-To, Yarn Tare & Meter Guides"
               >
-                <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform" />
+                <BookOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </button>
+            </CapabilityTooltip>
+
+            {/* System Settings & Governance (Admin only) */}
+            {isAdmin && (
+              <CapabilityTooltip
+                title="System Settings & Governance"
+                description="Configure brand logo, KRA ETR rates, dual-tare weights, and user security."
+                roleRequired="Super Admin"
+                shortcut="Alt + S"
+                placement="bottom"
+                align="right"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    if (setActiveTab) {
+                      setActiveTab('settings');
+                    } else {
+                      setIsBrandSettingsModalOpen(true);
+                    }
+                  }}
+                  className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center group hover:scale-105 active:scale-95 border ${
+                    activeTab === 'settings'
+                      ? 'bg-white text-pink-700 border-white shadow-md'
+                      : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                  }`}
+                  title="System Settings, Roles, Pricing & Barcodes"
+                >
+                  <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform" />
+                </button>
+              </CapabilityTooltip>
             )}
 
             {/* Executive User Profile */}
-            <button
-              type="button"
-              onClick={() => setIsUserProfileModalOpen(true)}
-              className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group flex items-center justify-center hover:scale-105 active:scale-95"
-              title={`Profile: ${currentUser.name}`}
+            <CapabilityTooltip
+              title="User Profile & Credentials"
+              description="View active operator name, role permissions, and active store station."
+              roleRequired="Current User"
+              shortcut="Alt + P"
+              placement="bottom"
+              align="right"
             >
-              <User className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsUserProfileModalOpen(true)}
+                className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group flex items-center justify-center hover:scale-105 active:scale-95"
+                title={`Profile: ${currentUser.name}`}
+              >
+                <User className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+              </button>
+            </CapabilityTooltip>
 
             {/* Lock Session Terminal Button */}
-            <button
-              type="button"
-              onClick={() => {
-                playClickSound();
-                lockPlatform();
-              }}
-              className="p-2.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center group"
+            <CapabilityTooltip
               title="Lock Terminal Session"
+              description="Immediately lock and secure the POS terminal screen with PIN / Google Auth."
+              roleRequired="All Users"
+              shortcut="Alt + Q"
+              placement="bottom"
+              align="right"
             >
-              <Lock className="w-4 h-4 text-rose-300 group-hover:scale-110 transition-transform" />
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  lockPlatform();
+                }}
+                className="p-2.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center group"
+                title="Lock Terminal Session"
+              >
+                <Lock className="w-4 h-4 text-rose-300 group-hover:scale-110 transition-transform" />
+              </button>
+            </CapabilityTooltip>
 
           </div>
 
@@ -1097,8 +1234,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
 
       </div>
 
-      {/* Single Wave Curved Bottom Edge */}
-      <div className="absolute left-0 right-0 top-full -mt-0.5 w-full overflow-visible leading-none pointer-events-none z-20">
+      {/* Decorative Single Wave Curved Bottom Edge (z-0, pointer-events-none so tooltips and popups always float unobstructed on top) */}
+      <div className="absolute left-0 right-0 top-full -mt-0.5 w-full overflow-visible leading-none pointer-events-none z-0">
         <svg
           viewBox="0 0 1440 120"
           className="relative block w-full h-6 sm:h-10 md:h-12 overflow-visible filter [filter:drop-shadow(0_6px_8px_rgba(0,0,0,0.25))]"

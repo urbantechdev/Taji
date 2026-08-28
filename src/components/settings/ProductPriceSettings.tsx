@@ -41,11 +41,11 @@ export const ProductPriceSettings: React.FC = () => {
 
   // Config for chosen category
   const activeConfig = categoryPricingConfigs[selectedCategory] || {
-    defaultRetailPrice: selectedCategory === 'Dereck' ? 1250 : selectedCategory === 'Yarns' ? 850 : 1650,
-    defaultBulkPrice: selectedCategory === 'Dereck' ? 650 : selectedCategory === 'Yarns' ? 650 : 850,
-    defaultCostPrice: selectedCategory === 'Dereck' ? 400 : selectedCategory === 'Yarns' ? 450 : 550,
+    defaultRetailPrice: selectedCategory === 'Dereck' ? 230 : selectedCategory === 'Yarns' ? 950 : 470,
+    defaultBulkPrice: selectedCategory === 'Dereck' ? 220 : selectedCategory === 'Yarns' ? 950 : 440,
+    defaultCostPrice: selectedCategory === 'Dereck' ? 160 : selectedCategory === 'Yarns' ? 650 : 320,
     marginPercentage: 100,
-    pricePerKgRate: selectedCategory === 'Dereck' ? 1200 : selectedCategory === 'Yarns' ? 750 : 1500,
+    pricePerKgRate: selectedCategory === 'Dereck' ? 230 : selectedCategory === 'Yarns' ? 950 : 470,
     coneTareWeightKg: 0.070,
     baleTareWeightKg: 0.840,
     autoDeductTareAtPOS: true,
@@ -57,7 +57,7 @@ export const ProductPriceSettings: React.FC = () => {
   const [retailPrice, setRetailPrice] = useState<number>(activeConfig.defaultRetailPrice);
   const [bulkPrice, setBulkPrice] = useState<number>(activeConfig.defaultBulkPrice);
   const [costPrice, setCostPrice] = useState<number>(activeConfig.defaultCostPrice);
-  const [pricePerKgRate, setPricePerKgRate] = useState<number>(activeConfig.pricePerKgRate || 1200);
+  const [pricePerKgRate, setPricePerKgRate] = useState<number>(activeConfig.pricePerKgRate || 230);
   const [coneTareWeightKg, setConeTareWeightKg] = useState<number>(activeConfig.coneTareWeightKg ?? 0.070);
   const [baleTareWeightKg, setBaleTareWeightKg] = useState<number>(activeConfig.baleTareWeightKg ?? 0.840);
   const [autoDeductTareAtPOS, setAutoDeductTareAtPOS] = useState<boolean>(activeConfig.autoDeductTareAtPOS ?? true);
@@ -84,11 +84,11 @@ export const ProductPriceSettings: React.FC = () => {
     playClickSound();
     setSelectedCategory(cat);
     const cfg = categoryPricingConfigs[cat] || {
-      defaultRetailPrice: cat === 'Dereck' ? 1250 : cat === 'Yarns' ? 850 : 1650,
-      defaultBulkPrice: cat === 'Dereck' ? 650 : cat === 'Yarns' ? 650 : 850,
-      defaultCostPrice: cat === 'Dereck' ? 400 : cat === 'Yarns' ? 450 : 550,
+      defaultRetailPrice: cat === 'Dereck' ? 230 : cat === 'Yarns' ? 950 : 470,
+      defaultBulkPrice: cat === 'Dereck' ? 220 : cat === 'Yarns' ? 950 : 440,
+      defaultCostPrice: cat === 'Dereck' ? 160 : cat === 'Yarns' ? 650 : 320,
       marginPercentage: 100,
-      pricePerKgRate: cat === 'Dereck' ? 1200 : cat === 'Yarns' ? 750 : 1500,
+      pricePerKgRate: cat === 'Dereck' ? 230 : cat === 'Yarns' ? 950 : 470,
       coneTareWeightKg: 0.070,
       baleTareWeightKg: 0.840,
       autoDeductTareAtPOS: true,
@@ -99,7 +99,7 @@ export const ProductPriceSettings: React.FC = () => {
     setRetailPrice(cfg.defaultRetailPrice);
     setBulkPrice(cfg.defaultBulkPrice);
     setCostPrice(cfg.defaultCostPrice);
-    setPricePerKgRate(cfg.pricePerKgRate || (cat === 'Dereck' ? 1200 : cat === 'Yarns' ? 750 : 1500));
+    setPricePerKgRate(cfg.pricePerKgRate || (cat === 'Dereck' ? 230 : cat === 'Yarns' ? 950 : 470));
     setConeTareWeightKg(cfg.coneTareWeightKg ?? 0.070);
     setBaleTareWeightKg(cfg.baleTareWeightKg ?? 0.840);
     setAutoDeductTareAtPOS(cfg.autoDeductTareAtPOS ?? true);
@@ -184,29 +184,38 @@ export const ProductPriceSettings: React.FC = () => {
   const applyPreset = (preset: 'fleece_polar' | 'dereck_heavy' | 'yarns_cotton') => {
     playClickSound();
     if (preset === 'fleece_polar') {
-      setSelectedCategory('Dereck'); // or category mapping
-      setRetailPrice(1650);
-      setBulkPrice(850);
-      setCostPrice(550);
-      setPricePerKgRate(1650);
+      setSelectedCategory('Fleece');
+      setRetailPrice(470);
+      setBulkPrice(440);
+      setCostPrice(320);
+      setPricePerKgRate(470);
       setConeTareWeightKg(0.080);
       setBaleTareWeightKg(0.900);
+      setStandardRollLengthMeters(70);
+      setLooseMeterDiscountPct(10);
+      setEnableHybridRollPricing(true);
     } else if (preset === 'dereck_heavy') {
       setSelectedCategory('Dereck');
-      setRetailPrice(1250);
-      setBulkPrice(650);
-      setCostPrice(400);
-      setPricePerKgRate(1200);
+      setRetailPrice(230);
+      setBulkPrice(220);
+      setCostPrice(160);
+      setPricePerKgRate(230);
       setConeTareWeightKg(0.070);
       setBaleTareWeightKg(0.840);
+      setStandardRollLengthMeters(50);
+      setLooseMeterDiscountPct(10);
+      setEnableHybridRollPricing(true);
     } else if (preset === 'yarns_cotton') {
       setSelectedCategory('Yarns');
-      setRetailPrice(850);
-      setBulkPrice(650);
-      setCostPrice(450);
-      setPricePerKgRate(750);
+      setRetailPrice(950);
+      setBulkPrice(950);
+      setCostPrice(650);
+      setPricePerKgRate(950);
       setConeTareWeightKg(0.070);
       setBaleTareWeightKg(0.840);
+      setStandardRollLengthMeters(0);
+      setLooseMeterDiscountPct(0);
+      setEnableHybridRollPricing(false);
     }
   };
 

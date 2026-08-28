@@ -49,6 +49,7 @@ import {
   Calendar,
   CalendarDays,
   Scissors,
+  Boxes,
   Tag,
   Sliders
 } from 'lucide-react';
@@ -143,7 +144,7 @@ export const POSModule: React.FC = () => {
   const [activeRollPricingBatchId, setActiveRollPricingBatchId] = useState<string | null>(null);
   const [rollPricingModalDiscountPct, setRollPricingModalDiscountPct] = useState<number>(10);
   const [rollPricingModalStandardMeters, setRollPricingModalStandardMeters] = useState<number>(70);
-  const [rollPricingModalMode, setRollPricingModalMode] = useState<'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail'>('hybrid_discounted_loose');
+  const [rollPricingModalMode, setRollPricingModalMode] = useState<'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail' | 'custom'>('hybrid_discounted_loose');
 
   // Product Quick View Modal State
   const [selectedViewProduct, setSelectedViewProduct] = useState<ProductBatch | null>(null);

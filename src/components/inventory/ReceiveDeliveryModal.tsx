@@ -61,9 +61,9 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
   const [newColorName, setNewColorName] = useState('Classic Royal Navy');
   const [newColorHex, setNewColorHex] = useState('#1E3A8A');
   const [newUnit, setNewUnit] = useState<UnitType>('meter');
-  const [newCostPrice, setNewCostPrice] = useState<number>(650);
-  const [newRetailPrice, setNewRetailPrice] = useState<number>(1250);
-  const [newBulkPrice, setNewBulkPrice] = useState<number>(980);
+  const [newCostPrice, setNewCostPrice] = useState<number>(160);
+  const [newRetailPrice, setNewRetailPrice] = useState<number>(230);
+  const [newBulkPrice, setNewBulkPrice] = useState<number>(220);
 
   // New Manifest Creation Modal
   const [isCreatingNewManifest, setIsCreatingNewManifest] = useState(false);

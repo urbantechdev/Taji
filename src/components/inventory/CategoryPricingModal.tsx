@@ -40,11 +40,11 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
 
   // Exact Values State
   const catConfig = categoryPricingConfigs[selectedCat] || {
-    defaultRetailPrice: selectedCat === 'Yarns' ? 850 : selectedCat === 'Dereck' ? 1250 : 1650,
-    defaultBulkPrice: selectedCat === 'Yarns' ? 650 : selectedCat === 'Dereck' ? 650 : 850,
-    defaultCostPrice: selectedCat === 'Yarns' ? 450 : selectedCat === 'Dereck' ? 400 : 550,
+    defaultRetailPrice: selectedCat === 'Yarns' ? 950 : selectedCat === 'Dereck' ? 230 : 470,
+    defaultBulkPrice: selectedCat === 'Yarns' ? 950 : selectedCat === 'Dereck' ? 220 : 440,
+    defaultCostPrice: selectedCat === 'Yarns' ? 650 : selectedCat === 'Dereck' ? 160 : 320,
     marginPercentage: 100,
-    pricePerKgRate: selectedCat === 'Yarns' ? 750 : 1200,
+    pricePerKgRate: selectedCat === 'Yarns' ? 950 : selectedCat === 'Dereck' ? 230 : 470,
     coneTareWeightKg: 0.070,
     baleTareWeightKg: 0.840,
     autoDeductTareAtPOS: true
@@ -55,7 +55,7 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
   const [exactCostPrice, setExactCostPrice] = useState<number>(catConfig.defaultCostPrice);
 
   // Variable Cone Weight & Rate-Per-KG Settings
-  const [pricePerKgRate, setPricePerKgRate] = useState<number>(catConfig.pricePerKgRate || (selectedCat === 'Yarns' ? 750 : 1200));
+  const [pricePerKgRate, setPricePerKgRate] = useState<number>(catConfig.pricePerKgRate || (selectedCat === 'Yarns' ? 950 : selectedCat === 'Dereck' ? 230 : 470));
   const [coneTareWeightKg, setConeTareWeightKg] = useState<number>(catConfig.coneTareWeightKg ?? 0.070);
   const [baleTareWeightKg, setBaleTareWeightKg] = useState<number>(catConfig.baleTareWeightKg ?? 0.840);
   const [autoDeductTareAtPOS, setAutoDeductTareAtPOS] = useState<boolean>(catConfig.autoDeductTareAtPOS ?? true);
@@ -72,9 +72,9 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
   // Bale Economics Interactive Calculator
   const [calcBagWeightKg, setCalcBagWeightKg] = useState<number>(24);
   const [calcConesCount, setCalcConesCount] = useState<number>(12);
-  const [calcCostPerKg, setCalcCostPerKg] = useState<number>(450);
-  const [calcWholesalePerKg, setCalcWholesalePerKg] = useState<number>(650);
-  const [calcRetailPerKg, setCalcRetailPerKg] = useState<number>(850);
+  const [calcCostPerKg, setCalcCostPerKg] = useState<number>(650);
+  const [calcWholesalePerKg, setCalcWholesalePerKg] = useState<number>(950);
+  const [calcRetailPerKg, setCalcRetailPerKg] = useState<number>(950);
 
   const [isApplying, setIsApplying] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -97,17 +97,17 @@ export const CategoryPricingModal: React.FC<CategoryPricingModalProps> = ({ onCl
   // Apply Recommended Industry Standard Presets
   const handleApplyRecommendedPreset = (cat: CategoryType) => {
     if (cat === 'Yarns') {
-      setExactRetailPrice(850); // Single Cone / Retail Rate (KSh/KG) -> KSh 1,700 per 2KG cone
-      setExactBulkPrice(650);   // Full Bale / Wholesale Rate (KSh/KG) -> KSh 15,600 per 24KG bag
-      setExactCostPrice(450);   // Landed Cost (KSh/KG) -> KSh 10,800 per 24KG bag
+      setExactRetailPrice(950); // Standard Retail Rate (KSh/KG)
+      setExactBulkPrice(950);   // Standard Wholesale Rate (KSh/KG)
+      setExactCostPrice(650);   // Landed Cost (KSh/KG)
     } else if (cat === 'Dereck') {
-      setExactRetailPrice(1250); // Cut length per meter
-      setExactBulkPrice(650);    // Full roll per meter
-      setExactCostPrice(400);    // Landed cost per meter
+      setExactRetailPrice(230); // Cut length per meter retail
+      setExactBulkPrice(220);   // Full roll per meter wholesale
+      setExactCostPrice(160);   // Landed cost per meter
     } else if (cat === 'Fleece') {
-      setExactRetailPrice(1650); // Cut length per meter
-      setExactBulkPrice(850);    // Full bolt per meter
-      setExactCostPrice(550);    // Landed cost per meter
+      setExactRetailPrice(470); // Cut length per meter retail
+      setExactBulkPrice(440);   // Full bolt per meter wholesale
+      setExactCostPrice(320);   // Landed cost per meter
     }
   };
 

@@ -29,7 +29,15 @@ import {
   Info,
   Clock,
   UserCheck,
-  Eye
+  Eye,
+  Camera,
+  RotateCcw,
+  Volume2,
+  Lock,
+  Tag,
+  Wallet,
+  Building2,
+  ClipboardList
 } from 'lucide-react';
 import { USER_GUIDE_ARTICLES, GuideArticle } from './userGuideData';
 import { BUTTON_CAPABILITIES, ButtonCapability } from './buttonCapabilitiesData';
@@ -46,7 +54,7 @@ const CATEGORY_TABS = [
   { id: 'all', label: 'All Guides', icon: Compass },
   { id: 'yarns', label: 'Yarns & Tare Weights', icon: Scale },
   { id: 'fleece_dereec', label: 'Fleece & Dereec (Meters)', icon: Scissors },
-  { id: 'pos', label: 'POS Sales & Registers', icon: ShoppingCart },
+  { id: 'pos', label: 'POS Sales & Roll Pricing', icon: ShoppingCart },
   { id: 'transfers', label: 'Inter-Store Transfers', icon: ArrowLeftRight },
   { id: 'etr', label: 'KRA Fiscal Billing', icon: Receipt },
   { id: 'ledger', label: 'Accounting Ledger', icon: BookOpenCheck },
@@ -58,11 +66,36 @@ const CATEGORY_TABS = [
 const SUGGESTED_QUESTIONS = [
   { text: 'Where do I set standard net mass and gross mass for yarn?', targetId: 'yarn-tare-mass-settings' },
   { text: 'How do I adjust meters during Fleece & Dereec inventory creation?', targetId: 'fleece-dereec-meters-adjustment' },
+  { text: 'How does Option 1 Hybrid Roll Pricing calculate whole rolls vs loose cuts?', targetId: 'option1-hybrid-roll-pricing' },
   { text: 'How to scan barcodes and checkout at the POS terminal?', targetId: 'pos-sales-checkout' },
   { text: 'How to dispatch and receive stock between stores?', targetId: 'inter-store-transfers' },
+  { text: 'How to record branch expenses and adjust cash float?', targetId: 'multi-branch-expense-float' },
   { text: 'How to configure KRA ETR and issue credit notes?', targetId: 'kra-etims-invoicing' },
   { text: 'How to print 50×30mm thermal roll barcodes?', targetId: 'thermal-barcode-printing' }
 ];
+
+// Helper to render appropriate lucide icon for button capabilities
+const getCapabilityIcon = (iconName: string) => {
+  switch (iconName) {
+    case 'Scissors': return Scissors;
+    case 'Scale': return Scale;
+    case 'Boxes': return Boxes;
+    case 'Tag': return Tag;
+    case 'Clock': return Clock;
+    case 'Receipt': return Receipt;
+    case 'RotateCcw': return RotateCcw;
+    case 'Barcode': return Barcode;
+    case 'BookOpen': return BookOpen;
+    case 'Lock': return Lock;
+    case 'Volume2': return Volume2;
+    case 'ArrowLeftRight': return ArrowLeftRight;
+    case 'Wallet': return Wallet;
+    case 'Camera': return Camera;
+    case 'TrendingUp': return Zap;
+    case 'ClipboardList': return ClipboardList;
+    default: return Sparkles;
+  }
+};
 
 export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTab }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,7 +103,8 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
   const [expandedArticleId, setExpandedArticleId] = useState<string | null>('yarn-tare-mass-settings');
   const [selectedIconModule, setSelectedIconModule] = useState<string>('all');
   const [iconSearchQuery, setIconSearchQuery] = useState('');
-  const [hoveredCapability, setHoveredCapability] = useState<ButtonCapability | null>(null);
+  const [hoveredCapability, setHoveredCapability] = useState<ButtonCapability | null>(BUTTON_CAPABILITIES[0]);
+  const [activeSimulatorTab, setActiveSimulatorTab] = useState<'cards' | 'live_toolbar'>('cards');
 
   // Filter articles based on search query and selected category
   const filteredArticles = useMemo(() => {
@@ -129,6 +163,60 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
     }
   };
 
+  // Instant Quick Answer match
+  const quickAnswerMatch = useMemo(() => {
+    if (!searchQuery.trim()) return null;
+    const q = searchQuery.toLowerCase();
+    
+    // Check if query matches tare/mass
+    if (q.includes('tare') || q.includes('mass') || q.includes('gross') || q.includes('net') || q.includes('scale')) {
+      return {
+        title: 'Yarn Tare Mass & Net Deduction Guide',
+        summary: 'To calibrate yarn tare: Go to Settings > Product Price Settings > Yarns. Set Cone Tare (0.070 kg) or Bale Tare (0.840 kg for 24.84kg Oster India). Check "Auto-Deduct Tare at POS" so POS scales automatically charge customers strictly for Net Fabric Mass.',
+        targetTab: 'settings',
+        actionLabel: 'Open Product Price Settings'
+      };
+    }
+    // Check if query matches meter/roll/hybrid
+    if (q.includes('hybrid') || q.includes('roll price') || q.includes('wholesale') || q.includes('loose')) {
+      return {
+        title: 'Option 1 Hybrid Roll Pricing & Loose Meter Discount',
+        summary: 'In the POS cart, click the 🏷️ Tag / Roll Pricing icon on any Fleece or Dereec line item. Option 1 automatically bills whole standard rolls (e.g. 70m) at wholesale rates (e.g. KES 440/m for Fleece, KES 220/m for Dereec) and loose cut meters (e.g. 25m) at retail rates (KES 470/m or KES 230/m with loose meter discounts).',
+        targetTab: 'pos',
+        actionLabel: 'Open POS Terminal'
+      };
+    }
+    // Check if query matches meters/cutting/fleece
+    if (q.includes('fleece') || q.includes('dereec') || q.includes('meter') || q.includes('cut') || q.includes('roll')) {
+      return {
+        title: 'Fleece & Dereec Meter Adjustment',
+        summary: 'You can adjust meters in 3 places: 1) During Category Intake by editing the "Qty (Meters)" column before saving; 2) In Fabric Roll Manager (Scissors ✂️) via comma-separated batch intake; or 3) In Inventory Catalog by clicking ✏️ Edit on any product card.',
+        targetTab: 'catalog',
+        actionLabel: 'Open Inventory Catalog'
+      };
+    }
+    // Check if query matches branch/float/expense
+    if (q.includes('float') || q.includes('expense') || q.includes('petty cash') || q.includes('branch')) {
+      return {
+        title: 'Branch Cash Float & Petty Cash Expenses',
+        summary: 'In Autonomous Branches or Accounting Ledger: Click "Adjust Cash Float" to set opening till balance. Click "+ Record Branch Expense" to disburse petty cash for transport, packaging, or utilities with automatic General Ledger debit/credit posting.',
+        targetTab: 'branches',
+        actionLabel: 'Open Branch Management'
+      };
+    }
+    // Check if query matches etims/tax/invoice/credit note
+    if (q.includes('etr') || q.includes('etims') || q.includes('tax') || q.includes('credit note') || q.includes('vat') || q.includes('invoice')) {
+      return {
+        title: 'KRA eTIMS Invoicing & Credit Notes',
+        summary: 'In Billing & Invoices (ETR Module): Configure Company KRA PIN and CU Serial in Settings. Click "+ New Tax Invoice" to issue 16% VAT invoices with QR verification. Click "Issue Credit Note" to reverse returned fabric cuts.',
+        targetTab: 'etr',
+        actionLabel: 'Open Billing & Invoices'
+      };
+    }
+
+    return null;
+  }, [searchQuery]);
+
   return (
     <div id="user-guide-module" className="space-y-6 animate-in fade-in duration-300">
       
@@ -163,7 +251,7 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Ask e.g. 'How to set yarn tare', 'Adjust fleece meters', 'POS checkout'..."
+                placeholder="Ask e.g. 'How to set yarn tare', 'Adjust fleece meters', 'Option 1 roll discount', 'POS checkout'..."
                 className="w-full pl-12 pr-12 py-3.5 sm:py-4 bg-white/10 hover:bg-white/15 focus:bg-white text-white focus:text-slate-900 placeholder:text-slate-400 rounded-2xl border border-white/20 focus:border-rose-500 shadow-xl focus:outline-hidden focus:ring-4 focus:ring-rose-500/30 transition-all text-sm sm:text-base font-medium"
               />
               {searchQuery && (
@@ -178,6 +266,43 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
               )}
             </div>
           </div>
+
+          {/* Instant Quick Answer Card (if matched query) */}
+          {quickAnswerMatch && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 sm:p-5 rounded-2xl bg-white text-slate-900 text-left shadow-2xl border border-rose-200 max-w-2xl mx-auto space-y-2.5"
+            >
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                <div className="flex items-center gap-2 text-xs font-black text-rose-700 uppercase tracking-wider">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>Instant Quick Answer</span>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200">
+                  AI Matched
+                </span>
+              </div>
+              <h4 className="text-sm sm:text-base font-bold text-slate-900">
+                {quickAnswerMatch.title}
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
+                {quickAnswerMatch.summary}
+              </p>
+              {quickAnswerMatch.targetTab && (
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handleJumpToFeature(quickAnswerMatch.targetTab)}
+                    className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>{quickAnswerMatch.actionLabel}</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
 
           {/* Quick Suggested Questions Chips */}
           <div className="space-y-2 pt-1">
@@ -258,6 +383,131 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
       {selectedCategory === 'capabilities' ? (
         /* BUTTON & ICON CAPABILITY EXPLORER */
         <div className="space-y-6">
+          
+          {/* Live Interactive Toolbar Hover Playground */}
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-slate-700/80 space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-700/70 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-wider">
+                  <Sparkles className="w-4 h-4" />
+                  <span>Live Hover &amp; Click Simulator</span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-white">
+                  Interactive Button &amp; Icon Capability Inspector
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Hover over or tap any icon below to test live capability tooltips and examine role permissions in real-time.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-medium hidden md:inline">
+                  {BUTTON_CAPABILITIES.length} Tools Documented
+                </span>
+              </div>
+            </div>
+
+            {/* Live Interactive Icon Strip */}
+            <div className="flex flex-wrap items-center gap-2.5 p-3 rounded-2xl bg-black/30 border border-white/10">
+              {BUTTON_CAPABILITIES.map(btn => {
+                const IconComponent = getCapabilityIcon(btn.iconName);
+                const isSelected = hoveredCapability?.id === btn.id;
+
+                return (
+                  <button
+                    key={btn.id}
+                    type="button"
+                    onMouseEnter={() => {
+                      playClickSound();
+                      setHoveredCapability(btn);
+                    }}
+                    onClick={() => {
+                      playClickSound();
+                      setHoveredCapability(btn);
+                    }}
+                    className={`p-3 rounded-xl transition-all cursor-pointer flex items-center gap-2 text-xs font-bold ${
+                      isSelected
+                        ? 'bg-rose-600 text-white shadow-lg shadow-rose-900/50 scale-105 ring-2 ring-rose-400'
+                        : 'bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white border border-white/10'
+                    }`}
+                    title={btn.name}
+                  >
+                    <IconComponent className="w-4 h-4 shrink-0" />
+                    <span className="max-w-[130px] truncate">{btn.name.split('(')[0].trim()}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active Live Capability Card Preview */}
+            {hoveredCapability && (
+              <motion.div
+                key={hoveredCapability.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-5 sm:p-6 rounded-2xl bg-slate-900/90 border border-rose-500/40 shadow-2xl space-y-4 text-slate-100"
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-rose-600 text-white shadow-md">
+                      {React.createElement(getCapabilityIcon(hoveredCapability.iconName), { className: 'w-6 h-6' })}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base sm:text-lg font-bold text-white">
+                          {hoveredCapability.name}
+                        </h4>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                          {hoveredCapability.moduleLabel}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-medium">
+                        📍 Location: {hoveredCapability.locationDescription}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {hoveredCapability.shortcut && (
+                      <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-slate-800 text-amber-300 border border-slate-700">
+                        ⌨️ {hoveredCapability.shortcut}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Capabilities */}
+                <div className="space-y-2">
+                  <span className="text-xs font-extrabold text-slate-300 uppercase tracking-wider">
+                    What this button is capable of doing:
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {hoveredCapability.capabilities.map((cap, cIdx) => (
+                      <div key={cIdx} className="flex items-start gap-2 text-xs text-slate-200 font-medium bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/50">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>{cap}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Permissions & Tip */}
+                <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-slate-800 text-xs">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <ShieldCheck className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span><strong>Required Role:</strong> {hoveredCapability.requiredRole}</span>
+                  </div>
+                  {hoveredCapability.proTip && (
+                    <div className="text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 text-xs font-medium">
+                      💡 Pro Tip: {hoveredCapability.proTip}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+          </div>
+
           <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200 space-y-6">
             
             {/* Header */}
@@ -265,10 +515,10 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
               <div className="space-y-1">
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
                   <MousePointer className="w-5 h-5 text-rose-600" />
-                  <span>Button &amp; Icon Capability Explorer</span>
+                  <span>Full Button &amp; Icon Directory</span>
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500">
-                  Hover over or search any button, icon, or tool in Taji ERP to see what it is capable of doing, required user permissions, and shortcuts.
+                  Browse complete capabilities and shortcuts organized by ERP module.
                 </p>
               </div>
 
@@ -279,6 +529,7 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
                   { id: 'inventory', label: 'Inventory' },
                   { id: 'pos', label: 'POS' },
                   { id: 'transfers', label: 'Transfers' },
+                  { id: 'branches', label: 'Branches' },
                   { id: 'ledger', label: 'Ledger' },
                   { id: 'settings', label: 'Settings' },
                   { id: 'header', label: 'Header' }
@@ -306,77 +557,80 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
                 type="text"
                 value={iconSearchQuery}
                 onChange={e => setIconSearchQuery(e.target.value)}
-                placeholder="Search button by name, e.g. 'Scissors', 'Tare Scale', 'Hold Cart', 'Z-Report'..."
+                placeholder="Search button by name, e.g. 'Scissors', 'Tare Scale', 'Hold Cart', 'Z-Report', 'Float'..."
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-medium"
               />
             </div>
 
             {/* Grid of Button Capability Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCapabilities.map(btn => (
-                <div
-                  key={btn.id}
-                  onMouseEnter={() => setHoveredCapability(btn)}
-                  onMouseLeave={() => setHoveredCapability(null)}
-                  className="p-4 rounded-2xl border border-slate-200/90 hover:border-rose-400 bg-gradient-to-b from-white to-slate-50/50 hover:shadow-md transition-all space-y-3 group cursor-default"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 group-hover:bg-rose-600 group-hover:text-white transition-colors">
-                        <Sparkles className="w-4 h-4" />
+              {filteredCapabilities.map(btn => {
+                const IconComponent = getCapabilityIcon(btn.iconName);
+
+                return (
+                  <div
+                    key={btn.id}
+                    onMouseEnter={() => setHoveredCapability(btn)}
+                    className="p-4 rounded-2xl border border-slate-200/90 hover:border-rose-400 bg-gradient-to-b from-white to-slate-50/50 hover:shadow-md transition-all space-y-3 group cursor-default"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                          <IconComponent className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900 group-hover:text-rose-700 transition-colors">
+                            {btn.name}
+                          </h4>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {btn.moduleLabel}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 group-hover:text-rose-700 transition-colors">
-                          {btn.name}
-                        </h4>
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          {btn.moduleLabel}
+
+                      {btn.shortcut && (
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                          {btn.shortcut}
                         </span>
-                      </div>
+                      )}
                     </div>
 
-                    {btn.shortcut && (
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                        {btn.shortcut}
+                    {/* Location */}
+                    <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                      <Compass className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span>Location: {btn.locationDescription}</span>
+                    </div>
+
+                    {/* Capability List */}
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                        Key Capabilities:
                       </span>
-                    )}
-                  </div>
-
-                  {/* Location */}
-                  <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
-                    <Compass className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span>Location: {btn.locationDescription}</span>
-                  </div>
-
-                  {/* Capability List */}
-                  <div className="space-y-1 pt-1">
-                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                      Key Capabilities:
-                    </span>
-                    <ul className="space-y-1 text-xs text-slate-600">
-                      {btn.capabilities.map((cap, cIdx) => (
-                        <li key={cIdx} className="flex items-start gap-1.5 font-medium leading-relaxed">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                          <span>{cap}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Required Role & Pro Tip */}
-                  <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5 text-[11px]">
-                    <div className="flex items-center gap-1 text-slate-600 font-semibold">
-                      <ShieldCheck className="w-3 h-3 text-rose-500" />
-                      <span>Role: {btn.requiredRole}</span>
+                      <ul className="space-y-1 text-xs text-slate-600">
+                        {btn.capabilities.map((cap, cIdx) => (
+                          <li key={cIdx} className="flex items-start gap-1.5 font-medium leading-relaxed">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                            <span>{cap}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    {btn.proTip && (
-                      <div className="text-amber-700 bg-amber-50/80 p-2 rounded-lg border border-amber-200/50 font-medium">
-                        💡 {btn.proTip}
+
+                    {/* Required Role & Pro Tip */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5 text-[11px]">
+                      <div className="flex items-center gap-1 text-slate-600 font-semibold">
+                        <ShieldCheck className="w-3 h-3 text-rose-500" />
+                        <span>Role: {btn.requiredRole}</span>
                       </div>
-                    )}
+                      {btn.proTip && (
+                        <div className="text-amber-700 bg-amber-50/80 p-2 rounded-lg border border-amber-200/50 font-medium">
+                          💡 {btn.proTip}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
           </div>
@@ -598,3 +852,4 @@ export const UserGuideModule: React.FC<UserGuideModuleProps> = ({ onNavigateToTa
     </div>
   );
 };
+

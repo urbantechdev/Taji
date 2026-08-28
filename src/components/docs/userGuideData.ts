@@ -442,5 +442,101 @@ export const USER_GUIDE_ARTICLES: GuideArticle[] = [
       }
     ],
     relatedArticles: ['fleece-dereec-meters-adjustment', 'thermal-barcode-printing']
+  },
+  {
+    id: 'option1-hybrid-roll-pricing',
+    category: 'pos',
+    categoryLabel: 'POS Pricing & Roll Discounts',
+    categoryIcon: 'Scissors',
+    title: 'How Option 1 Hybrid Roll Pricing & Loose Cut Discounts Work',
+    shortSummary: 'Combine whole-roll wholesale pricing with discounted loose cut meters for maximum customer value.',
+    keywords: [
+      'hybrid pricing', 'option 1', 'whole roll', 'loose meters', 'roll discount', 'wholesale',
+      'cut meters', 'fleece', 'dereec', 'standard roll', '70m', '50m', 'discount percentage'
+    ],
+    targetTab: 'pos',
+    actionLabel: 'Open POS Terminal',
+    steps: [
+      {
+        stepNumber: 1,
+        title: 'Add Fabric Roll or Cut to POS Cart',
+        description: 'Scan or select a Fleece or Dereec product. Enter total meters required by customer (e.g., 95 meters when standard roll is 70m).',
+        clickPath: 'POS Terminal > Select Product > Enter 95m'
+      },
+      {
+        stepNumber: 2,
+        title: 'Click the Tag / Calculator Icon',
+        description: 'In the cart item row, click the 🏷️ Tag / Roll Pricing button to open the Option 1 Hybrid Roll Pricing Calculator modal.',
+        clickPath: 'POS Cart > Line Item > 🏷️ Tag Icon'
+      },
+      {
+        stepNumber: 3,
+        title: 'Inspect Split Calculation',
+        description: 'The modal automatically breaks down: 1 Whole Roll (70m @ wholesale price KES 440/m = KES 30,800) + 25 Loose Meters (@ 10% discounted retail e.g. KES 423/m = KES 10,575). Total = KES 41,375.',
+        proTip: 'You can adjust the standard roll length (e.g. 50m vs 70m) or customize the loose meter discount percentage on the fly.'
+      },
+      {
+        stepNumber: 4,
+        title: 'Apply Hybrid Pricing to Cart',
+        description: 'Click "Apply Hybrid Pricing". The cart line item is updated with the blended unit rate and savings summary displayed clearly for the customer.'
+      }
+    ],
+    faq: [
+      {
+        q: 'Where do I configure default standard roll lengths and category loose meter discounts?',
+        a: 'Go to Settings > Product Price Settings > Select Category > Adjust "Standard Roll Length (Meters)" and "Loose Cut Discount %".'
+      },
+      {
+        q: 'Can I switch back to Standard Retail or All Wholesale pricing?',
+        a: 'Yes, inside the Roll Pricing Modal, simply click "All Wholesale" or "All Retail" tabs.'
+      }
+    ],
+    relatedArticles: ['pos-sales-checkout', 'fleece-dereec-meters-adjustment']
+  },
+  {
+    id: 'multi-branch-expense-float',
+    category: 'pos',
+    categoryLabel: 'Branches & Petty Cash Float',
+    categoryIcon: 'BookOpenCheck',
+    title: 'How to Record Branch Expenses & Manage Cash Float',
+    shortSummary: 'Top-up till opening floats, record branch petty expenses, and reconcile register variances.',
+    keywords: [
+      'float', 'cash float', 'branch expense', 'petty cash', 'variance', 'opening balance',
+      'reconciliation', 'branch manager', 'drawer'
+    ],
+    targetTab: 'branches',
+    actionLabel: 'Open Branch Management',
+    steps: [
+      {
+        stepNumber: 1,
+        title: 'Navigate to Branch Management',
+        description: 'Select "Autonomous Branches" from the sidebar or click "Branches" in the bottom dock.',
+        clickPath: 'Sidebar > Autonomous Branches'
+      },
+      {
+        stepNumber: 2,
+        title: 'Adjust Branch Cash Float',
+        description: 'Click "Adjust Cash Float". Enter the opening cash amount in the register till (e.g. KES 5,000) and specify reason (e.g., Morning Shift Till Float).',
+        clickPath: 'Branch Management > Cash Float Bar > Adjust Float'
+      },
+      {
+        stepNumber: 3,
+        title: 'Log Store Petty Cash Expense',
+        description: 'Click "+ Record Branch Expense". Choose Category (Transport, Utilities, Tea & Meals, Cleaning, Packaging), enter amount, and enter cashier PIN.',
+        clickPath: 'Branch Management > Expense Vouchers > + Record Expense'
+      },
+      {
+        stepNumber: 4,
+        title: 'Verify General Ledger Auto-Posting',
+        description: 'The system deducts the expense from the branch petty cash ledger and automatically posts balanced debit/credit entries to the General Ledger.'
+      }
+    ],
+    faq: [
+      {
+        q: 'Can I view expense history per branch location?',
+        a: 'Yes! Branch Management displays individual voucher history with date, cashier name, amount, and receipt status.'
+      }
+    ],
+    relatedArticles: ['accounting-ledger-vouchers', 'pos-sales-checkout']
   }
 ];
