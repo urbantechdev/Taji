@@ -17,7 +17,9 @@ import {
   KRAWithholdingTaxRecord,
   QuarantinedDefectRecord,
   ETIMSCreditNote,
-  FabricRollRecord
+  FabricRollRecord,
+  FixedAsset,
+  KRAInputVATClaim
 } from '../types';
 
 export const INITIAL_POS_OPERATORS: POSOperator[] = [
@@ -405,6 +407,159 @@ export const INITIAL_CREDIT_NOTES: ETIMSCreditNote[] = [
     issuedBy: 'Executive Super Admin',
     timestamp: '2026-08-23T11:20:00.000Z',
     fiscalSignature: 'KRA-ETIMS-SIG-99120-CRN-001'
+  }
+];
+
+export const INITIAL_FIXED_ASSETS: FixedAsset[] = [
+  {
+    id: 'AST-2026-001',
+    assetTag: 'TAJI-EQ-001',
+    name: 'Industrial Automatic Fabric Roll Cutting Table & End Cutter',
+    category: 'plant_machinery_looms',
+    purchaseDate: '2025-01-15',
+    costPrice: 420000,
+    salvageValue: 42000,
+    usefulLifeYears: 8,
+    kraWearAndTearRate: 0.10, // 10% Plant & Machinery
+    depreciationMethod: 'reducing_balance',
+    locationId: 'main_store',
+    serialNumber: 'CT-IND-881902',
+    vendorName: 'Nairobi Weaving & Machinery Depot',
+    accumulatedDepreciation: 52500,
+    bookValue: 367500,
+    lastDepreciationDate: '2026-07-31',
+    status: 'In Service'
+  },
+  {
+    id: 'AST-2026-002',
+    assetTag: 'TAJI-EQ-002',
+    name: 'High-Precision Electronic Yarn Crane & Platform Scale',
+    category: 'store_pos_terminals_scales',
+    purchaseDate: '2025-03-20',
+    costPrice: 85000,
+    salvageValue: 8500,
+    usefulLifeYears: 5,
+    kraWearAndTearRate: 0.25, // 25% Hardware/Scales
+    depreciationMethod: 'reducing_balance',
+    locationId: 'sales_shop',
+    serialNumber: 'SCALE-DIGI-99201',
+    vendorName: 'Metro Calibration & Weighing Systems Ltd',
+    accumulatedDepreciation: 26562,
+    bookValue: 58438,
+    lastDepreciationDate: '2026-07-31',
+    status: 'In Service'
+  },
+  {
+    id: 'AST-2026-003',
+    assetTag: 'TAJI-IT-001',
+    name: 'Touchscreen POS Dual-Screen Terminal & Thermal Receipt Engine',
+    category: 'computers_it_hardware',
+    purchaseDate: '2025-06-10',
+    costPrice: 110000,
+    salvageValue: 10000,
+    usefulLifeYears: 4,
+    kraWearAndTearRate: 0.25, // 25% IT Hardware
+    depreciationMethod: 'reducing_balance',
+    locationId: 'sales_shop',
+    serialNumber: 'POS-TOUCH-88910',
+    vendorName: 'Compulynx Kenya Ltd',
+    accumulatedDepreciation: 27500,
+    bookValue: 82500,
+    lastDepreciationDate: '2026-07-31',
+    status: 'In Service'
+  },
+  {
+    id: 'AST-2026-004',
+    assetTag: 'TAJI-VH-001',
+    name: 'Toyota HiAce Inter-Store Fabric Delivery & Dispatch Van',
+    category: 'motor_vehicles',
+    purchaseDate: '2024-11-01',
+    costPrice: 1850000,
+    salvageValue: 250000,
+    usefulLifeYears: 6,
+    kraWearAndTearRate: 0.25, // 25% Commercial Vehicles
+    depreciationMethod: 'reducing_balance',
+    locationId: 'main_store',
+    serialNumber: 'KBZ 441M (Engine: 2KD-99812)',
+    vendorName: 'Toyota Kenya / CFAO Motors Nairobi',
+    accumulatedDepreciation: 693750,
+    bookValue: 1156250,
+    lastDepreciationDate: '2026-07-31',
+    status: 'In Service'
+  },
+  {
+    id: 'AST-2026-005',
+    assetTag: 'TAJI-FX-001',
+    name: 'Heavy Duty Modular Steel Fabric Roll Cantilever Shelving Racks',
+    category: 'furniture_office_fittings',
+    purchaseDate: '2025-02-01',
+    costPrice: 280000,
+    salvageValue: 28000,
+    usefulLifeYears: 10,
+    kraWearAndTearRate: 0.125, // 12.5% Shop Fixtures
+    depreciationMethod: 'reducing_balance',
+    locationId: 'store_1',
+    serialNumber: 'RCK-STEEL-4401',
+    vendorName: 'Kenpoly Storage Structures Ltd',
+    accumulatedDepreciation: 43750,
+    bookValue: 236250,
+    lastDepreciationDate: '2026-07-31',
+    status: 'In Service'
+  }
+];
+
+export const INITIAL_INPUT_VAT_CLAIMS: KRAInputVATClaim[] = [
+  {
+    id: 'CLM-2026-081',
+    supplierName: 'Spinners & Spinners Ltd',
+    supplierPin: 'P000609312A',
+    supplierCuInvoiceNo: 'KRA-CU-SPIN-88910',
+    purchaseCategory: 'Raw Material (Yarn/Fleece/Dereck)',
+    purchaseDate: '2026-08-04',
+    taxableAmount: 145000,
+    vatClaimable: 23200,
+    grossAmount: 168200,
+    etimsVerified: true,
+    status: 'Claimed'
+  },
+  {
+    id: 'CLM-2026-082',
+    supplierName: 'Rivatex East Africa Ltd',
+    supplierPin: 'P051128490B',
+    supplierCuInvoiceNo: 'KRA-CU-RVTX-44102',
+    purchaseCategory: 'Raw Material (Yarn/Fleece/Dereck)',
+    purchaseDate: '2026-08-08',
+    taxableAmount: 98000,
+    vatClaimable: 15680,
+    grossAmount: 113680,
+    etimsVerified: true,
+    status: 'Claimed'
+  },
+  {
+    id: 'CLM-2026-083',
+    supplierName: 'Kenya Power & Lighting Co (KPLC)',
+    supplierPin: 'P051101234Z',
+    supplierCuInvoiceNo: 'KRA-CU-KPLC-99120',
+    purchaseCategory: 'Factory Utilities',
+    purchaseDate: '2026-08-12',
+    taxableAmount: 24000,
+    vatClaimable: 3840,
+    grossAmount: 27840,
+    etimsVerified: true,
+    status: 'Claimed'
+  },
+  {
+    id: 'CLM-2026-084',
+    supplierName: 'Nairobi Weaving Machinery Depot',
+    supplierPin: 'P051892011M',
+    supplierCuInvoiceNo: 'KRA-CU-NWMD-11029',
+    purchaseCategory: 'Plant Machinery & Looms',
+    purchaseDate: '2026-08-15',
+    taxableAmount: 85000,
+    vatClaimable: 13600,
+    grossAmount: 98600,
+    etimsVerified: true,
+    status: 'Claimed'
   }
 ];
 

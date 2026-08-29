@@ -9,6 +9,7 @@ interface CapabilityTooltipProps {
   tip?: string;
   children: React.ReactNode;
   placement?: 'top' | 'bottom' | 'left' | 'right';
+  align?: 'left' | 'right' | 'center';
   className?: string;
 }
 
@@ -20,21 +21,29 @@ export const CapabilityTooltip: React.FC<CapabilityTooltipProps> = ({
   tip,
   children,
   placement = 'top',
+  align = 'center',
   className = ''
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   const getPositionClasses = () => {
+    let horizontalAlign = 'left-1/2 -translate-x-1/2';
+    if (align === 'right') {
+      horizontalAlign = 'right-0 left-auto translate-x-0';
+    } else if (align === 'left') {
+      horizontalAlign = 'left-0 translate-x-0';
+    }
+
     switch (placement) {
       case 'bottom':
-        return 'top-full mt-2 left-1/2 -translate-x-1/2';
+        return `top-full mt-2 ${horizontalAlign}`;
       case 'left':
         return 'right-full mr-2 top-1/2 -translate-y-1/2';
       case 'right':
         return 'left-full ml-2 top-1/2 -translate-y-1/2';
       case 'top':
       default:
-        return 'bottom-full mb-2 left-1/2 -translate-x-1/2';
+        return `bottom-full mb-2 ${horizontalAlign}`;
     }
   };
 

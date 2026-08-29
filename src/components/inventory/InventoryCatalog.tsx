@@ -12,6 +12,7 @@ import { CategoryPricingModal } from './CategoryPricingModal';
 import { ProductImageManagerModal } from './ProductImageManagerModal';
 import { BulkBarcodeGeneratorModal } from './BulkBarcodeGeneratorModal';
 import { DuplicateAuditModal } from './DuplicateAuditModal';
+import { StocktakeDashboard } from './StocktakeDashboard';
 import {
   Boxes,
   Layers,
@@ -43,7 +44,8 @@ import {
   CheckCircle,
   Image as ImageIcon,
   Trash2,
-  Undo2
+  Undo2,
+  ClipboardCheck
 } from 'lucide-react';
 
 export const InventoryCatalog: React.FC = () => {
@@ -84,7 +86,7 @@ export const InventoryCatalog: React.FC = () => {
   const canTareWeight = isAdmin || hasPermission(currentUser.role, 'canDispatchTransfers');
 
   const [isDuplicateAuditOpen, setIsDuplicateAuditOpen] = useState(false);
-  const [activeInventoryTab, setActiveInventoryTab] = useState<'catalog' | 'weight_reconciliation'>('catalog');
+  const [activeInventoryTab, setActiveInventoryTab] = useState<'catalog' | 'weight_reconciliation' | 'stocktake'>('catalog');
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>('All');
   const [stockFilter, setStockFilter] = useState<'All' | 'main_store_low' | 'sales_shop_low' | 'dead_stock'>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -379,6 +381,20 @@ export const InventoryCatalog: React.FC = () => {
                 <Boxes className="w-3.5 h-3.5 text-rose-600" />
                 <span>Catalog Stock</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveInventoryTab('stocktake')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeInventoryTab === 'stocktake'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-rose-600'
+                }`}
+              >
+                <ClipboardCheck className="w-3.5 h-3.5" />
+                <span>Monthly Stocktake</span>
+              </button>
+
               {canTareWeight && (
                 <button
                   type="button"
@@ -630,8 +646,10 @@ export const InventoryCatalog: React.FC = () => {
         </div>
       </div>
 
-      {/* Conditional Rendering: Catalog vs Gross-to-Net Weight Reconciliation Module */}
-      {activeInventoryTab === 'weight_reconciliation' ? (
+      {/* Conditional Rendering: Catalog vs Weight Reconciliation vs Stocktake Audit */}
+      {activeInventoryTab === 'stocktake' ? (
+        <StocktakeDashboard />
+      ) : activeInventoryTab === 'weight_reconciliation' ? (
         <WeightReconciliationModule />
       ) : (
         <>

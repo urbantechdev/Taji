@@ -6,7 +6,10 @@ import {
   generateLiveIncomeStatement,
   generateLiveCashFlowStatement,
   generateKRAVat3CSV,
-  generateKRAPayeCSV
+  generateKRAPayeCSV,
+  calculateAssetMonthlyDepreciation,
+  parseMpesaStatementText,
+  reconcileMpesaStatementsWithOrders
 } from '../../utils/financeEngine';
 import {
   exportGeneralLedgerCSV,
@@ -41,6 +44,9 @@ import {
   exportPDQStatementCSV,
   exportFullConsolidatedFinancialStatementPDF,
   exportFullConsolidatedFinancialStatementCSV,
+  exportFixedAssetsSchedulePDF,
+  exportFixedAssetsScheduleCSV,
+  exportMpesaReconciliationReportCSV,
   downloadCSV
 } from '../../utils/documentExport';
 import {
@@ -51,7 +57,10 @@ import {
   MobileMoneyStatementSummary,
   BankStatementSummary,
   PDQStatementSummary,
-  FullConsolidatedFinancialStatement
+  FullConsolidatedFinancialStatement,
+  FixedAsset,
+  FixedAssetCategory,
+  MpesaStatementItem
 } from '../../types';
 import { JournalVoucherModal } from './JournalVoucherModal';
 import {
@@ -106,7 +115,8 @@ type LedgerTab =
   | 'income_statement'
   | 'cash_flow'
   | 'tax_engine'
-  | 'bank_reconciliation';
+  | 'bank_reconciliation'
+  | 'fixed_assets';
 
 export const AccountingLedger: React.FC = () => {
   const {
@@ -120,6 +130,16 @@ export const AccountingLedger: React.FC = () => {
     whtRecords,
     addWithholdingTaxRecord,
     settleWithholdingTaxRecord,
+    inputVatClaims,
+    addInputVatClaim,
+    deleteInputVatClaim,
+    fixedAssets,
+    addFixedAsset,
+    updateFixedAsset,
+    deleteFixedAsset,
+    runMonthlyDepreciation,
+    addLedgerEntry,
+    activeLocation,
     setIsReturnExchangeModalOpen,
     quarantinedDefects,
     currentUser,
@@ -138,8 +158,26 @@ export const AccountingLedger: React.FC = () => {
   const [ledgerViewMode, setLedgerViewMode] = useState<'journal' | 'trial_balance'>('journal');
   const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
 
-  // Bank Reconciliation interactive check states
+  // Bank Reconciliation interactive check & statement import states
   const [reconciledIds, setReconciledIds] = useState<Record<string, boolean>>({});
+  const [isMpesaImportModalOpen, setIsMpesaImportModalOpen] = useState(false);
+  const [mpesaRawText, setMpesaRawText] = useState('');
+  const [importedMpesaItems, setImportedMpesaItems] = useState<MpesaStatementItem[]>([]);
+  const [reconciliationFilter, setReconciliationFilter] = useState<'all' | 'matched' | 'unmatched_pos' | 'unmatched_stmt'>('all');
+  const [tariffJournalMessage, setTariffJournalMessage] = useState<string | null>(null);
+
+  // Fixed Asset Management States
+  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [newAssetName, setNewAssetName] = useState('');
+  const [newAssetTag, setNewAssetTag] = useState('');
+  const [newAssetCategory, setNewAssetCategory] = useState<FixedAssetCategory>('plant_machinery_looms');
+  const [newAssetCost, setNewAssetCost] = useState('');
+  const [newAssetDeprMethod, setNewAssetDeprMethod] = useState<'straight_line' | 'reducing_balance'>('reducing_balance');
+  const [newAssetLife, setNewAssetLife] = useState('8');
+  const [newAssetSalvage, setNewAssetSalvage] = useState('0');
+  const [newAssetKraRate, setNewAssetKraRate] = useState('0.125');
+  const [newAssetLocationId, setNewAssetLocationId] = useState(activeLocation || 'loc-nbo-cbd');
+  const [assetDepreciationMessage, setAssetDepreciationMessage] = useState<string | null>(null);
 
   // Financial Statements Channel Sub-View State
   const [statementChannelView, setStatementChannelView] = useState<'all_consolidated' | 'mobile_money' | 'bank' | 'pdq'>('all_consolidated');
@@ -158,61 +196,7 @@ export const AccountingLedger: React.FC = () => {
     checksumStatus?: 'Valid Checksum' | 'Invalid Format';
   } | null>(null);
 
-  // Section 23A Deductible Input VAT Claims State
-  const [inputVatClaims, setInputVatClaims] = useState<KRAInputVATClaim[]>([
-    {
-      id: 'CLM-2026-081',
-      supplierName: 'Spinners & Spinners Ltd',
-      supplierPin: 'P000609312A',
-      supplierCuInvoiceNo: 'KRA-CU-SPIN-88910',
-      purchaseCategory: 'Raw Material (Yarn/Fleece/Dereck)',
-      purchaseDate: '2026-08-04',
-      taxableAmount: 145000,
-      vatClaimable: 23200,
-      grossAmount: 168200,
-      etimsVerified: true,
-      status: 'Claimed'
-    },
-    {
-      id: 'CLM-2026-082',
-      supplierName: 'Rivatex East Africa Ltd',
-      supplierPin: 'P051128490B',
-      supplierCuInvoiceNo: 'KRA-CU-RVTX-44102',
-      purchaseCategory: 'Raw Material (Yarn/Fleece/Dereck)',
-      purchaseDate: '2026-08-08',
-      taxableAmount: 98000,
-      vatClaimable: 15680,
-      grossAmount: 113680,
-      etimsVerified: true,
-      status: 'Claimed'
-    },
-    {
-      id: 'CLM-2026-083',
-      supplierName: 'Kenya Power & Lighting Co (KPLC)',
-      supplierPin: 'P051101234Z',
-      supplierCuInvoiceNo: 'KRA-CU-KPLC-99120',
-      purchaseCategory: 'Factory Utilities',
-      purchaseDate: '2026-08-12',
-      taxableAmount: 24000,
-      vatClaimable: 3840,
-      grossAmount: 27840,
-      etimsVerified: true,
-      status: 'Claimed'
-    },
-    {
-      id: 'CLM-2026-084',
-      supplierName: 'Nairobi Weaving Machinery Depot',
-      supplierPin: 'P051892011M',
-      supplierCuInvoiceNo: 'KRA-CU-NWMD-11029',
-      purchaseCategory: 'Plant Machinery & Looms',
-      purchaseDate: '2026-08-15',
-      taxableAmount: 85000,
-      vatClaimable: 13600,
-      grossAmount: 98600,
-      etimsVerified: true,
-      status: 'Claimed'
-    }
-  ]);
+  // Section 23A Deductible Input VAT Claims Modal Form State
   const [isInputClaimModalOpen, setIsInputClaimModalOpen] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState('');
   const [newSupplierPin, setNewSupplierPin] = useState('');
@@ -243,7 +227,7 @@ export const AccountingLedger: React.FC = () => {
   const [creditReason, setCreditReason] = useState<ETIMSCreditNote['creditReason']>('Damaged Fabric Return');
   const [creditAmountValue, setCreditAmountValue] = useState<string>('');
 
-  // Withholding Tax interactive modal state
+  // Withholding Tax interactive modal state & certificate preview
   const [isWHTModalOpen, setIsWHTModalOpen] = useState(false);
   const [newWHTEntityName, setNewWHTEntityName] = useState('');
   const [newWHTEntityPin, setNewWHTEntityPin] = useState('');
@@ -253,6 +237,7 @@ export const AccountingLedger: React.FC = () => {
   const [newWHTCertNo, setNewWHTCertNo] = useState('');
   const [newWHTNotes, setNewWHTNotes] = useState('');
   const [whtSuccessMessage, setWhtSuccessMessage] = useState<string | null>(null);
+  const [previewingWHTCert, setPreviewingWHTCert] = useState<KRAWithholdingTaxRecord | null>(null);
 
   // Settle WHT modal state
   const [settlingWHTRecord, setSettlingWHTRecord] = useState<KRAWithholdingTaxRecord | null>(null);
@@ -272,8 +257,7 @@ export const AccountingLedger: React.FC = () => {
 
     const whtAmt = Number((gross * rate).toFixed(2));
 
-    const record: KRAWithholdingTaxRecord = {
-      id: `WHT-2026-${String(whtRecords.length + 1).padStart(2, '0')}`,
+    const record: Omit<KRAWithholdingTaxRecord, 'id'> = {
       entityName: newWHTEntityName,
       entityPin: newWHTEntityPin.toUpperCase(),
       natureOfTransaction: newWHTNature,
@@ -294,7 +278,7 @@ export const AccountingLedger: React.FC = () => {
     setNewWHTGrossAmount('');
     setNewWHTCertNo('');
     setNewWHTNotes('');
-    setWhtSuccessMessage(`5% Withholding Tax Voucher ${record.id} successfully created and posted to general ledger.`);
+    setWhtSuccessMessage(`5% Withholding Tax Voucher successfully created and posted to General Ledger.`);
     setTimeout(() => setWhtSuccessMessage(null), 4000);
   };
 
@@ -353,8 +337,7 @@ export const AccountingLedger: React.FC = () => {
     const vat = taxable * 0.16;
     const gross = taxable + vat;
 
-    const newClaim: KRAInputVATClaim = {
-      id: `CLM-2026-${String(inputVatClaims.length + 85).padStart(3, '0')}`,
+    const newClaim: Omit<KRAInputVATClaim, 'id'> = {
       supplierName: newSupplierName.trim(),
       supplierPin: newSupplierPin.trim().toUpperCase() || 'P051982000X',
       supplierCuInvoiceNo: newSupplierCuInvoice.trim() || `KRA-CU-SUPP-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -367,12 +350,47 @@ export const AccountingLedger: React.FC = () => {
       status: 'Claimed'
     };
 
-    setInputVatClaims([newClaim, ...inputVatClaims]);
+    addInputVatClaim(newClaim);
     setIsInputClaimModalOpen(false);
     setNewSupplierName('');
     setNewSupplierPin('');
     setNewSupplierCuInvoice('');
     setNewTaxableAmount('');
+  };
+
+  // Add new Fixed Asset
+  const handleCreateFixedAsset = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cost = parseFloat(newAssetCost);
+    if (!newAssetName || !cost || cost <= 0) return;
+
+    addFixedAsset({
+      name: newAssetName.trim(),
+      assetTag: newAssetTag.trim() || `AST-TAG-${Math.floor(1000 + Math.random() * 9000)}`,
+      category: newAssetCategory,
+      locationId: newAssetLocationId,
+      purchaseDate: new Date().toISOString().split('T')[0],
+      costPrice: cost,
+      depreciationMethod: newAssetDeprMethod,
+      usefulLifeYears: parseFloat(newAssetLife) || 5,
+      salvageValue: parseFloat(newAssetSalvage) || 0,
+      kraWearAndTearRate: parseFloat(newAssetKraRate) || 0.125,
+      status: 'In Service'
+    });
+
+    setIsAssetModalOpen(false);
+    setNewAssetName('');
+    setNewAssetTag('');
+    setNewAssetCost('');
+    setAssetDepreciationMessage(`Asset "${newAssetName}" successfully capitalized and posted to General Ledger!`);
+    setTimeout(() => setAssetDepreciationMessage(null), 5000);
+  };
+
+  // Trigger Monthly Wear & Tear Depreciation
+  const handleRunMonthlyDepreciation = () => {
+    const res = runMonthlyDepreciation();
+    setAssetDepreciationMessage(res.message);
+    setTimeout(() => setAssetDepreciationMessage(null), 6000);
   };
 
   // Add new eTIMS Credit Note
@@ -407,13 +425,42 @@ export const AccountingLedger: React.FC = () => {
     setCreditAmountValue('');
   };
 
+  // Handle M-Pesa Statement Text Import
+  const handleParseMpesaStatement = () => {
+    if (!mpesaRawText.trim()) return;
+    const parsed = parseMpesaStatementText(mpesaRawText);
+    setImportedMpesaItems(parsed);
+    setIsMpesaImportModalOpen(false);
+    setTariffJournalMessage(`Successfully parsed ${parsed.length} statement records!`);
+    setTimeout(() => setTariffJournalMessage(null), 4000);
+  };
+
+  // Handle 1-Click Auto-Post Safaricom Tariff Fees to Ledger
+  const handlePostMpesaTariffsToLedger = (totalFees: number) => {
+    if (totalFees <= 0) return;
+    addLedgerEntry({
+      transactionRef: `MPESA-TARIFF-${Date.now().toString().slice(-6)}`,
+      description: `Safaricom M-Pesa Till & Paybill Merchant Transaction Charges (Period Audit)`,
+      debitAccount: 'Bank & Mobile Money Charges / Transaction Fees (P&L)',
+      creditAccount: 'M-Pesa Merchant Settlement / NCBA Bank',
+      amount: totalFees,
+      locationId: activeLocation || 'loc-nbo-cbd',
+      category: 'Expense'
+    });
+    setTariffJournalMessage(`Posted KSh ${totalFees.toLocaleString()} Safaricom transaction fees to General Ledger!`);
+    setTimeout(() => setTariffJournalMessage(null), 5000);
+  };
+
+  // Reconciliation computation
+  const mpesaReconciliation = reconcileMpesaStatementsWithOrders(importedMpesaItems, orders);
+
   // AI CFO State
   const [cfoData, setCfoData] = useState<CFOAdvisorData | null>(null);
   const [isLoadingCFO, setIsLoadingCFO] = useState<boolean>(false);
   const [cfoError, setCfoError] = useState<string | null>(null);
 
   // Financial calculations
-  const balanceSheet = generateLiveBalanceSheet(orders, products, locations, branchExpenses, payroll, ledger);
+  const balanceSheet = generateLiveBalanceSheet(orders, products, locations, branchExpenses, payroll, ledger, fixedAssets);
   const incomeStatement = generateLiveIncomeStatement(orders, products, branchExpenses, payroll);
   const cashFlow = generateLiveCashFlowStatement(incomeStatement, balanceSheet);
   const trialBalanceItems = generateTrialBalanceData(ledger);
@@ -800,6 +847,18 @@ export const AccountingLedger: React.FC = () => {
               <span>Bank &amp; M-Pesa Reconciliation</span>
             </button>
           )}
+
+          <button
+            onClick={() => setActiveSubTab('fixed_assets')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              activeSubTab === 'fixed_assets'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+            }`}
+          >
+            <Building className="w-3.5 h-3.5" />
+            <span>Fixed Asset Register &amp; Depreciation</span>
+          </button>
         </div>
       </div>
 
@@ -2983,115 +3042,447 @@ export const AccountingLedger: React.FC = () => {
       {activeSubTab === 'bank_reconciliation' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           
-          <div className="bg-white p-6 rounded-2xl border border-rose-100 shadow-xs space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">Automatic Bank &amp; M-Pesa Till Statement Reconciliation</h3>
-                <p className="text-xs text-slate-500">Instant matching between POS checkout transactions and physical bank settlement deposits.</p>
+          {tariffJournalMessage && (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-bold flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{tariffJournalMessage}</span>
               </div>
+              <button onClick={() => setTariffJournalMessage(null)} className="text-emerald-700 hover:text-emerald-900">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          <div className="bg-white p-6 rounded-2xl border border-rose-100 shadow-xs space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 text-base">Safaricom M-Pesa &amp; Commercial Bank Reconciliation Hub</h3>
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full border border-emerald-200">
+                    Automated Matcher Active
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Algorithmic cross-matching between ERP POS sales records and external Safaricom Till &amp; Bank Electronic Settlement statements.
+                </p>
+              </div>
+              
               <div className="flex flex-wrap items-center gap-2">
-                <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> 100% Transactions Reconciled
-                </span>
+                <button
+                  onClick={() => setIsMpesaImportModalOpen(true)}
+                  className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Import Statement (CSV / SMS)</span>
+                </button>
+
+                {mpesaReconciliation.totalSafaricomTariffFees > 0 && (
+                  <button
+                    onClick={() => handlePostMpesaTariffsToLedger(mpesaReconciliation.totalSafaricomTariffFees)}
+                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Automatically create General Ledger journal entry debiting M-Pesa Transaction Charges and crediting Merchant Till"
+                  >
+                    <BookOpenCheck className="w-4 h-4" />
+                    <span>Auto-Post Tariff Fees (KSh {mpesaReconciliation.totalSafaricomTariffFees.toLocaleString()})</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => exportBankReconciliationPDF(orders, reconciliationSummary)}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  <FileDown className="w-3.5 h-3.5" />
+                  <FileDown className="w-4 h-4 text-emerald-400" />
                   <span>Reconciliation PDF</span>
                 </button>
                 <button
                   onClick={() => exportBankReconciliationCSV(orders, reconciliationSummary)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                  <Download className="w-4 h-4 text-slate-600" />
                   <span>Reconciliation CSV</span>
                 </button>
               </div>
             </div>
 
-            {/* Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+            {/* Reconciliation Metrics Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">M-Pesa Till Total (Safaricom)</span>
-                <p className="text-base font-bold text-emerald-700">
-                  KSh {reconciliationSummary.mpesaTotal.toLocaleString()}
+                <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Total Statement Paid In</span>
+                <p className="text-lg font-black text-emerald-700">
+                  KSh {mpesaReconciliation.totalStatementPaidIn.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-[10px] text-slate-400 font-sans">{reconciliationSummary.mpesaCount} receipts auto-reconciled</p>
+                <p className="text-[10px] text-slate-400 font-sans font-medium">
+                  {mpesaReconciliation.matchedCount} receipts matched to POS
+                </p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Bank Electronic Transfers</span>
-                <p className="text-base font-bold text-emerald-700">
-                  KSh {reconciliationSummary.bankTotal.toLocaleString()}
+                <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Safaricom Merchant Charges</span>
+                <p className="text-lg font-black text-slate-900">
+                  KSh {mpesaReconciliation.totalSafaricomTariffFees.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-[10px] text-slate-400 font-sans">{reconciliationSummary.bankCount} KCB &amp; Equity Bank transfers synced</p>
+                <p className="text-[10px] text-slate-400 font-sans font-medium">
+                  Excise duty &amp; till processing fees
+                </p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Physical Cash Vault Drawer</span>
-                <p className="text-base font-bold text-slate-900">
-                  KSh {reconciliationSummary.cashTotal.toLocaleString()}
+                <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Unmatched in POS / Orders</span>
+                <p className="text-lg font-black text-amber-700">
+                  {mpesaReconciliation.unmatchedInPosCount} Statement Items
                 </p>
-                <p className="text-[10px] text-emerald-600 font-sans">{reconciliationSummary.cashCount} cash sales (Variance: KSh 0.00)</p>
+                <p className="text-[10px] text-amber-600 font-sans font-medium">
+                  Direct till deposits awaiting entry
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">POS M-Pesa Sales Volume</span>
+                <p className="text-lg font-black text-sky-700">
+                  KSh {mpesaReconciliation.totalPosMpesaVolume.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-[10px] text-emerald-600 font-sans font-medium">
+                  Variance: KSh {Math.abs(mpesaReconciliation.variance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
               </div>
             </div>
 
-            {/* Interactive Transaction Verification Table */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden mt-4">
-              <div className="p-3 bg-slate-100 text-slate-800 text-xs font-bold flex items-center justify-between">
-                <span>Recent Settlements &amp; Verification Checks ({orders.length} Records)</span>
-                <span className="text-[10px] text-slate-500 font-normal">Click checkmark to toggle manual audit status</span>
-              </div>
-              <div className="max-h-72 overflow-y-auto">
+            {/* Filter Toggle */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setReconciliationFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                  reconciliationFilter === 'all'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                All Statement Records ({mpesaReconciliation.reconciledItems.length})
+              </button>
+              <button
+                onClick={() => setReconciliationFilter('matched')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                  reconciliationFilter === 'matched'
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                }`}
+              >
+                100% Matched ({mpesaReconciliation.matchedCount})
+              </button>
+              <button
+                onClick={() => setReconciliationFilter('unmatched_pos')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                  reconciliationFilter === 'unmatched_pos'
+                    ? 'bg-amber-700 text-white'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                }`}
+              >
+                Direct Deposits ({mpesaReconciliation.unmatchedInPosCount})
+              </button>
+            </div>
+
+            {/* Interactive Reconciliation Audit Table */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden mt-2">
+              <div className="overflow-x-auto max-h-96">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-50 text-[11px] text-slate-600 font-bold uppercase sticky top-0">
-                    <tr className="border-b border-slate-200">
-                      <th className="p-3">Receipt / Ref</th>
-                      <th className="p-3">Channel</th>
-                      <th className="p-3">Customer</th>
-                      <th className="p-3 font-mono text-right">Amount (KSh)</th>
-                      <th className="p-3 text-center">Status</th>
+                  <thead className="bg-slate-50 text-[11px] text-slate-600 font-bold uppercase sticky top-0 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">M-Pesa Receipt Ref</th>
+                      <th className="p-3">Time &amp; Date</th>
+                      <th className="p-3">Customer / Details</th>
+                      <th className="p-3 font-mono text-right">Paid In (KSh)</th>
+                      <th className="p-3 font-mono text-right">Tariff (KSh)</th>
+                      <th className="p-3 font-mono text-right">Balance (KSh)</th>
+                      <th className="p-3 text-center">Match Status</th>
                       <th className="p-3 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-sans">
-                    {orders.slice(0, 15).map(o => {
-                      const isVerified = reconciledIds[o.id] !== false;
-                      return (
-                        <tr key={o.id} className="hover:bg-slate-50/80">
-                          <td className="p-3 font-mono font-bold text-slate-900">{o.receiptNumber || o.id}</td>
-                          <td className="p-3 font-bold text-slate-700">{o.paymentMethod}</td>
-                          <td className="p-3 text-slate-600">{o.customerName || 'Walk-in Customer'}</td>
-                          <td className="p-3 font-mono font-bold text-slate-900 text-right">
-                            KSh {o.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              isVerified ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {isVerified ? 'Reconciled' : 'Pending Audit'}
-                            </span>
-                          </td>
-                          <td className="p-3 text-center">
-                            <button
-                              onClick={() => toggleReconciled(o.id)}
-                              className={`p-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                                isVerified ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' : 'bg-amber-50 hover:bg-amber-100 text-amber-700'
-                              }`}
-                              title="Toggle reconciliation state"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {mpesaReconciliation.reconciledItems
+                      .filter(r => {
+                        if (reconciliationFilter === 'matched') return r.matchStatus === 'MATCHED';
+                        if (reconciliationFilter === 'unmatched_pos') return r.matchStatus === 'UNMATCHED_IN_POS';
+                        return true;
+                      })
+                      .map((r, idx) => {
+                        const isVerified = reconciledIds[r.id] !== false;
+                        return (
+                          <tr key={r.id || idx} className="hover:bg-slate-50/80 font-mono text-xs">
+                            <td className="p-3 font-bold text-emerald-800">
+                              {r.receiptNo}
+                            </td>
+                            <td className="p-3 text-slate-600 font-sans">
+                              {r.completionTime}
+                            </td>
+                            <td className="p-3 font-sans text-slate-700">
+                              <span className="font-bold">{r.otherPartyInfo || 'Customer'}</span>
+                              <span className="block text-[10px] text-slate-500">{r.details}</span>
+                            </td>
+                            <td className="p-3 text-right font-bold text-slate-900">
+                              KSh {r.paidIn.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="p-3 text-right text-slate-600">
+                              KSh {r.tariffFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="p-3 text-right font-bold text-slate-700">
+                              KSh {r.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="p-3 text-center">
+                              {r.matchStatus === 'MATCHED' ? (
+                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full border border-emerald-200">
+                                  Matched (100%)
+                                </span>
+                              ) : r.matchStatus === 'VARIANCE' ? (
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full border border-amber-200">
+                                  Variance KSh {r.varianceAmount}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-sky-100 text-sky-800 text-[10px] font-bold rounded-full border border-sky-200">
+                                  Direct Till Entry
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-center">
+                              <button
+                                onClick={() => {
+                                  setReconciledIds(prev => ({ ...prev, [r.id]: !isVerified }));
+                                }}
+                                className={`p-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                                  isVerified ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' : 'bg-amber-50 hover:bg-amber-100 text-amber-700'
+                                }`}
+                                title="Toggle verified status"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
             </div>
 
+          </div>
+
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TAB 8: FIXED ASSETS & KRA WEAR & TEAR DEPRECIATION */}
+      {/* ------------------------------------------------------------- */}
+      {activeSubTab === 'fixed_assets' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {assetDepreciationMessage && (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-bold flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{assetDepreciationMessage}</span>
+              </div>
+              <button onClick={() => setAssetDepreciationMessage(null)} className="text-emerald-700 hover:text-emerald-900">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Banner Header */}
+          <div className="bg-gradient-to-br from-slate-900 via-[#1f242d] to-slate-950 p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-white shadow-xl relative overflow-hidden border border-slate-700/60">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-rose-600/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl text-white shadow-lg shadow-rose-950/40 shrink-0">
+                  <Building className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-lg sm:text-xl text-white tracking-tight">Fixed Asset Register &amp; KRA Wear &amp; Tear Schedule</h3>
+                    <span className="bg-rose-500/20 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-500/40">
+                      Second Schedule ITA (Cap 470)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Manage capital asset registers, track net book value, and execute monthly wear-and-tear depreciation journal entries automatically.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setIsAssetModalOpen(true)}
+                  className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Capitalize New Asset</span>
+                </button>
+
+                <button
+                  onClick={handleRunMonthlyDepreciation}
+                  className="px-3.5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Compute monthly depreciation for all active assets and post journal entries to General Ledger (P&L Depreciation Debit / Accumulated Depr Credit)"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Execute Monthly Depreciation</span>
+                </button>
+
+                <button
+                  onClick={() => exportFixedAssetsSchedulePDF(fixedAssets, locations, etrConfig)}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-600 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FileDown className="w-4 h-4 text-sky-400" />
+                  <span>Schedule PDF</span>
+                </button>
+
+                <button
+                  onClick={() => exportFixedAssetsScheduleCSV(fixedAssets, locations, etrConfig)}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-600 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-slate-300" />
+                  <span>Schedule CSV</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Metric Summary Cards */}
+          {(() => {
+            const totalCost = fixedAssets.reduce((sum, a) => sum + a.costPrice, 0);
+            const totalAccum = fixedAssets.reduce((sum, a) => sum + a.accumulatedDepreciation, 0);
+            const totalNBV = fixedAssets.reduce((sum, a) => sum + a.bookValue, 0);
+            const monthlyDepr = fixedAssets
+              .filter(a => a.status === 'In Service')
+              .reduce((sum, a) => sum + calculateAssetMonthlyDepreciation(a).monthlyAmount, 0);
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                  <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Total Historical Cost</span>
+                  <div className="text-xl font-black text-slate-900">
+                    KSh {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-sans">{fixedAssets.length} capital assets in register</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                  <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Accumulated Depreciation</span>
+                  <div className="text-xl font-black text-rose-700">
+                    - KSh {totalAccum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-sans">Contra-asset allowance deducted</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                  <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Net Book Value (Balance Sheet)</span>
+                  <div className="text-xl font-black text-emerald-700">
+                    KSh {totalNBV.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <p className="text-[11px] text-emerald-600 font-sans">Carried in Non-Current Assets</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                  <span className="text-[10px] text-slate-500 uppercase font-sans font-bold">Monthly Depreciation Charge</span>
+                  <div className="text-xl font-black text-amber-700">
+                    KSh {monthlyDepr.toLocaleString(undefined, { minimumFractionDigits: 2 })} / mo
+                  </div>
+                  <p className="text-[11px] text-amber-800 font-sans">Automatic P&amp;L expense run</p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Fixed Assets Table */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm">Capital Equipment &amp; Factory Fixtures Schedule</h4>
+                <p className="text-xs text-slate-500">Track acquisition dates, KRA wear-and-tear tax pools, and remaining carrying values.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-bold">Location Filter:</span>
+                <select
+                  value={selectedLocation}
+                  onChange={(e) => setSelectedLocation(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-pointer"
+                >
+                  <option value="All">All Branches &amp; Mills</option>
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse font-sans">
+                <thead>
+                  <tr className="bg-slate-100/80 text-slate-700 font-bold border-b border-slate-200">
+                    <th className="p-3">Asset Tag &amp; Name</th>
+                    <th className="p-3">Category</th>
+                    <th className="p-3">Branch Location</th>
+                    <th className="p-3">Acquired Date</th>
+                    <th className="p-3 font-mono text-right">Cost (KSh)</th>
+                    <th className="p-3 font-mono text-right">Accum Depr (KSh)</th>
+                    <th className="p-3 font-mono text-right">Net Book Value (KSh)</th>
+                    <th className="p-3 text-center">KRA WTA Rate</th>
+                    <th className="p-3 text-center">Status</th>
+                    <th className="p-3 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-mono">
+                  {fixedAssets
+                    .filter(a => selectedLocation === 'All' || a.locationId === selectedLocation)
+                    .map(asset => {
+                      const loc = locations.find(l => l.id === asset.locationId);
+                      return (
+                        <tr key={asset.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3">
+                            <div className="font-bold text-slate-900 font-sans">{asset.name}</div>
+                            <div className="text-[10px] text-slate-500">{asset.assetTag}</div>
+                          </td>
+                          <td className="p-3 font-sans text-slate-700 font-medium">{asset.category.replace(/_/g, ' ')}</td>
+                          <td className="p-3 font-sans text-slate-600">{loc ? loc.name : asset.locationId}</td>
+                          <td className="p-3 text-slate-600">{asset.purchaseDate}</td>
+                          <td className="p-3 text-right font-bold text-slate-900">
+                            KSh {asset.costPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="p-3 text-right text-rose-700 font-bold">
+                            KSh {asset.accumulatedDepreciation.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="p-3 text-right font-bold text-emerald-700">
+                            KSh {asset.bookValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-full border border-amber-200">
+                              {(asset.kraWearAndTearRate * 100).toFixed(1)}% (2nd Sched)
+                            </span>
+                          </td>
+                          <td className="p-3 text-center font-sans">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              asset.status === 'In Service' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {asset.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Retire / delete asset "${asset.name}"?`)) {
+                                  deleteFixedAsset(asset.id);
+                                }
+                              }}
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded text-[10px] font-sans font-bold transition-colors cursor-pointer"
+                              title="Retire Asset"
+                            >
+                              Retire
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
         </div>
@@ -3916,6 +4307,338 @@ export const AccountingLedger: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Capitalize Fixed Asset Modal */}
+      {isAssetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-rose-100 animate-in fade-in zoom-in duration-150 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Building className="w-5 h-5 text-rose-600" />
+                <h3 className="font-bold text-slate-900 text-base">
+                  Capitalize New Fixed Asset
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsAssetModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateFixedAsset} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Asset Name / Description:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newAssetName}
+                    onChange={e => setNewAssetName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    placeholder="e.g. Brother Industrial Stitcher DX400"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Asset Tag / Serial:
+                  </label>
+                  <input
+                    type="text"
+                    value={newAssetTag}
+                    onChange={e => setNewAssetTag(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    placeholder="e.g. AST-LOM-004"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Category:
+                  </label>
+                  <select
+                    value={newAssetCategory}
+                    onChange={e => {
+                      const cat = e.target.value as FixedAssetCategory;
+                      setNewAssetCategory(cat);
+                      if (cat === 'plant_machinery_looms') setNewAssetKraRate('0.125');
+                      else if (cat === 'motor_vehicles') setNewAssetKraRate('0.25');
+                      else if (cat === 'computers_it_hardware') setNewAssetKraRate('0.25');
+                      else if (cat === 'furniture_office_fittings') setNewAssetKraRate('0.10');
+                      else if (cat === 'store_pos_terminals_scales') setNewAssetKraRate('0.25');
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  >
+                    <option value="plant_machinery_looms">Textile &amp; Weaving Looms / Machinery (12.5%)</option>
+                    <option value="computers_it_hardware">Computers &amp; IT Hardware (25%)</option>
+                    <option value="motor_vehicles">Motor Vehicles &amp; Logistics (25%)</option>
+                    <option value="furniture_office_fittings">Office Furniture &amp; Fixtures (10%)</option>
+                    <option value="store_pos_terminals_scales">Store POS Terminals &amp; Scales (25%)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Branch Location:
+                  </label>
+                  <select
+                    value={newAssetLocationId}
+                    onChange={e => setNewAssetLocationId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  >
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>{loc.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Acquisition Cost Price (KSh):
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    required
+                    value={newAssetCost}
+                    onChange={e => setNewAssetCost(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    placeholder="e.g. 180000"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Depreciation Method:
+                  </label>
+                  <select
+                    value={newAssetDeprMethod}
+                    onChange={e => setNewAssetDeprMethod(e.target.value as 'straight_line' | 'reducing_balance')}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  >
+                    <option value="reducing_balance">Reducing Balance (KRA Standard)</option>
+                    <option value="straight_line">Straight Line</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Useful Life (Years):
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newAssetLife}
+                    onChange={e => setNewAssetLife(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Salvage Value (KSh):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newAssetSalvage}
+                    onChange={e => setNewAssetSalvage(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    KRA WTA Rate:
+                  </label>
+                  <select
+                    value={newAssetKraRate}
+                    onChange={e => setNewAssetKraRate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  >
+                    <option value="0.125">12.5% (Looms & Machinery)</option>
+                    <option value="0.25">25.0% (Motor Vehicles)</option>
+                    <option value="0.30">30.0% (Computers/Tech)</option>
+                    <option value="0.10">10.0% (Buildings/Furniture)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAssetModalOpen(false)}
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Building className="w-4 h-4" />
+                  <span>Capitalize &amp; Post Ledger</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* M-Pesa Statement Importer Modal */}
+      {isMpesaImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-emerald-100 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-bold text-slate-900 text-base">
+                  Import Safaricom M-Pesa / Bank Statement
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsMpesaImportModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-600">
+                Paste your raw M-Pesa Business Till statement lines or transaction SMS dumps. The parser automatically extracts Receipt Numbers (e.g. <span className="font-mono font-bold">RKG89201L</span>), Completion Timestamps, Paid In Amounts, and Safaricom Tariff Fees.
+              </p>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700">Statement Text / CSV dump:</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMpesaRawText(
+                        `RKG89201L, 2026-08-28 14:20:11, Customer Transfer, 4500.00, 35.00, Mary Wanjiku, Completed\n` +
+                        `SKL99102M, 2026-08-28 15:45:00, Buy Goods Till, 12800.00, 120.00, Peter Kamau, Completed\n` +
+                        `TNM11029K, 2026-08-29 09:15:30, Till Payment, 8900.00, 75.00, Jane Muthoni, Completed`
+                      );
+                    }}
+                    className="text-emerald-700 hover:underline font-bold text-[11px]"
+                  >
+                    Insert Demo Statement Dump
+                  </button>
+                </div>
+                <textarea
+                  rows={6}
+                  value={mpesaRawText}
+                  onChange={e => setMpesaRawText(e.target.value)}
+                  placeholder="e.g. Receipt No, Date, Details, Paid In, Tariff, Other Party..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsMpesaImportModalOpen(false)}
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleParseMpesaStatement}
+                  className="w-1/2 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Parse &amp; Match Records</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Official KRA Withholding Tax Certificate Modal */}
+      {previewingWHTCert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-rose-100 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-rose-600" />
+                <h3 className="font-bold text-slate-900 text-base">
+                  KRA Withholding Tax Certificate
+                </h3>
+              </div>
+              <button
+                onClick={() => setPreviewingWHTCert(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 font-mono text-xs">
+              <div className="text-center font-sans font-bold text-slate-800 border-b border-slate-200 pb-2">
+                KENYA REVENUE AUTHORITY (KRA)<br />
+                <span className="text-[11px] text-slate-500 font-normal font-mono">Withholding Tax Certificate (Section 35 &amp; 42A)</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700">
+                <div><span>Certificate No:</span> <strong className="text-slate-900 block">{previewingWHTCert.certificateNo || previewingWHTCert.id}</strong></div>
+                <div><span>Tax Period:</span> <strong className="text-slate-900 block">{previewingWHTCert.period}</strong></div>
+                <div><span>Withholding Agent:</span> <strong className="text-slate-900 block">{etrConfig.companyName}</strong></div>
+                <div><span>Agent PIN:</span> <strong className="text-slate-900 block">{etrConfig.taxPin}</strong></div>
+                <div><span>Withholdee Name:</span> <strong className="text-slate-900 block">{previewingWHTCert.entityName}</strong></div>
+                <div><span>Withholdee PIN:</span> <strong className="text-slate-900 block">{previewingWHTCert.entityPin}</strong></div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-2 space-y-1 text-[11px]">
+                <div className="flex justify-between">
+                  <span>Nature:</span>
+                  <span className="font-bold font-sans">{previewingWHTCert.natureOfTransaction}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Gross Invoice Amount:</span>
+                  <span className="font-bold">KSh {previewingWHTCert.grossAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between text-rose-700 font-bold">
+                  <span>Tax Withheld ({(previewingWHTCert.rate * 100).toFixed(1)}%):</span>
+                  <span>KSh {previewingWHTCert.whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between text-emerald-800 font-bold border-t border-slate-300 pt-1">
+                  <span>Net Paid Out:</span>
+                  <span>KSh {(previewingWHTCert.grossAmount - previewingWHTCert.whtAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setPreviewingWHTCert(null)}
+                className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => exportKRAWithholdingTaxCertificatePDF(previewingWHTCert, etrConfig)}
+                className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>Download PDF</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

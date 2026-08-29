@@ -22,7 +22,11 @@ import {
   PeriodicStatementSummary,
   CashierShiftRecord,
   BrandSettings,
-  InterStoreTransfer
+  InterStoreTransfer,
+  FixedAsset,
+  MpesaStatementItem,
+  StocktakeSession,
+  StocktakeItem
 } from '../types';
 
 // Helper to trigger direct file download for CSV
@@ -3527,4 +3531,454 @@ export function exportInterStoreTransferWaybillPDF(
   doc.save(`Taji_Waybill_${transfer.trackingNumber || transfer.id}_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
+// --------------------------------------------------------------------------
+// 10. KRA FIXED ASSET REGISTER & WEAR-AND-TEAR SCHEDULE (SECOND SCHEDULE ITA)
+// --------------------------------------------------------------------------
 
+export function exportFixedAssetsScheduleCSV(assets: FixedAsset[], locations: LocationInfo[], etrConfig: ETRConfig) {
+  const headers = [
+    'Asset ID',
+    'Asset Tag',
+    'Asset Name & Description',
+    'Category',
+    'Location',
+    'Purchase Date',
+    'Cost Price (KSh)',
+    'Depreciation Method',
+    'Useful Life (Yrs)',
+    'Salvage Value (KSh)',
+    'KRA Wear & Tear Rate (%)',
+    'Accumulated Depreciation (KSh)',
+    'Net Book Value (KSh)',
+    'Status'
+  ];
+
+  const rows = assets.map(a => {
+    const locName = locations.find(l => l.id === a.locationId)?.name || a.locationId;
+    return [
+      a.id,
+      a.assetTag,
+      `"${a.name.replace(/"/g, '""')}"`,
+      `"${a.category}"`,
+      `"${locName}"`,
+      a.purchaseDate,
+      a.costPrice.toFixed(2),
+      a.depreciationMethod,
+      a.usefulLifeYears,
+      a.salvageValue.toFixed(2),
+      (a.kraWearAndTearRate * 100).toFixed(1) + '%',
+      a.accumulatedDepreciation.toFixed(2),
+      a.bookValue.toFixed(2),
+      a.status
+    ];
+  });
+
+  const totalCost = assets.reduce((sum, a) => sum + a.costPrice, 0);
+  const totalAccum = assets.reduce((sum, a) => sum + a.accumulatedDepreciation, 0);
+  const totalBook = assets.reduce((sum, a) => sum + a.bookValue, 0);
+
+  rows.push([
+    'TOTALS',
+    '',
+    `"${assets.length} Fixed Assets"`,
+    '',
+    '',
+    '',
+    totalCost.toFixed(2),
+    '',
+    '',
+    '',
+    '',
+    totalAccum.toFixed(2),
+    totalBook.toFixed(2),
+    ''
+  ]);
+
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`KRA_Fixed_Asset_Register_${new Date().toISOString().split('T')[0]}.csv`, csv);
+}
+
+export function exportFixedAssetsSchedulePDF(assets: FixedAsset[], locations: LocationInfo[], etrConfig: ETRConfig) {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, 842, 65, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(15);
+  doc.setFont('helvetica', 'bold');
+  doc.text('KRA FIXED ASSET REGISTER & WEAR-AND-TEAR SCHEDULE', 40, 30);
+
+  doc.setFontSize(8.5);
+  doc.setTextColor(251, 191, 36);
+  doc.text(
+    `Taxpayer: ${etrConfig.companyName} | PIN: ${etrConfig.taxPin || 'P051982341Z'} | Second Schedule ITA Capital Allowances`,
+    40,
+    48
+  );
+
+  const totalCost = assets.reduce((sum, a) => sum + a.costPrice, 0);
+  const totalAccum = assets.reduce((sum, a) => sum + a.accumulatedDepreciation, 0);
+  const totalBook = assets.reduce((sum, a) => sum + a.bookValue, 0);
+
+  const tableData = assets.map((a, idx) => {
+    const locName = locations.find(l => l.id === a.locationId)?.name || a.locationId;
+    return [
+      idx + 1,
+      a.assetTag,
+      a.name,
+      a.category,
+      locName,
+      a.purchaseDate,
+      a.costPrice.toLocaleString('en-KE', { minimumFractionDigits: 2 }),
+      `${(a.kraWearAndTearRate * 100).toFixed(1)}%`,
+      a.accumulatedDepreciation.toLocaleString('en-KE', { minimumFractionDigits: 2 }),
+      a.bookValue.toLocaleString('en-KE', { minimumFractionDigits: 2 }),
+      a.status
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 80,
+    head: [[
+      '#',
+      'Tag',
+      'Asset Name',
+      'Category',
+      'Location',
+      'Acquired',
+      'Cost (KSh)',
+      'KRA Rate',
+      'Accum Depr (KSh)',
+      'Book Value (KSh)',
+      'Status'
+    ]],
+    body: tableData,
+    foot: [[
+      'TOTAL',
+      '',
+      `${assets.length} Active Assets`,
+      '',
+      '',
+      '',
+      totalCost.toLocaleString('en-KE', { minimumFractionDigits: 2 }),
+      '',
+      totalAccum.toLocaleString('en-KE', { minimumFractionDigits: 2 }),
+      totalBook.toLocaleString('en-KE', { minimumFractionDigits: 2 }),
+      ''
+    ]],
+    theme: 'grid',
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [180, 83, 9], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 },
+    columnStyles: {
+      0: { cellWidth: 25, halign: 'center' },
+      1: { cellWidth: 55, fontStyle: 'bold' },
+      2: { cellWidth: 155 },
+      3: { cellWidth: 95 },
+      4: { cellWidth: 80 },
+      5: { cellWidth: 55, halign: 'center' },
+      6: { cellWidth: 70, halign: 'right', fontStyle: 'bold' },
+      7: { cellWidth: 50, halign: 'center' },
+      8: { cellWidth: 70, halign: 'right' },
+      9: { cellWidth: 75, halign: 'right', fontStyle: 'bold' },
+      10: { cellWidth: 55, halign: 'center' }
+    }
+  });
+
+  doc.save(`KRA_Fixed_Asset_Register_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+// --------------------------------------------------------------------------
+// 11. M-PESA & BANK STATEMENT AUDIT REPORT EXPORTS
+// --------------------------------------------------------------------------
+
+export function exportMpesaReconciliationReportCSV(
+  reconciliationResult: {
+    matched: Array<{ statementItem: MpesaStatementItem; order?: SaleOrder; difference: number }>;
+    unmatchedInOrders: MpesaStatementItem[];
+    unmatchedInStatement: SaleOrder[];
+    totalStatementAmount: number;
+    totalOrdersAmount: number;
+    totalMatchedAmount: number;
+    totalTariffFees: number;
+  },
+  etrConfig: ETRConfig
+) {
+  const headers = [
+    'Section',
+    'Receipt / Ref No',
+    'Date & Time',
+    'Details / Description',
+    'Statement Amount (KSh)',
+    'POS Order Amount (KSh)',
+    'Variance (KSh)',
+    'Tariff Fee (KSh)',
+    'Match Status'
+  ];
+
+  const rows: any[][] = [];
+
+  // Matched items
+  reconciliationResult.matched.forEach(m => {
+    rows.push([
+      'MATCHED',
+      m.statementItem.receiptNo,
+      m.statementItem.completionTime,
+      `"${m.statementItem.details.replace(/"/g, '""')}"`,
+      m.statementItem.paidIn.toFixed(2),
+      (m.order?.grandTotal || 0).toFixed(2),
+      m.difference.toFixed(2),
+      m.statementItem.tariffFee.toFixed(2),
+      'Exact Match'
+    ]);
+  });
+
+  // Unmatched in Orders
+  reconciliationResult.unmatchedInOrders.forEach(u => {
+    rows.push([
+      'UNMATCHED IN POS',
+      u.receiptNo,
+      u.completionTime,
+      `"${u.details.replace(/"/g, '""')}"`,
+      u.paidIn.toFixed(2),
+      '0.00',
+      u.paidIn.toFixed(2),
+      u.tariffFee.toFixed(2),
+      'Direct Till Deposit / Pending POS Entry'
+    ]);
+  });
+
+  // Unmatched in Statement
+  reconciliationResult.unmatchedInStatement.forEach(o => {
+    rows.push([
+      'UNMATCHED IN STATEMENT',
+      o.paymentReference || o.receiptNumber || o.id,
+      o.timestamp,
+      `"POS Sale: ${o.customerName || 'Customer'}"`,
+      '0.00',
+      o.grandTotal.toFixed(2),
+      (-o.grandTotal).toFixed(2),
+      '0.00',
+      'Recorded in POS / Awaiting Bank Settlement'
+    ]);
+  });
+
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`Mpesa_Bank_Reconciliation_Audit_${new Date().toISOString().split('T')[0]}.csv`, csv);
+}
+
+/**
+ * Official Monthly Physical Inventory Count & Stocktake Audit Report (PDF)
+ */
+export function exportStocktakeAuditReportPDF(
+  session: StocktakeSession,
+  locations: LocationInfo[],
+  etrConfig?: ETRConfig
+) {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const locName = session.locationId === 'all' 
+    ? 'All Store Branches & Warehouses'
+    : locations.find(l => l.id === session.locationId)?.name || session.locationId;
+
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'MONTHLY PHYSICAL INVENTORY COUNT & AUDIT REPORT',
+    subtitle: `Statutory Stock Reconciliation Schedule - Period: ${session.period} | Location: ${locName}`,
+    docNumber: session.sessionNumber,
+    docDate: session.completedAt || session.startedAt,
+    refId: session.id,
+    orientation: 'landscape',
+    themeColor: [190, 18, 60] // Rose/Ruby theme
+  });
+
+  // Summary Metrics Banner
+  let startY = 48;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, startY, 269, 20, 2, 2, 'FD');
+
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Total Line Items: ${session.totalItems} | Counted: ${session.countedItems} (${Math.round((session.countedItems / (session.totalItems || 1)) * 100)}%)`, 18, startY + 6);
+  doc.text(`Matched Items: ${session.matchedItems} | Deficit / Shrinkage: ${session.deficitItems} | Surplus: ${session.surplusItems}`, 18, startY + 12);
+  doc.text(`Conducted By: ${session.conductedBy || 'Auditor'} | Status: ${session.status.toUpperCase()}`, 18, startY + 17);
+
+  // Financial Valuation Metrics
+  doc.setFont('helvetica', 'bold');
+  doc.text(`System Valuation: ${formatCurrency(session.totalSystemCostValue)}`, 160, startY + 6);
+  doc.text(`Physical Valuation: ${formatCurrency(session.totalPhysicalCostValue)}`, 160, startY + 12);
+  
+  const varianceColor = session.netVarianceCostValue < 0 ? [225, 29, 72] : session.netVarianceCostValue > 0 ? [13, 148, 136] : [15, 23, 42];
+  doc.setTextColor(varianceColor[0], varianceColor[1], varianceColor[2]);
+  doc.text(`Net Variance: ${formatCurrency(session.netVarianceCostValue)} (${session.netVarianceCostValue <= 0 ? 'Deficit/Shrinkage' : 'Surplus'})`, 160, startY + 17);
+
+  // Detail Table
+  const tableData = session.items.map((item, index) => {
+    const varianceStr = item.physicalCountedQty !== null
+      ? (item.varianceQty > 0 ? `+${item.varianceQty}` : `${item.varianceQty}`)
+      : 'Pending';
+
+    const statusStr = item.status === 'matched'
+      ? 'MATCHED'
+      : item.status === 'deficit'
+      ? 'DEFICIT (LOSS)'
+      : item.status === 'surplus'
+      ? 'SURPLUS'
+      : 'UNCOUNTED';
+
+    return [
+      (index + 1).toString(),
+      item.sku,
+      item.productName,
+      item.category,
+      `${item.systemExpectedQty} ${item.unit}`,
+      item.physicalCountedQty !== null ? `${item.physicalCountedQty} ${item.unit}` : '-',
+      varianceStr,
+      formatCurrency(item.unitCost),
+      formatCurrency(item.varianceValue),
+      statusStr,
+      item.discrepancyReason || item.notes || '-'
+    ];
+  });
+
+  autoTable(doc, {
+    startY: startY + 24,
+    head: [[
+      '#',
+      'SKU / Code',
+      'Product Name',
+      'Category',
+      'System Qty',
+      'Physical Qty',
+      'Variance',
+      'Unit Cost',
+      'Var. Value',
+      'Status',
+      'Audit Notes / Reason'
+    ]],
+    body: tableData,
+    theme: 'grid',
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 2,
+      textColor: [30, 41, 59]
+    },
+    headStyles: {
+      fillColor: [190, 18, 60],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'left'
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 10 },
+      1: { fontStyle: 'bold', cellWidth: 26 },
+      2: { cellWidth: 44 },
+      3: { cellWidth: 20 },
+      4: { halign: 'right', cellWidth: 22 },
+      5: { halign: 'right', fontStyle: 'bold', cellWidth: 22 },
+      6: { halign: 'right', fontStyle: 'bold', cellWidth: 18 },
+      7: { halign: 'right', cellWidth: 22 },
+      8: { halign: 'right', fontStyle: 'bold', cellWidth: 24 },
+      9: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },
+      10: { cellWidth: 35 }
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252]
+    }
+  });
+
+  // Footer Statutory Sign-Off Block
+  const finalY = (doc as any).lastAutoTable.finalY || 160;
+  if (finalY < 170) {
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Stock Auditor Signature: _______________________      Date: _______________', 14, finalY + 15);
+    doc.text('Financial Controller / Managing Director: _______________________      Date: _______________', 140, finalY + 15);
+    doc.text('Verified under Kenya Companies Act & KRA Tax Procedures for Inventory Valuation at Cost.', 14, finalY + 22);
+  }
+
+  doc.save(`Monthly_Stocktake_Audit_${session.sessionNumber}_${session.period}.pdf`);
+}
+
+/**
+ * Export Monthly Stocktake Schedule to CSV (Excel format)
+ */
+export function exportStocktakeAuditReportCSV(
+  session: StocktakeSession,
+  locations: LocationInfo[],
+  etrConfig?: ETRConfig
+) {
+  const locName = session.locationId === 'all' 
+    ? 'All Branches' 
+    : locations.find(l => l.id === session.locationId)?.name || session.locationId;
+
+  const headers = [
+    'Session Number',
+    'Period',
+    'Location',
+    'Item SKU',
+    'Product Name',
+    'Category',
+    'Unit',
+    'System Expected Qty',
+    'Physical Counted Qty',
+    'Variance Qty',
+    'Unit Cost (KSh)',
+    'System Value (KSh)',
+    'Physical Value (KSh)',
+    'Variance Value (KSh)',
+    'Status',
+    'Discrepancy Reason',
+    'Auditor Notes',
+    'Counted Timestamp'
+  ];
+
+  const rows = session.items.map(item => {
+    const countedVal = item.physicalCountedQty !== null ? (item.physicalCountedQty * item.unitCost) : 0;
+    const systemVal = item.systemExpectedQty * item.unitCost;
+    return [
+      `"${session.sessionNumber}"`,
+      `"${session.period}"`,
+      `"${locName}"`,
+      `"${item.sku}"`,
+      `"${item.productName.replace(/"/g, '""')}"`,
+      `"${item.category}"`,
+      `"${item.unit}"`,
+      item.systemExpectedQty.toFixed(2),
+      item.physicalCountedQty !== null ? item.physicalCountedQty.toFixed(2) : 'PENDING',
+      item.varianceQty.toFixed(2),
+      item.unitCost.toFixed(2),
+      systemVal.toFixed(2),
+      countedVal.toFixed(2),
+      item.varianceValue.toFixed(2),
+      `"${item.status.toUpperCase()}"`,
+      `"${(item.discrepancyReason || '').replace(/"/g, '""')}"`,
+      `"${(item.notes || '').replace(/"/g, '""')}"`,
+      `"${item.countedAt || ''}"`
+    ];
+  });
+
+  const summaryRows = [
+    [],
+    ['=== STOCKTAKE AUDIT SUMMARY ==='],
+    ['Total System Inventory Value (KSh)', session.totalSystemCostValue.toFixed(2)],
+    ['Total Physical Counted Value (KSh)', session.totalPhysicalCostValue.toFixed(2)],
+    ['Net Inventory Variance (KSh)', session.netVarianceCostValue.toFixed(2)],
+    ['Total Shrinkage / Deficit Loss (KSh)', session.totalShrinkageValue.toFixed(2)],
+    ['Total Surplus Gain (KSh)', session.totalSurplusValue.toFixed(2)],
+    ['Audit Status', session.status.toUpperCase()],
+    ['Conducted By', `"${session.conductedBy}"`],
+    ['Generated At', `"${new Date().toISOString()}"`]
+  ];
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(r => r.join(',')),
+    ...summaryRows.map(r => r.join(','))
+  ].join('\n');
+
+  downloadCSV(`Stocktake_Audit_${session.sessionNumber}_${session.period}.csv`, csvContent);
+}

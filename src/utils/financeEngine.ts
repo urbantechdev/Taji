@@ -7,14 +7,18 @@ import {
   LocationInfo,
   BalanceSheetData,
   IncomeStatementData,
-  CashFlowStatementData
+  CashFlowStatementData,
+  FixedAsset,
+  MpesaStatementItem
 } from '../types';
 
 /**
  * 2026 Kenya Statutory Payroll Calculator
  * - Monthly Personal Relief: KSh 2,400
+ * - Insurance Relief: 15% of SHIF contribution (Max KSh 5,000/month) - Income Tax Act Section 31
+ * - Affordable Housing Relief: 15% of Employee Housing Levy (Max KSh 9,000/month) - Income Tax Act Section 30A
  * - PAYE Tax Bands (Monthly):
- *    First KSh 24,000 @ 10% (Tax: 2,400 - Relief 2,400 = 0 Net PAYE)
+ *    First KSh 24,000 @ 10%
  *    Next KSh 8,333 (24,001 - 32,333) @ 25%
  *    Next KSh 467,667 (32,334 - 500,000) @ 30%
  *    Next KSh 300,000 (500,001 - 800,000) @ 32.5%
@@ -23,11 +27,11 @@ import {
  *    Tier I (up to KSh 8,000 @ 6% = max KSh 480)
  *    Tier II (KSh 8,001 to KSh 72,000 @ 6% = max KSh 3,840)
  *    Total NSSF Employee max: KSh 4,320 (matched 100% by Employer)
- * - SHIF (Social Health Insurance Fund): 2.75% of Gross Salary
+ * - SHIF (Social Health Insurance Fund): 2.75% of Gross Salary (Minimum KSh 300)
  * - Affordable Housing Levy: 1.5% of Gross Salary (matched 1.5% by Employer)
  */
 export function calculateKenyaStatutoryDeductions(grossSalary: number) {
-  // 1. NSSF Calculation
+  // 1. NSSF Calculation (Tier I & Tier II)
   const tier1Limit = 8000;
   const tier2Limit = 72000;
 
@@ -40,17 +44,17 @@ export function calculateKenyaStatutoryDeductions(grossSalary: number) {
   const totalNssfEmployee = Math.round(nssfTier1 + nssfTier2);
   const totalNssfEmployer = totalNssfEmployee; // 100% matching
 
-  // 2. SHIF Calculation (2.75% mandatory)
+  // 2. SHIF Calculation (2.75% mandatory, minimum KSh 300)
   const shifDeduction = Math.max(300, Math.round(grossSalary * 0.0275));
 
-  // 3. Affordable Housing Levy (1.5%)
+  // 3. Affordable Housing Levy (1.5% employee + 1.5% employer)
   const housingLevyEmployee = Math.round(grossSalary * 0.015);
   const housingLevyEmployer = housingLevyEmployee;
 
-  // 4. Taxable Pay = Gross - NSSF (NSSF is tax deductible in Kenya) - Housing Levy (statutory deduction)
+  // 4. Taxable Pay = Gross - Allowable NSSF (NSSF is tax deductible in Kenya) - Housing Levy
   const taxablePay = Math.max(0, grossSalary - totalNssfEmployee - housingLevyEmployee);
 
-  // 5. PAYE Calculation
+  // 5. PAYE Calculation on Taxable Pay
   let grossPaye = 0;
   if (taxablePay <= 24000) {
     grossPaye = taxablePay * 0.10;
@@ -64,9 +68,13 @@ export function calculateKenyaStatutoryDeductions(grossSalary: number) {
     grossPaye = 24000 * 0.10 + (32333 - 24000) * 0.25 + (500000 - 32333) * 0.30 + (800000 - 500000) * 0.325 + (taxablePay - 800000) * 0.35;
   }
 
-  // Monthly Personal Relief
-  const personalRelief = 2400;
-  const netPayeTax = Math.max(0, Math.round(grossPaye - personalRelief));
+  // 6. Statutory Tax Reliefs (Personal + Insurance + Housing)
+  const personalRelief = 2400; // Monthly statutory personal relief
+  const insuranceRelief = Math.min(5000, Math.round(shifDeduction * 0.15)); // 15% of SHIF (Cap: KSh 5,000/mo)
+  const housingRelief = Math.min(9000, Math.round(housingLevyEmployee * 0.15)); // 15% of Housing Levy (Cap: KSh 9,000/mo)
+  const totalReliefs = personalRelief + insuranceRelief + housingRelief;
+
+  const netPayeTax = Math.max(0, Math.round(grossPaye - totalReliefs));
 
   const totalDeductions = netPayeTax + totalNssfEmployee + shifDeduction + housingLevyEmployee;
   const netSalary = Math.max(0, grossSalary - totalDeductions);
@@ -83,6 +91,9 @@ export function calculateKenyaStatutoryDeductions(grossSalary: number) {
     taxablePay: Math.round(taxablePay),
     grossPaye: Math.round(grossPaye),
     personalRelief,
+    insuranceRelief,
+    housingRelief,
+    totalReliefs,
     payeTax: netPayeTax,
     totalDeductions,
     netPay: netSalary
@@ -90,7 +101,7 @@ export function calculateKenyaStatutoryDeductions(grossSalary: number) {
 }
 
 /**
- * Autonomous Live Balance Sheet Generator
+ * Autonomous Live Balance Sheet Generator with Real Fixed Assets Support
  */
 export function generateLiveBalanceSheet(
   orders: SaleOrder[],
@@ -98,7 +109,8 @@ export function generateLiveBalanceSheet(
   locations: LocationInfo[],
   branchExpenses: BranchExpense[],
   payroll: PayrollRecord[],
-  ledger: LedgerEntry[]
+  ledger: LedgerEntry[],
+  fixedAssets?: FixedAsset[]
 ): BalanceSheetData {
   // 1. Current Assets
   // Cash & Equivalents = Sum of active branch cash floats + Net cash inflows from orders minus expenses/payroll
@@ -121,12 +133,24 @@ export function generateLiveBalanceSheet(
 
   const totalCurrentAssets = estimatedCashAndBank + accountsReceivable + inventoryAssetValue;
 
-  // 2. Fixed Assets (Depot fixtures, textile machinery, ETR hardware)
-  const machineryAndFixtures = 0;
-  const equipmentAndDepots = 0;
-  const accumulatedDepreciation = 0;
-  const totalFixedAssets = machineryAndFixtures + equipmentAndDepots - accumulatedDepreciation;
+  // 2. Fixed Assets (Fabric machinery, Cutting tables, Computers, Vehicles, Depot fixtures)
+  let machineryAndFixtures = 0;
+  let equipmentAndDepots = 0;
+  let accumulatedDepreciation = 0;
 
+  if (fixedAssets && fixedAssets.length > 0) {
+    const activeAssets = fixedAssets.filter(a => a.status === 'In Service' || a.status === 'Under Maintenance');
+    activeAssets.forEach(asset => {
+      if (asset.category === 'plant_machinery_looms' || asset.category === 'store_pos_terminals_scales') {
+        machineryAndFixtures += asset.costPrice;
+      } else {
+        equipmentAndDepots += asset.costPrice;
+      }
+      accumulatedDepreciation += (asset.accumulatedDepreciation || 0);
+    });
+  }
+
+  const totalFixedAssets = Math.max(0, machineryAndFixtures + equipmentAndDepots - accumulatedDepreciation);
   const totalAssets = totalCurrentAssets + totalFixedAssets;
 
   // 3. Current Liabilities
@@ -152,10 +176,10 @@ export function generateLiveBalanceSheet(
       totalCurrentAssets: Math.round(totalCurrentAssets)
     },
     fixedAssets: {
-      machineryAndFixtures,
-      equipmentAndDepots,
-      accumulatedDepreciation,
-      totalFixedAssets
+      machineryAndFixtures: Math.round(machineryAndFixtures),
+      equipmentAndDepots: Math.round(equipmentAndDepots),
+      accumulatedDepreciation: Math.round(accumulatedDepreciation),
+      totalFixedAssets: Math.round(totalFixedAssets)
     },
     totalAssets: Math.round(totalAssets),
     currentLiabilities: {
@@ -174,6 +198,197 @@ export function generateLiveBalanceSheet(
       totalEquity: Math.round(totalEquity)
     },
     totalLiabilitiesAndEquity: Math.round(totalCurrentLiabilities + totalLongTermLiabilities + totalEquity)
+  };
+}
+
+/**
+ * KRA Capital Allowances (Wear & Tear) and Asset Depreciation Engine
+ * - Computers & Software: 25% Reducing Balance
+ * - Motor Vehicles & Logistics: 25% Reducing Balance
+ * - Plant, Heavy Looms & Machinery: 10% Reducing Balance or Straight Line
+ * - Office Furniture & Retail Fixtures: 12.5% Reducing Balance
+ * - POS Hardware & Digital Scales: 25% Reducing Balance
+ */
+export function calculateAssetMonthlyDepreciation(asset: FixedAsset): {
+  monthlyAmount: number;
+  newAccumulated: number;
+  newBookValue: number;
+} {
+  const annualRate = asset.kraWearAndTearRate || 0.125;
+  let annualDepreciation = 0;
+  
+  if (asset.depreciationMethod === 'straight_line') {
+    const depreciableCost = Math.max(0, asset.costPrice - (asset.salvageValue || 0));
+    annualDepreciation = asset.usefulLifeYears > 0 ? depreciableCost / asset.usefulLifeYears : depreciableCost * annualRate;
+  } else {
+    // Reducing balance (standard KRA 2nd Schedule)
+    const currentBookValue = Math.max(0, asset.costPrice - (asset.accumulatedDepreciation || 0));
+    annualDepreciation = currentBookValue * annualRate;
+  }
+
+  const monthlyAmount = Math.round(annualDepreciation / 12);
+  const currentAccumulated = asset.accumulatedDepreciation || 0;
+  const maxAllowableDepreciation = Math.max(0, asset.costPrice - (asset.salvageValue || 0));
+  const effectiveMonthly = Math.min(monthlyAmount, Math.max(0, maxAllowableDepreciation - currentAccumulated));
+  
+  const newAccumulated = currentAccumulated + effectiveMonthly;
+  const newBookValue = Math.max(asset.salvageValue || 0, asset.costPrice - newAccumulated);
+
+  return {
+    monthlyAmount: effectiveMonthly,
+    newAccumulated,
+    newBookValue
+  };
+}
+
+/**
+ * Safaricom M-Pesa & Bank Statement Text / CSV Parser
+ */
+export function parseMpesaStatementText(rawText: string): MpesaStatementItem[] {
+  if (!rawText || !rawText.trim()) return [];
+
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  const items: MpesaStatementItem[] = [];
+
+  lines.forEach((line, index) => {
+    // Support CSV format: ReceiptNo, CompletionTime, Details, OtherParty, PaidIn, Withdrawn, Balance
+    const csvParts = line.split(',').map(p => p.trim().replace(/^["']|["']$/g, ''));
+    
+    // Check if line looks like M-Pesa transaction (e.g. QJK... or R... or standard code)
+    const refMatch = line.match(/\b([A-Z0-9]{8,12})\b/);
+    if (!refMatch && csvParts.length < 3) return;
+
+    const receiptNo = csvParts[0]?.match(/^[A-Z0-9]{8,12}$/) ? csvParts[0] : (refMatch ? refMatch[1] : `TX-${Date.now().toString().slice(-4)}-${index}`);
+    
+    // Extract amounts
+    let paidIn = 0;
+    let withdrawn = 0;
+    let balance = 0;
+    let tariffFee = 0;
+    let otherParty = '';
+    let details = 'Customer Payment to Till';
+
+    if (csvParts.length >= 5) {
+      paidIn = parseFloat(csvParts[4]?.replace(/[^0-9.]/g, '')) || 0;
+      withdrawn = parseFloat(csvParts[5]?.replace(/[^0-9.]/g, '')) || 0;
+      balance = parseFloat(csvParts[6]?.replace(/[^0-9.]/g, '')) || 0;
+      otherParty = csvParts[3] || csvParts[2] || '';
+      details = csvParts[2] || 'Customer Payment Received';
+    } else {
+      // Freeform parsing: look for currency amounts (e.g. KSh 4,500.00)
+      const numMatches = line.match(/(?:KSh|KES)?\s*([0-9,]+(?:\.[0-9]{2})?)/gi);
+      if (numMatches && numMatches.length > 0) {
+        const parsedNums = numMatches.map(m => parseFloat(m.replace(/[^0-9.]/g, ''))).filter(n => !isNaN(n) && n > 0);
+        paidIn = parsedNums[0] || 0;
+        if (parsedNums.length > 1) balance = parsedNums[parsedNums.length - 1];
+      }
+      otherParty = line.length > 30 ? line.slice(0, 40) : line;
+    }
+
+    // Auto-calculate standard Safaricom tariff fee if applicable (e.g. 0.5% or standard slab)
+    if (paidIn > 0 && paidIn <= 500) tariffFee = 0;
+    else if (paidIn > 500 && paidIn <= 1000) tariffFee = 6;
+    else if (paidIn > 1000 && paidIn <= 2500) tariffFee = 16;
+    else if (paidIn > 2500 && paidIn <= 5000) tariffFee = 35;
+    else if (paidIn > 5000) tariffFee = Math.min(110, Math.round(paidIn * 0.0055));
+
+    if (paidIn > 0 || withdrawn > 0) {
+      items.push({
+        id: `STMT-${Date.now().toString().slice(-4)}-${index}`,
+        receiptNo,
+        completionTime: new Date().toISOString().split('T')[0],
+        details,
+        otherPartyInfo: otherParty || 'Customer M-Pesa Mobile Wallet',
+        paidIn,
+        withdrawn,
+        balance,
+        tariffFee,
+        matchStatus: 'UNMATCHED_IN_POS'
+      });
+    }
+  });
+
+  return items;
+}
+
+/**
+ * Automatic M-Pesa & Bank Statement vs POS Orders Reconciler
+ */
+export function reconcileMpesaStatementsWithOrders(
+  statementItems: MpesaStatementItem[],
+  orders: SaleOrder[]
+): {
+  reconciledItems: MpesaStatementItem[];
+  matchedCount: number;
+  unmatchedInPosCount: number;
+  unmatchedOrdersCount: number;
+  totalStatementPaidIn: number;
+  totalPosMpesaVolume: number;
+  totalSafaricomTariffFees: number;
+  variance: number;
+} {
+  const mpesaOrders = orders.filter(o => o.paymentMethod === 'M-Pesa');
+  const matchedOrderIds = new Set<string>();
+
+  const reconciledItems = statementItems.map(item => {
+    // 1. Try exact match on M-Pesa Reference
+    let matchedOrder = mpesaOrders.find(
+      o => o.paymentReference && o.paymentReference.trim().toUpperCase() === item.receiptNo.trim().toUpperCase()
+    );
+
+    // 2. Try match on Order ID or Amount + Customer Phone
+    if (!matchedOrder) {
+      matchedOrder = mpesaOrders.find(
+        o => !matchedOrderIds.has(o.id) &&
+             Math.abs(o.grandTotal - item.paidIn) < 0.01 &&
+             (o.customerPhone && item.otherPartyInfo.includes(o.customerPhone.slice(-6)))
+      );
+    }
+
+    // 3. Try match on Exact Amount if within single match candidate
+    if (!matchedOrder && item.paidIn > 0) {
+      matchedOrder = mpesaOrders.find(
+        o => !matchedOrderIds.has(o.id) && Math.abs(o.grandTotal - item.paidIn) < 0.01
+      );
+    }
+
+    if (matchedOrder) {
+      matchedOrderIds.add(matchedOrder.id);
+      const isExactAmount = Math.abs(matchedOrder.grandTotal - item.paidIn) < 0.01;
+      return {
+        ...item,
+        matchedOrderId: matchedOrder.id,
+        matchStatus: (isExactAmount ? 'MATCHED' : 'VARIANCE') as MpesaStatementItem['matchStatus'],
+        varianceAmount: Number((item.paidIn - matchedOrder.grandTotal).toFixed(2)),
+        notes: `Matched to POS Order #${matchedOrder.receiptNumber || matchedOrder.id}`
+      };
+    }
+
+    return {
+      ...item,
+      matchStatus: 'UNMATCHED_IN_POS' as MpesaStatementItem['matchStatus'],
+      notes: 'Payment received on Till but no matching POS receipt registered'
+    };
+  });
+
+  const matchedCount = reconciledItems.filter(i => i.matchStatus === 'MATCHED').length;
+  const unmatchedInPosCount = reconciledItems.filter(i => i.matchStatus === 'UNMATCHED_IN_POS').length;
+  const unmatchedOrdersCount = mpesaOrders.filter(o => !matchedOrderIds.has(o.id)).length;
+  
+  const totalStatementPaidIn = statementItems.reduce((acc, i) => acc + i.paidIn, 0);
+  const totalPosMpesaVolume = mpesaOrders.reduce((acc, o) => acc + o.grandTotal, 0);
+  const totalSafaricomTariffFees = statementItems.reduce((acc, i) => acc + i.tariffFee, 0);
+  const variance = totalStatementPaidIn - totalPosMpesaVolume;
+
+  return {
+    reconciledItems,
+    matchedCount,
+    unmatchedInPosCount,
+    unmatchedOrdersCount,
+    totalStatementPaidIn,
+    totalPosMpesaVolume,
+    totalSafaricomTariffFees,
+    variance
   };
 }
 

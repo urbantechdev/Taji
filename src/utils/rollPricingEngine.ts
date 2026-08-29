@@ -1,121 +1,103 @@
-import { CategoryPricingConfig, CategoryType, ProductBatch, RollPricingBreakdown, UnitType } from '../types';
+import { CartItemRollPricing } from '../types';
 
 export interface CalculateRollPricingOptions {
-  quantity: number;
-  unitPriceRetail: number;
-  unitPriceBulk: number;
-  category: CategoryType;
-  unit: UnitType;
+  totalMeters: number;
+  retailPricePerMeter: number;
+  wholesalePricePerMeter: number;
   standardRollMeters?: number;
-  looseDiscountPct?: number; // e.g. 10 for Option 1
+  looseDiscountPct?: number;
   pricingMode?: 'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail' | 'custom';
-  customLooseRate?: number;
 }
 
-/**
- * Option 1 Split Roll & Discounted Loose Meter Pricing Engine:
- * Full roll(s) billed at wholesale rate, while extra loose meters cut from another roll
- * are billed at retail rate minus an Option 1 loose cut discount (e.g. 10% off retail).
- */
-export function calculateRollPricing({
-  quantity,
-  unitPriceRetail,
-  unitPriceBulk,
-  category,
-  unit,
-  standardRollMeters,
-  looseDiscountPct = 10,
-  pricingMode = 'hybrid_discounted_loose',
-  customLooseRate
-}: CalculateRollPricingOptions): RollPricingBreakdown | null {
-  // Only apply to fabric length units (meter, yard, roll) or fabric categories (Fleece, Dereck)
-  const isFabricUnit = unit === 'meter' || unit === 'roll' || unit === 'yard';
-  const isFabricCategory = category === 'Fleece' || category === 'Dereck';
-  
-  if (!isFabricUnit && !isFabricCategory) {
-    return null;
+export function calculateRollPricing(options: CalculateRollPricingOptions): CartItemRollPricing {
+  const {
+    totalMeters,
+    retailPricePerMeter,
+    wholesalePricePerMeter,
+    standardRollMeters = 70,
+    looseDiscountPct = 10,
+    pricingMode = 'hybrid_discounted_loose'
+  } = options;
+
+  if (pricingMode === 'all_retail' || standardRollMeters <= 0) {
+    const totalPrice = totalMeters * retailPricePerMeter;
+    return {
+      isHybridApplied: false,
+      pricingMode: 'all_retail',
+      fullRollsCount: 0,
+      fullRollMeters: 0,
+      fullRollsSubtotal: 0,
+      wholesaleRatePerMeter: wholesalePricePerMeter,
+      looseMeters: totalMeters,
+      discountedLooseRatePerMeter: retailPricePerMeter,
+      looseDiscountPct: 0,
+      looseMetersSubtotal: totalPrice,
+      standardRollMeters,
+      savingsAmount: 0,
+      totalPrice
+    };
   }
-
-  // Determine standard roll size (Default: Fleece = 70m, Dereck = 50m)
-  const rollSize = standardRollMeters && standardRollMeters > 0 
-    ? standardRollMeters 
-    : (category === 'Fleece' ? 70 : (category === 'Dereck' ? 50 : 60));
-
-  const wholesaleRate = unitPriceBulk > 0 ? unitPriceBulk : Math.round(unitPriceRetail * 0.8);
-  const retailRate = unitPriceRetail > 0 ? unitPriceRetail : Math.round(wholesaleRate * 1.25);
-  
-  // Effective discounted loose meter rate (Option 1)
-  const effectiveLooseDiscountPct = Math.max(0, Math.min(100, looseDiscountPct));
-  const calculatedDiscountedLooseRate = customLooseRate !== undefined && customLooseRate > 0
-    ? customLooseRate
-    : Math.round(retailRate * (1 - effectiveLooseDiscountPct / 100));
-
-  // Determine full roll count and loose cut meters
-  const fullRollsCount = Math.floor(quantity / rollSize);
-  const fullRollMeters = Number((fullRollsCount * rollSize).toFixed(3));
-  const looseMeters = Number(Math.max(0, quantity - fullRollMeters).toFixed(3));
-
-  let fullRollsSubtotal = 0;
-  let looseMetersSubtotal = 0;
-  let totalPrice = 0;
 
   if (pricingMode === 'all_wholesale') {
-    fullRollsSubtotal = Number((quantity * wholesaleRate).toFixed(2));
-    looseMetersSubtotal = 0;
-    totalPrice = fullRollsSubtotal;
-  } else if (pricingMode === 'all_retail') {
-    fullRollsSubtotal = 0;
-    looseMetersSubtotal = Number((quantity * retailRate).toFixed(2));
-    totalPrice = looseMetersSubtotal;
-  } else {
-    // Default: 'hybrid_discounted_loose' (Option 1)
-    if (fullRollsCount > 0) {
-      fullRollsSubtotal = Number((fullRollMeters * wholesaleRate).toFixed(2));
-      looseMetersSubtotal = Number((looseMeters * calculatedDiscountedLooseRate).toFixed(2));
-      totalPrice = Number((fullRollsSubtotal + looseMetersSubtotal).toFixed(2));
-    } else {
-      // Less than 1 roll (pure cut retail, or loose discount if explicitly set > 0)
-      fullRollsSubtotal = 0;
-      looseMetersSubtotal = Number((looseMeters * calculatedDiscountedLooseRate).toFixed(2));
-      totalPrice = looseMetersSubtotal;
-    }
+    const totalPrice = totalMeters * wholesalePricePerMeter;
+    const baseRetail = totalMeters * retailPricePerMeter;
+    return {
+      isHybridApplied: true,
+      pricingMode: 'all_wholesale',
+      fullRollsCount: Math.floor(totalMeters / standardRollMeters),
+      fullRollMeters: totalMeters,
+      fullRollsSubtotal: totalPrice,
+      wholesaleRatePerMeter: wholesalePricePerMeter,
+      looseMeters: 0,
+      discountedLooseRatePerMeter: wholesalePricePerMeter,
+      looseDiscountPct,
+      looseMetersSubtotal: 0,
+      standardRollMeters,
+      savingsAmount: Math.max(0, baseRetail - totalPrice),
+      totalPrice
+    };
   }
 
-  const effectiveRatePerMeter = quantity > 0 ? Number((totalPrice / quantity).toFixed(2)) : retailRate;
-  const standardFullRetailTotal = Number((quantity * retailRate).toFixed(2));
-  const savingsAmount = Math.max(0, Number((standardFullRetailTotal - totalPrice).toFixed(2)));
+  // Hybrid Mode (Option 1: Full rolls at wholesale rate, remainder loose cut at discounted retail rate)
+  const fullRollsCount = Math.floor(totalMeters / standardRollMeters);
+  const fullRollMeters = fullRollsCount * standardRollMeters;
+  const looseMeters = Math.max(0, totalMeters - fullRollMeters);
+
+  const fullRollsSubtotal = fullRollMeters * wholesalePricePerMeter;
+  const discountedLooseRatePerMeter = Math.round(retailPricePerMeter * (1 - looseDiscountPct / 100));
+  const looseMetersSubtotal = looseMeters * discountedLooseRatePerMeter;
+  const totalPrice = fullRollsSubtotal + looseMetersSubtotal;
+
+  const standardRetailTotal = totalMeters * retailPricePerMeter;
+  const savingsAmount = Math.max(0, standardRetailTotal - totalPrice);
 
   return {
-    isHybridApplied: fullRollsCount > 0 && looseMeters > 0 && pricingMode === 'hybrid_discounted_loose',
-    pricingMode,
-    standardRollMeters: rollSize,
+    isHybridApplied: fullRollsCount > 0 || (looseMeters > 0 && looseDiscountPct > 0),
+    pricingMode: 'hybrid_discounted_loose',
     fullRollsCount,
     fullRollMeters,
-    looseMeters,
-    wholesaleRatePerMeter: wholesaleRate,
-    retailRatePerMeter: retailRate,
-    looseDiscountPct: effectiveLooseDiscountPct,
-    discountedLooseRatePerMeter: calculatedDiscountedLooseRate,
     fullRollsSubtotal,
+    wholesaleRatePerMeter: wholesalePricePerMeter,
+    looseMeters,
+    discountedLooseRatePerMeter,
+    looseDiscountPct,
     looseMetersSubtotal,
-    totalPrice,
-    effectiveRatePerMeter,
-    savingsAmount
+    standardRollMeters,
+    savingsAmount,
+    totalPrice
   };
 }
 
-/**
- * Formats a clean human-readable summary of the roll split and loose meters for receipt/invoices
- */
-export function formatRollPricingSummary(breakdown: RollPricingBreakdown): string {
-  if (breakdown.fullRollsCount > 0 && breakdown.looseMeters > 0) {
-    return `${breakdown.fullRollsCount} Roll (${breakdown.fullRollMeters}m @ KSh ${breakdown.wholesaleRatePerMeter.toLocaleString()} W/S) + ${breakdown.looseMeters}m Cut @ KSh ${breakdown.discountedLooseRatePerMeter.toLocaleString()} (-${breakdown.looseDiscountPct}% Disc)`;
+export function formatRollPricingSummary(pricing: CartItemRollPricing): string {
+  if (!pricing.isHybridApplied) return '';
+  if (pricing.fullRollsCount > 0 && pricing.looseMeters > 0) {
+    return `${pricing.fullRollsCount} Roll (${pricing.fullRollMeters}m @ ${pricing.wholesaleRatePerMeter}/m) + ${pricing.looseMeters}m Loose (-${pricing.looseDiscountPct}%)`;
   }
-  if (breakdown.fullRollsCount > 0 && breakdown.looseMeters === 0) {
-    return `${breakdown.fullRollsCount} Full Roll(s) (${breakdown.fullRollMeters}m @ KSh ${breakdown.wholesaleRatePerMeter.toLocaleString()} Wholesale)`;
+  if (pricing.fullRollsCount > 0) {
+    return `${pricing.fullRollsCount} Full Roll(s) (${pricing.fullRollMeters}m @ ${pricing.wholesaleRatePerMeter}/m)`;
   }
-  if (breakdown.looseDiscountPct > 0) {
-    return `${breakdown.looseMeters}m Cut @ KSh ${breakdown.discountedLooseRatePerMeter.toLocaleString()} (${breakdown.looseDiscountPct}% Loose Discount)`;
+  if (pricing.looseMeters > 0 && pricing.looseDiscountPct > 0) {
+    return `${pricing.looseMeters}m Loose @ KSh ${pricing.discountedLooseRatePerMeter}/m (-${pricing.looseDiscountPct}%)`;
   }
-  return `${breakdown.looseMeters}m Cut @ KSh ${breakdown.retailRatePerMeter.toLocaleString()} Retail`;
+  return '';
 }

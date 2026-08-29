@@ -45,10 +45,17 @@ import {
   ReturnExchangePayload,
   ETIMSCreditNote,
   FabricRollRecord,
-  DefectReasonType
+  DefectReasonType,
+  FixedAsset,
+  KRAInputVATClaim,
+  StocktakeSession,
+  StocktakeItem,
+  StocktakeStatus,
+  StocktakeDiscrepancyReason
 } from '../types';
 import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
 import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
+import { calculateRollPricing } from '../utils/rollPricingEngine';
 import {
   LOCATIONS,
   INITIAL_BRANCH_EXPENSES,
@@ -70,6 +77,8 @@ import {
   INITIAL_QUARANTINED_DEFECTS,
   INITIAL_CREDIT_NOTES,
   INITIAL_FABRIC_ROLLS,
+  INITIAL_FIXED_ASSETS,
+  INITIAL_INPUT_VAT_CLAIMS,
   CURRENT_USER
 } from '../data/initialData';
 import {
@@ -81,7 +90,7 @@ import {
   playBarcodeScanBeep,
   playScannerErrorBeep
 } from '../utils/audio';
-import { calculateKenyaStatutoryDeductions } from '../utils/financeEngine';
+import { calculateKenyaStatutoryDeductions, calculateAssetMonthlyDepreciation } from '../utils/financeEngine';
 
 interface ERPContextType {
   // Navigation, Mode & Role Context
@@ -140,6 +149,14 @@ interface ERPContextType {
   addToCart: (batch: ProductBatch, quantity?: number, isBulk?: boolean) => void;
   removeFromCart: (batchId: string) => void;
   updateCartQuantity: (batchId: string, quantity: number) => void;
+  updateCartItemRollPricing: (
+    batchId: string,
+    options: {
+      looseDiscountPct?: number;
+      standardRollMeters?: number;
+      pricingMode?: 'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail' | 'custom';
+    }
+  ) => void;
   clearCart: () => void;
 
   // Hold Cart Feature
@@ -240,6 +257,18 @@ interface ERPContextType {
   addWithholdingTaxRecord: (record: Omit<KRAWithholdingTaxRecord, 'id'>) => { success: boolean; message: string; recordId: string };
   settleWithholdingTaxRecord: (id: string, prnNumber?: string) => { success: boolean; message: string };
 
+  // KRA Input VAT Claims & Reconciliation Engine
+  inputVatClaims: KRAInputVATClaim[];
+  addInputVatClaim: (claim: Omit<KRAInputVATClaim, 'id'>) => { success: boolean; message: string; claimId?: string };
+  deleteInputVatClaim: (claimId: string) => void;
+
+  // Fixed Asset Register & Automated Wear and Tear Depreciation Engine
+  fixedAssets: FixedAsset[];
+  addFixedAsset: (asset: Omit<FixedAsset, 'id' | 'accumulatedDepreciation' | 'bookValue'>) => { success: boolean; message: string; assetId?: string };
+  updateFixedAsset: (assetId: string, updates: Partial<FixedAsset>) => void;
+  deleteFixedAsset: (assetId: string) => void;
+  runMonthlyDepreciation: () => { success: boolean; message: string; totalDepreciation: number; entriesPosted: number };
+
   createOrderRerouteTicket: (
     items: { batchId: string; quantity: number }[],
     customerName?: string,
@@ -297,6 +326,9 @@ interface ERPContextType {
       coneTareWeightKg?: number;
       baleTareWeightKg?: number;
       autoDeductTareAtPOS?: boolean;
+      standardRollLengthMeters?: number;
+      looseMeterDiscountPct?: number;
+      enableHybridRollPricing?: boolean;
       adjustmentType?: 'set_exact' | 'increase_percent' | 'decrease_percent' | 'markup_from_cost';
       percentageValue?: number;
     }
@@ -532,6 +564,44 @@ interface ERPContextType {
   ) => { success: boolean; rmaId?: string; message: string };
   isFabricRollModalOpen: boolean;
   setIsFabricRollModalOpen: (open: boolean) => void;
+
+  // Monthly Physical Stocktake & Inventory Audit
+  stocktakeSessions: StocktakeSession[];
+  activeStocktakeSession: StocktakeSession | null;
+  setActiveStocktakeSession: (session: StocktakeSession | null) => void;
+  isStocktakeModalOpen: boolean;
+  setIsStocktakeModalOpen: (open: boolean) => void;
+  createStocktakeSession: (data: {
+    title: string;
+    locationId: LocationId | 'all';
+    period: string;
+    conductedBy: string;
+    auditorName?: string;
+    notes?: string;
+    categoryFilter?: CategoryType | 'all';
+  }) => StocktakeSession;
+  updateStocktakeItemCount: (
+    sessionId: string,
+    productId: string,
+    countedQty: number,
+    notes?: string,
+    reason?: StocktakeDiscrepancyReason,
+    scaleWeightKg?: number
+  ) => void;
+  bulkUpdateStocktakeItems: (
+    sessionId: string,
+    updates: {
+      productId: string;
+      countedQty: number;
+      notes?: string;
+      reason?: StocktakeDiscrepancyReason;
+    }[]
+  ) => void;
+  finalizeAndReconcileStocktake: (
+    sessionId: string,
+    autoPostJournal?: boolean
+  ) => Promise<{ success: boolean; message: string; session?: StocktakeSession; journalRef?: string }>;
+  deleteStocktakeSession: (sessionId: string) => void;
 }
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
@@ -1447,6 +1517,212 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recordAuditLog('Withholding Tax Remitted', `Remitted WHT voucher ${id} to KRA. PRN: ${prnNumber || 'Confirmed'}`);
     playSuccessSound();
     return { success: true, message: `Withholding Tax ${id} marked as remitted to KRA!` };
+  };
+
+  // KRA Input VAT Claims State & Methods
+  const [inputVatClaims, setInputVatClaims] = useState<KRAInputVATClaim[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_input_vat_claims');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading input VAT claims from localStorage:', e);
+    }
+    return INITIAL_INPUT_VAT_CLAIMS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_input_vat_claims', JSON.stringify(inputVatClaims));
+    } catch (e) {
+      console.warn('Error saving input VAT claims to localStorage:', e);
+    }
+  }, [inputVatClaims]);
+
+  const addInputVatClaim = (claimData: Omit<KRAInputVATClaim, 'id'>) => {
+    const newId = `CLM-${Date.now().toString().slice(-6)}`;
+    const taxable = Number(claimData.taxableAmount) || 0;
+    const vat = Number(claimData.vatClaimable) || Math.round(taxable * 0.16);
+    const gross = Number(claimData.grossAmount) || (taxable + vat);
+
+    const created: KRAInputVATClaim = {
+      ...claimData,
+      id: newId,
+      taxableAmount: taxable,
+      vatClaimable: vat,
+      grossAmount: gross,
+      purchaseDate: claimData.purchaseDate || new Date().toISOString().split('T')[0],
+      status: claimData.status || 'Claimed',
+      etimsVerified: claimData.etimsVerified ?? true
+    };
+
+    setInputVatClaims(prev => [created, ...prev]);
+
+    // Double Entry Journal: Debit Input VAT Asset, Credit Cash & Bank / AP
+    const jEntry: LedgerEntry = {
+      id: `LEDG-VAT-IN-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString(),
+      transactionRef: `INV-IN-${created.supplierCuInvoiceNo || newId}`,
+      description: `KRA Input VAT Claim: ${created.supplierName} (${created.purchaseCategory}) - PIN: ${created.supplierPin}`,
+      debitAccount: 'KRA Input VAT Receivable (Claimable Asset)',
+      creditAccount: 'Cash & Bank / Accounts Payable',
+      amount: vat,
+      locationId: activeLocation,
+      category: 'Tax VAT'
+    };
+    setLedger(prev => [jEntry, ...prev]);
+    recordAuditLog(
+      'Input VAT Claim Registered',
+      `Registered eTIMS Input Tax Claim: ${created.supplierName} (CU: ${created.supplierCuInvoiceNo}), Claimable VAT: KSh ${vat.toLocaleString()}`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      message: `Input VAT claim of KSh ${vat.toLocaleString()} registered!`,
+      claimId: newId
+    };
+  };
+
+  const deleteInputVatClaim = (claimId: string) => {
+    setInputVatClaims(prev => prev.filter(c => c.id !== claimId));
+    recordAuditLog('Input VAT Claim Deleted', `Deleted input VAT claim ${claimId}`);
+  };
+
+  // Fixed Asset Register & Automated Wear and Tear Depreciation State & Methods
+  const [fixedAssets, setFixedAssets] = useState<FixedAsset[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_fixed_assets');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading fixed assets from localStorage:', e);
+    }
+    return INITIAL_FIXED_ASSETS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_fixed_assets', JSON.stringify(fixedAssets));
+    } catch (e) {
+      console.warn('Error saving fixed assets to localStorage:', e);
+    }
+  }, [fixedAssets]);
+
+  const addFixedAsset = (assetData: Omit<FixedAsset, 'id' | 'accumulatedDepreciation' | 'bookValue'>) => {
+    const newId = `AST-${Date.now().toString().slice(-6)}`;
+    const cost = Number(assetData.costPrice) || 0;
+    const newAsset: FixedAsset = {
+      ...assetData,
+      id: newId,
+      costPrice: cost,
+      salvageValue: Number(assetData.salvageValue) || 0,
+      usefulLifeYears: Number(assetData.usefulLifeYears) || 5,
+      kraWearAndTearRate: Number(assetData.kraWearAndTearRate) || 0.125,
+      accumulatedDepreciation: 0,
+      bookValue: cost,
+      status: assetData.status || 'In Service'
+    };
+
+    setFixedAssets(prev => [newAsset, ...prev]);
+
+    // Double Entry Journal: Capitalize Fixed Asset
+    const jEntry: LedgerEntry = {
+      id: `LEDG-CAP-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString(),
+      transactionRef: `CAP-AST-${newId}`,
+      description: `Asset Capitalization: ${newAsset.name} (Tag: ${newAsset.assetTag})`,
+      debitAccount: 'Plant, Machinery, Fixtures & Equipment Asset',
+      creditAccount: 'Cash & Bank / Accounts Payable',
+      amount: cost,
+      locationId: newAsset.locationId,
+      category: 'Asset Purchase'
+    };
+    setLedger(prev => [jEntry, ...prev]);
+    recordAuditLog(
+      'Fixed Asset Capitalized',
+      `Capitalized asset ${newAsset.name} (${newAsset.assetTag}) Cost: KSh ${cost.toLocaleString()}`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      message: `Fixed asset "${newAsset.name}" capitalized successfully!`,
+      assetId: newId
+    };
+  };
+
+  const updateFixedAsset = (assetId: string, updates: Partial<FixedAsset>) => {
+    setFixedAssets(prev =>
+      prev.map(a => {
+        if (a.id !== assetId) return a;
+        const updated = { ...a, ...updates };
+        updated.bookValue = Math.max(0, updated.costPrice - (updated.accumulatedDepreciation || 0));
+        return updated;
+      })
+    );
+    recordAuditLog('Fixed Asset Updated', `Updated asset ${assetId}`);
+  };
+
+  const deleteFixedAsset = (assetId: string) => {
+    setFixedAssets(prev => prev.filter(a => a.id !== assetId));
+    recordAuditLog('Fixed Asset Removed', `Removed fixed asset ${assetId} from registry`);
+  };
+
+  const runMonthlyDepreciation = () => {
+    let totalDepreciation = 0;
+    let entriesPosted = 0;
+    const now = new Date();
+    const periodStr = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+    setFixedAssets(prev =>
+      prev.map(asset => {
+        if (asset.status !== 'In Service' && asset.status !== 'Under Maintenance') return asset;
+        const deprResult = calculateAssetMonthlyDepreciation(asset);
+        if (deprResult.monthlyAmount > 0) {
+          totalDepreciation += deprResult.monthlyAmount;
+          entriesPosted++;
+        }
+        return {
+          ...asset,
+          accumulatedDepreciation: deprResult.newAccumulated,
+          bookValue: deprResult.newBookValue,
+          lastDepreciationDate: now.toISOString().split('T')[0]
+        };
+      })
+    );
+
+    if (totalDepreciation > 0) {
+      const jEntry: LedgerEntry = {
+        id: `LEDG-DEP-${Date.now().toString().slice(-6)}`,
+        timestamp: new Date().toISOString(),
+        transactionRef: `DEP-RUN-${now.toISOString().slice(0, 7)}`,
+        description: `Monthly KRA Wear & Tear Depreciation (${periodStr}) across ${entriesPosted} assets`,
+        debitAccount: 'Depreciation & Amortization Expense (P&L)',
+        creditAccount: 'Accumulated Depreciation Allowance (Contra-Asset)',
+        amount: totalDepreciation,
+        locationId: activeLocation,
+        category: 'Expense'
+      };
+      setLedger(prev => [jEntry, ...prev]);
+    }
+
+    recordAuditLog(
+      'Monthly Depreciation Executed',
+      `Posted KSh ${totalDepreciation.toLocaleString()} depreciation across ${entriesPosted} fixed assets for ${periodStr}.`
+    );
+    playSuccessSound();
+
+    return {
+      success: true,
+      message: `Monthly depreciation of KSh ${totalDepreciation.toLocaleString()} posted to General Ledger!`,
+      totalDepreciation,
+      entriesPosted
+    };
   };
 
   // Deliveries Intake & Barcode Scanning State
@@ -3006,6 +3282,35 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setCart(prev =>
       prev.map(item => (item.batchId === batchId ? { ...item, quantity } : item))
+    );
+  };
+
+  const updateCartItemRollPricing = (
+    batchId: string,
+    options: {
+      looseDiscountPct?: number;
+      standardRollMeters?: number;
+      pricingMode?: 'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail' | 'custom';
+    }
+  ) => {
+    setCart(prev =>
+      prev.map(item => {
+        if (item.batchId !== batchId) return item;
+        const prod = products.find(p => p.id === batchId);
+        const wholesalePrice = prod?.unitPriceBulk || Math.round(item.unitPrice * 0.9);
+        const rollPricing = calculateRollPricing({
+          totalMeters: item.quantity,
+          retailPricePerMeter: item.unitPrice,
+          wholesalePricePerMeter: wholesalePrice,
+          standardRollMeters: options.standardRollMeters ?? (item.category === 'Fleece' ? 70 : 50),
+          looseDiscountPct: options.looseDiscountPct ?? 10,
+          pricingMode: options.pricingMode ?? 'hybrid_discounted_loose'
+        });
+        return {
+          ...item,
+          rollPricing
+        };
+      })
     );
   };
 
@@ -5463,6 +5768,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       coneTareWeightKg?: number;
       baleTareWeightKg?: number;
       autoDeductTareAtPOS?: boolean;
+      standardRollLengthMeters?: number;
+      looseMeterDiscountPct?: number;
+      enableHybridRollPricing?: boolean;
     }
   ) => {
     const matchingProducts = products.filter(p => p.category === category);
@@ -5715,7 +6023,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recordAuditLog('ETR Settings Updated', 'Updated company tax details / CU serial number');
   };
 
-  // PAYROLL GENERATION - 100% Dynamic Kenya Statutory Tax Engine (PAYE, NSSF, SHIF, Housing Levy)
+  // PAYROLL GENERATION - 100% Dynamic Kenya Statutory Tax Engine (PAYE, NSSF, SHIF, Housing Levy, Insurance & Housing Reliefs)
   const generateMonthlyPayroll = (monthYear: string) => {
     const newRecords: PayrollRecord[] = staff.map((s, idx) => {
       const gross = s.basicSalary + s.allowances;
@@ -5734,8 +6042,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         grossPay: gross,
         payeTax: statutory.payeTax,
         nssfDeduction: statutory.totalNssf,
+        nssfTier1: statutory.nssfTier1,
+        nssfTier2: statutory.nssfTier2,
+        nssfEmployer: statutory.totalNssfEmployer,
         nhifDeduction: statutory.shifDeduction,
         housingLevy: statutory.housingLevy,
+        housingLevyEmployer: statutory.housingLevyEmployer,
+        taxablePay: statutory.taxablePay,
+        grossPaye: statutory.grossPaye,
+        personalRelief: statutory.personalRelief,
+        insuranceRelief: statutory.insuranceRelief,
+        housingRelief: statutory.housingRelief,
         totalDeductions: statutory.totalDeductions,
         netPay: statutory.netPay,
         paymentStatus: 'Paid',
@@ -5744,7 +6061,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     setPayroll(prev => [...newRecords, ...prev]);
-    recordAuditLog('Payroll Processed', `Generated statutory monthly payroll for ${monthYear} covering ${staff.length} staff members.`);
+
+    // Double Entry Journal: Total Gross Salaries Expense, Payroll Liabilities & Cash/Bank
+    const totalGross = newRecords.reduce((acc, r) => acc + r.grossPay, 0);
+    const totalNetPay = newRecords.reduce((acc, r) => acc + r.netPay, 0);
+    const totalPaye = newRecords.reduce((acc, r) => acc + r.payeTax, 0);
+    const totalShif = newRecords.reduce((acc, r) => acc + r.nhifDeduction, 0);
+    const totalNssf = newRecords.reduce((acc, r) => acc + r.nssfDeduction, 0);
+    const totalHousing = newRecords.reduce((acc, r) => acc + r.housingLevy, 0);
+
+    const jEntry: LedgerEntry = {
+      id: `LEDG-PAY-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString(),
+      transactionRef: `PAY-${monthYear.replace(/\s+/g, '')}`,
+      description: `Monthly Payroll & Statutory Remittance (${monthYear}) for ${staff.length} staff: Gross KSh ${totalGross.toLocaleString()} (PAYE: ${totalPaye}, SHIF: ${totalShif}, NSSF: ${totalNssf}, Housing: ${totalHousing})`,
+      debitAccount: 'Salaries & Staff Wages Expense (P&L)',
+      creditAccount: 'Cash & Bank / Statutory Deductions Payable',
+      amount: totalGross,
+      locationId: activeLocation,
+      category: 'Payroll'
+    };
+    setLedger(prev => [jEntry, ...prev]);
+
+    recordAuditLog(
+      'Payroll Processed',
+      `Generated statutory monthly payroll for ${monthYear} covering ${staff.length} staff members. Total Net: KSh ${totalNetPay.toLocaleString()}`
+    );
+    playSuccessSound();
   };
 
   // STAFF ONBOARDING & PERSONNEL MANAGEMENT (Admin & HR)
@@ -6183,6 +6526,381 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Monthly Physical Stocktake & Inventory Audit
+  const [stocktakeSessions, setStocktakeSessions] = useState<StocktakeSession[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_stocktakes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading stocktakes from localStorage:', e);
+    }
+    return [];
+  });
+
+  const [activeStocktakeSessionId, setActiveStocktakeSessionId] = useState<string | null>(null);
+  const [isStocktakeModalOpen, setIsStocktakeModalOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_stocktakes', JSON.stringify(stocktakeSessions));
+    } catch (e) {
+      console.warn('Error saving stocktakes to localStorage:', e);
+    }
+  }, [stocktakeSessions]);
+
+  const activeStocktakeSession = stocktakeSessions.find(s => s.id === activeStocktakeSessionId) || stocktakeSessions[0] || null;
+  const setActiveStocktakeSession = (session: StocktakeSession | null) => {
+    setActiveStocktakeSessionId(session ? session.id : null);
+  };
+
+  const createStocktakeSession = (data: {
+    title: string;
+    locationId: LocationId | 'all';
+    period: string;
+    conductedBy: string;
+    auditorName?: string;
+    notes?: string;
+    categoryFilter?: CategoryType | 'all';
+  }): StocktakeSession => {
+    const locId = data.locationId;
+    const catFilter = data.categoryFilter || 'all';
+
+    const targetProducts = products.filter(p => {
+      if (catFilter !== 'all' && p.category !== catFilter) return false;
+      return true;
+    });
+
+    const items: StocktakeItem[] = targetProducts.map(p => {
+      let expectedQty = 0;
+      if (locId === 'all') {
+        expectedQty = (Object.values(p.locationStock || {}) as number[]).reduce((sum, q) => sum + (Number(q) || 0), 0);
+      } else {
+        expectedQty = Number(p.locationStock?.[locId]) || 0;
+      }
+
+      return {
+        productId: p.id,
+        productName: p.name,
+        sku: p.sku,
+        barcode: p.barcode,
+        category: p.category,
+        subCategory: p.subCategory,
+        unit: p.unit,
+        locationId: locId,
+        systemExpectedQty: expectedQty,
+        physicalCountedQty: null,
+        varianceQty: 0,
+        unitCost: p.costPrice || 0,
+        varianceValue: 0,
+        status: 'uncounted'
+      };
+    });
+
+    const totalSystemCost = items.reduce((sum, it) => sum + (it.systemExpectedQty * it.unitCost), 0);
+
+    const now = new Date();
+    const sessionCount = stocktakeSessions.length + 1;
+    const sessionNo = `STK-${data.period || now.toISOString().slice(0, 7)}-${String(sessionCount).padStart(2, '0')}`;
+
+    const newSession: StocktakeSession = {
+      id: `session-${Date.now()}`,
+      sessionNumber: sessionNo,
+      title: data.title || `${data.period || now.toISOString().slice(0, 7)} Monthly Stocktake`,
+      locationId: data.locationId,
+      period: data.period || now.toISOString().slice(0, 7),
+      status: 'draft',
+      startedAt: now.toISOString(),
+      conductedBy: data.conductedBy || currentUser.name || 'Store Auditor',
+      auditorName: data.auditorName || currentUser.name || 'Store Auditor',
+      notes: data.notes,
+      totalItems: items.length,
+      countedItems: 0,
+      matchedItems: 0,
+      surplusItems: 0,
+      deficitItems: 0,
+      uncountedItems: items.length,
+      totalSystemCostValue: totalSystemCost,
+      totalPhysicalCostValue: 0,
+      netVarianceCostValue: 0,
+      totalShrinkageValue: 0,
+      totalSurplusValue: 0,
+      items,
+      autoAdjustedInventory: false
+    };
+
+    setStocktakeSessions(prev => [newSession, ...prev]);
+    setActiveStocktakeSessionId(newSession.id);
+    recordAuditLog('Stocktake Session Started', `Initiated physical stock count session ${newSession.sessionNumber} for ${data.locationId} (${items.length} items)`);
+    playNotificationSound();
+
+    return newSession;
+  };
+
+  const updateStocktakeItemCount = (
+    sessionId: string,
+    productId: string,
+    countedQty: number,
+    notes?: string,
+    reason?: StocktakeDiscrepancyReason,
+    scaleWeightKg?: number
+  ) => {
+    setStocktakeSessions(prev => prev.map(session => {
+      if (session.id !== sessionId) return session;
+
+      const updatedItems = session.items.map(item => {
+        if (item.productId !== productId) return item;
+
+        const val = Number(countedQty);
+        const varianceQty = val - item.systemExpectedQty;
+        const varianceValue = varianceQty * item.unitCost;
+        const status: StocktakeItem['status'] = varianceQty === 0 ? 'matched' : varianceQty > 0 ? 'surplus' : 'deficit';
+
+        return {
+          ...item,
+          physicalCountedQty: val,
+          varianceQty,
+          varianceValue,
+          status,
+          notes: notes !== undefined ? notes : item.notes,
+          discrepancyReason: reason !== undefined ? reason : (varianceQty !== 0 ? (reason || item.discrepancyReason || 'Normal Measurement Variance') : undefined),
+          countedScaleWeightKg: scaleWeightKg !== undefined ? scaleWeightKg : item.countedScaleWeightKg,
+          countedAt: new Date().toISOString(),
+          countedBy: currentUser.name || 'Auditor'
+        };
+      });
+
+      // Recalculate session metrics
+      const countedList = updatedItems.filter(it => it.physicalCountedQty !== null);
+      const countedItems = countedList.length;
+      const matchedItems = updatedItems.filter(it => it.status === 'matched').length;
+      const surplusItems = updatedItems.filter(it => it.status === 'surplus').length;
+      const deficitItems = updatedItems.filter(it => it.status === 'deficit').length;
+      const uncountedItems = updatedItems.filter(it => it.status === 'uncounted').length;
+
+      const totalPhysicalCostValue = updatedItems.reduce((sum, it) => {
+        const qty = it.physicalCountedQty !== null ? it.physicalCountedQty : it.systemExpectedQty;
+        return sum + (qty * it.unitCost);
+      }, 0);
+
+      const netVarianceCostValue = updatedItems.reduce((sum, it) => {
+        return it.physicalCountedQty !== null ? sum + it.varianceValue : sum;
+      }, 0);
+
+      const totalShrinkageValue = updatedItems
+        .filter(it => it.status === 'deficit')
+        .reduce((sum, it) => sum + Math.abs(it.varianceValue), 0);
+
+      const totalSurplusValue = updatedItems
+        .filter(it => it.status === 'surplus')
+        .reduce((sum, it) => sum + it.varianceValue, 0);
+
+      const newStatus: StocktakeStatus = uncountedItems === 0 ? 'completed' : 'in_progress';
+
+      return {
+        ...session,
+        items: updatedItems,
+        countedItems,
+        matchedItems,
+        surplusItems,
+        deficitItems,
+        uncountedItems,
+        totalPhysicalCostValue,
+        netVarianceCostValue,
+        totalShrinkageValue,
+        totalSurplusValue,
+        status: session.status === 'reconciled' ? 'reconciled' : newStatus
+      };
+    }));
+
+    playBarcodeScanBeep(true);
+  };
+
+  const bulkUpdateStocktakeItems = (
+    sessionId: string,
+    updates: {
+      productId: string;
+      countedQty: number;
+      notes?: string;
+      reason?: StocktakeDiscrepancyReason;
+    }[]
+  ) => {
+    setStocktakeSessions(prev => prev.map(session => {
+      if (session.id !== sessionId) return session;
+
+      const updateMap = new Map(updates.map(u => [u.productId, u]));
+
+      const updatedItems = session.items.map(item => {
+        const update = updateMap.get(item.productId);
+        if (!update) return item;
+
+        const val = Number(update.countedQty);
+        const varianceQty = val - item.systemExpectedQty;
+        const varianceValue = varianceQty * item.unitCost;
+        const status: StocktakeItem['status'] = varianceQty === 0 ? 'matched' : varianceQty > 0 ? 'surplus' : 'deficit';
+
+        return {
+          ...item,
+          physicalCountedQty: val,
+          varianceQty,
+          varianceValue,
+          status,
+          notes: update.notes !== undefined ? update.notes : item.notes,
+          discrepancyReason: update.reason !== undefined ? update.reason : (varianceQty !== 0 ? (update.reason || item.discrepancyReason || 'Normal Measurement Variance') : undefined),
+          countedAt: new Date().toISOString(),
+          countedBy: currentUser.name || 'Auditor'
+        };
+      });
+
+      const countedList = updatedItems.filter(it => it.physicalCountedQty !== null);
+      const countedItems = countedList.length;
+      const matchedItems = updatedItems.filter(it => it.status === 'matched').length;
+      const surplusItems = updatedItems.filter(it => it.status === 'surplus').length;
+      const deficitItems = updatedItems.filter(it => it.status === 'deficit').length;
+      const uncountedItems = updatedItems.filter(it => it.status === 'uncounted').length;
+
+      const totalPhysicalCostValue = updatedItems.reduce((sum, it) => {
+        const qty = it.physicalCountedQty !== null ? it.physicalCountedQty : it.systemExpectedQty;
+        return sum + (qty * it.unitCost);
+      }, 0);
+
+      const netVarianceCostValue = updatedItems.reduce((sum, it) => {
+        return it.physicalCountedQty !== null ? sum + it.varianceValue : sum;
+      }, 0);
+
+      const totalShrinkageValue = updatedItems
+        .filter(it => it.status === 'deficit')
+        .reduce((sum, it) => sum + Math.abs(it.varianceValue), 0);
+
+      const totalSurplusValue = updatedItems
+        .filter(it => it.status === 'surplus')
+        .reduce((sum, it) => sum + it.varianceValue, 0);
+
+      const newStatus: StocktakeStatus = uncountedItems === 0 ? 'completed' : 'in_progress';
+
+      return {
+        ...session,
+        items: updatedItems,
+        countedItems,
+        matchedItems,
+        surplusItems,
+        deficitItems,
+        uncountedItems,
+        totalPhysicalCostValue,
+        netVarianceCostValue,
+        totalShrinkageValue,
+        totalSurplusValue,
+        status: session.status === 'reconciled' ? 'reconciled' : newStatus
+      };
+    }));
+
+    playSuccessSound();
+  };
+
+  const finalizeAndReconcileStocktake = async (
+    sessionId: string,
+    autoPostJournal: boolean = true
+  ): Promise<{ success: boolean; message: string; session?: StocktakeSession; journalRef?: string }> => {
+    const session = stocktakeSessions.find(s => s.id === sessionId);
+    if (!session) {
+      return { success: false, message: 'Stocktake session not found.' };
+    }
+
+    // 1. Update Product Inventory Stock
+    const locId = session.locationId;
+    setProducts(prev => prev.map(p => {
+      const countedItem = session.items.find(i => i.productId === p.id);
+      if (!countedItem || countedItem.physicalCountedQty === null) return p;
+
+      const currentLocStock = { ...(p.locationStock || {}) };
+      if (locId === 'all') {
+        currentLocStock.main_store = countedItem.physicalCountedQty;
+      } else {
+        currentLocStock[locId] = countedItem.physicalCountedQty;
+      }
+
+      return {
+        ...p,
+        locationStock: currentLocStock
+      };
+    }));
+
+    // 2. Post Journal Entry to General Ledger if there is financial variance
+    let journalRef: string | undefined;
+    if (autoPostJournal && Math.abs(session.netVarianceCostValue) > 0.01) {
+      const isDeficit = session.netVarianceCostValue < 0;
+      const absAmount = Math.abs(session.netVarianceCostValue);
+
+      journalRef = `JV-STK-${Date.now()}`;
+
+      const entryLoc: LocationId = session.locationId === 'all' ? 'sales_shop' : session.locationId;
+      if (isDeficit) {
+        addLedgerEntry({
+          transactionRef: session.sessionNumber,
+          description: `Inventory Physical Count Shrinkage & Loss Write-Off (${session.sessionNumber} - ${session.period})`,
+          debitAccount: 'Inventory Shrinkage, Wastage & Deficit Expense',
+          creditAccount: 'Finished Goods & Raw Materials Inventory',
+          amount: absAmount,
+          locationId: entryLoc,
+          category: 'Inventory Variance'
+        });
+      } else {
+        addLedgerEntry({
+          transactionRef: session.sessionNumber,
+          description: `Inventory Physical Count Revaluation & Stock Surplus Gain (${session.sessionNumber} - ${session.period})`,
+          debitAccount: 'Finished Goods & Raw Materials Inventory',
+          creditAccount: 'Inventory Revaluation & Stock Surplus Gain',
+          amount: absAmount,
+          locationId: entryLoc,
+          category: 'Inventory Revaluation'
+        });
+      }
+    }
+
+    // 3. Mark session as reconciled
+    const completedAt = new Date().toISOString();
+    let updatedSession: StocktakeSession | undefined;
+
+    setStocktakeSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+      updatedSession = {
+        ...s,
+        status: 'reconciled',
+        completedAt,
+        approvedBy: currentUser.name || 'Financial Controller',
+        journalEntryRef: journalRef,
+        autoAdjustedInventory: true
+      };
+      return updatedSession;
+    }));
+
+    recordAuditLog(
+      'Stocktake Reconciled & Applied',
+      `Completed and reconciled monthly stocktake ${session.sessionNumber}. Live inventory updated. Net variance: KSh ${session.netVarianceCostValue.toLocaleString()} (${journalRef || 'No JV needed'}).`
+    );
+
+    playSuccessSound();
+
+    return {
+      success: true,
+      message: `Stocktake ${session.sessionNumber} successfully finalized! Inventory stock balances adjusted and accounting journal posted.`,
+      session: updatedSession,
+      journalRef
+    };
+  };
+
+  const deleteStocktakeSession = (sessionId: string) => {
+    setStocktakeSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeStocktakeSessionId === sessionId) {
+      setActiveStocktakeSessionId(null);
+    }
+    recordAuditLog('Stocktake Session Deleted', `Removed stock count session ID ${sessionId}`);
+  };
+
   return (
     <ERPContext.Provider
       value={{
@@ -6221,6 +6939,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addToCart,
         removeFromCart,
         updateCartQuantity,
+        updateCartItemRollPricing,
         clearCart,
         heldCarts,
         holdCurrentCart,
@@ -6285,6 +7004,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         whtRecords,
         addWithholdingTaxRecord,
         settleWithholdingTaxRecord,
+        inputVatClaims,
+        addInputVatClaim,
+        deleteInputVatClaim,
+        fixedAssets,
+        addFixedAsset,
+        updateFixedAsset,
+        deleteFixedAsset,
+        runMonthlyDepreciation,
         selectedReceipt,
         setSelectedReceipt,
         locations,
@@ -6359,7 +7086,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fulfillForwardReservation,
         cancelForwardReservation,
         isForwardReservationsModalOpen,
-        setIsForwardReservationsModalOpen
+        setIsForwardReservationsModalOpen,
+        stocktakeSessions,
+        activeStocktakeSession,
+        setActiveStocktakeSession,
+        isStocktakeModalOpen,
+        setIsStocktakeModalOpen,
+        createStocktakeSession,
+        updateStocktakeItemCount,
+        bulkUpdateStocktakeItems,
+        finalizeAndReconcileStocktake,
+        deleteStocktakeSession
       }}
     >
       {children}

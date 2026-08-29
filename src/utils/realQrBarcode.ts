@@ -2,133 +2,76 @@ import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
 import { ProductBatch } from '../types';
 
-// In-memory cache for rendered QR data URLs to ensure snappy instant rendering
-const qrCodeCache = new Map<string, string>();
-const barcodeCache = new Map<string, string>();
-
-/**
- * Builds standard, scannable QR payload for a textile product batch.
- * Can be decoded by standard phone cameras, POS scanners, and in-app scanners.
- */
-export function buildProductQRPayload(product: ProductBatch): string {
-  if (product.qrCodeData) {
-    return product.qrCodeData;
-  }
-  return JSON.stringify({
-    app: 'TAJI-ERP',
-    batch: product.id,
-    sku: product.sku,
-    barcode: product.barcode || product.sku,
-    name: product.name,
-    cat: product.category,
-    color: product.colorName,
-    unitPrice: product.unitPriceRetail,
-    unit: product.unit
-  });
+export interface BarcodeRenderOptions {
+  format?: string;
+  width?: number;
+  height?: number;
+  displayValue?: boolean;
+  fontSize?: number;
+  margin?: number;
+  background?: string;
+  lineColor?: string;
 }
 
-/**
- * Generates an authentic, scan-compliant QR Code PNG data URL using standard Reed-Solomon encoding.
- */
 export async function generateRealQRCodeDataURL(
-  payload: string | ProductBatch,
-  options?: {
-    width?: number;
-    margin?: number;
-    darkColor?: string;
-    lightColor?: string;
-    errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';
-  }
+  text: string,
+  options?: QRCode.QRCodeToDataURLOptions
 ): Promise<string> {
-  const text = typeof payload === 'string' ? payload : buildProductQRPayload(payload);
-  const cacheKey = `${text}_${options?.width || 256}_${options?.darkColor || '#000000'}_${options?.lightColor || '#FFFFFF'}_${options?.errorCorrectionLevel || 'M'}`;
-
-  if (qrCodeCache.has(cacheKey)) {
-    return qrCodeCache.get(cacheKey)!;
-  }
-
   try {
-    const dataUrl = await QRCode.toDataURL(text, {
-      errorCorrectionLevel: options?.errorCorrectionLevel || 'M',
+    return await QRCode.toDataURL(text, {
+      width: options?.width || 256,
       margin: options?.margin ?? 2,
-      width: options?.width ?? 256,
-      color: {
-        dark: options?.darkColor || '#000000',
-        light: options?.lightColor || '#FFFFFF'
+      errorCorrectionLevel: options?.errorCorrectionLevel || 'M',
+      color: options?.color || {
+        dark: '#000000',
+        light: '#ffffff'
       }
     });
-
-    qrCodeCache.set(cacheKey, dataUrl);
-    return dataUrl;
   } catch (err) {
-    console.error('Failed to generate authentic QR code:', err);
-    // Fallback simple QR generation for direct SKU/text
+    console.error('Failed to generate real QR Code Data URL:', err);
     return '';
   }
 }
 
-/**
- * Generates an authentic, scan-compliant 1D Code-128 / EAN barcode PNG data URL using JsBarcode.
- */
 export function generateRealBarcodeDataURL(
-  code: string,
-  options?: {
-    format?: 'CODE128' | 'EAN13' | 'CODE39' | 'ITF' | 'pharmacode';
-    width?: number;
-    height?: number;
-    displayValue?: boolean;
-    fontSize?: number;
-    lineColor?: string;
-    background?: string;
-    margin?: number;
-  }
+  text: string,
+  options?: BarcodeRenderOptions
 ): string {
-  const cleanCode = (code || 'SKU-0000').trim().toUpperCase();
-  const format = options?.format || 'CODE128';
-  const cacheKey = `${cleanCode}_${format}_${options?.width || 2}_${options?.height || 50}_${options?.displayValue !== false}_${options?.fontSize || 12}`;
-
-  if (barcodeCache.has(cacheKey)) {
-    return barcodeCache.get(cacheKey)!;
-  }
-
   try {
+    if (typeof document === 'undefined') return '';
     const canvas = document.createElement('canvas');
-    JsBarcode(canvas, cleanCode, {
-      format: format,
-      width: options?.width ?? 2,
-      height: options?.height ?? 50,
+    JsBarcode(canvas, text, {
+      format: (options?.format as any) || 'CODE128',
+      width: options?.width || 2,
+      height: options?.height || 50,
       displayValue: options?.displayValue ?? true,
-      font: 'monospace',
-      fontSize: options?.fontSize ?? 13,
-      textAlign: 'center',
-      textPosition: 'bottom',
-      textMargin: 3,
-      background: options?.background || '#FFFFFF',
-      lineColor: options?.lineColor || '#000000',
-      margin: options?.margin ?? 6
+      fontSize: options?.fontSize || 12,
+      margin: options?.margin ?? 10,
+      background: options?.background || '#ffffff',
+      lineColor: options?.lineColor || '#000000'
     });
-
-    const dataUrl = canvas.toDataURL('image/png');
-    barcodeCache.set(cacheKey, dataUrl);
-    return dataUrl;
+    return canvas.toDataURL('image/png');
   } catch (err) {
-    console.warn(`JsBarcode failed for format ${format} with code "${cleanCode}", falling back to CODE128:`, err);
-    try {
-      const canvas = document.createElement('canvas');
-      JsBarcode(canvas, cleanCode, {
-        format: 'CODE128',
-        width: options?.width ?? 2,
-        height: options?.height ?? 50,
-        displayValue: options?.displayValue ?? true,
-        background: '#FFFFFF',
-        lineColor: '#000000'
-      });
-      const dataUrl = canvas.toDataURL('image/png');
-      barcodeCache.set(cacheKey, dataUrl);
-      return dataUrl;
-    } catch (e2) {
-      console.error('Final fallback barcode creation failed:', e2);
-      return '';
-    }
+    console.error('Failed to generate real Barcode Data URL:', err);
+    return '';
   }
+}
+
+export function buildProductQRPayload(product: ProductBatch): string {
+  const payloadObj = {
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    category: product.category,
+    colorName: product.colorName,
+    unit: product.unit,
+    priceRetail: product.unitPriceRetail,
+    priceBulk: product.unitPriceBulk,
+    barcode: product.barcode,
+    shadeCode: product.shadeCode,
+    dyeLot: product.dyeLot,
+    yarnCount: product.yarnCount,
+    bagNumber: product.bagNumber
+  };
+  return JSON.stringify(payloadObj);
 }

@@ -118,6 +118,9 @@ export interface CategoryPricingConfig {
   coneTareWeightKg?: number; // e.g. 0.070 kg (70g plastic / paper spool tare)
   baleTareWeightKg?: number; // e.g. 0.840 kg (outer bag tare)
   autoDeductTareAtPOS?: boolean; // Enable auto-deduction on scale input
+  standardRollLengthMeters?: number; // e.g. 70m for Fleece, 50m for Dereck
+  looseMeterDiscountPct?: number; // e.g. 10% discount on loose cuts
+  enableHybridRollPricing?: boolean; // Enable option 1 roll & loose split
   lastUpdated?: string;
   updatedBy?: string;
 }
@@ -404,6 +407,22 @@ export interface UserProfile {
   lastLoginAt?: string;
 }
 
+export interface CartItemRollPricing {
+  isHybridApplied: boolean;
+  pricingMode: 'hybrid_discounted_loose' | 'all_wholesale' | 'all_retail' | 'custom';
+  fullRollsCount: number;
+  fullRollMeters: number;
+  fullRollsSubtotal: number;
+  wholesaleRatePerMeter: number;
+  looseMeters: number;
+  discountedLooseRatePerMeter: number;
+  looseDiscountPct: number;
+  looseMetersSubtotal: number;
+  standardRollMeters: number;
+  savingsAmount: number;
+  totalPrice: number;
+}
+
 export interface POSCartItem {
   batchId: string;
   productName: string;
@@ -427,6 +446,7 @@ export interface POSCartItem {
   bagNumber?: string;
   isFullBag?: boolean;
   conesCount?: number;
+  rollPricing?: CartItemRollPricing;
 }
 
 export type OrderStatus = 
@@ -610,6 +630,8 @@ export type LedgerCategory =
   | 'Withholding Tax 5%'
   | 'Inventory Revaluation' 
   | 'Expense'
+  | 'Payroll'
+  | 'Depreciation'
   | 'General Journal Voucher'
   | 'Asset Purchase'
   | 'Expense Payment'
@@ -676,14 +698,66 @@ export interface PayrollRecord {
   basicSalary: number;
   allowances: number;
   grossPay: number;
-  payeTax: number; // KRA PAYE calculation
+  payeTax: number; // Net KRA PAYE calculation after all allowable reliefs
   nssfDeduction: number;
-  nhifDeduction: number;
-  housingLevy: number; // 1.5% Housing levy
+  nssfTier1?: number;
+  nssfTier2?: number;
+  nssfEmployer?: number;
+  nhifDeduction: number; // SHIF 2.75%
+  housingLevy: number; // 1.5% Housing levy (employee)
+  housingLevyEmployer?: number; // 1.5% Housing levy (employer)
+  taxablePay?: number;
+  grossPaye?: number;
+  personalRelief?: number; // KSh 2,400 monthly statutory relief
+  insuranceRelief?: number; // 15% of SHIF (max KSh 5,000)
+  housingRelief?: number; // 15% of Housing Levy (max KSh 9,000)
   totalDeductions: number;
   netPay: number;
   paymentStatus: 'Paid' | 'Pending';
   generatedAt: string;
+}
+
+export type FixedAssetCategory =
+  | 'plant_machinery_looms'
+  | 'computers_it_hardware'
+  | 'motor_vehicles'
+  | 'furniture_office_fittings'
+  | 'store_pos_terminals_scales';
+
+export interface FixedAsset {
+  id: string;
+  assetTag: string; // e.g. "TAJI-EQ-001"
+  name: string;
+  category: FixedAssetCategory;
+  purchaseDate: string;
+  costPrice: number;
+  salvageValue: number;
+  usefulLifeYears: number;
+  kraWearAndTearRate: number; // e.g. 0.25 for computers, 0.125 for fittings, 0.10 for looms
+  depreciationMethod: 'straight_line' | 'reducing_balance';
+  locationId: LocationId;
+  serialNumber?: string;
+  vendorName?: string;
+  accumulatedDepreciation: number;
+  bookValue: number;
+  lastDepreciationDate?: string;
+  status: 'In Service' | 'Under Maintenance' | 'Disposed' | 'Written Off';
+}
+
+export interface MpesaStatementItem {
+  id: string;
+  receiptNo: string;
+  completionTime: string;
+  details: string;
+  otherPartyInfo: string;
+  paidIn: number;
+  withdrawn: number;
+  balance: number;
+  tariffFee: number;
+  matchedOrderId?: string;
+  matchStatus: 'MATCHED' | 'UNMATCHED_IN_POS' | 'UNMATCHED_IN_STATEMENT' | 'VARIANCE';
+  varianceAmount?: number;
+  notes?: string;
 }
 
 export interface ETRConfig {
@@ -1234,3 +1308,67 @@ export interface ReturnExchangePayload {
   supplierName?: string;
 }
 
+// Monthly Physical Stocktake & Inventory Audit Types
+export type StocktakeStatus = 'draft' | 'in_progress' | 'completed' | 'reconciled';
+
+export type StocktakeDiscrepancyReason =
+  | 'Cut-off defect'
+  | 'Fabric off-cut shrinkage'
+  | 'Damaged / Water Stain'
+  | 'Misplaced Shelf'
+  | 'Theft / Unaccounted Shrinkage'
+  | 'Direct Sale Untracked'
+  | 'Tare / Scale Calibration'
+  | 'Normal Measurement Variance'
+  | 'Other Discrepancy';
+
+export interface StocktakeItem {
+  productId: string;
+  productName: string;
+  sku: string;
+  barcode?: string;
+  category: CategoryType;
+  subCategory?: string;
+  unit: UnitType;
+  locationId: LocationId;
+  systemExpectedQty: number;
+  physicalCountedQty: number | null;
+  varianceQty: number; // physicalCountedQty - systemExpectedQty (0 when uncounted)
+  unitCost: number;
+  varianceValue: number; // varianceQty * unitCost
+  countedScaleWeightKg?: number;
+  status: 'uncounted' | 'matched' | 'surplus' | 'deficit';
+  discrepancyReason?: StocktakeDiscrepancyReason;
+  notes?: string;
+  countedAt?: string;
+  countedBy?: string;
+}
+
+export interface StocktakeSession {
+  id: string;
+  sessionNumber: string; // e.g. "STK-2026-08-01"
+  title: string; // e.g. "August 2026 Monthly Physical Inventory Count"
+  locationId: LocationId | 'all';
+  period: string; // e.g. "2026-08"
+  status: StocktakeStatus;
+  startedAt: string;
+  completedAt?: string;
+  conductedBy: string;
+  auditorName?: string;
+  approvedBy?: string;
+  totalItems: number;
+  countedItems: number;
+  matchedItems: number;
+  surplusItems: number;
+  deficitItems: number;
+  uncountedItems: number;
+  totalSystemCostValue: number;
+  totalPhysicalCostValue: number;
+  netVarianceCostValue: number;
+  totalShrinkageValue: number;
+  totalSurplusValue: number;
+  items: StocktakeItem[];
+  journalEntryRef?: string;
+  notes?: string;
+  autoAdjustedInventory?: boolean;
+}
