@@ -85,6 +85,22 @@
     "/brand_settings/{settingsId}": {
       "schema": "BrandSettings",
       "description": "Store layout, color theme, and header branding"
+    },
+    "/system_settings/{settingId}": {
+      "schema": "BrandSettings",
+      "description": "System-level settings including stock alert thresholds and notifications"
+    },
+    "/category_images/{imageId}": {
+      "schema": "BrandSettings",
+      "description": "Category visual images and assets"
+    },
+    "/category_pricing/{categoryId}": {
+      "schema": "BrandSettings",
+      "description": "Category pricing rates and margin settings"
+    },
+    "/category_pricing_configs/{categoryId}": {
+      "schema": "BrandSettings",
+      "description": "Category pricing configuration details"
     }
   }
 }
