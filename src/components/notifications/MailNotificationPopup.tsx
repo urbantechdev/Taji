@@ -63,7 +63,7 @@ export const MailNotificationPopup: React.FC = () => {
   const handleAction = () => {
     playSuccessSound();
     triggerFadeAndComplete(() => {
-      markNotificationRead(notif.id);
+      markNotificationRead(notif.id, isPurchase ? 'Accepted & Processed' : 'Stock Received');
       if (notif.transferType === 'order_fulfillment_reroute') {
         acceptPurchaseOrder(notif.transferId, 'M-Pesa');
       } else {
@@ -75,15 +75,15 @@ export const MailNotificationPopup: React.FC = () => {
   const handleResumeInPOS = () => {
     playClickSound();
     triggerFadeAndComplete(() => {
-      markNotificationRead(notif.id);
+      markNotificationRead(notif.id, 'Resumed in POS Checkout');
       resumeTransferredSaleToCart(notif.transferId);
     }, 'Resuming Sale in POS Counter...');
   };
 
   const handleDismiss = () => {
     triggerFadeAndComplete(() => {
-      markNotificationRead(notif.id);
-    }, 'Notification Read & Closed');
+      markNotificationRead(notif.id, 'Dismissed & Moved to History');
+    }, 'Moved to History ✓');
   };
 
   return (

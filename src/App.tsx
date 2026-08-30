@@ -114,7 +114,7 @@ const ERPContent: React.FC = () => {
   const isPosView = appMode === 'pos' && isTabAllowedForRole(currentUser.role, 'pos');
 
   return (
-    <div className="h-screen max-h-screen w-full bg-slate-50/80 font-sans text-slate-800 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900 overflow-hidden">
+    <div className="min-h-[100dvh] h-[100dvh] max-h-[100dvh] w-full max-w-[100vw] bg-slate-50/80 font-sans text-slate-800 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900 overflow-hidden relative">
       
       {/* Top Header Bar (Stationary at top) */}
       <Header activeTab={effectiveTab} setActiveTab={setActiveTab} />
@@ -122,43 +122,37 @@ const ERPContent: React.FC = () => {
       {/* Main Workspace Body (Stationary Sidebar + Scrollable Body) */}
       <div className="flex-1 flex flex-row overflow-hidden w-full min-h-0 relative">
         
-        {/* Navigation Sidebar (Stationary left column for Admin & Managers in admin mode) */}
-        {isAdmin && appMode === 'admin' && (
+        {/* Navigation Sidebar (Stationary left column for users with multiple allowed tabs when not on full POS checkout) */}
+        {effectiveTab !== 'pos' && roleAllowedTabs.length > 1 && (
           <Sidebar activeTab={effectiveTab} setActiveTab={setActiveTab} />
         )}
 
         {/* Dynamic View Area (The only area that scrolls up and down) */}
-        <div className="flex-1 h-full overflow-y-auto overflow-x-hidden min-h-0 flex flex-col justify-between">
-          <main className="p-3 sm:p-5 md:p-6 lg:p-8 max-w-[1680px] mx-auto w-full space-y-6 pb-28 md:pb-36 lg:pb-40">
+        <div className="flex-1 h-full overflow-y-auto overflow-x-hidden min-h-0 flex flex-col justify-between responsive-table-container">
+          <main className="p-2 sm:p-4 md:p-6 lg:p-8 max-w-[1920px] 2xl:max-w-[2200px] mx-auto w-full space-y-4 sm:space-y-6 pb-28 sm:pb-32 md:pb-36 lg:pb-40">
             <AnimatePresence mode="wait">
               <motion.div
-                key={isPosView ? 'pos-view' : effectiveTab}
+                key={effectiveTab}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 className="space-y-6"
               >
-                {isPosView ? (
-                  <POSModule />
-                ) : (
-                  <>
-                    {effectiveTab === 'dashboard' && <AdminDashboard />}
-                    {effectiveTab === 'sales_today' && <TodaySalesView />}
-                    {effectiveTab === 'branches' && <BranchManagementModule />}
-                    {effectiveTab === 'pos' && <POSModule />}
-                    {effectiveTab === 'catalog' && <InventoryCatalog />}
-                    {effectiveTab === 'transfers' && <InterStoreTransfers />}
-                    {effectiveTab === 'ledger' && <AccountingLedger />}
-                    {effectiveTab === 'etr' && <ETRModule />}
-                    {effectiveTab === 'payroll' && <HRPayrollModule />}
-                    {effectiveTab === 'operators' && <POSOperatorManager />}
-                    {effectiveTab === 'audit' && <AuditLogsModule />}
-                    {effectiveTab === 'gmail' && <GmailInbox />}
-                    {effectiveTab === 'settings' && <SettingsModule />}
-                    {effectiveTab === 'guide' && <UserGuideModule onNavigateToTab={setActiveTab} />}
-                  </>
-                )}
+                {effectiveTab === 'dashboard' && <AdminDashboard />}
+                {effectiveTab === 'sales_today' && <TodaySalesView />}
+                {effectiveTab === 'branches' && <BranchManagementModule />}
+                {effectiveTab === 'pos' && <POSModule />}
+                {effectiveTab === 'catalog' && <InventoryCatalog />}
+                {effectiveTab === 'transfers' && <InterStoreTransfers />}
+                {effectiveTab === 'ledger' && <AccountingLedger />}
+                {effectiveTab === 'etr' && <ETRModule />}
+                {effectiveTab === 'payroll' && <HRPayrollModule />}
+                {effectiveTab === 'operators' && <POSOperatorManager />}
+                {effectiveTab === 'audit' && <AuditLogsModule />}
+                {effectiveTab === 'gmail' && <GmailInbox />}
+                {effectiveTab === 'settings' && <SettingsModule />}
+                {effectiveTab === 'guide' && <UserGuideModule onNavigateToTab={setActiveTab} />}
               </motion.div>
             </AnimatePresence>
           </main>

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Lock, Delete, Sparkles, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Store } from 'lucide-react';
+import { Lock, Delete, Sparkles, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Store, Keyboard } from 'lucide-react';
 import { LocationId } from '../../types';
 
 export const POSPinModal: React.FC = () => {
@@ -8,6 +8,40 @@ export const POSPinModal: React.FC = () => {
   const [pin, setPin] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus on mount
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Global physical keyboard listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClear();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (pin.length === 6) {
+          attemptUnlock(pin);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [pin]);
 
   const handleDigit = (digit: string) => {
     if (pin.length < 6) {
@@ -122,23 +156,56 @@ export const POSPinModal: React.FC = () => {
           </div>
         )}
 
-        {/* PIN Dots display */}
-        <div className="flex items-center justify-center gap-2 sm:gap-3 py-1 sm:py-2">
-          {[0, 1, 2, 3, 4, 5].map((index) => {
-            const hasDigit = pin.length > index;
-            return (
-              <div
-                key={index}
-                className={`w-8 h-10 sm:w-10 sm:h-12 rounded-xl sm:rounded-2xl border-2 flex items-center justify-center text-lg sm:text-xl font-bold transition-all ${
-                  hasDigit
-                    ? 'border-slate-900 bg-slate-900 text-white scale-105 shadow-md'
-                    : 'border-slate-200 bg-slate-50 text-slate-400'
-                }`}
-              >
-                {hasDigit ? '•' : ''}
-              </div>
-            );
-          })}
+        {/* PIN Dots display & Hidden keyboard input */}
+        <div 
+          onClick={() => inputRef.current?.focus()}
+          className="space-y-2 text-center cursor-pointer group"
+          title="Click anywhere here or use your keyboard to type the PIN"
+        >
+          <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold text-slate-600">
+            <Keyboard className="w-3.5 h-3.5 text-rose-600" />
+            <span>Enter 6-Digit Passcode</span>
+          </div>
+          <p className="text-[10px] text-slate-400 font-medium">Type with physical keyboard or click numeric keypad below</p>
+
+          {/* Hidden input to ensure soft keyboard on touch and direct focus capture */}
+          <input
+            ref={inputRef}
+            type="password"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={6}
+            value={pin}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+              setPin(val);
+              setErrorMessage(null);
+              if (val.length === 6) {
+                attemptUnlock(val);
+              }
+            }}
+            className="opacity-0 absolute -z-10 pointer-events-none w-0 h-0"
+            aria-label="Cashier PIN Passcode"
+            autoFocus
+          />
+
+          <div className="flex items-center justify-center gap-2 sm:gap-3 py-1">
+            {[0, 1, 2, 3, 4, 5].map((index) => {
+              const hasDigit = pin.length > index;
+              return (
+                <div
+                  key={index}
+                  className={`w-8 h-10 sm:w-10 sm:h-12 rounded-xl sm:rounded-2xl border-2 flex items-center justify-center text-lg sm:text-xl font-bold transition-all ${
+                    hasDigit
+                      ? 'border-slate-900 bg-slate-900 text-white scale-105 shadow-md'
+                      : 'border-slate-200 bg-slate-50 text-slate-400 group-hover:border-rose-300'
+                  }`}
+                >
+                  {hasDigit ? '•' : ''}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Numeric Keypad Grid */}

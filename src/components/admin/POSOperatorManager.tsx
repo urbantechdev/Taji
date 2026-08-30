@@ -40,6 +40,7 @@ export const POSOperatorManager: React.FC = () => {
     isSuperAdmin,
     adminUser,
     unlockPOSWithPin,
+    loginAsOperator,
     posSession,
     locations,
     currentUser
@@ -344,18 +345,37 @@ export const POSOperatorManager: React.FC = () => {
 
         {testResult && (
           <div
-            className={`p-3 rounded-2xl text-xs font-bold border flex items-center gap-2 ${
+            className={`p-3 rounded-2xl text-xs font-bold border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
               testResult.success
                 ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
                 : 'bg-rose-950/80 border-rose-500/50 text-rose-200'
             }`}
           >
-            {testResult.success ? (
-              <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-            ) : (
-              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+            <div className="flex items-center gap-2">
+              {testResult.success ? (
+                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+              )}
+              <span>{testResult.message}</span>
+            </div>
+
+            {testResult.operator && (
+              <button
+                type="button"
+                onClick={() => {
+                  const res = loginAsOperator(testResult.operator!);
+                  setStatusMessage({
+                    type: res.success ? 'success' : 'error',
+                    text: res.message
+                  });
+                }}
+                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Activate Session for {testResult.operator.name}</span>
+              </button>
             )}
-            <span>{testResult.message}</span>
           </div>
         )}
       </div>
@@ -454,7 +474,24 @@ export const POSOperatorManager: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
+                    {!isCurrentlyActiveSession && op.status !== 'inactive' && (
+                      <button
+                        onClick={() => {
+                          const res = loginAsOperator(op);
+                          setStatusMessage({
+                            type: res.success ? 'success' : 'error',
+                            text: res.message
+                          });
+                        }}
+                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
+                        title={`Activate session as ${op.name} (${roleMeta.shortLabel})`}
+                      >
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Switch to Role</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => openEditModal(op)}
                       className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-white rounded-lg transition-all cursor-pointer border border-transparent hover:border-slate-200"
@@ -627,25 +664,99 @@ export const POSOperatorManager: React.FC = () => {
                 </select>
               </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">Separated User Role</label>
+              <div className="sm:col-span-2 space-y-2">
+                <label className="block text-xs font-bold text-slate-700">Assigned Operational Role</label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-rose-500 focus:outline-none cursor-pointer"
                 >
-                  <option value="admin">Super Administrator (Master Authority)</option>
-                  <option value="branch_manager">Autonomous Branch Manager (Petty Cash &amp; Branch Ops)</option>
-                  <option value="accountant">Finance Manager &amp; Tax Auditor (3-Statement Books)</option>
-                  <option value="sales_shop_cashier">Retail POS Cashier (POS &amp; Invoicing)</option>
-                  <option value="branch_cashier">Branch POS Cashier (Branch Desks)</option>
-                  <option value="main_store_operator">Main Store &amp; Central Warehouse Operator</option>
-                  <option value="store_1_attendant">Store 1 Transfer Node Attendant</option>
-                  <option value="store_2_attendant">Store 2 Transfer Node Attendant</option>
+                  {Object.keys(ROLE_DEFINITIONS).map(r => (
+                    <option key={r} value={r}>
+                      {ROLE_DEFINITIONS[r as UserRole].title} ({ROLE_DEFINITIONS[r as UserRole].shortLabel})
+                    </option>
+                  ))}
                 </select>
-                <p className="text-[11px] text-slate-500 mt-1.5">
-                  {ROLE_DEFINITIONS[role]?.description}
-                </p>
+
+                {/* Interactive Live Role Scope & Permissions Inspector */}
+                {(() => {
+                  const meta = getRoleMetadata(role);
+                  const allTabsList = [
+                    { id: 'dashboard', label: 'Dashboard' },
+                    { id: 'sales_today', label: 'Sales Today' },
+                    { id: 'pos', label: 'POS Terminal' },
+                    { id: 'catalog', label: 'Inventory' },
+                    { id: 'transfers', label: 'Transfers' },
+                    { id: 'ledger', label: 'Ledger' },
+                    { id: 'etr', label: 'ETR Invoicing' },
+                    { id: 'payroll', label: 'HR Payroll' },
+                    { id: 'branches', label: 'Branches' },
+                    { id: 'operators', label: 'User Admin' },
+                    { id: 'audit', label: 'Audit Trail' },
+                    { id: 'gmail', label: 'Inbox' },
+                    { id: 'settings', label: 'Settings' },
+                    { id: 'guide', label: 'User Guide' }
+                  ];
+
+                  const allowed = allTabsList.filter(t => meta.allowedTabs.includes(t.id as any));
+                  const restricted = allTabsList.filter(t => !meta.allowedTabs.includes(t.id as any));
+
+                  return (
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-rose-600" />
+                          Role Access &amp; Permission Boundaries:
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${meta.badgeClass}`}>
+                          {meta.shortLabel}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-medium bg-white p-2 rounded-xl border border-slate-200/80">
+                        {meta.description}
+                      </p>
+
+                      {/* Permitted Workspaces */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                          Allowed Workspaces ({allowed.length})
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {allowed.map(t => (
+                            <span
+                              key={t.id}
+                              className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-bold rounded-lg border border-emerald-200 flex items-center gap-1"
+                            >
+                              <Check className="w-2.5 h-2.5 text-emerald-600" />
+                              {t.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Restricted Workspaces */}
+                      {restricted.length > 0 && (
+                        <div className="space-y-1 pt-1 border-t border-slate-200/60">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Strictly Prohibited &amp; Hidden ({restricted.length})
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {restricted.map(t => (
+                              <span
+                                key={t.id}
+                                className="px-2 py-0.5 bg-slate-100 text-slate-400 text-[10px] font-medium rounded-lg border border-slate-200 flex items-center gap-1 line-through"
+                              >
+                                <Lock className="w-2.5 h-2.5 text-slate-400" />
+                                {t.label}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="sm:col-span-2">

@@ -4,6 +4,7 @@ import { useERP } from '../../context/ERPContext';
 import { UserRole, LocationId } from '../../types';
 import { NavTab } from './Sidebar';
 import { isTabAllowedForRole } from '../../utils/rbac';
+import { evaluateStockStatus } from '../../utils/stockThresholdEngine';
 import { MailInboxDrawer } from '../notifications/MailInboxDrawer';
 import { BrandSettingsModal } from '../settings/BrandSettingsModal';
 import { UserProfileModal } from '../profile/UserProfileModal';
@@ -93,7 +94,9 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
     setIsReturnExchangeModalOpen,
     quarantinedDefects,
     setIsFabricRollModalOpen,
-    fabricRolls
+    fabricRolls,
+    orders,
+    stockAlertSettings
   } = useERP();
 
   const [soundOn, setSoundOn] = useState<boolean>(true);
@@ -161,8 +164,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
   const pendingTransfersCount = pendingTransfersToReceive.length;
   const totalMessageAlerts = unreadMails + pendingTransfersCount;
 
-  const mainStoreLowCount = products.filter(p => p.locationStock?.main_store <= p.minReorderLevel).length;
-  const salesShopLowCount = products.filter(p => p.locationStock?.sales_shop <= p.minReorderLevel).length;
+  const mainStoreLowCount = products.filter(p => evaluateStockStatus(p, orders, stockAlertSettings, 'main_store').isLowStock).length;
+  const salesShopLowCount = products.filter(p => evaluateStockStatus(p, orders, stockAlertSettings, 'sales_shop').isLowStock).length;
   const totalAlertsCount = totalMessageAlerts + mainStoreLowCount + salesShopLowCount + (quarantinedDefects?.length || 0);
 
   const roleOptions: {
@@ -524,7 +527,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                   {brandSettings.brandName}
                 </h1>
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-ai font-black bg-white/20 text-white border border-white/30 tracking-wider uppercase shrink-0">
-                  AI OS
+                  ERP
                 </span>
               </div>
               <p className="text-[12px] text-pink-100 font-semibold truncate flex items-center gap-1 mt-0.5">
@@ -621,7 +624,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 </h1>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-ai font-bold bg-white/20 text-white border border-white/30 backdrop-blur-md tracking-widest uppercase shadow-xs">
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  AI OS
+                  ERP
                 </span>
               </div>
               
@@ -631,9 +634,17 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 <div className="h-[2px] w-4 bg-white/40 rounded-full" />
               </div>
 
-              <p className="text-xs text-pink-100 font-medium hidden lg:block font-sans max-w-xl truncate">
-                {brandSettings.tagline || 'Autonomous Multi-Location ERP, KRA ETR Compliance & Accounting Ledger'}
-              </p>
+              <div className="hidden lg:flex items-center gap-2">
+                <a
+                  href="https://urbantechdev.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-pink-100 hover:text-white font-medium font-sans max-w-xl truncate transition-colors inline-flex items-center gap-1"
+                  title="Visit urbantechdev.com"
+                >
+                  <span>Powered by <strong className="font-bold text-white">urbantechdev</strong></span>
+                </a>
+              </div>
             </div>
           </div>
 

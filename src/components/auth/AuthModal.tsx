@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
 import tajiLogo from '../../assets/images/taji_logo_1786034537873.jpg';
 import {
@@ -14,7 +14,8 @@ import {
   AlertCircle,
   UserCheck,
   X,
-  User
+  User,
+  Keyboard
 } from 'lucide-react';
 import { LocationId } from '../../types';
 
@@ -41,8 +42,46 @@ export const AuthModal: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const displayLogo = brandSettings?.logoUrl || tajiLogo;
+
+  // Focus hidden input when modal opens in PIN tab
+  useEffect(() => {
+    if (isAuthModalOpen && activeTab === 'pin') {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [isAuthModalOpen, activeTab]);
+
+  // Global physical keyboard listener when AuthModal is open in PIN tab
+  useEffect(() => {
+    if (!isAuthModalOpen || activeTab !== 'pin') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClear();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (pin.length === 6) {
+          attemptUnlock(pin);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAuthModalOpen, activeTab, pin]);
 
   if (!isAuthModalOpen) return null;
 
@@ -126,7 +165,18 @@ export const AuthModal: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-black tracking-tight text-slate-900">System Authentication</h2>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">{brandSettings.brandName} • {brandSettings.tagline}</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                <span>{brandSettings.brandName}</span>
+                <span>•</span>
+                <a
+                  href="https://urbantechdev.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-600 hover:text-rose-600 font-semibold transition-colors"
+                >
+                  Powered by urbantechdev
+                </a>
+              </p>
             </div>
           </div>
 
@@ -238,23 +288,56 @@ export const AuthModal: React.FC = () => {
               </div>
             </div>
 
-            {/* PIN Dots display */}
-            <div className="flex items-center justify-center gap-2 py-2">
-              {[0, 1, 2, 3, 4, 5].map((index) => {
-                const hasDigit = pin.length > index;
-                return (
-                  <div
-                    key={index}
-                    className={`w-9 h-11 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${
-                      hasDigit
-                        ? 'border-slate-900 bg-slate-900 text-white scale-105 shadow-md'
-                        : 'border-slate-200 bg-slate-50 text-slate-400'
-                    }`}
-                  >
-                    {hasDigit ? '•' : ''}
-                  </div>
-                );
-              })}
+            {/* PIN Dots display & Hidden keyboard input */}
+            <div 
+              onClick={() => inputRef.current?.focus()}
+              className="space-y-2 text-center cursor-pointer group"
+              title="Click anywhere here or type with your physical keyboard"
+            >
+              <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold text-slate-600">
+                <Keyboard className="w-3.5 h-3.5 text-rose-600" />
+                <span>Enter 6-Digit Passcode</span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">Type with physical keyboard numbers/numpad or click keypad below</p>
+
+              {/* Hidden input to ensure soft keyboard on touch and direct focus capture */}
+              <input
+                ref={inputRef}
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={pin}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setPin(val);
+                  setErrorMessage(null);
+                  if (val.length === 6) {
+                    attemptUnlock(val);
+                  }
+                }}
+                className="opacity-0 absolute -z-10 pointer-events-none w-0 h-0"
+                aria-label="Staff PIN Passcode"
+                autoFocus
+              />
+
+              <div className="flex items-center justify-center gap-2 py-1">
+                {[0, 1, 2, 3, 4, 5].map((index) => {
+                  const hasDigit = pin.length > index;
+                  return (
+                    <div
+                      key={index}
+                      className={`w-9 h-11 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${
+                        hasDigit
+                          ? 'border-slate-900 bg-slate-900 text-white scale-105 shadow-md'
+                          : 'border-slate-200 bg-slate-50 text-slate-400 group-hover:border-rose-300'
+                      }`}
+                    >
+                      {hasDigit ? '•' : ''}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Keypad */}

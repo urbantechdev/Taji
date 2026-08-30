@@ -1,6 +1,7 @@
 import React from 'react';
 import { useERP } from '../../context/ERPContext';
 import { isTabAllowedForRole, getRoleMetadata } from '../../utils/rbac';
+import { evaluateStockStatus } from '../../utils/stockThresholdEngine';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -43,10 +44,10 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { currentUser, setIsUserProfileModalOpen, locations, products } = useERP();
+  const { currentUser, setIsUserProfileModalOpen, locations, products, orders, stockAlertSettings } = useERP();
 
   const lowStockCount = products.filter(
-    p => (p.locationStock?.main_store <= p.minReorderLevel) || (p.locationStock?.sales_shop <= p.minReorderLevel)
+    p => evaluateStockStatus(p, orders, stockAlertSettings).isLowStock
   ).length;
 
   const allNavItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
 import { auth, googleProvider, signInWithPopup, signOut, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   LocationId,
@@ -20,6 +20,9 @@ import {
   POSCartItem,
   HeldCart,
   BrandSettings,
+  StockAlertSettings,
+  ProductStockStatusEvaluation,
+  StockThresholdSummary,
   MailNotification,
   AppMode,
   POSOperator,
@@ -56,6 +59,7 @@ import {
 import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
 import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
 import { calculateRollPricing } from '../utils/rollPricingEngine';
+import { ROLE_DEFINITIONS, getRoleMetadata } from '../utils/rbac';
 import {
   LOCATIONS,
   INITIAL_BRANCH_EXPENSES,
@@ -68,6 +72,7 @@ import {
   INITIAL_AUDIT_LOGS,
   INITIAL_ETR_CONFIG,
   INITIAL_BRAND_SETTINGS,
+  INITIAL_STOCK_ALERT_SETTINGS,
   INITIAL_MAIL_NOTIFICATIONS,
   INITIAL_POS_OPERATORS,
   INITIAL_DELIVERIES,
@@ -81,6 +86,7 @@ import {
   INITIAL_INPUT_VAT_CLAIMS,
   CURRENT_USER
 } from '../data/initialData';
+import { evaluateStockStatus, calculateStockThresholdSummary } from '../utils/stockThresholdEngine';
 import {
   playAddToCartSound,
   playTrashSound,
@@ -118,11 +124,17 @@ interface ERPContextType {
   deletePOSOperator: (id: string) => Promise<{ success: boolean; message: string }>;
   posSession: { isUnlocked: boolean; operatorId: string; operatorName: string; location: LocationId; pin: string; role: UserRole } | null;
   unlockPOSWithPin: (pin: string) => { success: boolean; message: string; operator?: POSOperator };
+  loginAsOperator: (operatorOrId: POSOperator | string) => { success: boolean; message: string; operator?: POSOperator };
   lockPOSSession: () => void;
 
   // Brand Customization
   brandSettings: BrandSettings;
   updateBrandSettings: (settings: Partial<BrandSettings>) => void;
+
+  // Stock Threshold & Dead Stock Rules Settings
+  stockAlertSettings: StockAlertSettings;
+  updateStockAlertSettings: (newSettings: Partial<StockAlertSettings>) => Promise<{ success: boolean; message: string }>;
+  bulkApplyThresholdToAllProducts: (threshold: number) => Promise<{ success: boolean; count: number; message: string }>;
 
   // Data Collections
   locations: LocationInfo[];
@@ -170,7 +182,7 @@ interface ERPContextType {
   mailNotifications: MailNotification[];
   activeToastNotification: MailNotification | null;
   setActiveToastNotification: (toast: MailNotification | null) => void;
-  markNotificationRead: (id: string) => void;
+  markNotificationRead: (id: string, actionTaken?: string) => void;
   clearNotifications: () => void;
 
   // Core Operational Actions
@@ -277,7 +289,8 @@ interface ERPContextType {
 
   requestRestock: (
     items: { batchId: string; quantity: number }[],
-    notes?: string
+    notes?: string,
+    fromLocation?: LocationId
   ) => { success: boolean; transferId: string };
 
   dispatchRestockTransfer: (
@@ -666,24 +679,21 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     )
   );
 
-  // STRICT ACCESS POLICY: Only Google/Gmail authenticated users have admin access.
-  // Any user unlocking via PIN is strictly restricted to the POS terminal.
-  const isAdmin = Boolean(isGoogleAdminAuthenticated);
+  // An admin is either authenticated via Google Admin or active with the 'admin' role
+  const isRoleAdmin = currentUser.role === 'admin' || activeRole === 'admin' || posSession?.role === 'admin';
+  const isAdmin = Boolean(isGoogleAdminAuthenticated || isRoleAdmin);
 
   const isPlatformUnlocked = Boolean(
     (posSession && posSession.isUnlocked) ||
-    isGoogleAdminAuthenticated
+    isGoogleAdminAuthenticated ||
+    isRoleAdmin
   );
 
   const setAppMode = (mode: AppMode) => {
-    if (mode === 'admin' && !isAdmin) {
-      setAppModeState('pos');
-      return;
-    }
     setAppModeState(mode);
   };
 
-  const appMode = !isAdmin ? 'pos' : appModeState;
+  const appMode = appModeState;
 
   const signInWithGoogleAdmin = async () => {
     try {
@@ -891,9 +901,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const matchedOp = posOperators.find(op => op.pin === trimmedPin);
 
     if (matchedOp) {
+      if (matchedOp.status === 'inactive') {
+        return { success: false, message: `Account for ${matchedOp.name} is deactivated. Contact Administrator.` };
+      }
+
       const now = new Date().toISOString();
-      const staffRole: UserRole = matchedOp.role === 'admin' ? 'pos_cashier' : matchedOp.role;
-      const targetLoc: LocationId = matchedOp.location === 'main_store' ? 'sales_shop' : matchedOp.location;
+      const staffRole: UserRole = matchedOp.role;
+      const targetLoc: LocationId = matchedOp.location;
 
       setPosSession({
         isUnlocked: true,
@@ -918,14 +932,71 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastLoginAt: now
       });
 
-      // STRICT RULE: Any user who uses PIN can ONLY access POS
-      setAppModeState('pos');
+      const roleAllowed = ROLE_DEFINITIONS[staffRole]?.allowedTabs || ['pos'];
+      if (staffRole === 'admin') {
+        setAppModeState('admin');
+      } else if (roleAllowed.includes('pos')) {
+        setAppModeState('pos');
+      } else {
+        setAppModeState('admin');
+      }
 
-      recordAuditLog('User Login Success', `${matchedOp.name} unlocked POS terminal at ${targetLoc} via PIN`);
-      return { success: true, message: `Welcome ${matchedOp.name}! POS Terminal ready.`, operator: matchedOp };
+      recordAuditLog('User Login Success', `${matchedOp.name} unlocked session with role "${getRoleMetadata(staffRole).title}" at ${targetLoc} via PIN`);
+      return { success: true, message: `Welcome ${matchedOp.name}! Active as ${getRoleMetadata(staffRole).shortLabel}.`, operator: matchedOp };
     } else {
       return { success: false, message: 'Invalid 6-digit PIN code. Contact Super Admin if you need access credentials.' };
     }
+  };
+
+  const loginAsOperator = (operatorOrId: POSOperator | string) => {
+    const op = typeof operatorOrId === 'string'
+      ? posOperators.find(o => o.id === operatorOrId)
+      : operatorOrId;
+
+    if (!op) {
+      return { success: false, message: 'User account not found.' };
+    }
+
+    if (op.status === 'inactive') {
+      return { success: false, message: `Account for ${op.name} is deactivated. Please activate it first.` };
+    }
+
+    const now = new Date().toISOString();
+    setPosSession({
+      isUnlocked: true,
+      operatorId: op.id,
+      operatorName: op.name,
+      location: op.location,
+      pin: op.pin,
+      role: op.role
+    });
+
+    setActiveLocation(op.location);
+    setActiveRoleState(op.role);
+    setCurrentUser({
+      id: op.id,
+      name: op.name,
+      email: op.email,
+      phone: op.phone || '+254 700 111 000',
+      role: op.role,
+      assignedLocation: op.location,
+      kraPin: op.kraPin || 'P051982341Z',
+      pin: op.pin,
+      status: op.status || 'active',
+      lastLoginAt: now
+    });
+
+    const roleAllowed = ROLE_DEFINITIONS[op.role]?.allowedTabs || ['pos'];
+    if (op.role === 'admin') {
+      setAppModeState('admin');
+    } else if (roleAllowed.includes('pos')) {
+      setAppModeState('pos');
+    } else {
+      setAppModeState('admin');
+    }
+
+    recordAuditLog('User Session Activated', `Activated session for ${op.name} with role "${getRoleMetadata(op.role).title}" at ${op.location}`);
+    return { success: true, message: `Switched session to ${op.name} (${getRoleMetadata(op.role).shortLabel}).`, operator: op };
   };
 
   const lockPOSSession = () => {
@@ -946,6 +1017,45 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isBrandSettingsModalOpen, setIsBrandSettingsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMailDrawerOpen, setIsMailDrawerOpen] = useState(false);
+
+  // Stock Alert & Dead Stock Threshold Settings
+  const [stockAlertSettings, setStockAlertSettings] = useState<StockAlertSettings>(() => {
+    try {
+      const saved = localStorage.getItem('taji_stock_alert_settings');
+      if (saved) {
+        return { ...INITIAL_STOCK_ALERT_SETTINGS, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.warn('Error reading stock alert settings from localStorage:', e);
+    }
+    return INITIAL_STOCK_ALERT_SETTINGS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('taji_stock_alert_settings', JSON.stringify(stockAlertSettings));
+    } catch (e) {
+      console.warn('Error saving stock alert settings to localStorage:', e);
+    }
+  }, [stockAlertSettings]);
+
+  // Firestore Sync for Stock Alert Settings
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(doc(db, 'system_settings', 'stock_alerts'), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as StockAlertSettings;
+          setStockAlertSettings(prev => ({
+            ...prev,
+            ...data
+          }));
+        }
+      });
+      return () => unsub();
+    } catch (err) {
+      console.warn('Stock alert Firestore sync listener warning:', err);
+    }
+  }, []);
 
   // Dynamic Browser Favicon Update
   useEffect(() => {
@@ -1804,8 +1914,81 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     recordAuditLog('Brand Settings Updated', `Updated brand settings (${newSettings.brandName || brandSettings.brandName})`);
   };
 
-  const markNotificationRead = (id: string) => {
-    setMailNotifications(prev => prev.map(m => m.id === id ? { ...m, read: true } : m));
+  const updateStockAlertSettings = async (newSettings: Partial<StockAlertSettings>): Promise<{ success: boolean; message: string }> => {
+    const updated: StockAlertSettings = {
+      ...stockAlertSettings,
+      ...newSettings,
+      lastUpdated: new Date().toISOString(),
+      updatedBy: currentUser.name || adminUser?.displayName || 'Super Admin'
+    };
+    setStockAlertSettings(updated);
+
+    try {
+      localStorage.setItem('taji_stock_alert_settings', JSON.stringify(updated));
+      await setDoc(doc(db, 'system_settings', 'stock_alerts'), updated, { merge: true });
+    } catch (err) {
+      console.warn('Error saving stock alert settings to Firestore:', err);
+    }
+
+    recordAuditLog(
+      'Stock Alert Policy Updated',
+      `Updated thresholds: Low Stock=${updated.defaultLowStockThreshold} units (${updated.lowStockEvaluationMode}), Dead Stock Period=${updated.deadStockPeriodDays} days (Trigger: ${updated.deadStockCalculationBasis})`
+    );
+
+    return {
+      success: true,
+      message: 'Stock alert and dead stock rules saved successfully.'
+    };
+  };
+
+  const bulkApplyThresholdToAllProducts = async (threshold: number): Promise<{ success: boolean; count: number; message: string }> => {
+    if (threshold <= 0) {
+      return { success: false, count: 0, message: 'Threshold must be greater than 0' };
+    }
+
+    const updatedProducts = products.map(p => ({
+      ...p,
+      minReorderLevel: threshold
+    }));
+
+    setProducts(updatedProducts);
+
+    try {
+      localStorage.setItem('urban_interior_products', JSON.stringify(updatedProducts));
+      const batch = writeBatch(db);
+      updatedProducts.forEach(p => {
+        batch.set(doc(db, 'products', p.id), { minReorderLevel: threshold }, { merge: true });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.warn('Bulk threshold Firestore sync error:', err);
+    }
+
+    recordAuditLog(
+      'Bulk Stock Threshold Synchronized',
+      `Synchronized ${threshold} min reorder level across all ${updatedProducts.length} product batches.`
+    );
+
+    return {
+      success: true,
+      count: updatedProducts.length,
+      message: `Successfully synchronized ${threshold} unit threshold across all ${updatedProducts.length} product batches.`
+    };
+  };
+
+  const markNotificationRead = (id: string, actionTaken?: string) => {
+    setMailNotifications(prev =>
+      prev.map(m =>
+        m.id === id
+          ? {
+              ...m,
+              read: true,
+              readAt: m.readAt || new Date().toISOString(),
+              actionTaken: actionTaken || m.actionTaken || 'Marked as read'
+            }
+          : m
+      )
+    );
   };
 
   const clearNotifications = () => {
@@ -4497,10 +4680,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, transferId };
   };
 
-  // REQUEST RESTOCK (From Sales Shop / Store 1 / Store 2 -> Main Store at Zero Cost)
+  // REQUEST RESTOCK (From Sales Shop / Store 1 / Store 2 -> Source Branch/Main Store at Zero Cost)
   const requestRestock = (
     items: { batchId: string; quantity: number }[],
-    notes: string = 'Routine inventory restock request'
+    notes: string = 'Routine inventory restock request',
+    fromLocation: LocationId = 'main_store'
   ) => {
     const transferId = `TRF-RESTOCK-${Date.now().toString().slice(-5)}`;
     const transferItems = items.map(i => {
@@ -4515,10 +4699,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const activeLocName = locations.find(l => l.id === activeLocation)?.name || activeLocation;
+    const fromLocName = locations.find(l => l.id === fromLocation)?.name || fromLocation;
     const newTransfer: InterStoreTransfer = {
       id: transferId,
       transferType: 'restock_free',
-      fromLocation: 'main_store',
+      fromLocation: fromLocation,
       toLocation: activeLocation,
       requestedByOperator: `${currentUser.name} (${activeLocName})`,
       items: transferItems,
@@ -4529,15 +4714,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setTransfers(prev => [newTransfer, ...prev]);
 
-    // Send Mail Notification Popup to Main Store
+    // Send Mail Notification Popup to Source Branch / Main Store
     const mailNotif: MailNotification = {
       id: `MAIL-${Date.now().toString().slice(-5)}`,
-      title: 'New Restock Request to Main Store',
-      message: `${activeLocName} requested zero-cost restock ${transferId} (${items.length} line items).`,
+      title: `New Restock Request to ${fromLocName}`,
+      message: `${activeLocName} requested restock ${transferId} (${items.length} line items) from ${fromLocName}.`,
       transferId,
       transferType: 'restock_free',
       fromLocation: activeLocation,
-      toLocation: 'main_store',
+      toLocation: fromLocation,
       timestamp: new Date().toISOString(),
       read: false,
       itemCount: items.length
@@ -4547,7 +4732,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     recordAuditLog(
       'Restock Request Issued',
-      `Restock request ${transferId} issued by ${activeLocName} to Main Store`
+      `Restock request ${transferId} issued by ${activeLocName} to ${fromLocName}`
     );
 
     playNotificationSound();
@@ -6924,9 +7109,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deletePOSOperator,
         posSession,
         unlockPOSWithPin,
+        loginAsOperator,
         lockPOSSession,
         brandSettings,
         updateBrandSettings,
+        stockAlertSettings,
+        updateStockAlertSettings,
+        bulkApplyThresholdToAllProducts,
         products,
         orders,
         transfers,

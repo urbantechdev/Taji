@@ -86,8 +86,19 @@ export const POSModule: React.FC = () => {
     isForwardReservationsModalOpen,
     setIsForwardReservationsModalOpen,
     currentUser,
-    isAdmin
+    activeRole,
+    isAdmin,
+    isSuperAdmin,
+    requestRestock
   } = useERP();
+
+  const effectiveRole = activeRole || currentUser?.role || 'sales_shop_cashier';
+  const isAdminLevel = Boolean(
+    isAdmin ||
+    isSuperAdmin ||
+    currentUser?.role === 'admin' ||
+    effectiveRole === 'admin'
+  );
 
   const canCloseShift = isAdmin || hasPermission(currentUser.role, 'canDirectPOSSale') || hasPermission(currentUser.role, 'canAdjustCashFloat');
   const canViewReports = isAdmin || hasPermission(currentUser.role, 'canExecuteForensicAudit') || hasPermission(currentUser.role, 'canManageGeneralLedger');
@@ -111,6 +122,59 @@ export const POSModule: React.FC = () => {
   const [isQuotation, setIsQuotation] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCartExpanded, setIsCartExpanded] = useState(false);
+
+  // Quick Restock Request Modal State (Inter-shop item request flow)
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [restockModalProduct, setRestockModalProduct] = useState<ProductBatch | null>(null);
+  const [restockSourceBranch, setRestockSourceBranch] = useState<LocationId>('main_store');
+  const [restockQty, setRestockQty] = useState<number>(20);
+  const [restockNotes, setRestockNotes] = useState<string>('Urgent customer request at POS counter');
+  const [restockFeedback, setRestockFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleOpenQuickRestock = (prod: ProductBatch, preferredSource?: LocationId) => {
+    setRestockModalProduct(prod);
+    const eligibleSources = locations.filter(l => l.id !== activeLocation && (prod.locationStock[l.id] || 0) > 0);
+    const defaultSource = preferredSource && (prod.locationStock[preferredSource] || 0) > 0
+      ? preferredSource
+      : eligibleSources.length > 0
+      ? eligibleSources.sort((a, b) => (prod.locationStock[b.id] || 0) - (prod.locationStock[a.id] || 0))[0].id
+      : 'main_store';
+
+    setRestockSourceBranch(defaultSource);
+    const availableAtSource = prod.locationStock[defaultSource] || 0;
+    setRestockQty(availableAtSource > 0 ? Math.min(20, availableAtSource) : 20);
+    setRestockNotes(`Urgent restock requested for customer at POS (${prod.name})`);
+    setRestockFeedback(null);
+    setIsRestockModalOpen(true);
+    playPopupSound();
+  };
+
+  const handleExecuteRestockRequest = () => {
+    if (!restockModalProduct) return;
+    if (restockQty <= 0) {
+      setRestockFeedback({ type: 'error', message: 'Please specify a valid quantity (> 0).' });
+      return;
+    }
+
+    const res = requestRestock(
+      [{ batchId: restockModalProduct.id, quantity: restockQty }],
+      restockNotes,
+      restockSourceBranch
+    );
+
+    const sourceLocName = locations.find(l => l.id === restockSourceBranch)?.name || restockSourceBranch;
+    playSuccessSound();
+    setRestockFeedback({
+      type: 'success',
+      message: `Restock request ${res.transferId} successfully sent to ${sourceLocName}! Notification dispatched to storekeeper.`
+    });
+
+    setTimeout(() => {
+      setIsRestockModalOpen(false);
+      setRestockFeedback(null);
+      setRestockModalProduct(null);
+    }, 2000);
+  };
 
   // Forward-Dated Reservation & Advance Order State
   const [isForwardDated, setIsForwardDated] = useState(false);
@@ -209,8 +273,29 @@ export const POSModule: React.FC = () => {
     }
   };
 
-  // Filtered product catalog
+  // Filtered product catalog (Restricted to active shop unless admin or explicitly searching for restock)
   const filteredProducts = products.filter(p => {
+    const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.colorName.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!matchesCat || !matchesSearch) return false;
+
+    // Admin level access sees enterprise catalog across all locations
+    if (isAdminLevel) return true;
+
+    // When cashier is actively searching, allow seeing all matching items to enable inter-shop restock requests
+    if (searchQuery.trim() !== '') return true;
+
+    // Default catalog view for regular shop: only show products with positive stock at this specific shop
+    const currentLocStock = p.locationStock[activeLocation] || 0;
+    return currentLocStock > 0;
+  });
+
+  // Autofill Search calculation matches (Cross-location item discovery & 1-tap request)
+  const matchingAutofillProducts = searchQuery.trim() === '' ? [] : products.filter(p => {
     const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -218,6 +303,15 @@ export const POSModule: React.FC = () => {
       p.colorName.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
+
+  const localInStockMatches = matchingAutofillProducts.filter(p => (p.locationStock[activeLocation] || 0) > 0);
+  const otherBranchStockMatches = matchingAutofillProducts.filter(
+    p => (p.locationStock[activeLocation] || 0) <= 0 &&
+      Object.entries(p.locationStock).some(([locId, stock]) => locId !== activeLocation && (stock as number) > 0)
+  );
+  const enterpriseOutOfStockMatches = matchingAutofillProducts.filter(
+    p => (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0) <= 0
+  );
 
   // Calculate cart totals (prioritizing Option 1 rollPricing.totalPrice if present)
   const totalGross = cart.reduce((acc, item) => {
@@ -650,16 +744,190 @@ export const POSModule: React.FC = () => {
                 </div>
               )}
 
-              {/* Search Catalog Input */}
+              {/* Search Catalog Input with Autofill Cross-Location Search Dropdown */}
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 z-10" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Filter catalog by name, SKU (e.g. DRK-CRIMSON), or color name..."
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none relative z-10"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer z-10"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Autofill Search Results Dropdown with Inter-Shop Restock Requesting */}
+                {searchQuery.trim().length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-rose-500" />
+                        Autofill Matches for "{searchQuery}"
+                      </span>
+                      <span className="text-slate-400 font-mono">
+                        {matchingAutofillProducts.length} items found
+                      </span>
+                    </div>
+
+                    {matchingAutofillProducts.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400">
+                        No textile products found matching "{searchQuery}".
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {/* 1. Items available in stock at this shop */}
+                        {localInStockMatches.length > 0 && (
+                          <div className="p-2 bg-emerald-50/40">
+                            <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>In Stock at {activeLocInfo?.name || 'This Shop'} ({localInStockMatches.length})</span>
+                            </div>
+                            <div className="space-y-1 mt-1">
+                              {localInStockMatches.map(prod => {
+                                const localStock = prod.locationStock[activeLocation] || 0;
+                                return (
+                                  <div
+                                    key={prod.id}
+                                    className="p-2 bg-white rounded-xl border border-emerald-100 flex items-center justify-between gap-2 hover:bg-emerald-50/70 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div
+                                        className="w-3.5 h-3.5 rounded-full border border-slate-200 shrink-0"
+                                        style={{ backgroundColor: prod.colorHex }}
+                                      />
+                                      <div className="min-w-0 truncate">
+                                        <span className="font-bold text-xs text-slate-900 truncate block">
+                                          {prod.name}
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 font-mono truncate block">
+                                          {prod.sku} • {prod.colorName} • KSh {prod.unitPriceRetail}/{prod.unit}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-extrabold font-mono">
+                                        {localStock} {prod.unit} available
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          addToCart(prod, 1);
+                                          setSearchQuery('');
+                                        }}
+                                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-lg shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        <span>Add</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 2. Items available at OTHER shops / stores (Inter-Shop Requestable) */}
+                        {otherBranchStockMatches.length > 0 && (
+                          <div className="p-2 bg-amber-50/40">
+                            <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                              <ArrowRightLeft className="w-3 h-3 text-amber-600" />
+                              <span>Out of stock here • Available at other branches ({otherBranchStockMatches.length})</span>
+                            </div>
+                            <div className="space-y-1 mt-1">
+                              {otherBranchStockMatches.map(prod => {
+                                const availableBranches = locations.filter(
+                                  l => l.id !== activeLocation && (prod.locationStock[l.id] || 0) > 0
+                                );
+                                const bestBranch = availableBranches.sort(
+                                  (a, b) => (prod.locationStock[b.id] || 0) - (prod.locationStock[a.id] || 0)
+                                )[0];
+
+                                return (
+                                  <div
+                                    key={prod.id}
+                                    className="p-2 bg-white rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-amber-50/70 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div
+                                        className="w-3.5 h-3.5 rounded-full border border-slate-200 shrink-0"
+                                        style={{ backgroundColor: prod.colorHex }}
+                                      />
+                                      <div className="min-w-0 truncate">
+                                        <span className="font-bold text-xs text-slate-900 truncate block">
+                                          {prod.name}
+                                        </span>
+                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500 font-mono">
+                                          <span>{prod.sku}</span>
+                                          <span>•</span>
+                                          <span>{prod.colorName}</span>
+                                          <span>•</span>
+                                          <span className="text-amber-800 font-bold">
+                                            {availableBranches.map(b => `${b.name.replace('Zamoda ', '')}: ${prod.locationStock[b.id]} ${prod.unit}`).join(' | ')}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleOpenQuickRestock(prod, bestBranch?.id);
+                                        }}
+                                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[11px] rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                                      >
+                                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                                        <span>Request from {bestBranch?.name?.replace('Zamoda ', '') || 'Main Store'}</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3. Items completely out of stock enterprise-wide */}
+                        {enterpriseOutOfStockMatches.length > 0 && (
+                          <div className="p-2 bg-slate-50/70">
+                            <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 text-slate-400" />
+                              <span>Completely Out of Stock Across All Stores ({enterpriseOutOfStockMatches.length})</span>
+                            </div>
+                            <div className="space-y-1 mt-1">
+                              {enterpriseOutOfStockMatches.map(prod => (
+                                <div
+                                  key={prod.id}
+                                  className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between text-xs text-slate-500"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="w-3.5 h-3.5 rounded-full border border-slate-200 shrink-0"
+                                      style={{ backgroundColor: prod.colorHex }}
+                                    />
+                                    <span className="font-medium text-slate-700">{prod.name} ({prod.sku})</span>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
+                                    0 in all branches
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -774,91 +1042,119 @@ export const POSModule: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Multi-Location Stock Availability Breakdown */}
-                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-200/80 my-2 space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-extrabold text-slate-500 uppercase">Stock Holdings:</span>
-                      <span className="font-mono text-slate-400">Total: {(Object.values(prod.locationStock) as number[]).reduce((a, b) => a + b, 0)} {prod.unit}</span>
+                  {/* Stock Availability Breakdown (Admin Enterprise Breakdown vs Non-Admin Shop View) */}
+                  {isAdminLevel ? (
+                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-200/80 my-2 space-y-1">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-extrabold text-slate-500 uppercase">Stock Holdings:</span>
+                        <span className="font-mono text-slate-400">Total: {(Object.values(prod.locationStock) as number[]).reduce((a, b) => a + b, 0)} {prod.unit}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-[10px] font-mono">
+                        <span className="text-slate-700">Main: <strong>{prod.locationStock.main_store || 0}</strong></span>
+                        <span className="text-pink-800">Shop: <strong>{prod.locationStock.sales_shop || 0}</strong></span>
+                        <span className="text-slate-600">Store 1: <strong>{prod.locationStock.store_1 || 0}</strong></span>
+                        <span className="text-slate-600">Store 2: <strong>{prod.locationStock.store_2 || 0}</strong></span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-1 text-[10px] font-mono">
-                      <span className="text-slate-700">Main: <strong>{prod.locationStock.main_store || 0}</strong></span>
-                      <span className="text-pink-800">Shop: <strong>{prod.locationStock.sales_shop || 0}</strong></span>
-                      <span className="text-slate-600">Store 1: <strong>{prod.locationStock.store_1 || 0}</strong></span>
-                      <span className="text-slate-600">Store 2: <strong>{prod.locationStock.store_2 || 0}</strong></span>
+                  ) : (
+                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-200/80 my-2 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">{activeLocInfo?.name || 'This Shop'} Stock:</span>
+                      <span className={`font-mono font-extrabold ${currentLocStock > 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+                        {currentLocStock > 0 ? `${currentLocStock} ${prod.unit}` : '0 (Out of Stock)'}
+                      </span>
                     </div>
-                  </div>
+                  )}
 
                   {/* Stock Level & Action Buttons */}
-                  <div className="pt-2 flex items-center justify-between gap-1.5 border-t border-slate-100 mt-1">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        isOut
-                          ? 'bg-rose-100 text-rose-700'
-                          : currentLocStock <= prod.minReorderLevel
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      Active Loc: {currentLocStock} {prod.unit}
-                    </span>
-
-                    <div className="flex items-center gap-1">
+                  <div className="pt-2 border-t border-slate-100 mt-1">
+                    {!isAdminLevel && isOut && locations.filter(l => l.id !== activeLocation && (prod.locationStock[l.id] || 0) > 0).length > 0 ? (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleOpenDigitalScale(prod);
+                          const availableBranches = locations.filter(l => l.id !== activeLocation && (prod.locationStock[l.id] || 0) > 0);
+                          const topBranch = availableBranches.sort((a, b) => (prod.locationStock[b.id] || 0) - (prod.locationStock[a.id] || 0))[0];
+                          handleOpenQuickRestock(prod, topBranch?.id);
                         }}
-                        disabled={isOut && activeLocInfo?.canSellDirectly}
-                        className="px-2 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1 text-[11px] font-bold"
-                        title={`Weigh ${prod.name} on scale & auto-calculate price by net KG`}
+                        className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                        title="Request restock for this item from other branch"
                       >
-                        <Scale className="w-3.5 h-3.5 text-indigo-600" />
-                        <span className="hidden sm:inline">Weigh</span>
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                        <span>Request Item from Other Shop</span>
                       </button>
+                    ) : (
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isOut
+                              ? 'bg-rose-100 text-rose-700'
+                              : currentLocStock <= prod.minReorderLevel
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {isAdminLevel ? `Active: ${currentLocStock} ${prod.unit}` : `${currentLocStock} ${prod.unit}`}
+                        </span>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBarcodeScanCheckout(undefined, prod.barcode || prod.sku);
-                        }}
-                        disabled={isOut && activeLocInfo?.canSellDirectly}
-                        className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-all cursor-pointer hover:scale-105 active:scale-95"
-                        title={`Scan Barcode (${prod.barcode || prod.sku}) directly to cart`}
-                      >
-                        <Barcode className="w-3.5 h-3.5" />
-                      </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDigitalScale(prod);
+                            }}
+                            disabled={isOut && activeLocInfo?.canSellDirectly}
+                            className="px-2 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1 text-[11px] font-bold"
+                            title={`Weigh ${prod.name} on scale & auto-calculate price by net KG`}
+                          >
+                            <Scale className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="hidden sm:inline">Weigh</span>
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedViewProduct(prod);
-                        }}
-                        className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-rose-700 transition-colors"
-                        title="View details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleBarcodeScanCheckout(undefined, prod.barcode || prod.sku);
+                            }}
+                            disabled={isOut && activeLocInfo?.canSellDirectly}
+                            className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                            title={`Scan Barcode (${prod.barcode || prod.sku}) directly to cart`}
+                          >
+                            <Barcode className="w-3.5 h-3.5" />
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addToCart(prod, 1);
-                        }}
-                        disabled={isOut && activeLocInfo?.canSellDirectly}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer ${
-                          isOut
-                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                            : 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs hover:shadow-md'
-                        }`}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add
-                      </button>
-                    </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedViewProduct(prod);
+                            }}
+                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-rose-700 transition-colors"
+                            title="View details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addToCart(prod, 1);
+                            }}
+                            disabled={isOut && activeLocInfo?.canSellDirectly}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer ${
+                              isOut
+                                ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                                : 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs hover:shadow-md'
+                            }`}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -2683,6 +2979,185 @@ export const POSModule: React.FC = () => {
         </div>
       )}
 
+      {/* INTER-SHOP / STORE RESTOCK REQUEST MODAL */}
+      {isRestockModalOpen && restockModalProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-amber-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-amber-600 via-amber-700 to-orange-700 text-white p-5 flex items-center justify-between">
+              <ReflectionOverlay />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="p-2.5 bg-white/15 backdrop-blur-xs rounded-2xl border border-white/20">
+                  <ArrowRightLeft className="w-6 h-6 text-amber-200" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black">Request Item from Another Branch</h3>
+                  <p className="text-xs text-amber-100 font-medium">
+                    Order fabric batch transfer to {activeLocInfo?.name || 'This Shop'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRestockModalOpen(false)}
+                className="p-1.5 text-white/80 hover:text-white bg-black/20 hover:bg-black/40 rounded-full transition-colors cursor-pointer relative z-10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Product Info Banner */}
+              <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-8 h-8 rounded-xl border border-slate-300 shrink-0"
+                    style={{ backgroundColor: restockModalProduct.colorHex }}
+                  />
+                  <div>
+                    <h4 className="font-extrabold text-sm text-slate-900 leading-tight">
+                      {restockModalProduct.name}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-mono">
+                      SKU: {restockModalProduct.sku} • Color: {restockModalProduct.colorName}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Retail Price</span>
+                  <span className="font-mono font-black text-xs text-slate-900">
+                    KSh {restockModalProduct.unitPriceRetail}/{restockModalProduct.unit}
+                  </span>
+                </div>
+              </div>
+
+              {/* Source Branch Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Source Branch / Store:</span>
+                  <span className="text-[10px] font-normal text-slate-400">Where to request from</span>
+                </label>
+                <select
+                  value={restockSourceBranch}
+                  onChange={e => {
+                    const chosenLoc = e.target.value as LocationId;
+                    setRestockSourceBranch(chosenLoc);
+                    const avail = restockModalProduct.locationStock[chosenLoc] || 0;
+                    if (avail > 0) {
+                      setRestockQty(Math.min(restockQty || 20, avail));
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                >
+                  {locations
+                    .filter(l => l.id !== activeLocation)
+                    .map(loc => {
+                      const avail = restockModalProduct.locationStock[loc.id] || 0;
+                      return (
+                        <option key={loc.id} value={loc.id}>
+                          {loc.name} — ({avail} {restockModalProduct.unit} in stock)
+                        </option>
+                      );
+                    })}
+                </select>
+              </div>
+
+              {/* Transfer Quantity */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Requested Quantity ({restockModalProduct.unit}):</span>
+                  <span className="text-[10px] font-bold text-amber-800">
+                    Available at selected source: {restockModalProduct.locationStock[restockSourceBranch] || 0} {restockModalProduct.unit}
+                  </span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={restockModalProduct.locationStock[restockSourceBranch] || 999}
+                    value={restockQty}
+                    onChange={e => setRestockQty(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm font-black focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                  <div className="flex items-center gap-1">
+                    {[10, 20, 50, 100].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => {
+                          const avail = restockModalProduct.locationStock[restockSourceBranch] || 0;
+                          setRestockQty(avail > 0 ? Math.min(amt, avail) : amt);
+                        }}
+                        className="px-2.5 py-2 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-900 font-mono text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                      >
+                        +{amt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Request Note / Customer details */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Internal Restock Note:
+                </label>
+                <textarea
+                  rows={2}
+                  value={restockNotes}
+                  onChange={e => setRestockNotes(e.target.value)}
+                  placeholder="e.g. Retail client waiting at POS counter, expedite dispatch"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none resize-none"
+                />
+              </div>
+
+              {/* Feedback Alert */}
+              {restockFeedback && (
+                <div
+                  className={`p-3 rounded-2xl text-xs font-bold flex items-center gap-2 ${
+                    restockFeedback.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                  }`}
+                >
+                  {restockFeedback.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{restockFeedback.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsRestockModalOpen(false)}
+                className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExecuteRestockRequest}
+                disabled={Boolean(restockFeedback && restockFeedback.type === 'success')}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                <span>Submit Restock Request</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PRODUCT DETAIL POPUP MODAL */}
       {selectedViewProduct && (
         <ProductDetailModal
@@ -2690,8 +3165,10 @@ export const POSModule: React.FC = () => {
           onClose={() => setSelectedViewProduct(null)}
           onAddToCart={(prod, qty) => addToCart(prod, qty)}
           onQuickTransfer={handleQuickTransferProduct}
+          onRequestRestock={handleOpenQuickRestock}
           activeLocation={activeLocation}
           canSellDirectly={activeLocInfo?.canSellDirectly ?? true}
+          isAdmin={isAdminLevel}
         />
       )}
 

@@ -27,8 +27,10 @@ interface ProductDetailModalProps {
   onClose: () => void;
   onAddToCart: (product: ProductBatch, quantity: number) => void;
   onQuickTransfer: (product: ProductBatch) => void;
+  onRequestRestock?: (product: ProductBatch) => void;
   activeLocation: LocationId;
   canSellDirectly: boolean;
+  isAdmin?: boolean;
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -36,8 +38,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onClose,
   onAddToCart,
   onQuickTransfer,
+  onRequestRestock,
   activeLocation,
-  canSellDirectly
+  canSellDirectly,
+  isAdmin = false
 }) => {
   if (!product) return null;
 
@@ -48,6 +52,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [quantity, setQuantity] = useState<number>(1);
   const currentLocStock = product.locationStock[activeLocation] || 0;
   const totalEnterpriseStock = (Object.values(product.locationStock) as number[]).reduce((a, b) => a + b, 0);
+  const otherLocationsWithStock = LOCATIONS.filter(l => l.id !== activeLocation && (product.locationStock[l.id] || 0) > 0);
   const isOutOfStock = currentLocStock <= 0;
   const isLowStock = currentLocStock > 0 && currentLocStock <= product.minReorderLevel;
   
@@ -65,6 +70,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const handleTransfer = () => {
     playClickSound();
     onQuickTransfer(product);
+    onClose();
+  };
+
+  const handleRestock = () => {
+    playClickSound();
+    if (onRequestRestock) {
+      onRequestRestock(product);
+    } else {
+      onQuickTransfer(product);
+    }
     onClose();
   };
 
@@ -211,62 +226,91 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Real-Time Multi-Location Inventory Breakdown */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-extrabold text-slate-800 text-xs uppercase tracking-wide">
-                <Building className="w-3.5 h-3.5 text-rose-600" />
-                <span>Multi-Store Stock Distribution</span>
+          {/* Real-Time Inventory Status (Admin Multi-Store Breakdown vs Branch View) */}
+          {isAdmin ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-extrabold text-slate-800 text-xs uppercase tracking-wide">
+                  <Building className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Enterprise Multi-Store Distribution (Admin)</span>
+                </div>
+                <span className="font-mono font-bold text-slate-500 text-[11px]">
+                  Total Enterprise: <strong className="text-slate-900">{totalEnterpriseStock} {product.unit}</strong>
+                </span>
               </div>
-              <span className="font-mono font-bold text-slate-500 text-[11px]">
-                Total Enterprise: <strong className="text-slate-900">{totalEnterpriseStock} {product.unit}</strong>
-              </span>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {LOCATIONS.map(loc => {
+                  const stock = product.locationStock[loc.id] || 0;
+                  const isCurrent = loc.id === activeLocation;
+                  const isLocOut = stock <= 0;
+
+                  return (
+                    <div
+                      key={loc.id}
+                      className={`p-2.5 rounded-2xl border transition-all ${
+                        isCurrent
+                          ? 'bg-rose-50/80 border-rose-300 ring-2 ring-rose-500/20'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-slate-600 font-bold mb-1">
+                        <span className="truncate">{loc.name.replace('Zamoda ', '')}</span>
+                        {isCurrent && (
+                          <span className="px-1.5 py-0.2 text-[9px] font-bold bg-rose-600 text-white rounded-md shrink-0">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-baseline justify-between">
+                        <span className={`font-mono text-sm font-black ${
+                          isLocOut ? 'text-rose-600' : 'text-slate-900'
+                        }`}>
+                          {stock} <span className="text-[10px] font-normal text-slate-500">{product.unit}</span>
+                        </span>
+                        {isLocOut ? (
+                          <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
+                            Empty
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            Available
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {LOCATIONS.map(loc => {
-                const stock = product.locationStock[loc.id] || 0;
-                const isCurrent = loc.id === activeLocation;
-                const isLocOut = stock <= 0;
-
-                return (
-                  <div
-                    key={loc.id}
-                    className={`p-2.5 rounded-2xl border transition-all ${
-                      isCurrent
-                        ? 'bg-rose-50/80 border-rose-300 ring-2 ring-rose-500/20'
-                        : 'bg-slate-50 border-slate-200'
-                    }`}
+          ) : (
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700">
+                  {LOCATIONS.find(l => l.id === activeLocation)?.name || 'Current Branch'} Stock:
+                </span>
+                <span className={`font-mono text-base font-black ${isOutOfStock ? 'text-rose-600' : 'text-slate-900'}`}>
+                  {currentLocStock} <span className="text-xs font-normal text-slate-500">{product.unit}</span>
+                </span>
+              </div>
+              {isOutOfStock && otherLocationsWithStock.length > 0 && (
+                <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <span className="text-amber-800 font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    Available in {otherLocationsWithStock.length} other warehouse/store location(s)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRestock}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer text-xs"
                   >
-                    <div className="flex items-center justify-between text-[10px] text-slate-600 font-bold mb-1">
-                      <span className="truncate">{loc.name.replace('Zamoda ', '')}</span>
-                      {isCurrent && (
-                        <span className="px-1.5 py-0.2 text-[9px] font-bold bg-rose-600 text-white rounded-md shrink-0">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className={`font-mono text-sm font-black ${
-                        isLocOut ? 'text-rose-600' : 'text-slate-900'
-                      }`}>
-                        {stock} <span className="text-[10px] font-normal text-slate-500">{product.unit}</span>
-                      </span>
-                      {isLocOut ? (
-                        <span className="text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
-                          Empty
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                          Available
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    Request Transfer from Other Shop
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Active Store Status Notice */}
           <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-100 border border-slate-200/80">
@@ -280,7 +324,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               )}
               <span className="text-xs font-semibold text-slate-700">
                 {isOutOfStock
-                  ? `Out of stock at active store (${currentLocStock} ${product.unit}). Use Inter-Store Transfer to request restock.`
+                  ? `Out of stock at active store (${currentLocStock} ${product.unit}). Use Restock Request to order from other branches.`
                   : isLowStock
                   ? `Low stock threshold reached (${currentLocStock} ${product.unit} remaining). Reorder level: ${product.minReorderLevel}.`
                   : `Stock is healthy at active store (${currentLocStock} ${product.unit} available for billing).`}
@@ -336,15 +380,27 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={handleTransfer}
-              className="flex-1 sm:flex-none px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              title="Request or dispatch inter-store transfer for this batch"
-            >
-              <ArrowRightLeft className="w-4 h-4 text-indigo-600" />
-              <span>Transfer Stock</span>
-            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={handleTransfer}
+                className="flex-1 sm:flex-none px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Dispatch direct inter-store transfer for this batch"
+              >
+                <ArrowRightLeft className="w-4 h-4 text-indigo-600" />
+                <span>Admin Transfer</span>
+              </button>
+            ) : isOutOfStock && otherLocationsWithStock.length > 0 ? (
+              <button
+                type="button"
+                onClick={handleRestock}
+                className="flex-1 sm:flex-none px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Request restock for this item from other branch"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                <span>Request from Other Shop</span>
+              </button>
+            ) : null}
 
             <button
               type="button"

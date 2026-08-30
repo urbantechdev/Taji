@@ -16,7 +16,13 @@ import {
   Warehouse,
   Store,
   Layers,
-  AlertCircle
+  AlertCircle,
+  History,
+  Archive,
+  CheckCheck,
+  Inbox,
+  User,
+  ExternalLink
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
 
@@ -40,7 +46,7 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
     locations
   } = useERP();
 
-  const [activeTab, setActiveTab] = useState<'transfers' | 'messages'>('transfers');
+  const [activeTab, setActiveTab] = useState<'transfers' | 'messages' | 'history'>('transfers');
   const [fadingIds, setFadingIds] = useState<{ [id: string]: string }>({});
   const [filterMode, setFilterMode] = useState<'current_store' | 'all'>('current_store');
 
@@ -59,14 +65,30 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
     return true;
   });
 
-  const displayedNotifications = mailNotifications.filter(m => {
+  // Completed or historical transfers
+  const historyTransfers = transfers.filter(trf => {
+    const isFinished = trf.status === 'fulfilled' || trf.status === 'rejected';
+    if (!isFinished) return false;
     if (filterMode === 'current_store' || !isAdmin) {
-      return m.toLocation === currentStoreLocation;
+      return trf.toLocation === currentStoreLocation || trf.fromLocation === currentStoreLocation;
     }
     return true;
   });
 
-  const unreadMailsCount = displayedNotifications.filter(m => !m.read && !fadingIds[m.id]).length;
+  const displayedNotifications = mailNotifications.filter(m => {
+    if (filterMode === 'current_store' || !isAdmin) {
+      return m.toLocation === currentStoreLocation || m.fromLocation === currentStoreLocation;
+    }
+    return true;
+  });
+
+  // Active unread messages
+  const activeUnreadMessages = displayedNotifications.filter(m => !m.read && !fadingIds[m.id]);
+  
+  // History / Past conversations (read or completed messages)
+  const pastConversations = displayedNotifications.filter(m => m.read || fadingIds[m.id]);
+
+  const unreadMailsCount = activeUnreadMessages.length;
   const totalPendingAlerts = pendingTransfers.length + unreadMailsCount;
 
   const triggerItemAction = (notifId: string, actionFn: () => void, feedbackText: string) => {
@@ -97,11 +119,11 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
               <Mail className="w-5 h-5 animate-bounce" />
             </div>
             <div>
-              <h3 className="font-bold text-base">Store Mail &amp; Stock Inbox</h3>
+              <h3 className="font-bold text-base">Store Mail &amp; Messaging Hub</h3>
               <p className="text-xs text-pink-100 font-medium flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-amber-300" />
                 {totalPendingAlerts > 0
-                  ? `${pendingTransfers.length} transfer(s) pending, ${unreadMailsCount} mail(s)`
+                  ? `${pendingTransfers.length} transfer(s) pending, ${unreadMailsCount} active mail(s)`
                   : `All caught up for ${currentStoreName}`}
               </p>
             </div>
@@ -115,23 +137,23 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
           </button>
         </div>
 
-        {/* Section Navigation Tabs */}
-        <div className="p-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+        {/* Section Navigation Tabs (Pending Transfers, Active Messages, History / Past Conversations) */}
+        <div className="p-2 bg-slate-100 border-b border-slate-200 flex items-center gap-1.5">
           <button
             onClick={() => {
               playClickSound();
               setActiveTab('transfers');
             }}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'transfers'
                 ? 'bg-white text-rose-700 shadow-sm border border-slate-200'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
-            <span>Pending Transfers</span>
+            <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Transfers</span>
             {pendingTransfers.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shrink-0">
                 {pendingTransfers.length}
               </span>
             )}
@@ -142,17 +164,37 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
               playClickSound();
               setActiveTab('messages');
             }}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'messages'
                 ? 'bg-white text-rose-700 shadow-sm border border-slate-200'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
-            <Mail className="w-3.5 h-3.5" />
-            <span>Messages &amp; Orders</span>
+            <Mail className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Active Messages</span>
             {unreadMailsCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 shrink-0 animate-pulse">
                 {unreadMailsCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              playClickSound();
+              setActiveTab('history');
+            }}
+            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'history'
+                ? 'bg-white text-rose-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <History className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Past History</span>
+            {pastConversations.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700 shrink-0">
+                {pastConversations.length}
               </span>
             )}
           </button>
@@ -287,18 +329,30 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
             )
           )}
 
-          {/* TAB 2: STORE MESSAGES & PURCHASE TICKETS */}
+          {/* TAB 2: ACTIVE UNREAD STORE MESSAGES & PURCHASE TICKETS */}
           {activeTab === 'messages' && (
-            displayedNotifications.length === 0 ? (
+            activeUnreadMessages.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
-                <Mail className="w-12 h-12 mx-auto mb-3 stroke-1 text-slate-300" />
-                <p className="text-sm font-semibold text-slate-600">No Messages for {currentStoreName}</p>
+                <Inbox className="w-12 h-12 mx-auto mb-3 stroke-1 text-slate-300" />
+                <p className="text-sm font-semibold text-slate-700">No New Unread Messages</p>
                 <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                  Notifications appear here when order tickets or messages are addressed to this location.
+                  All active messages have been read and moved to Past History. New order tickets and restock alerts will appear here.
                 </p>
+                {pastConversations.length > 0 && (
+                  <button
+                    onClick={() => {
+                      playClickSound();
+                      setActiveTab('history');
+                    }}
+                    className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-pink-600 bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>View {pastConversations.length} Past Conversation(s)</span>
+                  </button>
+                )}
               </div>
             ) : (
-              displayedNotifications.map(notif => {
+              activeUnreadMessages.map(notif => {
                 const isPurchase = notif.transferType === 'order_fulfillment_reroute';
                 const isFading = Boolean(fadingIds[notif.id]);
                 const feedbackMsg = fadingIds[notif.id];
@@ -309,8 +363,6 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
                     className={`group relative overflow-hidden p-4 rounded-2xl border transition-all duration-300 cursor-pointer ${
                       isFading
                         ? 'opacity-0 -translate-x-6 scale-95 pointer-events-none'
-                        : notif.read
-                        ? 'bg-white border-slate-200/80 hover:border-pink-300 opacity-85 hover:opacity-100 shadow-xs'
                         : 'bg-gradient-to-br from-white via-rose-50/40 to-pink-50/60 border-pink-300/80 hover:border-pink-500 shadow-md ring-1 ring-pink-400/20'
                     }`}
                   >
@@ -355,21 +407,24 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
 
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 relative z-10">
                       <span className="text-[11px] font-mono font-bold text-slate-500">
-                        Ref: {notif.transferId}
+                        Ref: {notif.transferId || notif.id}
                       </span>
 
                       <div className="flex items-center gap-2">
-                        {!notif.read && (
-                          <button
-                            onClick={() => {
-                              playClickSound();
-                              triggerItemAction(notif.id, () => markNotificationRead(notif.id), 'Marked as read');
-                            }}
-                            className="text-[11px] text-slate-500 hover:text-slate-900 underline font-semibold transition-colors cursor-pointer"
-                          >
-                            Mark read
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            playClickSound();
+                            triggerItemAction(
+                              notif.id,
+                              () => markNotificationRead(notif.id, 'Dismissed & Moved to History'),
+                              'Moved to History ✓'
+                            );
+                          }}
+                          className="text-[11px] text-slate-500 hover:text-slate-900 font-semibold px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Mark Read &amp; Move to History</span>
+                        </button>
 
                         {isPurchase ? (
                           <div className="flex items-center gap-1.5">
@@ -379,8 +434,10 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
                                 triggerItemAction(
                                   notif.id,
                                   () => {
-                                    markNotificationRead(notif.id);
-                                    resumeTransferredSaleToCart(notif.transferId);
+                                    markNotificationRead(notif.id, 'Resumed in POS Checkout');
+                                    if (notif.transferId) {
+                                      resumeTransferredSaleToCart(notif.transferId);
+                                    }
                                     onClose();
                                   },
                                   'Resuming Sale in POS...'
@@ -396,8 +453,10 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
                                 triggerItemAction(
                                   notif.id,
                                   () => {
-                                    markNotificationRead(notif.id);
-                                    acceptPurchaseOrder(notif.transferId, 'M-Pesa');
+                                    markNotificationRead(notif.id, 'Accepted & Recorded');
+                                    if (notif.transferId) {
+                                      acceptPurchaseOrder(notif.transferId, 'M-Pesa');
+                                    }
                                   },
                                   'Order Accepted & Recorded ✓'
                                 );
@@ -414,8 +473,10 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
                               triggerItemAction(
                                 notif.id,
                                 () => {
-                                  markNotificationRead(notif.id);
-                                  receiveRestockTransfer(notif.transferId);
+                                  markNotificationRead(notif.id, 'Stock Received');
+                                  if (notif.transferId) {
+                                    receiveRestockTransfer(notif.transferId);
+                                  }
                                 },
                                 'Transfer Received Successfully ✓'
                               );
@@ -434,13 +495,83 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
             )
           )}
 
+          {/* TAB 3: PAST CONVERSATIONS & READ MESSAGE HISTORY */}
+          {activeTab === 'history' && (
+            pastConversations.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <History className="w-12 h-12 mx-auto mb-3 stroke-1 text-slate-300" />
+                <p className="text-sm font-semibold text-slate-700">No Past Conversation History</p>
+                <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                  Messages and notifications you mark as read or fulfill will be safely archived here for your records.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1 text-[11px] font-semibold text-slate-500">
+                  <span>Archived Activity Log ({pastConversations.length} records)</span>
+                  <span className="text-[10px] text-slate-400">Chronological history</span>
+                </div>
+
+                {pastConversations.map(notif => {
+                  const isPurchase = notif.transferType === 'order_fulfillment_reroute';
+
+                  return (
+                    <div
+                      key={notif.id}
+                      className="group relative overflow-hidden p-3.5 rounded-2xl border border-slate-200/90 bg-white hover:border-slate-300 shadow-xs hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                              isPurchase
+                                ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                                : 'bg-pink-50 text-pink-700 border border-pink-200'
+                            }`}
+                          >
+                            {isPurchase ? 'Order Ticket' : 'Restock Notice'}
+                          </span>
+                          <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                            <CheckCheck className="w-3 h-3 text-emerald-600" />
+                            <span>{notif.actionTaken || 'Read'}</span>
+                          </span>
+                        </div>
+
+                        <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(notif.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
+                          {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      <h4 className="font-semibold text-xs text-slate-800 mb-1">
+                        {notif.title}
+                      </h4>
+
+                      <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                        {notif.message}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100 text-[10px] text-slate-400 font-mono">
+                        <span>Ref: {notif.transferId || notif.id}</span>
+                        {notif.readAt && (
+                          <span>Archived at {new Date(notif.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+
         </div>
 
         {/* Drawer Footer */}
-        {mailNotifications.length > 0 && activeTab === 'messages' && (
+        {mailNotifications.length > 0 && (
           <div className="p-3 bg-white border-t border-slate-200 flex items-center justify-between">
             <span className="text-xs font-medium text-slate-500">
-              Total: {mailNotifications.length} message(s)
+              Total Messages: {mailNotifications.length} ({activeUnreadMessages.length} unread, {pastConversations.length} in history)
             </span>
             <button
               onClick={() => {
@@ -450,7 +581,7 @@ export const MailInboxDrawer: React.FC<MailInboxDrawerProps> = ({ isOpen, onClos
               className="text-xs text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-all cursor-pointer hover:scale-105"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear All</span>
+              <span>Clear All History</span>
             </button>
           </div>
         )}

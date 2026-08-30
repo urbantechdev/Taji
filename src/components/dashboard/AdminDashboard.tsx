@@ -4,6 +4,7 @@ import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { SalesTrendChart } from './SalesTrendChart';
 import { TodaySalesView } from './TodaySalesView';
+import { evaluateStockStatus, calculateStockThresholdSummary } from '../../utils/stockThresholdEngine';
 import {
   Smartphone,
   Banknote,
@@ -64,6 +65,7 @@ export const AdminDashboard: React.FC = () => {
     ledger,
     locations,
     brandSettings,
+    stockAlertSettings,
     requestRestock,
     dispatchRestockTransfer,
     receiveRestockTransfer,
@@ -219,26 +221,16 @@ export const AdminDashboard: React.FC = () => {
 
   const COLORS = ['#e91e63', '#ec4899', '#d946ef'];
 
-  // Separated Low Stock Calculations
-  const mainStoreLowStock = products.filter(p => p.locationStock.main_store <= p.minReorderLevel);
-  const salesShopLowStock = products.filter(p => p.locationStock.sales_shop <= p.minReorderLevel);
+  // Stock Threshold Engine Summary
+  const stockSummary = calculateStockThresholdSummary(products, orders, stockAlertSettings);
 
-  // Dead Stock Alert Calculations
-  const deadStockItems = products.filter(p => {
-    const totalStock = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
-    if (totalStock <= 0) return false;
-    const unitsSold = orders.reduce((acc, order) => {
-      if (order.status !== 'completed') return acc;
-      const item = order.items.find(i => i.batchId === p.id);
-      return acc + (item ? item.quantity : 0);
-    }, 0);
-    return unitsSold === 0;
-  });
+  // Separated Low Stock Calculations per Location according to configured rules
+  const mainStoreLowStock = products.filter(p => evaluateStockStatus(p, orders, stockAlertSettings, 'main_store').isLowStock);
+  const salesShopLowStock = products.filter(p => evaluateStockStatus(p, orders, stockAlertSettings, 'sales_shop').isLowStock);
 
-  const deadStockCapital = deadStockItems.reduce((acc, p) => {
-    const totalStock = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
-    return acc + totalStock * p.costPrice;
-  }, 0);
+  // Dead Stock Alert Calculations dynamically evaluated via configured timeframe & trigger basis
+  const deadStockItems = stockSummary.deadStockBatches.map(item => item.product);
+  const deadStockCapital = stockSummary.totalDeadStockCapitalCost;
 
   return (
     <div className="space-y-6">
@@ -1155,7 +1147,7 @@ export const AdminDashboard: React.FC = () => {
                 <span>Dead Stock Alert &amp; Capital Clearance Monitor ({deadStockItems.length} Batches)</span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Stagnant inventory batches with 0 sales in order history • Total Tied-Up Capital: <strong className="text-rose-700 font-mono font-extrabold">KSh {deadStockCapital.toLocaleString()}</strong>
+                Stagnant inventory batches (&gt;{stockAlertSettings.deadStockPeriodDays}d rule) • Total Tied-Up Capital: <strong className="text-rose-700 font-mono font-extrabold">KSh {deadStockCapital.toLocaleString()}</strong>
               </p>
             </div>
 

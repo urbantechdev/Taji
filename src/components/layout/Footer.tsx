@@ -59,7 +59,7 @@ export const Footer: React.FC = () => {
             href="https://urbantechdev.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-bold text-rose-600 hover:text-rose-800 transition-colors flex items-center gap-1 hover:underline text-xs"
+            className="font-bold text-rose-600 hover:text-rose-800 transition-colors flex items-center gap-1 text-xs"
           >
             <span>Urbantechdev</span>
             <ExternalLink className="w-3.5 h-3.5" />

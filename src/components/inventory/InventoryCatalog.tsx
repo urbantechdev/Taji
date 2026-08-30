@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useERP } from '../../context/ERPContext';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, UnitType } from '../../types';
 import { hasPermission } from '../../utils/rbac';
+import { evaluateStockStatus, calculateStockThresholdSummary } from '../../utils/stockThresholdEngine';
 import { ReceiveDeliveryModal } from './ReceiveDeliveryModal';
 import { CategoryIntakeModal } from './CategoryIntakeModal';
 import { WeightReconciliationModule } from './WeightReconciliationModule';
@@ -74,6 +75,7 @@ export const InventoryCatalog: React.FC = () => {
     checkProductDuplicate,
     scanAllCatalogDuplicates,
     restockExistingProduct,
+    stockAlertSettings,
     currentUser,
     isAdmin
   } = useERP();
@@ -135,27 +137,27 @@ export const InventoryCatalog: React.FC = () => {
   const [newMinLevel, setNewMinLevel] = useState(50);
   const [newMainStock, setNewMainStock] = useState(300);
 
-  // Low stock counts
-  const mainStoreLowCount = products.filter(p => p.locationStock.main_store <= p.minReorderLevel).length;
-  const salesShopLowCount = products.filter(p => p.locationStock.sales_shop <= p.minReorderLevel).length;
+  // Centralized Stock Threshold Summary Engine
+  const stockSummary = useMemo(() => {
+    return calculateStockThresholdSummary(products, orders, stockAlertSettings);
+  }, [products, orders, stockAlertSettings]);
 
-  // Dead Stock calculation (Items with total stock > 0 but 0 sales in order history)
-  const deadStockProducts = products.filter(p => {
-    const totalStock = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
-    if (totalStock <= 0) return false;
-    const unitsSold = orders.reduce((acc, order) => {
-      if (order.status !== 'completed') return acc;
-      const item = order.items.find(i => i.batchId === p.id);
-      return acc + (item ? item.quantity : 0);
-    }, 0);
-    return unitsSold === 0;
-  });
+  // Low stock counts per location based on configured settings
+  const mainStoreLowCount = useMemo(() => {
+    return products.filter(p => evaluateStockStatus(p, orders, stockAlertSettings, 'main_store').isLowStock).length;
+  }, [products, orders, stockAlertSettings]);
 
-  const deadStockCount = deadStockProducts.length;
-  const deadStockCapital = deadStockProducts.reduce((acc, p) => {
-    const totalStock = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
-    return acc + totalStock * p.costPrice;
-  }, 0);
+  const salesShopLowCount = useMemo(() => {
+    return products.filter(p => evaluateStockStatus(p, orders, stockAlertSettings, 'sales_shop').isLowStock).length;
+  }, [products, orders, stockAlertSettings]);
+
+  // Dead Stock calculation (Evaluated dynamically via configured settings & stagnation timeframe)
+  const deadStockProducts = useMemo(() => {
+    return stockSummary.deadStockBatches.map(item => item.product);
+  }, [stockSummary]);
+
+  const deadStockCount = stockSummary.deadStockCount;
+  const deadStockCapital = stockSummary.totalDeadStockCapitalCost;
 
   const filteredProducts = products.filter(p => {
     const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
@@ -167,17 +169,11 @@ export const InventoryCatalog: React.FC = () => {
 
     let matchesStock = true;
     if (stockFilter === 'main_store_low') {
-      matchesStock = p.locationStock.main_store <= p.minReorderLevel;
+      matchesStock = evaluateStockStatus(p, orders, stockAlertSettings, 'main_store').isLowStock;
     } else if (stockFilter === 'sales_shop_low') {
-      matchesStock = p.locationStock.sales_shop <= p.minReorderLevel;
+      matchesStock = evaluateStockStatus(p, orders, stockAlertSettings, 'sales_shop').isLowStock;
     } else if (stockFilter === 'dead_stock') {
-      const totalStock = (Object.values(p.locationStock) as number[]).reduce((a, b) => a + b, 0);
-      const unitsSold = orders.reduce((acc, order) => {
-        if (order.status !== 'completed') return acc;
-        const item = order.items.find(i => i.batchId === p.id);
-        return acc + (item ? item.quantity : 0);
-      }, 0);
-      matchesStock = totalStock > 0 && unitsSold === 0;
+      matchesStock = evaluateStockStatus(p, orders, stockAlertSettings).isDeadStock;
     }
 
     return matchesCat && matchesQuery && matchesStock;
@@ -666,7 +662,7 @@ export const InventoryCatalog: React.FC = () => {
                     <span>Dead Stock &amp; Stagnant Capital Clearance Hub</span>
                   </h4>
                   <p className="text-xs text-purple-200">
-                    {deadStockCount} inventory batches have recorded 0 sales • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-bold">KSh {deadStockCapital.toLocaleString()}</strong>
+                    {deadStockCount} inventory batches stagnant (&gt;{stockAlertSettings.deadStockPeriodDays}d threshold) • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-bold">KSh {deadStockCapital.toLocaleString()}</strong>
                   </p>
                 </div>
               </div>

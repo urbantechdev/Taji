@@ -35,14 +35,33 @@ export const TodaySalesView: React.FC = () => {
     setIsPeriodicStatementModalOpen,
     setSelectedReceipt,
     setSelectedShiftRecord,
-    etrConfig
+    etrConfig,
+    currentUser,
+    activeRole,
+    isAdmin,
+    isSuperAdmin
   } = useERP();
 
-  const [selectedLocFilter, setSelectedLocFilter] = useState<LocationId | 'All'>('All');
+  const effectiveRole = activeRole || currentUser?.role || 'sales_shop_cashier';
+  const isAdminLevel = Boolean(
+    isAdmin ||
+    isSuperAdmin ||
+    currentUser?.role === 'admin' ||
+    effectiveRole === 'admin'
+  );
+
+  // Non-admins are strictly pinned to their active/assigned branch
+  const userAssignedBranch: LocationId = activeLocation || currentUser?.assignedLocation || 'sales_shop';
+  const [selectedLocFilter, setSelectedLocFilter] = useState<LocationId | 'All'>(
+    isAdminLevel ? 'All' : userAssignedBranch
+  );
+
+  const effectiveLocFilter: LocationId | 'All' = isAdminLevel ? selectedLocFilter : userAssignedBranch;
+  const activeBranchInfo = locations.find(l => l.id === effectiveLocFilter);
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<'All' | 'Cash' | 'M-Pesa' | 'Bank Transfer' | 'Card'>('All');
 
-  const todaySummary = getTodaySalesSummary(selectedLocFilter);
+  const todaySummary = getTodaySalesSummary(effectiveLocFilter);
 
   // Filter orders
   const filteredOrders = todaySummary.orders.filter(o => {
@@ -61,7 +80,7 @@ export const TodaySalesView: React.FC = () => {
   const todayShifts = shiftClosures.filter(s => {
     const sDate = (s.closedAt || s.startTime).slice(0, 10);
     const matchesDate = sDate === todayStr;
-    const matchesLoc = selectedLocFilter === 'All' || s.locationId === selectedLocFilter;
+    const matchesLoc = effectiveLocFilter === 'All' || s.locationId === effectiveLocFilter;
     return matchesDate && matchesLoc;
   });
 
@@ -72,8 +91,8 @@ export const TodaySalesView: React.FC = () => {
       startDate: todaySummary.date,
       endDate: todaySummary.date,
       title: `Daily Sales & Revenue Statement (${todaySummary.date})`,
-      locationId: selectedLocFilter,
-      locationName: selectedLocFilter === 'All' ? 'All Branches' : (locations.find(l => l.id === selectedLocFilter)?.name || selectedLocFilter),
+      locationId: effectiveLocFilter,
+      locationName: effectiveLocFilter === 'All' ? 'All Branches' : (locations.find(l => l.id === effectiveLocFilter)?.name || effectiveLocFilter),
       totalOrders: todaySummary.totalOrders,
       totalUnitsSold: todaySummary.totalUnitsSold,
       grossSalesRevenue: todaySummary.grossRevenue,
@@ -115,8 +134,8 @@ export const TodaySalesView: React.FC = () => {
       startDate: todaySummary.date,
       endDate: todaySummary.date,
       title: `Daily Sales & Revenue Statement (${todaySummary.date})`,
-      locationId: selectedLocFilter,
-      locationName: selectedLocFilter === 'All' ? 'All Branches' : (locations.find(l => l.id === selectedLocFilter)?.name || selectedLocFilter),
+      locationId: effectiveLocFilter,
+      locationName: effectiveLocFilter === 'All' ? 'All Branches' : (locations.find(l => l.id === effectiveLocFilter)?.name || effectiveLocFilter),
       totalOrders: todaySummary.totalOrders,
       totalUnitsSold: todaySummary.totalUnitsSold,
       grossSalesRevenue: todaySummary.grossRevenue,
@@ -179,20 +198,33 @@ export const TodaySalesView: React.FC = () => {
 
         {/* Filters & Actions */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Location Scope Selector */}
-          <select
-            id="today-sales-location-filter"
-            value={selectedLocFilter}
-            onChange={e => setSelectedLocFilter(e.target.value as any)}
-            className="text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 text-slate-800"
-          >
-            <option value="All">All Locations & Central Stores</option>
-            {locations.map(loc => (
-              <option key={loc.id} value={loc.id}>
-                {loc.name}
-              </option>
-            ))}
-          </select>
+          {/* Location Scope Selector - Admin vs Restricted Branch */}
+          {isAdminLevel ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-600">Branch Scope:</span>
+              <select
+                id="today-sales-location-filter"
+                value={selectedLocFilter}
+                onChange={e => setSelectedLocFilter(e.target.value as any)}
+                className="text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 text-slate-800"
+              >
+                <option value="All">All Locations &amp; Central Stores (Consolidated)</option>
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} {loc.canSellDirectly ? '(Retail Shop)' : '(Storage Node)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 border border-slate-300 rounded-xl text-xs font-bold text-slate-800">
+              <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>Branch: {activeBranchInfo?.name || userAssignedBranch}</span>
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                Own Branch Restricted
+              </span>
+            </div>
+          )}
 
           {/* Close Shift (EOD Handover) */}
           <button
@@ -226,6 +258,16 @@ export const TodaySalesView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* STORAGE NODE ADVISORY NOTICE (If location is a storage node that does not conduct direct retail sales) */}
+      {activeBranchInfo && !activeBranchInfo.canSellDirectly && (
+        <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900 shadow-xs">
+          <AlertTriangle className="w-4 h-4 text-blue-600 shrink-0" />
+          <div>
+            <span className="font-extrabold">{activeBranchInfo.name}</span> is a central warehouse &amp; transfer storage node (does not process retail walk-in sales). Retail customer sales occur at retail shop branches.
+          </div>
+        </div>
+      )}
 
       {/* HIGHLIGHT METRIC CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3.5">

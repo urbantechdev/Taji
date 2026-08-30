@@ -19,7 +19,8 @@ import {
   ETIMSCreditNote,
   FabricRollRecord,
   FixedAsset,
-  KRAInputVATClaim
+  KRAInputVATClaim,
+  StockAlertSettings
 } from '../types';
 
 export const INITIAL_POS_OPERATORS: POSOperator[] = [
@@ -156,12 +157,28 @@ export const INITIAL_ETR_CONFIG: ETRConfig = {
 
 export const INITIAL_BRAND_SETTINGS = {
   brandName: 'Taji',
-  tagline: 'Textile Inventory & ETR Billing Platform',
+  tagline: 'Powered by urbantechdev',
   primaryColor: '#B50044', // Taji Pink #B50044
   accentColor: '#9f003c',
   headerBgColor: 'pink', // Options: 'pink', 'rose', 'slate', 'indigo', 'emerald'
   logoUrl: 'https://i.pinimg.com/736x/b2/47/2b/b2472b0a27beee4bf5d46d692ae0d8ed.jpg',
   faviconUrl: ''
+};
+
+export const INITIAL_STOCK_ALERT_SETTINGS: StockAlertSettings = {
+  defaultLowStockThreshold: 50,
+  lowStockEvaluationMode: 'location_specific',
+  enableCustomBatchThresholds: true,
+  autoReorderNotification: true,
+  deadStockPeriodDays: 60,
+  deadStockCalculationBasis: 'either_creation_or_no_sale',
+  minRemainingStockForDeadStock: 1,
+  deadStockDiscountSuggestionPct: 20,
+  categoryLowStockThresholds: {
+    Dereck: 50,
+    Fleece: 50,
+    Yarns: 30
+  }
 };
 
 export const INITIAL_MAIL_NOTIFICATIONS: MailNotification[] = [];

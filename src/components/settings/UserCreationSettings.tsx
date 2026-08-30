@@ -34,6 +34,7 @@ export const UserCreationSettings: React.FC = () => {
     updatePOSOperator,
     deletePOSOperator,
     unlockPOSWithPin,
+    loginAsOperator,
     locations,
     currentUser,
     recordAuditLog
@@ -389,6 +390,24 @@ export const UserCreationSettings: React.FC = () => {
 
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {currentUser.id !== op.id && op.status !== 'inactive' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const res = loginAsOperator(op);
+                                setStatusMessage({
+                                  type: res.success ? 'success' : 'error',
+                                  text: res.message
+                                });
+                              }}
+                              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                              title={`Activate session as ${op.name}`}
+                            >
+                              <UserCheck className="w-3 h-3 text-emerald-400" />
+                              <span>Switch to Role</span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => openEditModal(op)}
@@ -607,6 +626,52 @@ export const UserCreationSettings: React.FC = () => {
                   </select>
                 </div>
               </div>
+
+              {/* Role Scope & Permission Breakdown */}
+              {(() => {
+                const meta = getRoleMetadata(role);
+                const allTabsList = [
+                  { id: 'dashboard', label: 'Dashboard' },
+                  { id: 'sales_today', label: 'Sales Today' },
+                  { id: 'pos', label: 'POS Terminal' },
+                  { id: 'catalog', label: 'Inventory' },
+                  { id: 'transfers', label: 'Transfers' },
+                  { id: 'ledger', label: 'Ledger' },
+                  { id: 'etr', label: 'ETR Invoicing' },
+                  { id: 'payroll', label: 'HR Payroll' },
+                  { id: 'branches', label: 'Branches' },
+                  { id: 'operators', label: 'User Admin' },
+                  { id: 'audit', label: 'Audit Trail' },
+                  { id: 'gmail', label: 'Inbox' },
+                  { id: 'settings', label: 'Settings' }
+                ];
+                const allowed = allTabsList.filter(t => meta.allowedTabs.includes(t.id as any));
+
+                return (
+                  <div className="p-3 bg-pink-50/50 border border-pink-200/80 rounded-xl space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-pink-950 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-pink-700" />
+                        Role Scope &amp; Gated Access
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${meta.badgeClass}`}>
+                        {meta.shortLabel}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                      {meta.description}
+                    </p>
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {allowed.map(t => (
+                        <span key={t.id} className="px-2 py-0.5 bg-white text-pink-900 border border-pink-300 rounded-md text-[10px] font-bold flex items-center gap-1">
+                          <Check className="w-2.5 h-2.5 text-pink-600" />
+                          {t.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Account Status</label>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { LocationId } from '../../types';
 import tajiLogo from '../../assets/images/taji_logo_1786034537873.jpg';
@@ -14,7 +14,8 @@ import {
   Sparkles,
   ShieldAlert,
   Building,
-  UserCheck
+  UserCheck,
+  Keyboard
 } from 'lucide-react';
 
 export const PlatformLockScreen: React.FC = () => {
@@ -35,11 +36,51 @@ export const PlatformLockScreen: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const displayLogo = brandSettings?.logoUrl || tajiLogo;
   
   // Non-admin staff locations (Main Store is managed via Admin Gmail login)
   const staffLocations = locations.filter(loc => loc.id !== 'main_store');
+
+  // Auto-focus input when in PIN tab
+  useEffect(() => {
+    if (activeTab === 'pin') {
+      inputRef.current?.focus();
+    }
+  }, [activeTab]);
+
+  // Global physical keyboard listener when in PIN tab
+  useEffect(() => {
+    if (activeTab !== 'pin') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if modifier keys like Ctrl/Meta/Alt are held
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // Handle numbers from main keyboard (0-9) and numpad (Numpad0-Numpad9)
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Escape' || e.key === 'Delete') {
+        e.preventDefault();
+        handleClear();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (pin.length === 6) {
+          attemptUnlock(pin);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeTab, pin]);
 
   const handleDigit = (digit: string) => {
     playClickSound();
@@ -144,9 +185,17 @@ export const PlatformLockScreen: React.FC = () => {
               {brandSettings.brandName}
             </h1>
             
-            <p className="text-[11px] sm:text-xs text-slate-500 font-medium max-w-xs mx-auto">
-              {brandSettings.tagline || 'Textile Inventory & ETR Billing Platform'}
-            </p>
+            <div className="pt-0.5">
+              <a
+                href="https://urbantechdev.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] sm:text-xs text-slate-500 hover:text-rose-600 font-medium max-w-xs mx-auto transition-colors"
+                title="Visit urbantechdev.com"
+              >
+                <span>Powered by <strong className="text-slate-700 hover:text-rose-600 font-bold">urbantechdev</strong></span>
+              </a>
+            </div>
           </div>
         </div>
 
@@ -232,8 +281,38 @@ export const PlatformLockScreen: React.FC = () => {
               </div>
 
               {/* 6-Digit PIN Indicators */}
-              <div className="space-y-1 text-center">
-                <p className="text-[11px] sm:text-xs font-bold text-slate-600">Enter 6-Digit Cashier / Staff Passcode</p>
+              <div 
+                onClick={() => inputRef.current?.focus()} 
+                className="space-y-1.5 text-center cursor-pointer group"
+                title="Click anywhere here or use your physical keyboard or numpad directly"
+              >
+                <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-600">
+                  <Keyboard className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Enter 6-Digit Cashier / Staff Passcode</span>
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium">Type with physical keyboard numbers/numpad or click keypad below</p>
+
+                {/* Hidden input to ensure soft keyboard on touch and direct focus capture */}
+                <input
+                  ref={inputRef}
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setPin(val);
+                    setErrorMessage(null);
+                    if (val.length === 6) {
+                      attemptUnlock(val);
+                    }
+                  }}
+                  className="opacity-0 absolute -z-10 pointer-events-none w-0 h-0"
+                  aria-label="Staff PIN Passcode"
+                  autoFocus
+                />
+
                 <div className="flex items-center justify-center gap-1.5 sm:gap-2 py-0.5 sm:py-1">
                   {[0, 1, 2, 3, 4, 5].map(index => {
                     const hasDigit = pin.length > index;
@@ -243,7 +322,7 @@ export const PlatformLockScreen: React.FC = () => {
                         className={`w-8 h-10 sm:w-10 sm:h-12 rounded-xl sm:rounded-2xl border-2 flex items-center justify-center text-lg sm:text-2xl font-black transition-all ${
                           hasDigit
                             ? 'border-slate-900 bg-slate-900 text-white scale-105 shadow-md'
-                            : 'border-slate-200 bg-slate-50 text-slate-400'
+                            : 'border-slate-200 bg-slate-50 text-slate-400 group-hover:border-rose-300'
                         }`}
                       >
                         {hasDigit ? '•' : ''}

@@ -20,9 +20,10 @@ import { RoleSettings } from './RoleSettings';
 import { FinancialSettings } from './FinancialSettings';
 import { UserCreationSettings } from './UserCreationSettings';
 import { RealBarcodeSettings } from './RealBarcodeSettings';
+import { StockThresholdSettings } from './StockThresholdSettings';
 import { GeneralPlatformSettings } from './GeneralPlatformSettings';
 
-export type SettingsSubTab = 'prices' | 'roles' | 'financial' | 'users' | 'barcodes' | 'general';
+export type SettingsSubTab = 'prices' | 'stock_thresholds' | 'roles' | 'financial' | 'users' | 'barcodes' | 'general';
 
 interface SettingsModuleProps {
   initialSubTab?: SettingsSubTab;
@@ -45,6 +46,13 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ initialSubTab = 
       description: 'Category margins, bulk pricing & tare weights',
       icon: DollarSign,
       badge: 'Margins'
+    },
+    {
+      id: 'stock_thresholds',
+      label: 'Stock Alert & Dead Stock Rules',
+      description: 'Low stock level, stagnation period & automated triggers',
+      icon: Sliders,
+      badge: 'Alerts'
     },
     {
       id: 'roles',
@@ -157,6 +165,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ initialSubTab = 
       {/* Render Active Sub-Module Content */}
       <div className="animate-in fade-in duration-150">
         {activeSubTab === 'prices' && <ProductPriceSettings />}
+        {activeSubTab === 'stock_thresholds' && <StockThresholdSettings />}
         {activeSubTab === 'roles' && <RoleSettings />}
         {activeSubTab === 'financial' && <FinancialSettings />}
         {activeSubTab === 'users' && <UserCreationSettings />}

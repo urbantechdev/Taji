@@ -4,6 +4,7 @@ import { NavTab } from './Sidebar';
 import { useERP } from '../../context/ERPContext';
 import { LocationId, UserRole } from '../../types';
 import { isTabAllowedForRole } from '../../utils/rbac';
+import { evaluateStockStatus } from '../../utils/stockThresholdEngine';
 import { playClickSound, playPopupSound } from '../../utils/audio';
 import {
   LayoutDashboard,
@@ -187,7 +188,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     currentUser,
     isSuperAdmin,
     isAdmin,
-    lockPlatform
+    lockPlatform,
+    orders,
+    stockAlertSettings
   } = useERP();
 
   const effectiveRole = activeRole || currentUser.role;
@@ -195,11 +198,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const unreadMails = mailNotifications.filter(m => !m.read).length;
 
   const mainStoreLowCount = products.filter(
-    p => p.locationStock ? (p.locationStock.main_store ?? 0) <= p.minReorderLevel : false
+    p => evaluateStockStatus(p, orders, stockAlertSettings, 'main_store').isLowStock
   ).length;
 
   const salesShopLowCount = products.filter(
-    p => p.locationStock ? (p.locationStock.sales_shop ?? 0) <= p.minReorderLevel : false
+    p => evaluateStockStatus(p, orders, stockAlertSettings, 'sales_shop').isLowStock
   ).length;
 
   // Strict RBAC filtering for permitted tabs

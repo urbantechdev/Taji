@@ -342,7 +342,7 @@ export const BrandSettingsModal: React.FC = () => {
               type="button"
               onClick={() => {
                 setBrandName('Taji');
-                setTagline('Textile Inventory & ETR Billing Platform');
+                setTagline('Powered by urbantechdev');
                 setHeaderBgColor('pink');
                 setPrimaryColor('#B50044');
                 setLogoUrl('');

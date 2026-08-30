@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { NavTab } from './Sidebar';
 import { isTabAllowedForRole } from '../../utils/rbac';
+import { evaluateStockStatus } from '../../utils/stockThresholdEngine';
 import { playClickSound } from '../../utils/audio';
 import {
   LayoutDashboard,
@@ -50,6 +51,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
     mailNotifications,
     brandSettings,
     products,
+    stockAlertSettings,
     isAdmin
   } = useERP();
 
@@ -64,7 +66,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
   const todayOrdersCount = orders.length;
 
   const lowStockCount = products.filter(
-    p => (p.locationStock?.main_store <= p.minReorderLevel) || (p.locationStock?.sales_shop <= p.minReorderLevel)
+    p => evaluateStockStatus(p, orders, stockAlertSettings).isLowStock
   ).length;
 
   const allNavItems: NavItem[] = [

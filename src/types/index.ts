@@ -508,6 +508,7 @@ export interface SaleOrder {
   status: OrderStatus;
   operatorId: string;
   operatorName: string;
+  operatorRole?: UserRole | string;
   timestamp: string;
   dueDate?: string;
   validityDays?: number;
@@ -860,17 +861,102 @@ export interface BrandSettings {
   address?: string;
 }
 
+export type DeadStockCalculationBasis = 
+  | 'days_since_last_sale'      // Trigger if 0 sales in the last X days
+  | 'date_of_creation'          // Trigger if batch was created > X days ago
+  | 'either_creation_or_no_sale' // Trigger if created > X days ago OR 0 sales in last X days
+  | 'both_creation_and_no_sale'; // Trigger if created > X days ago AND 0 sales in last X days
+
+export type LowStockEvaluationMode = 
+  | 'location_specific' // Flag if ANY active location has stock <= threshold
+  | 'total_aggregate';  // Flag only if total combined stock <= threshold
+
+export interface StockAlertSettings {
+  // Low Stock Rules
+  defaultLowStockThreshold: number; // e.g., 50 units / meters
+  lowStockEvaluationMode: LowStockEvaluationMode;
+  enableCustomBatchThresholds: boolean; // if true, uses batch.minReorderLevel when set
+  autoReorderNotification: boolean; // Enable UI notification banner & badges
+  categoryLowStockThresholds?: Partial<Record<CategoryType, number>>; // Category specific overrides (Dereck, Fleece, Yarns)
+
+  // Dead Stock Rules
+  deadStockPeriodDays: number; // e.g., 30, 60, 90, 120, 180 days
+  deadStockCalculationBasis: DeadStockCalculationBasis;
+  minRemainingStockForDeadStock: number; // e.g., 1 unit (must have unsold stock > this number)
+  deadStockDiscountSuggestionPct: number; // e.g., 20% clearance markdown advice
+  
+  lastUpdated?: string;
+  updatedBy?: string;
+}
+
+export interface ProductStockStatusEvaluation {
+  product: ProductBatch;
+  totalRemainingStock: number;
+  locationStockBreakdown: Record<LocationId, number>;
+  
+  // Low Stock Status
+  isLowStock: boolean;
+  lowStockThresholdApplied: number;
+  lowStockDeficit: number; // units needed to reach threshold
+  lowStockLocations: LocationId[];
+  
+  // Dead Stock Status
+  isDeadStock: boolean;
+  deadStockReason?: string;
+  daysSinceCreation: number;
+  daysSinceLastSale: number | null; // null if never sold
+  unitsSoldInPeriod: number;
+  totalLifetimeUnitsSold: number;
+  tiedUpCapitalCost: number; // remainingStock * costPrice
+  tiedUpCapitalRetail: number; // remainingStock * retailPrice
+  suggestedClearancePrice: number; // markdown price
+}
+
+export interface StockThresholdSummary {
+  totalProductsCount: number;
+  lowStockCount: number;
+  lowStockBatches: ProductStockStatusEvaluation[];
+  deadStockCount: number;
+  deadStockBatches: ProductStockStatusEvaluation[];
+  healthyBatchesCount: number;
+  totalDeadStockCapitalCost: number;
+  totalDeadStockCapitalRetail: number;
+  totalLowStockDeficitUnits: number;
+}
+
+export interface MailNotificationItem {
+  batchId?: string;
+  productName: string;
+  quantity: number;
+  unit: string;
+  unitPrice?: number;
+  category?: CategoryType;
+  colorName?: string;
+}
+
 export interface MailNotification {
   id: string;
   title: string;
   message: string;
-  transferId: string;
-  transferType: TransferType;
+  category?: 'order_transfer' | 'stock_transfer' | 'staff_message' | 'stock_inquiry' | 'urgent_alert' | 'system_alert';
+  transferId?: string;
+  transferType?: TransferType;
   fromLocation: LocationId;
   toLocation: LocationId;
+  senderName?: string;
+  senderRole?: UserRole | string;
+  senderId?: string;
+  recipientRole?: UserRole | string;
+  customerName?: string;
+  orderTotalAmount?: number;
+  items?: MailNotificationItem[];
   timestamp: string;
   read: boolean;
-  itemCount: number;
+  itemCount?: number;
+  archived?: boolean;
+  readAt?: string;
+  actionTaken?: string;
+  historyNotes?: string;
 }
 
 export type AppMode = 'admin' | 'pos';

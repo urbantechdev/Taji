@@ -45,7 +45,7 @@ export const GeneralPlatformSettings: React.FC = () => {
 
   // Brand state
   const [brandName, setBrandName] = useState(brandSettings.brandName || 'TAJI');
-  const [tagline, setTagline] = useState(brandSettings.tagline || 'Textile ERP & Autonomous Branch Operations');
+  const [tagline, setTagline] = useState(brandSettings.tagline || 'Powered by urbantechdev');
   const [headerBgColor, setHeaderBgColor] = useState(brandSettings.headerBgColor || 'pink');
   const [primaryColor, setPrimaryColor] = useState(brandSettings.primaryColor || '#B50044');
   const [logoUrl, setLogoUrl] = useState(brandSettings.logoUrl || '');
