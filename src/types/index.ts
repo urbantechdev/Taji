@@ -383,7 +383,7 @@ export interface POSOperator {
   email: string;
   phone?: string;
   kraPin?: string;
-  pin: string; // 6-digit PIN code
+  pin: string; // 6-digit PIN code (or empty string if awaiting PIN setup)
   location: LocationId;
   role: UserRole;
   status: 'active' | 'inactive';
@@ -391,6 +391,9 @@ export interface POSOperator {
   createdBy?: string;
   createdAt: string;
   lastLoginAt?: string;
+  staffId?: string;
+  employeeNo?: string;
+  isAwaitingPin?: boolean;
 }
 
 export interface UserProfile {

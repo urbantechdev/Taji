@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   RotateCcw,
   AlertTriangle,
@@ -11,7 +11,7 @@ import {
   Building2,
   Trash2,
   Printer,
-  Sparkles,
+  Download,
   Search,
   Scale,
   DollarSign,
@@ -24,7 +24,15 @@ import {
   Clock,
   User,
   Phone,
-  Tag
+  Tag,
+  Filter,
+  CheckSquare,
+  Square,
+  ArrowUpRight,
+  FileSpreadsheet,
+  Info,
+  RefreshCw,
+  Eye
 } from 'lucide-react';
 import { useERP } from '../context/ERPContext';
 import {
@@ -33,8 +41,16 @@ import {
   ReturnExchangePayload,
   QuarantinedDefectRecord,
   ETIMSCreditNote,
-  LocationId
+  LocationId,
+  CategoryType
 } from '../types';
+import {
+  exportRmaReturnVoucherPDF,
+  exportSupplierClaimNotePDF,
+  exportCreditNoteDirectPDF,
+  exportRmaAuditScheduleCSV,
+  formatCurrency
+} from '../utils/documentExport';
 
 export const ReturnExchangeModal: React.FC = () => {
   const {
@@ -48,16 +64,20 @@ export const ReturnExchangeModal: React.FC = () => {
     etrConfig,
     quarantinedDefects,
     creditNotes,
+    brandSettings,
     processReturnAndExchange,
     fileSupplierDefectClaim,
     resolveQuarantineRecord,
-    categoryPricingConfigs
+    deleteQuarantineRecord
   } = useERP();
 
   const [activeTab, setActiveTab] = useState<'new_rma' | 'quarantine_list' | 'credit_notes' | 'ledger_guide'>('new_rma');
 
-  // Form state for new Return / Exchange
+  // ----------------------------------------------------
+  // Form State: New Return & Exchange
+  // ----------------------------------------------------
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  const [orderSearchQuery, setOrderSearchQuery] = useState<string>('');
   const [receiptNumber, setReceiptNumber] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('Retail Garment Customer');
   const [customerPhone, setCustomerPhone] = useState<string>('+254 7');
@@ -65,6 +85,7 @@ export const ReturnExchangeModal: React.FC = () => {
 
   // Returned item
   const [returnedBatchId, setReturnedBatchId] = useState<string>(products[0]?.id || '');
+  const [returnedRollNumber, setReturnedRollNumber] = useState<string>('');
   const [returnedConesCount, setReturnedConesCount] = useState<number>(2);
   const [returnedGrossWeightKg, setReturnedGrossWeightKg] = useState<number>(4.140);
   const [returnedTareKg, setReturnedTareKg] = useState<number>(0.140);
@@ -78,6 +99,7 @@ export const ReturnExchangeModal: React.FC = () => {
 
   // Replacement item (for exchange)
   const [replacementBatchId, setReplacementBatchId] = useState<string>(products[0]?.id || '');
+  const [replacementRollNumber, setReplacementRollNumber] = useState<string>('');
   const [replacementConesCount, setReplacementConesCount] = useState<number>(2);
   const [replacementNetWeightKg, setReplacementNetWeightKg] = useState<number>(4.000);
   const [replacementRatePerKg, setReplacementRatePerKg] = useState<number>(750);
@@ -86,13 +108,42 @@ export const ReturnExchangeModal: React.FC = () => {
   const [refundChannel, setRefundChannel] = useState<'Bank Account' | 'M-Pesa B2C' | 'Cash Drawer' | 'Store Credit Note'>('Bank Account');
   const [refundReference, setRefundReference] = useState<string>('');
 
-  // Quarantine bulk actions
+  // ----------------------------------------------------
+  // Quarantine List Filter & Selection State
+  // ----------------------------------------------------
+  const [quarantineSearch, setQuarantineSearch] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'quarantined' | 'supplier_claim_filed' | 'supplier_compensated' | 'written_off_scrap'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'Yarns' | 'Fleece' | 'Dereck'>('all');
+  const [locationFilter, setLocationFilter] = useState<string>('all');
   const [selectedQuarantineIds, setSelectedQuarantineIds] = useState<string[]>([]);
+
+  // ----------------------------------------------------
+  // Modals & Action Dialogs
+  // ----------------------------------------------------
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [claimSupplierName, setClaimSupplierName] = useState<string>('UDEY UDYOG UNIT OF OSTER INDIA PVT LTD');
   const [claimNotes, setClaimNotes] = useState<string>('Batch defect claim: Spoilt yarn cones collected from customer bale inspection.');
+  const [autoExportClaimPdf, setAutoExportClaimPdf] = useState(true);
 
-  // Outcome notification
-  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string; rmaId?: string } | null>(null);
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [restockLocation, setRestockLocation] = useState<LocationId>(activeLocation);
+  const [restockBatchId, setRestockBatchId] = useState<string>(products[0]?.id || '');
+  const [restockQty, setRestockQty] = useState<number>(4.0);
+  const [restockNotes, setRestockNotes] = useState<string>('Manufacturer replacement delivered and inspected.');
+
+  const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<QuarantinedDefectRecord | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<QuarantinedDefectRecord | null>(null);
+
+  // Feedback Notification
+  const [actionFeedback, setActionFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+    rmaId?: string;
+    createdRma?: QuarantinedDefectRecord;
+  } | null>(null);
+
+  // Credit note search state
+  const [creditNoteSearch, setCreditNoteSearch] = useState<string>('');
 
   if (!isReturnExchangeModalOpen) return null;
 
@@ -120,12 +171,19 @@ export const ReturnExchangeModal: React.FC = () => {
       setReceiptNumber(ord.receiptNumber || ord.id);
       setCustomerName(ord.customerName || 'Customer');
       setCustomerPhone(ord.customerPhone || '+254 7');
+      if (ord.fulfilledByLocation) {
+        setLocationId(ord.fulfilledByLocation as LocationId);
+      }
       if (ord.items && ord.items.length > 0) {
         const firstItem = ord.items[0];
         setReturnedBatchId(firstItem.batchId);
         setReturnedRatePerKg(firstItem.unitPrice);
         setReplacementBatchId(firstItem.batchId);
         setReplacementRatePerKg(firstItem.unitPrice);
+        const matchedProd = products.find(p => p.id === firstItem.batchId);
+        if (matchedProd?.manufacturer) {
+          setSupplierName(matchedProd.manufacturer);
+        }
       }
     }
   };
@@ -143,6 +201,7 @@ export const ReturnExchangeModal: React.FC = () => {
     }
   };
 
+  // Submit RMA form
   const handleProcessSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setActionFeedback(null);
@@ -150,27 +209,34 @@ export const ReturnExchangeModal: React.FC = () => {
     const payload: ReturnExchangePayload = {
       orderId: selectedOrderId || undefined,
       receiptNumber: receiptNumber || undefined,
-      customerName,
-      customerPhone,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
       locationId,
       operatorId: currentUser.id,
       operatorName: currentUser.name,
       returnedBatchId,
-      returnedConesCount,
-      returnedGrossWeightKg,
-      returnedTareKg,
-      returnedNetWeightKg,
-      returnedRatePerKg,
+      returnedUnit: isFabric ? 'meter' : 'kg',
+      returnedConesCount: !isFabric ? returnedConesCount : undefined,
+      returnedGrossWeightKg: !isFabric ? returnedGrossWeightKg : undefined,
+      returnedTareKg: !isFabric ? returnedTareKg : undefined,
+      returnedNetWeightKg: !isFabric ? returnedNetWeightKg : undefined,
+      returnedMeters: isFabric ? returnedNetWeightKg : undefined,
+      returnedRollNumber: isFabric ? returnedRollNumber : undefined,
+      returnedRatePerKg: !isFabric ? returnedRatePerKg : undefined,
+      returnedRatePerMeter: isFabric ? returnedRatePerKg : undefined,
       defectReason,
-      defectNotes,
+      defectNotes: defectNotes.trim(),
       resolutionType,
       replacementBatchId: resolutionType === 'exchange_replacement' ? replacementBatchId : undefined,
-      replacementConesCount: resolutionType === 'exchange_replacement' ? replacementConesCount : undefined,
-      replacementNetWeightKg: resolutionType === 'exchange_replacement' ? replacementNetWeightKg : undefined,
-      replacementRatePerKg: resolutionType === 'exchange_replacement' ? replacementRatePerKg : undefined,
+      replacementConesCount: resolutionType === 'exchange_replacement' && !isReplacementFabric ? replacementConesCount : undefined,
+      replacementNetWeightKg: resolutionType === 'exchange_replacement' && !isReplacementFabric ? replacementNetWeightKg : undefined,
+      replacementMeters: resolutionType === 'exchange_replacement' && isReplacementFabric ? replacementNetWeightKg : undefined,
+      replacementRollNumber: resolutionType === 'exchange_replacement' && isReplacementFabric ? replacementRollNumber : undefined,
+      replacementRatePerKg: resolutionType === 'exchange_replacement' && !isReplacementFabric ? replacementRatePerKg : undefined,
+      replacementRatePerMeter: resolutionType === 'exchange_replacement' && isReplacementFabric ? replacementRatePerKg : undefined,
       refundChannel: resolutionType !== 'exchange_replacement' ? refundChannel : undefined,
-      refundReference: refundReference || undefined,
-      supplierName
+      refundReference: refundReference.trim() || undefined,
+      supplierName: supplierName.trim()
     };
 
     const res = processReturnAndExchange(payload);
@@ -178,12 +244,9 @@ export const ReturnExchangeModal: React.FC = () => {
       setActionFeedback({
         type: 'success',
         message: res.message,
-        rmaId: res.rmaId
+        rmaId: res.rmaId,
+        createdRma: res.exchangeRecord
       });
-      // Switch to quarantine view to see the isolated stock
-      setTimeout(() => {
-        setActiveTab('quarantine_list');
-      }, 1200);
     } else {
       setActionFeedback({
         type: 'error',
@@ -192,23 +255,58 @@ export const ReturnExchangeModal: React.FC = () => {
     }
   };
 
-  const handleFileClaim = () => {
+  // Submit Supplier Claim
+  const handleFileClaimSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (selectedQuarantineIds.length === 0) return;
+
     const res = fileSupplierDefectClaim(selectedQuarantineIds, claimSupplierName, claimNotes);
     if (res.success) {
+      const recordsClaimed = quarantinedDefects.filter(r => selectedQuarantineIds.includes(r.id));
+      if (autoExportClaimPdf) {
+        exportSupplierClaimNotePDF(
+          res.claimRef,
+          claimSupplierName,
+          claimNotes,
+          recordsClaimed,
+          etrConfig,
+          brandSettings
+        );
+      }
       setSelectedQuarantineIds([]);
+      setIsClaimModalOpen(false);
       setActionFeedback({ type: 'success', message: res.message });
     }
   };
 
-  const handleResolveQuarantine = (action: 'supplier_compensated' | 'supplier_replaced' | 'written_off_scrap') => {
+  // Submit Restock Replacement
+  const handleRestockSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (selectedQuarantineIds.length === 0) return;
+
+    const res = resolveQuarantineRecord(
+      selectedQuarantineIds,
+      'supplier_replaced',
+      restockNotes,
+      restockBatchId,
+      restockQty,
+      restockLocation
+    );
+    if (res.success) {
+      setSelectedQuarantineIds([]);
+      setIsRestockModalOpen(false);
+      setActionFeedback({ type: 'success', message: res.message });
+    }
+  };
+
+  // Resolve as Compensated or Scrap
+  const handleDirectResolve = (action: 'supplier_compensated' | 'written_off_scrap') => {
+    if (selectedQuarantineIds.length === 0) return;
+    const actionLabel = action === 'supplier_compensated' ? 'Supplier Reimbursed' : 'Written-off as Scrap';
     const res = resolveQuarantineRecord(
       selectedQuarantineIds,
       action,
-      `Resolved via ${action.replace('_', ' ')} on ${new Date().toLocaleDateString()}`,
-      returnedBatchId,
-      4.0
+      `Resolved as ${actionLabel} on ${new Date().toLocaleDateString()}`
     );
     if (res.success) {
       setSelectedQuarantineIds([]);
@@ -216,114 +314,219 @@ export const ReturnExchangeModal: React.FC = () => {
     }
   };
 
+  // Delete / Void single RMA
+  const handleDeleteConfirm = () => {
+    if (!recordToDelete) return;
+    const res = deleteQuarantineRecord(recordToDelete.id);
+    if (res.success) {
+      setRecordToDelete(null);
+      if (selectedRecordForDetail?.id === recordToDelete.id) {
+        setSelectedRecordForDetail(null);
+      }
+      setActionFeedback({ type: 'success', message: res.message });
+    }
+  };
+
+  // ----------------------------------------------------
+  // Filtered Lists
+  // ----------------------------------------------------
+  const filteredOrders = useMemo(() => {
+    if (!orderSearchQuery.trim()) return orders.slice(0, 15);
+    const q = orderSearchQuery.toLowerCase();
+    return orders.filter(
+      o =>
+        o.id.toLowerCase().includes(q) ||
+        (o.receiptNumber && o.receiptNumber.toLowerCase().includes(q)) ||
+        o.customerName.toLowerCase().includes(q) ||
+        (o.customerPhone && o.customerPhone.includes(q))
+    ).slice(0, 15);
+  }, [orders, orderSearchQuery]);
+
+  const filteredQuarantinedDefects = useMemo(() => {
+    return quarantinedDefects.filter(rec => {
+      // Search query
+      if (quarantineSearch.trim()) {
+        const q = quarantineSearch.toLowerCase();
+        const matchNumber = rec.rmaNumber.toLowerCase().includes(q);
+        const matchCust = rec.customerName.toLowerCase().includes(q);
+        const matchProd = rec.returnedItem.productName.toLowerCase().includes(q);
+        const matchLot = (rec.returnedItem.dyeLot || '').toLowerCase().includes(q);
+        const matchReason = rec.defectReason.toLowerCase().includes(q);
+        const matchClaim = (rec.supplierClaimNumber || '').toLowerCase().includes(q);
+        if (!matchNumber && !matchCust && !matchProd && !matchLot && !matchReason && !matchClaim) {
+          return false;
+        }
+      }
+      // Status filter
+      if (statusFilter !== 'all') {
+        if (rec.quarantineStatus !== statusFilter) return false;
+      }
+      // Category filter
+      if (categoryFilter !== 'all') {
+        if (rec.returnedItem.category !== categoryFilter) return false;
+      }
+      // Location filter
+      if (locationFilter !== 'all') {
+        if (rec.locationId !== locationFilter) return false;
+      }
+      return true;
+    });
+  }, [quarantinedDefects, quarantineSearch, statusFilter, categoryFilter, locationFilter]);
+
+  const filteredCreditNotes = useMemo(() => {
+    if (!creditNoteSearch.trim()) return creditNotes;
+    const q = creditNoteSearch.toLowerCase();
+    return creditNotes.filter(
+      crn =>
+        crn.id.toLowerCase().includes(q) ||
+        crn.originalInvoiceNo.toLowerCase().includes(q) ||
+        crn.customerName.toLowerCase().includes(q) ||
+        (crn.fiscalSignature && crn.fiscalSignature.toLowerCase().includes(q))
+    );
+  }, [creditNotes, creditNoteSearch]);
+
+  // Statistics
+  const totalQuarantinedCones = quarantinedDefects.reduce((sum, r) => sum + (r.returnedItem.conesCount || 0), 0);
+  const totalQuarantinedKg = quarantinedDefects.reduce((sum, r) => sum + (r.returnedItem.netWeightKg || 0), 0);
+  const totalQuarantinedMeters = quarantinedDefects.reduce((sum, r) => sum + (r.returnedItem.metersCount || 0), 0);
+  const totalCostValuation = quarantinedDefects.reduce((sum, r) => sum + r.returnedItem.totalValuationCost, 0);
+  const pendingClaimsCount = quarantinedDefects.filter(r => r.quarantineStatus === 'supplier_claim_filed').length;
+
   return (
     <div
       id="return-exchange-modal-overlay"
-      className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center bg-slate-950 sm:bg-black/60 backdrop-blur-sm p-0 sm:p-4 overflow-hidden sm:overflow-y-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
     >
       <div
         id="return-exchange-modal-card"
-        className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[92vh]"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl overflow-hidden flex flex-col h-[94vh] max-h-[920px]"
       >
-        {/* Header */}
-        <div className="bg-slate-900 text-white px-3.5 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+        {/* TOP BAR */}
+        <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <RotateCcw className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center space-x-1.5 sm:space-x-2">
-                <h2 className="text-sm sm:text-lg font-bold tracking-tight text-white truncate">
-                  RMA Returns &amp; Exchanges
+              <div className="flex items-center space-x-2">
+                <h2 className="text-base font-bold tracking-tight text-white truncate">
+                  RMA Return, Exchange & Quarantine Hub
                 </h2>
-                <span className="px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-xs font-semibold bg-amber-500/20 text-amber-300 rounded border border-amber-500/30 shrink-0">
-                  Quarantine
+                <span className="px-2 py-0.5 text-[10px] font-semibold bg-amber-500/20 text-amber-300 rounded border border-amber-500/30">
+                  Full ERP Workflow
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-400 hidden sm:block">
-                Process spoilt cones from sold bales, balance store stock, manage eTIMS credit notes &amp; file supplier claims
+              <p className="text-xs text-slate-400 truncate">
+                Defective yarn cone isolation, 1:1 exchanges, eTIMS credit notes &amp; manufacturer debit claims
               </p>
             </div>
           </div>
-          <button
-            id="close-return-exchange-modal-btn"
-            onClick={() => setIsReturnExchangeModalOpen(false)}
-            className="text-slate-400 hover:text-white p-1.5 sm:p-2 rounded-xl hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-slate-50 border-b border-slate-200 px-6 py-2 flex items-center justify-between">
-          <div className="flex space-x-2">
+          <div className="flex items-center space-x-2">
             <button
-              id="tab-new-rma-btn"
-              onClick={() => setActiveTab('new_rma')}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center space-x-2 transition-all ${
-                activeTab === 'new_rma'
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-              }`}
+              onClick={() => exportRmaAuditScheduleCSV(quarantinedDefects, locations)}
+              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+              title="Download Complete RMA CSV Schedule"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>1. New Return & Exchange (RMA)</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Export CSV</span>
             </button>
             <button
-              id="tab-quarantine-btn"
-              onClick={() => setActiveTab('quarantine_list')}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center space-x-2 transition-all ${
-                activeTab === 'quarantine_list'
-                  ? 'bg-amber-700 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-              }`}
+              id="close-return-exchange-modal-btn"
+              onClick={() => setIsReturnExchangeModalOpen(false)}
+              className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Close modal"
             >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>2. Quarantined Stock & Supplier Claims</span>
-              <span className="ml-1 px-1.5 py-0.2 bg-amber-200 text-amber-900 rounded-full text-[10px] font-bold">
-                {quarantinedDefects.length}
-              </span>
-            </button>
-            <button
-              id="tab-credit-notes-btn"
-              onClick={() => setActiveTab('credit_notes')}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center space-x-2 transition-all ${
-                activeTab === 'credit_notes'
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>3. KRA eTIMS Credit Notes</span>
-              <span className="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded-full text-[10px] font-bold">
-                {creditNotes.length}
-              </span>
-            </button>
-            <button
-              id="tab-ledger-guide-btn"
-              onClick={() => setActiveTab('ledger_guide')}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center space-x-2 transition-all ${
-                activeTab === 'ledger_guide'
-                  ? 'bg-blue-800 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-              }`}
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span>4. Accounting & Ledger Flow Explanation</span>
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Feedback Alert */}
+        {/* TAB NAVIGATION */}
+        <div className="bg-slate-100/90 border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0 overflow-x-auto">
+          <div className="flex space-x-1 sm:space-x-2">
+            <button
+              id="tab-new-rma-btn"
+              onClick={() => {
+                setActiveTab('new_rma');
+                setActionFeedback(null);
+              }}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg flex items-center space-x-2 transition-all cursor-pointer ${
+                activeTab === 'new_rma'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              <span>1. New Return & Exchange (RMA)</span>
+            </button>
+
+            <button
+              id="tab-quarantine-btn"
+              onClick={() => {
+                setActiveTab('quarantine_list');
+                setActionFeedback(null);
+              }}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg flex items-center space-x-2 transition-all cursor-pointer ${
+                activeTab === 'quarantine_list'
+                  ? 'bg-amber-800 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
+              <span>2. Quarantined Stock &amp; Supplier Claims</span>
+              <span className="ml-1 px-1.5 py-0.2 bg-amber-200 text-amber-950 rounded-full text-[10px] font-bold">
+                {quarantinedDefects.length}
+              </span>
+            </button>
+
+            <button
+              id="tab-credit-notes-btn"
+              onClick={() => {
+                setActiveTab('credit_notes');
+                setActionFeedback(null);
+              }}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg flex items-center space-x-2 transition-all cursor-pointer ${
+                activeTab === 'credit_notes'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-400" />
+              <span>3. KRA eTIMS Credit Notes</span>
+              <span className="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-800 rounded-full text-[10px] font-bold">
+                {creditNotes.length}
+              </span>
+            </button>
+
+            <button
+              id="tab-ledger-guide-btn"
+              onClick={() => {
+                setActiveTab('ledger_guide');
+                setActionFeedback(null);
+              }}
+              className={`px-3.5 py-2 text-xs font-bold rounded-lg flex items-center space-x-2 transition-all cursor-pointer ${
+                activeTab === 'ledger_guide'
+                  ? 'bg-blue-800 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+              }`}
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-blue-200" />
+              <span>4. Accounting &amp; Ledger Guide</span>
+            </button>
+          </div>
+        </div>
+
+        {/* NOTIFICATION FEEDBACK BANNER */}
         {actionFeedback && (
           <div
-            className={`mx-6 mt-4 p-3.5 rounded-xl border flex items-center justify-between text-xs font-medium ${
+            className={`mx-5 mt-3 p-3.5 rounded-xl border flex items-center justify-between text-xs font-medium shrink-0 animate-in slide-in-from-top-2 duration-150 ${
               actionFeedback.type === 'success'
-                ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                : 'bg-rose-50 text-rose-900 border-rose-200'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                : 'bg-rose-50 text-rose-900 border-rose-300'
             }`}
           >
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2.5">
               {actionFeedback.type === 'success' ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               ) : (
@@ -331,40 +534,62 @@ export const ReturnExchangeModal: React.FC = () => {
               )}
               <span>{actionFeedback.message}</span>
             </div>
-            <button
-              onClick={() => setActionFeedback(null)}
-              className="text-slate-400 hover:text-slate-700 ml-4 font-bold"
-            >
-              &times;
-            </button>
+
+            <div className="flex items-center space-x-2">
+              {actionFeedback.createdRma && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    exportRmaReturnVoucherPDF(
+                      actionFeedback.createdRma!,
+                      locations,
+                      etrConfig,
+                      brandSettings
+                    )
+                  }
+                  className="px-2.5 py-1 bg-emerald-600 text-white rounded text-[11px] font-bold hover:bg-emerald-700 flex items-center space-x-1 cursor-pointer"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Download Voucher PDF</span>
+                </button>
+              )}
+              <button
+                onClick={() => setActionFeedback(null)}
+                className="text-slate-400 hover:text-slate-700 font-bold px-1.5 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+        {/* MAIN BODY AREA */}
+        <div className="p-5 overflow-y-auto flex-1 bg-slate-50">
+          {/* ---------------------------------------------------- */}
           {/* TAB 1: NEW RMA WIZARD */}
+          {/* ---------------------------------------------------- */}
           {activeTab === 'new_rma' && (
-            <form onSubmit={handleProcessSubmit} className="space-y-6">
-              {/* Step 1: Customer & Original Sale Reference */}
+            <form onSubmit={handleProcessSubmit} className="space-y-5 max-w-5xl mx-auto">
+              {/* STEP 1: CUSTOMER & ORIGINAL ORDER */}
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2.5">
                     <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">
                       1
                     </span>
                     <h3 className="text-sm font-bold text-slate-900">
-                      Customer & Original Bale Sale Information
+                      Customer &amp; Original Bale Sale Reference
                     </h3>
                   </div>
-                  <span className="text-xs text-slate-500">
-                    Location: {locations.find(l => l.id === locationId)?.name}
+                  <span className="text-xs text-slate-500 font-medium">
+                    Branch: <strong className="text-slate-800">{locations.find(l => l.id === locationId)?.name}</strong>
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Link Existing Invoice / Order (Optional)
+                      Link Existing Invoice / Order
                     </label>
                     <select
                       id="rma-order-select"
@@ -372,10 +597,10 @@ export const ReturnExchangeModal: React.FC = () => {
                       onChange={e => handleSelectOrder(e.target.value)}
                       className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none"
                     >
-                      <option value="">-- Manual Customer Entry --</option>
-                      {orders.slice(0, 15).map(o => (
+                      <option value="">-- Select from Past Orders (Optional) --</option>
+                      {filteredOrders.map(o => (
                         <option key={o.id} value={o.id}>
-                          {o.id} - {o.customerName} (KSh {o.grandTotal.toLocaleString()})
+                          {o.receiptNumber || o.id} • {o.customerName} ({formatCurrency(o.grandTotal)})
                         </option>
                       ))}
                     </select>
@@ -403,7 +628,7 @@ export const ReturnExchangeModal: React.FC = () => {
                       id="rma-location-select"
                       value={locationId}
                       onChange={e => setLocationId(e.target.value as LocationId)}
-                      className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none"
+                      className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
                     >
                       {locations.map(l => (
                         <option key={l.id} value={l.id}>
@@ -453,26 +678,27 @@ export const ReturnExchangeModal: React.FC = () => {
                       <option value="Bank Account">Bank Transfer (Direct Deposit)</option>
                       <option value="M-Pesa B2C">M-Pesa Till / Paybill</option>
                       <option value="Cash Drawer">Cash at Till</option>
+                      <option value="Store Credit Note">Store Credit</option>
                     </select>
                   </div>
                 </div>
               </div>
 
-              {/* Step 2: Returned Defective Items Details */}
+              {/* STEP 2: RETURNED DEFECTIVE PRODUCT */}
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2.5">
                     <span className="w-6 h-6 rounded-full bg-rose-600 text-white text-xs font-bold flex items-center justify-center">
                       2
                     </span>
                     <h3 className="text-sm font-bold text-slate-900">
                       {isFabric
                         ? 'Returned Defective Fabric Meters & Quality Assessment'
-                        : 'Returned Spoilt Yarn Cones & Weight Measurements'}
+                        : 'Returned Spoilt Yarn Cones & Tare Deduction Intake'}
                     </h3>
                   </div>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-semibold">
-                    {isFabric ? 'Fabric Quarantine Intake' : 'Yarn Quarantine Intake'}
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 font-semibold">
+                    {isFabric ? 'Fabric Quarantine Intake' : 'High-Bulk Yarn Quarantine Intake'}
                   </span>
                 </div>
 
@@ -499,15 +725,31 @@ export const ReturnExchangeModal: React.FC = () => {
                     >
                       {products.map(p => (
                         <option key={p.id} value={p.id}>
-                          {p.name} ({p.category}) - KSh {p.unitPriceRetail}/{p.unit === 'meter' ? 'm' : 'kg'}
+                          {p.name} ({p.category}) • KSh {p.unitPriceRetail}/{p.unit === 'meter' ? 'm' : 'kg'} (Stock: {p.locationStock[locationId]?.toFixed(2) || 0})
                         </option>
                       ))}
                     </select>
                   </div>
 
+                  {isFabric && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Roll Number / Identification
+                      </label>
+                      <input
+                        type="text"
+                        id="rma-returned-roll-input"
+                        placeholder="e.g. Roll #14"
+                        value={returnedRollNumber}
+                        onChange={e => setReturnedRollNumber(e.target.value)}
+                        className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
+                      />
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      {isFabric ? 'Defective Meters Returned' : 'Number of Spoilt Cones'}
+                      {isFabric ? 'Defective Cut Length (Meters)' : 'Number of Spoilt Cones'}
                     </label>
                     <div className="flex items-center space-x-2">
                       <input
@@ -529,13 +771,13 @@ export const ReturnExchangeModal: React.FC = () => {
                         }}
                         className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-bold"
                       />
-                      <span className="text-xs text-slate-500 whitespace-nowrap">{isFabric ? 'Meters' : 'Cones'}</span>
+                      <span className="text-xs text-slate-500 font-semibold">{isFabric ? 'Meters' : 'Cones'}</span>
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Billing Rate (KSh / {isFabric ? 'Meter' : 'Kg'})
+                      Billing Rate (KSh / {isFabric ? 'm' : 'kg'})
                     </label>
                     <input
                       type="number"
@@ -580,7 +822,7 @@ export const ReturnExchangeModal: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      {isFabric ? 'Net Defect Quantity (Auto)' : 'Net Billable Weight (Auto)'}
+                      {isFabric ? 'Net Defect Length (Auto)' : 'Net Billable Weight (Auto)'}
                     </label>
                     <div className="w-full text-xs bg-emerald-50 border border-emerald-300 rounded-lg p-2.5 font-bold text-emerald-900 flex items-center justify-between">
                       <span>{returnedNetWeightKg.toFixed(isFabric ? 2 : 3)} {isFabric ? 'meters' : 'kg'}</span>
@@ -590,11 +832,11 @@ export const ReturnExchangeModal: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Returned Retail Value (Auto)
+                      Returned Valuation (Auto)
                     </label>
                     <div className="w-full text-xs bg-slate-100 border border-slate-300 rounded-lg p-2.5 font-bold text-slate-900 flex items-center justify-between">
-                      <span>KSh {returnedValuationRetail.toLocaleString()}</span>
-                      <span className="text-[10px] text-slate-500 font-normal">Cost: KSh {returnedValuationCost.toLocaleString()}</span>
+                      <span>{formatCurrency(returnedValuationRetail)}</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Cost: {formatCurrency(returnedValuationCost)}</span>
                     </div>
                   </div>
 
@@ -649,32 +891,36 @@ export const ReturnExchangeModal: React.FC = () => {
 
                   <div className="md:col-span-4">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Inspection Notes & Customer Observations
+                      Inspection Notes &amp; Quality Observations
                     </label>
                     <input
                       type="text"
                       id="rma-notes-input"
                       value={defectNotes}
                       onChange={e => setDefectNotes(e.target.value)}
-                      placeholder={isFabric ? "e.g. 3.5 meters has severe weaving slubs and grease spot midway through roll" : "e.g. 2 cones had filament breakage and irregular twist within bale #148"}
+                      placeholder={
+                        isFabric
+                          ? "e.g. 3.5m has severe weaving slubs and grease spot midway through roll"
+                          : "e.g. 2 cones had filament breakage and irregular twist within bale #148"
+                      }
                       className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Step 3: Resolution Method */}
+              {/* STEP 3: RESOLUTION METHOD */}
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2.5">
                     <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">
                       3
                     </span>
                     <h3 className="text-sm font-bold text-slate-900">
-                      Resolution Option & Financial Settlement
+                      Resolution Method &amp; Settlement
                     </h3>
                   </div>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-500 font-medium">
                     How is the customer compensated?
                   </span>
                 </div>
@@ -683,7 +929,7 @@ export const ReturnExchangeModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setResolutionType('exchange_replacement')}
-                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                       resolutionType === 'exchange_replacement'
                         ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/20'
                         : 'border-slate-200 bg-white hover:border-slate-300'
@@ -698,18 +944,18 @@ export const ReturnExchangeModal: React.FC = () => {
                       </div>
                       <div className="text-xs font-bold text-slate-900">1. Exchange Replacement</div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Hand over 2 good cones from active stock. Quarantines defective cones without affecting bank ledger.
+                        Hand over good cones/meters from active stock. Quarantines defective goods without affecting bank deposit.
                       </p>
                     </div>
                     <span className="mt-3 text-[10px] font-semibold text-emerald-700 bg-emerald-100/60 px-2 py-0.5 rounded w-fit">
-                      Most Common
+                      Most Common (Zero Cash Loss)
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setResolutionType('bank_refund')}
-                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                       resolutionType === 'bank_refund' || resolutionType === 'mpesa_refund' || resolutionType === 'cash_refund'
                         ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
                         : 'border-slate-200 bg-white hover:border-slate-300'
@@ -717,14 +963,14 @@ export const ReturnExchangeModal: React.FC = () => {
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <Banknote className={`w-5 h-5 ${resolutionType === 'bank_refund' ? 'text-blue-600' : 'text-slate-500'}`} />
-                        {resolutionType === 'bank_refund' && (
+                        <Banknote className={`w-5 h-5 ${resolutionType.includes('refund') ? 'text-blue-600' : 'text-slate-500'}`} />
+                        {resolutionType.includes('refund') && (
                           <CheckCircle2 className="w-4 h-4 text-blue-600" />
                         )}
                       </div>
                       <div className="text-xs font-bold text-slate-900">2. Financial Refund</div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Reverse sales revenue, refund cash/bank, and issue official KRA eTIMS Credit Note.
+                        Reverse sales revenue, refund cash/bank/M-Pesa, and auto-issue official KRA eTIMS Credit Note.
                       </p>
                     </div>
                     <span className="mt-3 text-[10px] font-semibold text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded w-fit">
@@ -735,7 +981,7 @@ export const ReturnExchangeModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setResolutionType('store_credit')}
-                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                    className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                       resolutionType === 'store_credit'
                         ? 'border-purple-600 bg-purple-50/50 ring-2 ring-purple-500/20'
                         : 'border-slate-200 bg-white hover:border-slate-300'
@@ -750,11 +996,11 @@ export const ReturnExchangeModal: React.FC = () => {
                       </div>
                       <div className="text-xs font-bold text-slate-900">3. Store Credit Voucher</div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Issue a digital store voucher credit usable on future yarn bale or cone purchases.
+                        Issue a digital store voucher credit usable on future yarn bale or fabric purchases.
                       </p>
                     </div>
                     <span className="mt-3 text-[10px] font-semibold text-purple-700 bg-purple-100/60 px-2 py-0.5 rounded w-fit">
-                      Customer Balance
+                      Customer Ledger Credit
                     </span>
                   </button>
                 </div>
@@ -790,22 +1036,39 @@ export const ReturnExchangeModal: React.FC = () => {
                         </select>
                       </div>
 
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          {isReplacementFabric ? 'Replacement Rolls / Pieces' : 'Replacement Cones'}
-                        </label>
-                        <input
-                          type="number"
-                          id="rma-replacement-cones-input"
-                          value={replacementConesCount}
-                          onChange={e => setReplacementConesCount(parseInt(e.target.value) || 1)}
-                          className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:border-slate-900 outline-none font-bold"
-                        />
-                      </div>
+                      {isReplacementFabric && (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            Replacement Roll #
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Roll #19"
+                            value={replacementRollNumber}
+                            onChange={e => setReplacementRollNumber(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:border-slate-900 outline-none"
+                          />
+                        </div>
+                      )}
+
+                      {!isReplacementFabric && (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            Replacement Cones
+                          </label>
+                          <input
+                            type="number"
+                            id="rma-replacement-cones-input"
+                            value={replacementConesCount}
+                            onChange={e => setReplacementConesCount(parseInt(e.target.value) || 1)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:border-slate-900 outline-none font-bold"
+                          />
+                        </div>
+                      )}
 
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          {isReplacementFabric ? 'Replacement Meters (m)' : 'Replacement Net Weight (Kg)'}
+                          {isReplacementFabric ? 'Replacement Length (m)' : 'Replacement Net Weight (Kg)'}
                         </label>
                         <input
                           type="number"
@@ -819,24 +1082,24 @@ export const ReturnExchangeModal: React.FC = () => {
                     </div>
 
                     {/* Weight Difference & Settlement Callout */}
-                    <div className="bg-white p-3 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
+                    <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between text-xs gap-2">
                       <div>
                         <span className="font-semibold text-slate-700">Valuation Comparison:</span>{' '}
                         <span className="text-slate-500">
-                          Returned: KSh {returnedValuationRetail.toLocaleString()} ({returnedNetWeightKg.toFixed(isFabric ? 2 : 3)}{isFabric ? 'm' : 'kg'}) &rarr; Replacement: KSh {replacementValuationRetail.toLocaleString()} ({replacementNetWeightKg.toFixed(isReplacementFabric ? 2 : 3)}{isReplacementFabric ? 'm' : 'kg'})
+                          Returned: {formatCurrency(returnedValuationRetail)} ({returnedNetWeightKg.toFixed(isFabric ? 2 : 3)}{isFabric ? 'm' : 'kg'}) &rarr; Replacement: {formatCurrency(replacementValuationRetail)} ({replacementNetWeightKg.toFixed(isReplacementFabric ? 2 : 3)}{isReplacementFabric ? 'm' : 'kg'})
                         </span>
                       </div>
                       <div className="font-bold">
                         {priceDifference > 0 ? (
-                          <span className="text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                            Customer pays variance: +KSh {priceDifference.toFixed(2)}
+                          <span className="text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-200">
+                            Customer pays variance: +{formatCurrency(priceDifference)}
                           </span>
                         ) : priceDifference < 0 ? (
-                          <span className="text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200">
-                            Refund customer variance: -KSh {Math.abs(priceDifference).toFixed(2)}
+                          <span className="text-blue-700 bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
+                            Refund customer variance: -{formatCurrency(Math.abs(priceDifference))}
                           </span>
                         ) : (
-                          <span className="text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                          <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
                             Exact 1:1 Value Match (KSh 0.00 Diff)
                           </span>
                         )}
@@ -850,7 +1113,7 @@ export const ReturnExchangeModal: React.FC = () => {
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-3 space-y-3">
                     <div className="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
                       <FileText className="w-4 h-4 text-blue-600" />
-                      <span>KRA eTIMS Credit Note & Refund Disbursement</span>
+                      <span>KRA eTIMS Credit Note &amp; Refund Disbursement</span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -887,7 +1150,7 @@ export const ReturnExchangeModal: React.FC = () => {
                           Total Gross Refund Amount
                         </label>
                         <div className="w-full text-xs bg-blue-50 border border-blue-300 rounded-lg p-2 font-bold text-blue-900 flex items-center justify-between">
-                          <span>KSh {returnedValuationRetail.toLocaleString()}</span>
+                          <span>{formatCurrency(returnedValuationRetail)}</span>
                           <span className="text-[10px] text-blue-700">Incl. 16% VAT</span>
                         </div>
                       </div>
@@ -896,12 +1159,58 @@ export const ReturnExchangeModal: React.FC = () => {
                 )}
               </div>
 
-              {/* Action Buttons */}
+              {/* STEP 4: DOUBLE-ENTRY LEDGER PREVIEW */}
+              <div className="bg-slate-900 text-slate-200 p-4 rounded-xl border border-slate-800 shadow-sm space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-white border-b border-slate-800 pb-2">
+                  <div className="flex items-center space-x-2">
+                    <Info className="w-4 h-4 text-amber-400" />
+                    <span>Real-time Accounting Ledger Impact Preview</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    Auto-posted to General Ledger
+                  </span>
+                </div>
+
+                <div className="text-xs font-mono space-y-1 pt-1">
+                  {resolutionType === 'exchange_replacement' ? (
+                    <>
+                      <div className="text-amber-300">
+                        Dr. 1350 Quarantined Damaged Inventory ({formatCurrency(returnedValuationCost)})
+                      </div>
+                      <div className="text-slate-300 pl-4">
+                        Cr. 1200 Store Active Inventory Asset ({formatCurrency(returnedValuationCost)})
+                      </div>
+                      {priceDifference > 0 && (
+                        <div className="text-emerald-300 pt-1">
+                          Dr. Cash at Hand / Bank (+{formatCurrency(priceDifference)}) | Cr. Sales Revenue
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-blue-300">
+                        Dr. 4200 Sales Returns &amp; Allowances ({formatCurrency(returnedValuationRetail / 1.16)})
+                      </div>
+                      <div className="text-blue-300">
+                        Dr. 2150 KRA Output VAT Reversal ({formatCurrency(returnedValuationRetail - (returnedValuationRetail / 1.16))})
+                      </div>
+                      <div className="text-slate-300 pl-4">
+                        Cr. {refundChannel === 'Cash Drawer' ? 'Cash Drawer' : 'Bank Operating Account'} ({formatCurrency(returnedValuationRetail)})
+                      </div>
+                      <div className="text-amber-300 pt-1">
+                        Dr. 1350 Quarantined Damaged Inventory Asset ({formatCurrency(returnedValuationCost)}) | Cr. 5000 COGS Reversal
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* ACTION BUTTONS */}
               <div className="flex items-center justify-between pt-2">
                 <button
                   type="button"
                   onClick={() => setIsReturnExchangeModalOpen(false)}
-                  className="px-5 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-colors"
+                  className="px-5 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -909,7 +1218,7 @@ export const ReturnExchangeModal: React.FC = () => {
                 <button
                   type="submit"
                   id="submit-rma-btn"
-                  className="px-6 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center space-x-2"
+                  className="px-6 py-2.5 text-xs font-bold text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition-all shadow-md flex items-center space-x-2 cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4 text-amber-400" />
                   <span>
@@ -920,233 +1229,345 @@ export const ReturnExchangeModal: React.FC = () => {
             </form>
           )}
 
+          {/* ---------------------------------------------------- */}
           {/* TAB 2: QUARANTINE INVENTORY & SUPPLIER CLAIMS */}
+          {/* ---------------------------------------------------- */}
           {activeTab === 'quarantine_list' && (
-            <div className="space-y-6">
-              {/* Summary Bar */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="space-y-4">
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
                   <span className="text-[11px] text-slate-500 font-semibold block">Quarantined Defect Cones</span>
-                  <div className="text-xl font-extrabold text-rose-700 mt-1">
-                    {quarantinedDefects.reduce((sum, r) => sum + r.returnedItem.conesCount, 0)} Cones
+                  <div className="text-lg font-extrabold text-rose-700 mt-0.5">
+                    {totalQuarantinedCones} Cones
                   </div>
-                  <span className="text-[10px] text-slate-400">Isolated from active stock</span>
+                  <span className="text-[10px] text-slate-400">Total Net: {totalQuarantinedKg.toFixed(2)} kg</span>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                  <span className="text-[11px] text-slate-500 font-semibold block">Total Quarantined Weight</span>
-                  <div className="text-xl font-extrabold text-amber-700 mt-1">
-                    {quarantinedDefects.reduce((sum, r) => sum + r.returnedItem.netWeightKg, 0).toFixed(3)} Kg
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                  <span className="text-[11px] text-slate-500 font-semibold block">Quarantined Fabric</span>
+                  <div className="text-lg font-extrabold text-amber-700 mt-0.5">
+                    {totalQuarantinedMeters.toFixed(2)} Meters
                   </div>
-                  <span className="text-[10px] text-slate-400">Net yarn weight</span>
+                  <span className="text-[10px] text-slate-400">Fleece &amp; Dereec cuts</span>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
                   <span className="text-[11px] text-slate-500 font-semibold block">Spoilage Cost Valuation</span>
-                  <div className="text-xl font-extrabold text-slate-900 mt-1">
-                    KSh {quarantinedDefects.reduce((sum, r) => sum + r.returnedItem.totalValuationCost, 0).toLocaleString()}
+                  <div className="text-lg font-extrabold text-slate-900 mt-0.5">
+                    {formatCurrency(totalCostValuation)}
                   </div>
-                  <span className="text-[10px] text-slate-400">Recorded at cost price</span>
+                  <span className="text-[10px] text-slate-400">Internal Cost Base</span>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                  <span className="text-[11px] text-slate-500 font-semibold block">Manufacturer Claims</span>
-                  <div className="text-xl font-extrabold text-blue-700 mt-1">
-                    {quarantinedDefects.filter(r => r.quarantineStatus === 'supplier_claim_filed').length} Claims
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                  <span className="text-[11px] text-slate-500 font-semibold block">Active Mill Claims</span>
+                  <div className="text-lg font-extrabold text-blue-700 mt-0.5">
+                    {pendingClaimsCount} Claims
                   </div>
                   <span className="text-[10px] text-slate-400">Oster India / Udey Udyog</span>
                 </div>
               </div>
 
-              {/* Action Toolbar for Bulk Selection */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="select-all-quarantine-checkbox"
-                    checked={
-                      quarantinedDefects.length > 0 &&
-                      selectedQuarantineIds.length === quarantinedDefects.length
-                    }
-                    onChange={e => {
-                      if (e.target.checked) {
-                        setSelectedQuarantineIds(quarantinedDefects.map(r => r.id));
-                      } else {
-                        setSelectedQuarantineIds([]);
-                      }
-                    }}
-                    className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                  />
-                  <label htmlFor="select-all-quarantine-checkbox" className="text-xs font-semibold text-slate-700">
-                    Select All ({selectedQuarantineIds.length} chosen)
-                  </label>
+              {/* Toolbar & Filters */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex items-center space-x-2 flex-1 min-w-[240px]">
+                    <div className="relative flex-1">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search RMA #, customer, product, lot, reason, claim #..."
+                        value={quarantineSearch}
+                        onChange={e => setQuarantineSearch(e.target.value)}
+                        className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:border-slate-900 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={statusFilter}
+                      onChange={e => setStatusFilter(e.target.value as any)}
+                      className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 outline-none font-medium"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="quarantined">In Quarantine</option>
+                      <option value="supplier_claim_filed">Claim Filed</option>
+                      <option value="supplier_compensated">Supplier Reimbursed</option>
+                      <option value="written_off_scrap">Written-off Scrap</option>
+                    </select>
+
+                    <select
+                      value={categoryFilter}
+                      onChange={e => setCategoryFilter(e.target.value as any)}
+                      className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 outline-none font-medium"
+                    >
+                      <option value="all">All Categories</option>
+                      <option value="Yarns">High-Bulk Yarn (Cones)</option>
+                      <option value="Fleece">Fleece Fabric</option>
+                      <option value="Dereck">Dereck Fabric</option>
+                    </select>
+
+                    <select
+                      value={locationFilter}
+                      onChange={e => setLocationFilter(e.target.value)}
+                      className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 outline-none font-medium"
+                    >
+                      <option value="all">All Branches</option>
+                      {locations.map(l => (
+                        <option key={l.id} value={l.id}>{l.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    id="file-supplier-claim-btn"
-                    disabled={selectedQuarantineIds.length === 0}
-                    onClick={handleFileClaim}
-                    className="px-3.5 py-2 text-xs font-bold rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 shadow-sm transition-all"
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>File Manufacturer Claim Note</span>
-                  </button>
+                {/* Bulk Actions Bar */}
+                <div className="flex flex-wrap items-center justify-between border-t border-slate-100 pt-2.5 gap-2 text-xs">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="select-all-quarantine-checkbox"
+                      checked={
+                        filteredQuarantinedDefects.length > 0 &&
+                        selectedQuarantineIds.length === filteredQuarantinedDefects.length
+                      }
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setSelectedQuarantineIds(filteredQuarantinedDefects.map(r => r.id));
+                        } else {
+                          setSelectedQuarantineIds([]);
+                        }
+                      }}
+                      className="rounded border-slate-300 text-slate-900 focus:ring-slate-900 cursor-pointer"
+                    />
+                    <label htmlFor="select-all-quarantine-checkbox" className="font-semibold text-slate-700 cursor-pointer">
+                      Select All ({selectedQuarantineIds.length} chosen)
+                    </label>
+                  </div>
 
-                  <button
-                    type="button"
-                    id="resolve-supplier-compensated-btn"
-                    disabled={selectedQuarantineIds.length === 0}
-                    onClick={() => handleResolveQuarantine('supplier_compensated')}
-                    className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 shadow-sm transition-all"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Mark Supplier Reimbursed</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      id="file-supplier-claim-btn"
+                      disabled={selectedQuarantineIds.length === 0}
+                      onClick={() => setIsClaimModalOpen(true)}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>File Mill Claim Note</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    id="resolve-writeoff-btn"
-                    disabled={selectedQuarantineIds.length === 0}
-                    onClick={() => handleResolveQuarantine('written_off_scrap')}
-                    className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-rose-700 text-white hover:bg-rose-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 shadow-sm transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Write-off as Scrap Loss</span>
-                  </button>
+                    <button
+                      type="button"
+                      id="resolve-supplier-restock-btn"
+                      disabled={selectedQuarantineIds.length === 0}
+                      onClick={() => setIsRestockModalOpen(true)}
+                      className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Supplier Replaced (Restock)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={selectedQuarantineIds.length === 0}
+                      onClick={() => handleDirectResolve('supplier_compensated')}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Mark Reimbursed</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={selectedQuarantineIds.length === 0}
+                      onClick={() => handleDirectResolve('written_off_scrap')}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-700 text-white hover:bg-rose-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Write-off Scrap</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Quarantine Table */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900 text-white font-semibold">
-                      <th className="p-3 w-8"></th>
-                      <th className="p-3">RMA Ticket #</th>
-                      <th className="p-3">Date / Customer</th>
-                      <th className="p-3">Yarn Product & Lot</th>
-                      <th className="p-3">Spoilt Cones</th>
-                      <th className="p-3">Net Weight</th>
-                      <th className="p-3">Cost Valuation</th>
-                      <th className="p-3">Defect Reason</th>
-                      <th className="p-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 text-slate-700">
-                    {quarantinedDefects.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="p-8 text-center text-slate-400 font-medium">
-                          No defective cones currently in quarantine.
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900 text-white font-semibold">
+                        <th className="p-3 w-8"></th>
+                        <th className="p-3">RMA Ticket #</th>
+                        <th className="p-3">Date / Customer</th>
+                        <th className="p-3">Product &amp; Batch</th>
+                        <th className="p-3">Quantity / Weight</th>
+                        <th className="p-3">Cost Valuation</th>
+                        <th className="p-3">Defect Reason</th>
+                        <th className="p-3">Quarantine Status</th>
+                        <th className="p-3 text-right">Actions</th>
                       </tr>
-                    ) : (
-                      quarantinedDefects.map(rec => {
-                        const isSelected = selectedQuarantineIds.includes(rec.id);
-                        return (
-                          <tr
-                            key={rec.id}
-                            className={`hover:bg-slate-50 transition-colors ${
-                              isSelected ? 'bg-amber-50/60' : ''
-                            }`}
-                          >
-                            <td className="p-3">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={e => {
-                                  if (e.target.checked) {
-                                    setSelectedQuarantineIds(prev => [...prev, rec.id]);
-                                  } else {
-                                    setSelectedQuarantineIds(prev => prev.filter(id => id !== rec.id));
-                                  }
-                                }}
-                                className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                              />
-                            </td>
-                            <td className="p-3 font-bold text-slate-900">
-                              <div>{rec.rmaNumber}</div>
-                              <span className="text-[10px] text-slate-400 font-normal">
-                                {rec.resolutionType === 'exchange_replacement' ? '1:1 Exchanged' : 'Refunded'}
-                              </span>
-                            </td>
-                            <td className="p-3">
-                              <div className="font-semibold text-slate-800">{rec.customerName}</div>
-                              <div className="text-[10px] text-slate-400">
-                                {new Date(rec.returnedAt).toLocaleDateString()}
-                              </div>
-                            </td>
-                            <td className="p-3">
-                              <div className="font-semibold text-slate-800">{rec.returnedItem.productName}</div>
-                              <div className="text-[10px] text-slate-400">
-                                Lot: {rec.returnedItem.dyeLot || 'N/A'} | Shade: {rec.returnedItem.shadeCode || 'N/A'}
-                              </div>
-                            </td>
-                            <td className="p-3 font-bold text-rose-700">
-                              {rec.returnedItem.unit === 'meter' ||
-                              rec.returnedItem.productName.toLowerCase().includes('fleece') ||
-                              rec.returnedItem.productName.toLowerCase().includes('derec')
-                                ? `${rec.returnedItem.conesCount} Roll/Cutout`
-                                : `${rec.returnedItem.conesCount} Cones`}
-                            </td>
-                            <td className="p-3 font-bold text-slate-800">
-                              {rec.returnedItem.unit === 'meter' ||
-                              rec.returnedItem.productName.toLowerCase().includes('fleece') ||
-                              rec.returnedItem.productName.toLowerCase().includes('derec')
-                                ? `${rec.returnedItem.netWeightKg.toFixed(2)} m`
-                                : `${rec.returnedItem.netWeightKg.toFixed(3)} kg`}
-                            </td>
-                            <td className="p-3 font-semibold text-slate-900">
-                              KSh {rec.returnedItem.totalValuationCost.toLocaleString()}
-                            </td>
-                            <td className="p-3">
-                              <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-800">
-                                {rec.defectReason}
-                              </span>
-                              {rec.defectNotes && (
-                                <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[150px]">
-                                  {rec.defectNotes}
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-slate-700">
+                      {filteredQuarantinedDefects.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="p-8 text-center text-slate-400 font-medium">
+                            No quarantine defect records match the selected filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredQuarantinedDefects.map(rec => {
+                          const isSelected = selectedQuarantineIds.includes(rec.id);
+                          const isFabricItem = rec.returnedItem.unit === 'meter' ||
+                            rec.returnedItem.productName.toLowerCase().includes('fleece') ||
+                            rec.returnedItem.productName.toLowerCase().includes('derec');
+
+                          return (
+                            <tr
+                              key={rec.id}
+                              className={`hover:bg-slate-50 transition-colors ${
+                                isSelected ? 'bg-amber-50/70' : ''
+                              }`}
+                            >
+                              <td className="p-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={e => {
+                                    if (e.target.checked) {
+                                      setSelectedQuarantineIds(prev => [...prev, rec.id]);
+                                    } else {
+                                      setSelectedQuarantineIds(prev => prev.filter(id => id !== rec.id));
+                                    }
+                                  }}
+                                  className="rounded border-slate-300 text-slate-900 focus:ring-slate-900 cursor-pointer"
+                                />
+                              </td>
+                              <td className="p-3 font-bold text-slate-900">
+                                <div>{rec.rmaNumber}</div>
+                                <span className="text-[10px] text-slate-500 font-normal">
+                                  {rec.resolutionType === 'exchange_replacement'
+                                    ? '1:1 Exchanged'
+                                    : rec.resolutionType === 'store_credit'
+                                    ? 'Store Credit'
+                                    : 'Refunded'}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="font-semibold text-slate-800">{rec.customerName}</div>
+                                <div className="text-[10px] text-slate-400">
+                                  {new Date(rec.returnedAt).toLocaleDateString()} • {locations.find(l => l.id === rec.locationId)?.name}
                                 </div>
-                              )}
-                            </td>
-                            <td className="p-3">
-                              {rec.quarantineStatus === 'quarantined' && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                                  In Quarantine
+                              </td>
+                              <td className="p-3">
+                                <div className="font-semibold text-slate-800">{rec.returnedItem.productName}</div>
+                                <div className="text-[10px] text-slate-400">
+                                  Lot: {rec.returnedItem.dyeLot || 'N/A'} | Shade: {rec.returnedItem.shadeCode || 'N/A'}{rec.returnedItem.rollNumber ? ` | ${rec.returnedItem.rollNumber}` : ''}
+                                </div>
+                              </td>
+                              <td className="p-3 font-bold">
+                                {isFabricItem ? (
+                                  <span className="text-amber-700 font-bold">
+                                    {(rec.returnedItem.metersCount || 0).toFixed(2)} meters
+                                  </span>
+                                ) : (
+                                  <span className="text-rose-700 font-bold">
+                                    {rec.returnedItem.conesCount} cones ({(rec.returnedItem.netWeightKg || 0).toFixed(3)} kg)
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 font-semibold text-slate-900">
+                                <div>{formatCurrency(rec.returnedItem.totalValuationCost)}</div>
+                                <span className="text-[10px] text-slate-400 font-normal">
+                                  Retail: {formatCurrency(rec.returnedItem.totalValuationRetail)}
                                 </span>
-                              )}
-                              {rec.quarantineStatus === 'supplier_claim_filed' && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                                  Claim Filed ({rec.supplierClaimNumber})
+                              </td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900">
+                                  {rec.defectReason}
                                 </span>
-                              )}
-                              {rec.quarantineStatus === 'supplier_compensated' && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                  Reimbursed
-                                </span>
-                              )}
-                              {rec.quarantineStatus === 'written_off_scrap' && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                                  Written Off
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                                {rec.defectNotes && (
+                                  <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[140px]" title={rec.defectNotes}>
+                                    {rec.defectNotes}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {rec.quarantineStatus === 'quarantined' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                    In Quarantine
+                                  </span>
+                                )}
+                                {rec.quarantineStatus === 'supplier_claim_filed' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                    Claim: {rec.supplierClaimNumber}
+                                  </span>
+                                )}
+                                {rec.quarantineStatus === 'supplier_compensated' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    Reimbursed / Settled
+                                  </span>
+                                )}
+                                {rec.quarantineStatus === 'written_off_scrap' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                                    Written Off
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-right">
+                                <div className="flex items-center justify-end space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedRecordForDetail(rec)}
+                                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                    title="View Details"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      exportRmaReturnVoucherPDF(
+                                        rec,
+                                        locations,
+                                        etrConfig,
+                                        brandSettings
+                                      )
+                                    }
+                                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                    title="Print RMA Voucher PDF"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setRecordToDelete(rec)}
+                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Void / Delete Ticket"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
 
+          {/* ---------------------------------------------------- */}
           {/* TAB 3: KRA ETIMS CREDIT NOTES */}
+          {/* ---------------------------------------------------- */}
           {activeTab === 'credit_notes' && (
-            <div className="space-y-6">
-              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
                       Official KRA eTIMS Credit Notes Register
@@ -1160,21 +1581,32 @@ export const ReturnExchangeModal: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="space-y-3">
-                  {creditNotes.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 text-xs">
-                      No credit notes generated yet.
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search credit note ID, invoice number, customer name, fiscal signature..."
+                    value={creditNoteSearch}
+                    onChange={e => setCreditNoteSearch(e.target.value)}
+                    className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:border-slate-900 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-2.5">
+                  {filteredCreditNotes.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-xs font-medium">
+                      No credit notes match the search criteria.
                     </div>
                   ) : (
-                    creditNotes.map(crn => (
+                    filteredCreditNotes.map(crn => (
                       <div
                         key={crn.id}
-                        className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                        className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3"
                       >
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2">
                             <span className="text-xs font-bold text-slate-900">{crn.id}</span>
-                            <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono">
+                            <span className="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-mono font-semibold">
                               Orig Inv: {crn.originalInvoiceNo}
                             </span>
                             <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">
@@ -1182,26 +1614,27 @@ export const ReturnExchangeModal: React.FC = () => {
                             </span>
                           </div>
                           <div className="text-xs text-slate-700">
-                            Customer: <span className="font-semibold">{crn.customerName}</span>{' '}
+                            Customer: <strong className="text-slate-900">{crn.customerName}</strong>{' '}
                             {crn.customerKraPin && `(PIN: ${crn.customerKraPin})`}
                           </div>
                           <div className="text-[11px] text-slate-400 font-mono">
-                            CU Signature: {crn.fiscalSignature} | Issued: {new Date(crn.timestamp).toLocaleString()}
+                            CU Signature: {crn.fiscalSignature} • Issued: {new Date(crn.timestamp).toLocaleString()}
                           </div>
                         </div>
 
-                        <div className="text-right space-y-1">
+                        <div className="text-right space-y-1.5 shrink-0">
                           <div className="text-sm font-extrabold text-slate-900">
-                            Total Credited: KSh {crn.creditAmount.toLocaleString()}
+                            Total Credited: {formatCurrency(crn.creditAmount)}
                           </div>
                           <div className="text-[11px] text-slate-500">
-                            Net: KSh {crn.netCredited.toLocaleString()} | 16% VAT: KSh {crn.vatCredited.toLocaleString()}
+                            Net: {formatCurrency(crn.netCredited)} • 16% VAT: {formatCurrency(crn.vatCredited)}
                           </div>
                           <button
-                            onClick={() => window.print()}
-                            className="text-[11px] font-semibold text-slate-700 hover:text-slate-900 flex items-center space-x-1 ml-auto"
+                            type="button"
+                            onClick={() => exportCreditNoteDirectPDF(crn, etrConfig, brandSettings)}
+                            className="text-[11px] font-bold text-white bg-slate-900 hover:bg-slate-800 px-3 py-1 rounded-lg flex items-center space-x-1 ml-auto cursor-pointer shadow-sm"
                           >
-                            <Printer className="w-3.5 h-3.5" />
+                            <Printer className="w-3 h-3 text-amber-400" />
                             <span>Print Credit Note</span>
                           </button>
                         </div>
@@ -1213,29 +1646,29 @@ export const ReturnExchangeModal: React.FC = () => {
             </div>
           )}
 
+          {/* ---------------------------------------------------- */}
           {/* TAB 4: ACCOUNTING & LEDGER FLOW EXPLANATION */}
+          {/* ---------------------------------------------------- */}
           {activeTab === 'ledger_guide' && (
-            <div className="space-y-6">
-              {/* Introduction Card */}
+            <div className="space-y-4 max-w-5xl mx-auto">
               <div className="bg-slate-900 text-white p-5 rounded-xl border border-slate-800 shadow-md">
-                <div className="flex items-center space-x-3 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0">
                     <HelpCircle className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">
-                      The Exact Accounting & Inventory Lifecycle for Returned Spoilt Yarn Cones
+                      The Exact Accounting &amp; Inventory Lifecycle for Returned Spoilt Yarn Cones
                     </h3>
                     <p className="text-xs text-slate-400">
-                      How our ERP handles stock balance, bank transfer money, and general ledger reconciliation
+                      Standard operating procedure for Kenyan textile merchants handling damaged goods, bank deposits &amp; KRA VAT
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* 4-Step Diagram */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Step 1: When Bale was sold */}
+                {/* Step 1 */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
                   <div className="flex items-center space-x-2">
                     <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">
@@ -1258,7 +1691,7 @@ export const ReturnExchangeModal: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Step 2: 2 Spoilt cones returned after 2 days */}
+                {/* Step 2 */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
                   <div className="flex items-center space-x-2">
                     <span className="w-6 h-6 rounded-full bg-amber-600 text-white text-xs font-bold flex items-center justify-center">
@@ -1280,7 +1713,7 @@ export const ReturnExchangeModal: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Step 3: What happens if customer wanted money back? */}
+                {/* Step 3 */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
                   <div className="flex items-center space-x-2">
                     <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
@@ -1294,7 +1727,7 @@ export const ReturnExchangeModal: React.FC = () => {
                     If customer does NOT want replacement cones, refund KSh 3,000 to their account and generate an eTIMS Credit Note.
                   </p>
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 text-xs font-mono space-y-1">
-                    <div className="text-blue-900 font-bold">Dr. 4200 - Sales Returns & Allowances (KSh 2,586.21)</div>
+                    <div className="text-blue-900 font-bold">Dr. 4200 - Sales Returns &amp; Allowances (KSh 2,586.21)</div>
                     <div className="text-blue-900 font-bold">Dr. 2150 - KRA Output VAT Reversal (KSh 413.79)</div>
                     <div className="text-slate-700 font-bold pl-4">Cr. Bank Account (Refund Payout: KSh 3,000.00)</div>
                     <div className="text-slate-600 text-[11px] pt-1">
@@ -1303,7 +1736,7 @@ export const ReturnExchangeModal: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Step 4: Recovering cost from Manufacturer */}
+                {/* Step 4 */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
                   <div className="flex items-center space-x-2">
                     <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">
@@ -1329,20 +1762,402 @@ export const ReturnExchangeModal: React.FC = () => {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="bg-slate-900 text-slate-400 px-6 py-3 border-t border-slate-800 flex items-center justify-between text-xs">
+        {/* FOOTER */}
+        <div className="bg-slate-900 text-slate-400 px-5 py-3 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Real-time Stock Quarantine & Double-Entry Ledger Active</span>
+            <span>Real-time Stock Quarantine &amp; Double-Entry Ledger Active</span>
           </div>
           <button
             onClick={() => setIsReturnExchangeModalOpen(false)}
-            className="px-4 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors font-semibold"
+            className="px-4 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors font-semibold cursor-pointer"
           >
             Close
           </button>
         </div>
       </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* DIALOG 1: FILE SUPPLIER CLAIM NOTE */}
+      {/* ---------------------------------------------------- */}
+      {isClaimModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/80 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <Building2 className="w-5 h-5 text-blue-600" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  File Manufacturer Debit Claim Note
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsClaimModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleFileClaimSubmit} className="space-y-3.5">
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 text-xs text-blue-900">
+                You have selected <strong>{selectedQuarantineIds.length}</strong> defect ticket(s) totaling{' '}
+                <strong>
+                  {formatCurrency(
+                    quarantinedDefects
+                      .filter(r => selectedQuarantineIds.includes(r.id))
+                      .reduce((sum, r) => sum + r.returnedItem.totalValuationCost, 0)
+                  )}
+                </strong>{' '}
+                in cost valuation.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Manufacturer / Mill Supplier *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={claimSupplierName}
+                  onChange={e => setClaimSupplierName(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Debit Claim Notes / Mill Instructions
+                </label>
+                <textarea
+                  rows={3}
+                  value={claimNotes}
+                  onChange={e => setClaimNotes(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="auto-export-claim-checkbox"
+                  checked={autoExportClaimPdf}
+                  onChange={e => setAutoExportClaimPdf(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <label htmlFor="auto-export-claim-checkbox" className="text-xs text-slate-700 font-medium cursor-pointer">
+                  Automatically generate and download official Supplier Claim PDF Schedule
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsClaimModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-blue-700 rounded-xl hover:bg-blue-800 shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Submit Claim Note</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* DIALOG 2: RESTOCK SUPPLIER REPLACEMENT */}
+      {/* ---------------------------------------------------- */}
+      {isRestockModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/80 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <RefreshCw className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Restock Supplier Replacement into Active Stock
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsRestockModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleRestockSubmit} className="space-y-3.5">
+              <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200 text-xs text-emerald-900">
+                Resolving <strong>{selectedQuarantineIds.length}</strong> defect ticket(s). Good replacement material will be credited directly to sellable store stock.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Destination Store Branch *
+                </label>
+                <select
+                  value={restockLocation}
+                  onChange={e => setRestockLocation(e.target.value as LocationId)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
+                >
+                  {locations.map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Restock Product / Batch *
+                </label>
+                <select
+                  value={restockBatchId}
+                  onChange={e => setRestockBatchId(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-medium"
+                >
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Delivered Replacement Quantity (Kg or Meters) *
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  required
+                  value={restockQty}
+                  onChange={e => setRestockQty(parseFloat(e.target.value) || 0)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none font-bold text-emerald-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Restock Quality Inspection Notes
+                </label>
+                <input
+                  type="text"
+                  value={restockNotes}
+                  onChange={e => setRestockNotes(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-slate-900 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsRestockModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-emerald-700 rounded-xl hover:bg-emerald-800 shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Confirm Restock</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* DIALOG 3: TICKET DETAIL VIEW DRAWER */}
+      {/* ---------------------------------------------------- */}
+      {selectedRecordForDetail && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/80 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-5 h-5 text-slate-900" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  RMA Ticket Details: {selectedRecordForDetail.rmaNumber}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedRecordForDetail(null)}
+                className="text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Customer Name</span>
+                  <strong className="text-slate-900">{selectedRecordForDetail.customerName}</strong>
+                  {selectedRecordForDetail.customerPhone && (
+                    <span className="text-slate-500 block text-[11px]">{selectedRecordForDetail.customerPhone}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Date &amp; Store Branch</span>
+                  <strong className="text-slate-900">
+                    {new Date(selectedRecordForDetail.returnedAt).toLocaleString()}
+                  </strong>
+                  <span className="text-slate-500 block text-[11px]">
+                    {locations.find(l => l.id === selectedRecordForDetail.locationId)?.name}
+                  </span>
+                </div>
+              </div>
+
+              {/* Defective Item */}
+              <div className="bg-rose-50/60 p-3.5 rounded-xl border border-rose-200 space-y-1.5">
+                <span className="text-rose-900 font-bold block text-xs">Defective Quarantined Item</span>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-500">Product:</span>{' '}
+                    <strong>{selectedRecordForDetail.returnedItem.productName}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Lot / Shade:</span>{' '}
+                    <strong>
+                      Lot {selectedRecordForDetail.returnedItem.dyeLot || 'N/A'} • Shade {selectedRecordForDetail.returnedItem.shadeCode || 'N/A'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Quantity / Net:</span>{' '}
+                    <strong className="text-rose-700">
+                      {selectedRecordForDetail.returnedItem.conesCount
+                        ? `${selectedRecordForDetail.returnedItem.conesCount} Cones (${selectedRecordForDetail.returnedItem.netWeightKg?.toFixed(3)} kg)`
+                        : `${selectedRecordForDetail.returnedItem.metersCount?.toFixed(2)} meters`}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Cost Valuation:</span>{' '}
+                    <strong>{formatCurrency(selectedRecordForDetail.returnedItem.totalValuationCost)}</strong>
+                  </div>
+                </div>
+                <div className="text-[11px] pt-1 text-slate-700">
+                  <span className="font-semibold text-rose-800">Defect Reason:</span> {selectedRecordForDetail.defectReason}
+                  {selectedRecordForDetail.defectNotes && (
+                    <div className="text-slate-500 italic mt-0.5">&ldquo;{selectedRecordForDetail.defectNotes}&rdquo;</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Replacement or Refund */}
+              {selectedRecordForDetail.replacementItem && (
+                <div className="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-200 space-y-1.5">
+                  <span className="text-emerald-900 font-bold block text-xs">Dispatched Replacement</span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-500">Product:</span>{' '}
+                      <strong>{selectedRecordForDetail.replacementItem.productName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Dispatched:</span>{' '}
+                      <strong>
+                        {selectedRecordForDetail.replacementItem.conesCount
+                          ? `${selectedRecordForDetail.replacementItem.conesCount} Cones (${selectedRecordForDetail.replacementItem.netWeightKg?.toFixed(3)} kg)`
+                          : `${selectedRecordForDetail.replacementItem.metersCount?.toFixed(2)} meters`}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Mill Claim & Status */}
+              <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-200 space-y-1">
+                <span className="text-blue-900 font-bold block text-xs">Mill Supplier &amp; Claim Status</span>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-500">Supplier:</span>{' '}
+                    <strong>{selectedRecordForDetail.supplierName || 'Oster India / Mill'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Status:</span>{' '}
+                    <strong>{selectedRecordForDetail.quarantineStatus.replace(/_/g, ' ').toUpperCase()}</strong>
+                  </div>
+                  {selectedRecordForDetail.supplierClaimNumber && (
+                    <div className="col-span-2">
+                      <span className="text-slate-500">Claim Ref:</span>{' '}
+                      <strong className="text-blue-800">{selectedRecordForDetail.supplierClaimNumber}</strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() =>
+                  exportRmaReturnVoucherPDF(
+                    selectedRecordForDetail,
+                    locations,
+                    etrConfig,
+                    brandSettings
+                  )
+                }
+                className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl flex items-center space-x-1.5 cursor-pointer shadow-sm"
+              >
+                <Printer className="w-3.5 h-3.5 text-amber-400" />
+                <span>Print Official Voucher PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRecordForDetail(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* DIALOG 4: CONFIRM DELETE RMA */}
+      {/* ---------------------------------------------------- */}
+      {recordToDelete && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/80 p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center space-x-2.5 text-rose-600">
+              <AlertTriangle className="w-5 h-5" />
+              <h3 className="text-sm font-bold text-slate-900">
+                Void / Delete RMA Ticket {recordToDelete.rmaNumber}?
+              </h3>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to permanently cancel ticket <strong>{recordToDelete.rmaNumber}</strong> for{' '}
+              <strong>{recordToDelete.customerName}</strong>? This will remove the defective items from quarantine isolation.
+            </p>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setRecordToDelete(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 rounded-xl hover:bg-rose-700 cursor-pointer shadow-sm"
+              >
+                Yes, Void Ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -25,9 +25,14 @@ import {
   ArrowRight,
   ShieldCheck,
   Zap,
-  Info
+  Info,
+  Camera,
+  Pipette,
+  Palette
 } from 'lucide-react';
 import { playAddToCartSound, playAlertSound, playClickSound, playSuccessSound, playBarcodeScanBeep, playScannerErrorBeep } from '../../utils/audio';
+import { OpticalShadeScannerModal, OpticalScanOutput } from './OpticalShadeScannerModal';
+import { MILL_SHADE_CATALOG, parseMillLabelPayload } from '../../utils/textileShadeEngine';
 
 export interface CategoryPresetConfig {
   category: CategoryType;
@@ -172,6 +177,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
   const [scanQuantity, setScanQuantity] = useState<number>(1);
   const [scannedItems, setScannedItems] = useState<ScannedSessionItem[]>([]);
   const [scanFeedback, setScanFeedback] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
+  const [isOpticalScannerOpen, setIsOpticalScannerOpen] = useState(false);
 
   // Completion State
   const [completionResult, setCompletionResult] = useState<{
@@ -223,23 +229,29 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
   const projectedBusinessTotalUnits = globalAssetVal.totalUnits + sessionTotalUnits;
 
   // Process Barcode Scan (Auto registers and adds item under selected category)
-  const handleScanBarcode = (codeToScan?: string) => {
+  const handleScanBarcode = (codeToScan?: string, customMeta?: Partial<ScannedSessionItem>) => {
     const rawCode = (codeToScan || barcodeInput).trim();
     if (!rawCode) return;
 
-    const codeUpper = rawCode.toUpperCase();
-    const qtyToAdd = Math.max(1, Number(scanQuantity) || 1);
+    // Check for intelligent mill label or QR payload parsing
+    const parsedLabel = parseMillLabelPayload(rawCode);
+
+    const codeUpper = (customMeta?.barcode || parsedLabel?.barcode || rawCode).toUpperCase();
+    const qtyToAdd = Math.max(1, Number(customMeta?.quantity || parsedLabel?.netWeightKg || scanQuantity) || 1);
 
     // Look for existing product in database
     const existingProduct = products.find(
       p => (p.barcode && p.barcode.toUpperCase() === codeUpper) ||
            (p.sku && p.sku.toUpperCase() === codeUpper) ||
+           (customMeta?.shadeCode && p.shadeCode && p.shadeCode.toUpperCase() === customMeta.shadeCode.toUpperCase()) ||
+           (parsedLabel?.shadeCode && p.shadeCode && p.shadeCode.toUpperCase() === parsedLabel.shadeCode.toUpperCase()) ||
            p.id.toUpperCase() === codeUpper
     );
 
     // Check if item is already in our active session manifest
     const existingSessionIndex = scannedItems.findIndex(
-      item => item.barcode.toUpperCase() === codeUpper
+      item => item.barcode.toUpperCase() === codeUpper ||
+              (customMeta?.shadeCode && item.shadeCode && item.shadeCode.toUpperCase() === customMeta.shadeCode.toUpperCase())
     );
 
     let updatedSessionItems = [...scannedItems];
@@ -247,6 +259,19 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     if (existingSessionIndex >= 0) {
       // Increment quantity in session list
       updatedSessionItems[existingSessionIndex].quantity += qtyToAdd;
+      if (customMeta?.shadeCode) {
+        updatedSessionItems[existingSessionIndex].shadeCode = customMeta.shadeCode;
+      }
+      if (customMeta?.colorHex) {
+        updatedSessionItems[existingSessionIndex].colorHex = customMeta.colorHex;
+      }
+      if (customMeta?.colorName) {
+        updatedSessionItems[existingSessionIndex].colorName = customMeta.colorName;
+      }
+      if (customMeta?.dyeLot) {
+        updatedSessionItems[existingSessionIndex].dyeLot = customMeta.dyeLot;
+      }
+
       playBarcodeScanBeep(true);
       setScanFeedback({
         type: 'success',
@@ -256,43 +281,43 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
       // Check if it's the Oster India Yarn Bale label
       const isOsterBale = codeUpper.includes('MIX GREY') || codeUpper.includes('4251') || codeUpper.includes('26E081');
       
-      let name = existingProduct ? existingProduct.name : `${currentPreset.category} - Auto-Scanned (${codeUpper})`;
-      let colorName = existingProduct ? existingProduct.colorName : 'Standard Batch Shade';
-      let colorHex = existingProduct ? existingProduct.colorHex : (selectedCategory === 'Dereck' ? '#1E3A8A' : selectedCategory === 'Fleece' ? '#374151' : '#F59E0B');
-      let itemFiber = existingProduct ? existingProduct.fiberComposition : currentPreset.defaultComposition;
+      let name = customMeta?.name || (existingProduct ? existingProduct.name : parsedLabel?.colorName ? `${selectedCategory} - ${parsedLabel.colorName} (${parsedLabel.shadeCode || codeUpper})` : `${currentPreset.category} - ${codeUpper}`);
+      let colorName = customMeta?.colorName || parsedLabel?.colorName || (existingProduct ? existingProduct.colorName : 'Standard Batch Shade');
+      let colorHex = customMeta?.colorHex || parsedLabel?.colorHex || (existingProduct ? existingProduct.colorHex : (selectedCategory === 'Dereck' ? '#1E3A8A' : selectedCategory === 'Fleece' ? '#374151' : '#F59E0B'));
+      let itemFiber = customMeta?.fiberComposition || parsedLabel?.fiberComposition || (existingProduct ? existingProduct.fiberComposition : currentPreset.defaultComposition);
       
-      let yarnCount = existingProduct?.yarnCount;
+      let yarnCount = customMeta?.yarnCount || parsedLabel?.yarnCount || existingProduct?.yarnCount;
       let linearDensityTex = existingProduct?.linearDensityTex;
-      let dyeLot = existingProduct?.dyeLot;
-      let shadeCode = existingProduct?.shadeCode;
-      let bagNumber = existingProduct?.bagNumber;
-      let packagesCount = existingProduct?.packagesCount;
-      let weightPerPackageKg = existingProduct?.weightPerPackageKg;
-      let grossWeightKg = existingProduct?.grossWeightKg;
-      let netWeightKg = existingProduct?.netWeightKg;
-      let tareWeightKg = existingProduct?.tareWeightKg;
-      let manufacturer = existingProduct?.manufacturer;
-      let countryOfOrigin = existingProduct?.countryOfOrigin;
-      let yarnType = existingProduct?.yarnType;
+      let dyeLot = customMeta?.dyeLot || parsedLabel?.dyeLot || existingProduct?.dyeLot;
+      let shadeCode = customMeta?.shadeCode || parsedLabel?.shadeCode || existingProduct?.shadeCode;
+      let bagNumber = customMeta?.bagNumber || parsedLabel?.bagNumber || existingProduct?.bagNumber;
+      let packagesCount = customMeta?.packagesCount || parsedLabel?.packagesCount || existingProduct?.packagesCount;
+      let weightPerPackageKg = customMeta?.weightPerPackageKg || existingProduct?.weightPerPackageKg;
+      let grossWeightKg = customMeta?.grossWeightKg || parsedLabel?.grossWeightKg || existingProduct?.grossWeightKg;
+      let netWeightKg = customMeta?.netWeightKg || parsedLabel?.netWeightKg || existingProduct?.netWeightKg;
+      let tareWeightKg = customMeta?.tareWeightKg || parsedLabel?.tareWeightKg || existingProduct?.tareWeightKg;
+      let manufacturer = customMeta?.manufacturer || parsedLabel?.manufacturer || existingProduct?.manufacturer;
+      let countryOfOrigin = existingProduct?.countryOfOrigin || 'INDIA';
+      let yarnType = existingProduct?.yarnType || 'MACHINE KNITTING';
       let itemQty = qtyToAdd;
 
-      if (selectedCategory === 'Yarns' && (isOsterBale || !existingProduct)) {
-        const activeNet = yarnNetWeightKg > 0 ? yarnNetWeightKg : 24.000;
-        const activeGross = yarnGrossWeightKg > 0 ? yarnGrossWeightKg : 24.840;
-        const activeTare = yarnTareWeightKg > 0 ? yarnTareWeightKg : Number((activeGross - activeNet).toFixed(3));
-        const activePcs = yarnPackagesCount > 0 ? yarnPackagesCount : 12;
+      if (selectedCategory === 'Yarns' && (isOsterBale || parsedLabel?.shadeCode || customMeta?.shadeCode || !existingProduct)) {
+        const activeNet = netWeightKg || (yarnNetWeightKg > 0 ? yarnNetWeightKg : 24.000);
+        const activeGross = grossWeightKg || (yarnGrossWeightKg > 0 ? yarnGrossWeightKg : 24.840);
+        const activeTare = tareWeightKg || (yarnTareWeightKg > 0 ? yarnTareWeightKg : Number((activeGross - activeNet).toFixed(3)));
+        const activePcs = packagesCount || (yarnPackagesCount > 0 ? yarnPackagesCount : 12);
         const activeWtPerPkg = activePcs > 0 ? Number((activeNet / activePcs).toFixed(3)) : 2.0;
 
-        if (isOsterBale) {
+        if (isOsterBale || (shadeCode && shadeCode.includes('4251'))) {
           name = `Yarns - Mix Grey (Oster India 2/24 NM Acrylic${yarnBatchMode === 'half' ? ' - Half Batch' : ''})`;
           colorName = 'Mix Grey';
           colorHex = '#94A3B8';
           itemFiber = '100% ACRYLIC (HB) DYED YARN';
           yarnCount = '2/24 NM';
           linearDensityTex = '83 TEX';
-          dyeLot = '26E081';
+          dyeLot = dyeLot || '26E081';
           shadeCode = 'MIX GREY-4251';
-          bagNumber = '148';
+          bagNumber = bagNumber || '148';
           packagesCount = activePcs;
           weightPerPackageKg = activeWtPerPkg;
           grossWeightKg = activeGross;
@@ -304,14 +329,14 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
           itemQty = activeNet;
         } else {
           yarnCount = '2/24 NM';
-          dyeLot = codeUpper.startsWith('LOT-') ? codeUpper : 'LOT-A1';
-          shadeCode = codeUpper;
+          dyeLot = dyeLot || (codeUpper.startsWith('LOT-') ? codeUpper : 'LOT-2026');
+          shadeCode = shadeCode || codeUpper;
           packagesCount = activePcs;
           weightPerPackageKg = activeWtPerPkg;
           grossWeightKg = activeGross;
           netWeightKg = activeNet;
           tareWeightKg = activeTare;
-          manufacturer = 'OSTER INDIA PVT LTD';
+          manufacturer = manufacturer || 'OSTER INDIA PVT LTD';
           countryOfOrigin = 'INDIA';
           yarnType = 'MACHINE KNITTING';
           itemQty = activeNet;
@@ -350,8 +375,8 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
       playBarcodeScanBeep(true);
       setScanFeedback({
         type: 'success',
-        message: isOsterBale
-          ? `Scanned Oster India Yarn Bale: Shade ${shadeCode} | Lot ${dyeLot} | ${itemQty} KG Net (${packagesCount || 12} Cones)`
+        message: shadeCode
+          ? `Intaked: Shade ${shadeCode} (${colorName}) | Lot ${dyeLot || 'N/A'} | ${itemQty} ${unit} Net`
           : existingProduct
           ? `Scanned: Existing Product "${name}" (+${itemQty} ${unit})`
           : `Auto-Registered: New ${selectedCategory} Item (${codeUpper}) with Wholesale KSh ${wholesalePrice} & Retail KSh ${retailPrice} (${packagesCount || 12} pcs)`
@@ -362,6 +387,21 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     setBarcodeInput('');
     setScanQuantity(1);
     barcodeInputRef.current?.focus();
+  };
+
+  // Handle Optical Scan Modal Apply
+  const handleApplyOpticalIntakeData = (output: OpticalScanOutput) => {
+    handleScanBarcode(output.barcode || output.shadeCode, {
+      barcode: output.barcode || output.shadeCode,
+      shadeCode: output.shadeCode,
+      colorName: output.colorName,
+      colorHex: output.colorHex,
+      dyeLot: output.dyeLot,
+      netWeightKg: output.netWeightKg,
+      grossWeightKg: output.grossWeightKg,
+      tareWeightKg: output.tareWeightKg,
+      packagesCount: output.packagesCount
+    });
   };
 
   // Switch batch preset for a specific scanned line item
@@ -914,6 +954,62 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                   </div>
                 )}
 
+                {/* Quick Mill Shade Palette Bar */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                      <Palette className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Standard Mill Shades &amp; Dye Swatches ({selectedCategory})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsOpticalScannerOpen(true);
+                      }}
+                      className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200"
+                    >
+                      <Pipette className="w-3 h-3 text-rose-500" />
+                      <span>Open Optical Eyedropper / Camera</span>
+                    </button>
+                  </div>
+
+                  {/* Horizontal Scrollable Swatch Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                    {MILL_SHADE_CATALOG.filter(s => s.category === 'All' || s.category === selectedCategory).slice(0, 10).map(shade => (
+                      <button
+                        key={shade.code}
+                        type="button"
+                        onClick={() => {
+                          playClickSound();
+                          handleScanBarcode(shade.code, {
+                            barcode: shade.code,
+                            shadeCode: shade.code,
+                            colorName: shade.name,
+                            colorHex: shade.hex,
+                            dyeLot: shade.defaultDyeLot,
+                            tareWeightKg: shade.standardTareKg,
+                            packagesCount: yarnPackagesCount || 12
+                          });
+                        }}
+                        title={`Click to intake ${shade.name} (${shade.code}) - Lot ${shade.defaultDyeLot}`}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white hover:bg-rose-50/80 border border-slate-200 hover:border-rose-300 transition-all cursor-pointer shrink-0 shadow-2xs group"
+                      >
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs group-hover:scale-110 transition-transform shrink-0"
+                          style={{ backgroundColor: shade.hex }}
+                        />
+                        <span className="font-mono font-bold text-[11px] text-slate-800 group-hover:text-rose-700">
+                          {shade.code}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">
+                          {shade.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Barcode Scanner Input Form */}
                 <form
                   onSubmit={(e) => {
@@ -929,7 +1025,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                       type="text"
                       value={barcodeInput}
                       onChange={e => setBarcodeInput(e.target.value)}
-                      placeholder={`Scan or type ${currentPreset.label} barcode / SKU (USB, Bluetooth or Keyboard)...`}
+                      placeholder={`Scan or type ${currentPreset.label} barcode / Shade Code (e.g. 4251, 108)...`}
                       className="w-full pl-10 pr-4 py-2.5 bg-gradient-to-r from-rose-50/40 to-slate-50 border-2 border-rose-300 focus:border-rose-600 rounded-2xl font-mono font-bold text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                     />
                   </div>
@@ -946,6 +1042,19 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                       />
                       <span className="text-[11px] text-slate-500 ml-1 font-medium">{unit}</span>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsOpticalScannerOpen(true);
+                      }}
+                      className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0"
+                      title="Open Live Camera Scanner & Optical Fabric Shade Eyedropper"
+                    >
+                      <Camera className="w-4 h-4 text-rose-400" />
+                      <span className="hidden sm:inline">Camera / Shade</span>
+                    </button>
 
                     <button
                       type="submit"
@@ -1299,6 +1408,14 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
         </div>
 
       </div>
+
+      {/* Optical Textile Shade & Barcode Camera Scanner Modal */}
+      <OpticalShadeScannerModal
+        isOpen={isOpticalScannerOpen}
+        onClose={() => setIsOpticalScannerOpen(false)}
+        onApplyIntakeData={handleApplyOpticalIntakeData}
+        activeCategory={selectedCategory}
+      />
     </div>
   );
 };

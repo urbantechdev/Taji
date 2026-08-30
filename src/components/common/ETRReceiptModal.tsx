@@ -485,7 +485,7 @@ export const ETRReceiptModal: React.FC = () => {
             )}
 
             {/* Order Meta Info */}
-            <div className="space-y-1 text-[11px] font-sans border-b border-dashed border-slate-300 pb-3">
+            <div className="space-y-1.5 text-[11px] font-sans border-b border-dashed border-slate-300 pb-3">
               <div className="flex justify-between">
                 <span className="text-slate-500">Document Ref:</span>
                 <span className="font-bold">{selectedReceipt.id}</span>
@@ -495,8 +495,20 @@ export const ETRReceiptModal: React.FC = () => {
                 <span className="font-bold font-mono">#{selectedReceipt.receiptNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Date &amp; Time:</span>
-                <span>{new Date(selectedReceipt.timestamp).toLocaleString()}</span>
+                <span className="text-slate-500">Serving Branch:</span>
+                <span className="font-bold text-slate-900">{fulfilledLoc?.name || originLoc?.name || 'Main Store'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Served By:</span>
+                <span className="font-bold text-slate-900">{selectedReceipt.operatorName || 'POS Cashier'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Date:</span>
+                <span className="font-medium">{new Date(selectedReceipt.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Time:</span>
+                <span className="font-mono font-medium">{new Date(selectedReceipt.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} EAT</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Customer:</span>
@@ -515,15 +527,9 @@ export const ETRReceiptModal: React.FC = () => {
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-slate-500">Payment Status:</span>
-                <span className="font-semibold">{isQuotation ? 'Quotation (Unpaid)' : selectedReceipt.paymentMethod}</span>
+                <span className="text-slate-500">Payment Channel:</span>
+                <span className="font-semibold">{isQuotation ? 'Quotation (Unpaid)' : `${selectedReceipt.paymentMethod}${selectedReceipt.paymentReference ? ` (${selectedReceipt.paymentReference})` : ''}`}</span>
               </div>
-              {selectedReceipt.operatorName && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Cashier / Operator:</span>
-                  <span>{selectedReceipt.operatorName}</span>
-                </div>
-              )}
             </div>
 
             {/* Itemized Table */}
@@ -600,6 +606,19 @@ export const ETRReceiptModal: React.FC = () => {
               <p className="text-[9px] text-center text-slate-500 font-sans italic max-w-xs">
                 {etrConfig.receiptFooterMessage}
               </p>
+
+              {/* Verified Attribution Notice on Thermal Slip */}
+              <div className="w-full pt-2 border-t border-dashed border-slate-300 text-center text-[9.5px] font-sans text-slate-700 space-y-0.5">
+                <p className="font-extrabold text-slate-900">
+                  You were served by: {selectedReceipt.operatorName || 'Cashier / POS Staff'}
+                </p>
+                <p className="font-bold text-indigo-950">
+                  Branch: {fulfilledLoc?.name || originLoc?.name || 'Main Branch'}
+                </p>
+                <p className="text-slate-500 font-mono text-[9px]">
+                  {new Date(selectedReceipt.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} at {new Date(selectedReceipt.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} EAT
+                </p>
+              </div>
             </div>
           </div>
         ) : documentLayout === 'delivery_note' ? (
@@ -613,6 +632,8 @@ export const ETRReceiptModal: React.FC = () => {
               subtitle="Textile Manufacturing & Distribution Hub"
               documentNumber={selectedReceipt.receiptNumber}
               documentDate={selectedReceipt.dispatchDate || selectedReceipt.timestamp}
+              servedBy={selectedReceipt.operatorName || 'Store Officer'}
+              branchName={fulfilledLoc?.name || 'Main Distribution Hub'}
               badgeVariant="delivery_note"
               badgeLabel="Goods Delivery Note"
               extraMetaRight={
@@ -767,6 +788,8 @@ export const ETRReceiptModal: React.FC = () => {
               subtitle="Textile Manufacturing & Multi-Branch Distribution Hub"
               documentNumber={selectedReceipt.receiptNumber}
               documentDate={selectedReceipt.timestamp}
+              servedBy={selectedReceipt.operatorName || 'POS Staff'}
+              branchName={fulfilledLoc?.name || originLoc?.name || 'Main Distribution Hub'}
               refId={selectedReceipt.id}
               badgeVariant={
                 isDeliveryNote

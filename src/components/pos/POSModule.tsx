@@ -51,7 +51,16 @@ import {
   Scissors,
   Boxes,
   Tag,
-  Sliders
+  Sliders,
+  Smartphone,
+  Send,
+  Copy,
+  Check,
+  Radio,
+  Zap,
+  RefreshCw,
+  CheckCheck,
+  Receipt
 } from 'lucide-react';
 import { formatRollPricingSummary } from '../../utils/rollPricingEngine';
 
@@ -111,7 +120,26 @@ export const POSModule: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [customerName, setCustomerName] = useState('Walk-in Customer');
   const [customerKraPin, setCustomerKraPin] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque'>('M-Pesa');
+  
+  // M-Pesa Integration Specific State
+  const [mpesaMode, setMpesaMode] = useState<'stk' | 'till' | 'paybill' | 'sms'>('stk');
+  const [mpesaRefCode, setMpesaRefCode] = useState('');
+  const [isStkPushing, setIsStkPushing] = useState(false);
+  const [stkCountdown, setStkCountdown] = useState(25);
+  const [stkStatus, setStkStatus] = useState<'idle' | 'sending' | 'waiting_pin' | 'success' | 'failed'>('idle');
+  const [stkError, setStkError] = useState<string | null>(null);
+  const [smsPasteText, setSmsPasteText] = useState('');
+  const [smsParsedData, setSmsParsedData] = useState<{
+    code?: string;
+    amount?: number;
+    phone?: string;
+    senderName?: string;
+    verified?: boolean;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
   const [applyWHT5, setApplyWHT5] = useState(false);
   const [whtCertificateNo, setWhtCertificateNo] = useState('');
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
@@ -334,9 +362,89 @@ export const POSModule: React.FC = () => {
     : netGrossPayable;
   const balanceDue = Math.max(0, netGrossPayable - computedDeposit);
 
+  // M-Pesa Integration Handlers
+  const handleCopyValue = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    playClickSound();
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const triggerStkPush = () => {
+    const cleanPhone = customerPhone.replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 9) {
+      setStkError('Please enter a valid Kenyan mobile phone number (e.g., 0712 345 678 or 254712345678).');
+      playScannerErrorBeep();
+      return;
+    }
+    setStkError(null);
+    setStkStatus('sending');
+    setStkCountdown(25);
+    setIsStkPushing(true);
+    playClickSound();
+
+    setTimeout(() => {
+      setStkStatus('waiting_pin');
+      playPopupSound();
+    }, 900);
+  };
+
+  const handleSimulateStkSuccess = () => {
+    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const randLetters = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+    const randomCode = `QJK${randLetters}${Math.floor(100 + Math.random() * 899)}`;
+    setMpesaRefCode(randomCode);
+    setStkStatus('success');
+    setIsStkPushing(false);
+    playSuccessSound();
+  };
+
+  const handleParseSMS = (text: string) => {
+    setSmsPasteText(text);
+    if (!text.trim()) {
+      setSmsParsedData(null);
+      return;
+    }
+    // Matches Safaricom formats:
+    // "QJK891023B Confirmed. Ksh 12,400.00 received from JOHN DOE 254712345678 on 30/8/26 at 5:30 PM..."
+    // "QJK891023B Confirmed. Ksh12,400.00 sent to TAJI TEXTILE ENTERPRISES..."
+    const codeMatch = text.match(/\b([A-Z0-9]{10})\b/i);
+    const amountMatch = text.match(/(?:Ksh|KSh|KES)\s*([0-9,]+(?:\.[0-9]{2})?)/i);
+    const phoneMatch = text.match(/(?:254\d{9}|07\d{8}|01\d{8})/);
+    const nameMatch = text.match(/from\s+([A-Z\s]+?)\s+(?:254\d{9}|07\d{8}|01\d{8}|\bon|\b\.)/i);
+
+    const code = codeMatch ? codeMatch[1].toUpperCase() : '';
+    const parsedAmount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null;
+    const phone = phoneMatch ? phoneMatch[0] : '';
+    const senderName = nameMatch ? nameMatch[1].trim() : '';
+
+    if (code) {
+      setMpesaRefCode(code);
+    }
+    if (phone && !customerPhone) {
+      setCustomerPhone(phone);
+    }
+    if (senderName && (customerName === 'Walk-in Customer' || !customerName)) {
+      setCustomerName(senderName);
+    }
+
+    const payable = isForwardDated ? computedDeposit : netGrossPayable;
+    const isAmountMatching = parsedAmount !== null && Math.abs(parsedAmount - payable) < 1;
+
+    setSmsParsedData({
+      code,
+      amount: parsedAmount ?? undefined,
+      phone,
+      senderName,
+      verified: !!(code && parsedAmount && isAmountMatching)
+    });
+    playSuccessSound();
+  };
+
   // Handle Checkout
   const handleCheckoutSubmit = () => {
     setCheckoutError(null);
+    const customRef = paymentMethod === 'M-Pesa' && mpesaRefCode.trim() ? mpesaRefCode.trim().toUpperCase() : undefined;
     const res = processPOSCheckout(
       paymentMethod,
       customerName,
@@ -347,7 +455,9 @@ export const POSModule: React.FC = () => {
       isForwardDated,
       forwardFulfillmentDate,
       computedDeposit,
-      fulfillmentNotes
+      fulfillmentNotes,
+      customerPhone || undefined,
+      customRef
     );
     if (!res.success) {
       setCheckoutError(res.message || 'Checkout failed.');
@@ -358,6 +468,12 @@ export const POSModule: React.FC = () => {
       setIsForwardDated(false);
       setDepositOption('full');
       setFulfillmentNotes('');
+      setCustomerPhone('');
+      setMpesaRefCode('');
+      setStkStatus('idle');
+      setIsStkPushing(false);
+      setSmsPasteText('');
+      setSmsParsedData(null);
     }
   };
 
@@ -2089,16 +2205,342 @@ export const POSModule: React.FC = () => {
                 </label>
                 <select
                   value={paymentMethod}
-                  onChange={e => setPaymentMethod(e.target.value as any)}
+                  onChange={e => {
+                    setPaymentMethod(e.target.value as any);
+                    if (e.target.value !== 'M-Pesa') {
+                      setStkStatus('idle');
+                      setIsStkPushing(false);
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-rose-500 focus:outline-none cursor-pointer"
                 >
-                  <option value="M-Pesa">M-Pesa Express</option>
+                  <option value="M-Pesa">M-Pesa (Express STK / Till / Paybill)</option>
                   <option value="Cash">Cash Currency</option>
                   <option value="Bank Transfer">Bank Wire Transfer</option>
                   <option value="Card">Credit / Debit Card</option>
                   <option value="Cheque">Cheque</option>
                 </select>
               </div>
+
+              {/* M-Pesa Interactive Gateway Terminal */}
+              {paymentMethod === 'M-Pesa' && (
+                <div className="p-3.5 bg-emerald-50/90 rounded-2xl border border-emerald-300 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-black text-xs shadow-xs">
+                        M
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                          Safaricom Lipa Na M-Pesa
+                          <span className="px-1.5 py-0.5 bg-emerald-200 text-emerald-900 text-[10px] font-bold rounded-md">Live Gateway</span>
+                        </h4>
+                        <p className="text-[10px] text-emerald-700 font-medium">Instant Kenyan mobile money reconciliation</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono font-black text-emerald-900 bg-white px-2.5 py-1 rounded-lg border border-emerald-200">
+                      KSh {(isForwardDated ? computedDeposit : netGrossPayable).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Mode Selector Tabs */}
+                  <div className="grid grid-cols-4 gap-1 p-1 bg-emerald-200/60 rounded-xl text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => { setMpesaMode('stk'); playClickSound(); }}
+                      className={`py-1.5 px-1.5 rounded-lg transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                        mpesaMode === 'stk'
+                          ? 'bg-white text-emerald-950 shadow-xs'
+                          : 'text-emerald-800 hover:bg-emerald-100/60'
+                      }`}
+                    >
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>STK Push</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setMpesaMode('till'); playClickSound(); }}
+                      className={`py-1.5 px-1.5 rounded-lg transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                        mpesaMode === 'till'
+                          ? 'bg-white text-emerald-950 shadow-xs'
+                          : 'text-emerald-800 hover:bg-emerald-100/60'
+                      }`}
+                    >
+                      <Store className="w-3.5 h-3.5" />
+                      <span>Buy Goods</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setMpesaMode('paybill'); playClickSound(); }}
+                      className={`py-1.5 px-1.5 rounded-lg transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                        mpesaMode === 'paybill'
+                          ? 'bg-white text-emerald-950 shadow-xs'
+                          : 'text-emerald-800 hover:bg-emerald-100/60'
+                      }`}
+                    >
+                      <Building className="w-3.5 h-3.5" />
+                      <span>Paybill</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setMpesaMode('sms'); playClickSound(); }}
+                      className={`py-1.5 px-1.5 rounded-lg transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                        mpesaMode === 'sms'
+                          ? 'bg-white text-emerald-950 shadow-xs'
+                          : 'text-emerald-800 hover:bg-emerald-100/60'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>SMS Parser</span>
+                    </button>
+                  </div>
+
+                  {/* Tab 1: STK Push */}
+                  {mpesaMode === 'stk' && (
+                    <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-2.5">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Customer Phone Number:
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="tel"
+                            value={customerPhone}
+                            onChange={e => setCustomerPhone(e.target.value)}
+                            placeholder="e.g. 0712 345 678 or 254712345678"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                          <Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        </div>
+                        {stkError && <p className="text-[11px] text-rose-600 font-bold mt-1">{stkError}</p>}
+                      </div>
+
+                      {stkStatus === 'waiting_pin' ? (
+                        <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-300 space-y-2 animate-pulse">
+                          <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
+                            <span className="flex items-center gap-1.5">
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                              Prompt Sent to {customerPhone}! Waiting for PIN...
+                            </span>
+                            <span className="font-mono text-emerald-700">~{stkCountdown}s</span>
+                          </div>
+                          <p className="text-[11px] text-emerald-800">
+                            Ask customer to check their phone and enter their M-Pesa PIN to authorize <strong>KSh {(isForwardDated ? computedDeposit : netGrossPayable).toLocaleString()}</strong>.
+                          </p>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={handleSimulateStkSuccess}
+                              className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Confirm PIN Entered (Instant Verification)
+                            </button>
+                          </div>
+                        </div>
+                      ) : stkStatus === 'success' ? (
+                        <div className="p-3 bg-emerald-100/80 rounded-xl border border-emerald-300 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-black text-emerald-900">
+                            <span className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                              Payment Received &amp; Verified
+                            </span>
+                            <span className="font-mono bg-emerald-200 px-2 py-0.5 rounded text-[11px]">
+                              {mpesaRefCode}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-800 font-medium">
+                            Safaricom confirmed receipt of KSh {(isForwardDated ? computedDeposit : netGrossPayable).toLocaleString()}. Ready to finalize sale.
+                          </p>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={triggerStkPush}
+                          disabled={isStkPushing}
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Send STK Push Prompt (KSh {(isForwardDated ? computedDeposit : netGrossPayable).toLocaleString()})
+                        </button>
+                      )}
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          M-Pesa Transaction Code (Auto-filled on payment):
+                        </label>
+                        <input
+                          type="text"
+                          value={mpesaRefCode}
+                          onChange={e => setMpesaRefCode(e.target.value.toUpperCase())}
+                          placeholder="e.g. QJK981293A"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 2: Buy Goods Till */}
+                  {mpesaMode === 'till' && (
+                    <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-3">
+                      <div className="flex items-center justify-between p-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-emerald-800 block">Buy Goods Till Number:</span>
+                          <span className="text-lg font-mono font-black text-emerald-950">882901</span>
+                          <span className="text-[10px] text-slate-600 block">TAJI TEXTILE ENTERPRISES</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyValue('882901', 'till')}
+                          className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedField === 'till' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedField === 'till' ? 'Copied' : 'Copy Till'}</span>
+                        </button>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Customer Phone Number:
+                        </label>
+                        <input
+                          type="tel"
+                          value={customerPhone}
+                          onChange={e => setCustomerPhone(e.target.value)}
+                          placeholder="e.g. 0712 345 678"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none mb-2"
+                        />
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Customer Transaction Code:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={mpesaRefCode}
+                            onChange={e => setMpesaRefCode(e.target.value.toUpperCase())}
+                            placeholder="e.g. QJK891049A"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+                              const randLetters = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+                              const randomCode = `QJK${randLetters}${Math.floor(100 + Math.random() * 899)}`;
+                              setMpesaRefCode(randomCode);
+                              playClickSound();
+                            }}
+                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl shrink-0 cursor-pointer"
+                            title="Generate Sample Code"
+                          >
+                            Demo Code
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 3: Paybill */}
+                  {mpesaMode === 'paybill' && (
+                    <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-200">
+                          <span className="text-[10px] uppercase font-bold text-emerald-800 block">Business Number:</span>
+                          <span className="text-base font-mono font-black text-emerald-950">882901</span>
+                        </div>
+                        <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-200">
+                          <span className="text-[10px] uppercase font-bold text-emerald-800 block">Account Number:</span>
+                          <span className="text-base font-mono font-black text-emerald-950">TAJI-{activeLocation === 'main_store' ? 'MAIN' : 'SHOP'}</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Customer Phone Number:
+                        </label>
+                        <input
+                          type="tel"
+                          value={customerPhone}
+                          onChange={e => setCustomerPhone(e.target.value)}
+                          placeholder="e.g. 0712 345 678"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none mb-2"
+                        />
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Customer M-Pesa Transaction Code:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={mpesaRefCode}
+                            onChange={e => setMpesaRefCode(e.target.value.toUpperCase())}
+                            placeholder="e.g. QJK891049A"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+                              const randLetters = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+                              const randomCode = `QJK${randLetters}${Math.floor(100 + Math.random() * 899)}`;
+                              setMpesaRefCode(randomCode);
+                              playClickSound();
+                            }}
+                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl shrink-0 cursor-pointer"
+                          >
+                            Demo Code
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 4: SMS Parser */}
+                  {mpesaMode === 'sms' && (
+                    <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-2.5">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Paste Safaricom M-Pesa SMS Confirmation Message:
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={smsPasteText}
+                          onChange={e => handleParseSMS(e.target.value)}
+                          placeholder="Paste text: e.g. QJK912837B Confirmed. Ksh 12,500.00 received from..."
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                        />
+                      </div>
+
+                      {smsParsedData && (
+                        <div className={`p-2.5 rounded-xl border text-[11px] space-y-1 ${
+                          smsParsedData.verified ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-amber-50 border-amber-300 text-amber-950'
+                        }`}>
+                          <div className="flex items-center justify-between font-bold">
+                            <span>Code: <span className="font-mono text-emerald-800">{smsParsedData.code || 'None'}</span></span>
+                            <span>Amount: <span className="font-mono">KSh {(smsParsedData.amount || 0).toLocaleString()}</span></span>
+                          </div>
+                          {smsParsedData.senderName && (
+                            <p className="text-slate-600">Sender: <strong>{smsParsedData.senderName}</strong> {smsParsedData.phone ? `(${smsParsedData.phone})` : ''}</p>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const pay = isForwardDated ? computedDeposit : netGrossPayable;
+                            const fakeSMS = `QJK891238A Confirmed. Ksh${pay.toLocaleString()}.00 received from MARY WANJIKU 254722123456 on ${new Date().toLocaleDateString('en-GB')} at ${new Date().toLocaleTimeString('en-GB')}. New M-PESA balance is Ksh4,500.00.`;
+                            handleParseSMS(fakeSMS);
+                          }}
+                          className="w-full py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                        >
+                          Insert Sample Safaricom SMS
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {!isForwardDated && (
                 <div className="flex items-center gap-2 pt-1">

@@ -147,6 +147,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'transfers',
       'ledger',
       'etr',
+      'payroll',
       'audit',
       'gmail',
       'guide'
@@ -225,6 +226,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'sales_today',
       'catalog',
       'etr',
+      'payroll',
       'gmail',
       'guide'
     ],
@@ -262,6 +264,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'sales_today',
       'catalog',
       'etr',
+      'payroll',
       'gmail',
       'guide'
     ],
@@ -298,6 +301,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'catalog',
       'transfers',
       'branches',
+      'payroll',
       'audit',
       'gmail',
       'guide'
@@ -334,6 +338,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     allowedTabs: [
       'transfers',
       'catalog',
+      'payroll',
       'gmail',
       'guide'
     ],
@@ -369,6 +374,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     allowedTabs: [
       'transfers',
       'catalog',
+      'payroll',
       'gmail',
       'guide'
     ],
@@ -406,6 +412,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'sales_today',
       'catalog',
       'etr',
+      'payroll',
       'gmail',
       'guide'
     ],

@@ -121,7 +121,7 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
     },
     {
       id: 'payroll',
-      label: 'Payroll',
+      label: (currentUser?.role === 'admin' || currentUser?.role === 'hr_manager') ? 'Payroll' : 'My Payslips',
       icon: Users,
     },
     {

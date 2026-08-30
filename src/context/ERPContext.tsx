@@ -196,8 +196,10 @@ interface ERPContextType {
     isForwardDated?: boolean,
     forwardFulfillmentDate?: string,
     advanceDepositAmount?: number,
-    fulfillmentNotes?: string
-  ) => { success: boolean; orderId?: string; message?: string; isForwardDated?: boolean };
+    fulfillmentNotes?: string,
+    customerPhone?: string,
+    customPaymentReference?: string
+  ) => { success: boolean; orderId?: string; message?: string; isForwardDated?: boolean; order?: SaleOrder };
   convertQuotationToInvoice: (
     quotationId: string,
     paymentMethod: 'M-Pesa' | 'Cash' | 'Bank Transfer' | 'Card' | 'Cheque',
@@ -360,7 +362,7 @@ interface ERPContextType {
   syncCloudInventory: () => Promise<{ success: boolean; count: number; message: string }>;
   updateETRConfig: (config: Partial<ETRConfig>) => void;
   generateMonthlyPayroll: (monthYear: string) => void;
-  addStaffMember: (staffData: Omit<StaffMember, 'id' | 'employeeNo' | 'joinedDate'> & { employeeNo?: string; joinedDate?: string }) => StaffMember;
+  addStaffMember: (staffData: Omit<StaffMember, 'id' | 'employeeNo' | 'joinedDate'> & { employeeNo?: string; joinedDate?: string; initialPin?: string }) => StaffMember;
   updateStaffMember: (id: string, updates: Partial<StaffMember>) => void;
   deleteStaffMember: (id: string) => void;
   recordAuditLog: (action: string, details: string) => void;
@@ -546,8 +548,10 @@ interface ERPContextType {
     action: 'supplier_compensated' | 'supplier_replaced' | 'written_off_scrap',
     notes: string,
     restockBatchId?: string,
-    restockQtyKg?: number
+    restockQtyKg?: number,
+    restockLocationId?: LocationId
   ) => { success: boolean; message: string };
+  deleteQuarantineRecord: (recordId: string) => { success: boolean; message: string };
   isReturnExchangeModalOpen: boolean;
   setIsReturnExchangeModalOpen: (open: boolean) => void;
 
@@ -641,8 +645,29 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     'zamodasports@gmail.com'
   ];
 
-  // POS Operators State & PIN Session
-  const [posOperators, setPosOperators] = useState<POSOperator[]>(INITIAL_POS_OPERATORS);
+  // POS Operators State & PIN Session with Local Storage Persistence
+  const [posOperators, setPosOperators] = useState<POSOperator[]>(() => {
+    try {
+      const saved = localStorage.getItem('urban_interior_pos_operators');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error loading pos operators from localStorage:', e);
+    }
+    return INITIAL_POS_OPERATORS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('urban_interior_pos_operators', JSON.stringify(posOperators));
+    } catch (e) {
+      console.warn('Error saving pos operators to localStorage:', e);
+    }
+  }, [posOperators]);
   const [posSession, setPosSession] = useState<{
     isUnlocked: boolean;
     operatorId: string;
@@ -792,15 +817,27 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const addPOSOperator = async (opData: Omit<POSOperator, 'id' | 'createdAt'>) => {
+  const addPOSOperator = async (opData: Omit<POSOperator, 'id' | 'createdAt'> & { id?: string }) => {
+    const rawPin = (opData.pin || '').trim();
+    const hasValidPin = rawPin.length === 6 && /^\d+$/.test(rawPin);
     const newOp: POSOperator = {
       ...opData,
-      id: `op-${Date.now()}`,
+      id: opData.id || `op-${Date.now()}`,
+      pin: hasValidPin ? rawPin : '',
+      isAwaitingPin: opData.isAwaitingPin !== undefined ? opData.isAwaitingPin : !hasValidPin,
       status: opData.status || 'active',
       createdAt: new Date().toISOString(),
       createdBy: currentUser.name || 'Executive Admin'
     };
-    setPosOperators(prev => [newOp, ...prev]);
+    setPosOperators(prev => {
+      const idx = prev.findIndex(o => o.id === newOp.id || (newOp.staffId && o.staffId === newOp.staffId));
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = newOp;
+        return copy;
+      }
+      return [newOp, ...prev];
+    });
 
     try {
       await setDoc(doc(db, 'pos_operators', newOp.id), newOp);
@@ -808,15 +845,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Error saving operator to Firestore:', error);
     }
 
-    recordAuditLog('User Operator Created', `Admin created ${newOp.role} user: ${newOp.name} (${newOp.email}) assigned to ${newOp.location}`);
-    return { success: true, message: `User ${newOp.name} (${newOp.role}) created successfully!` };
+    recordAuditLog('User Operator Created', `Admin created ${newOp.role} user: ${newOp.name} (${newOp.email}) assigned to ${newOp.location} [${hasValidPin ? 'PIN Configured' : 'Awaiting PIN'}]`);
+    return { success: true, message: `User ${newOp.name} (${newOp.role}) registered successfully!` };
   };
 
   const updatePOSOperator = async (id: string, updates: Partial<Omit<POSOperator, 'id' | 'createdAt'>>) => {
     let updatedOp: POSOperator | undefined;
     setPosOperators(prev => prev.map(op => {
       if (op.id === id) {
-        updatedOp = { ...op, ...updates };
+        const rawPin = updates.pin !== undefined ? updates.pin.trim() : op.pin;
+        const hasValidPin = rawPin.length === 6 && /^\d+$/.test(rawPin);
+        const awaiting = updates.isAwaitingPin !== undefined ? updates.isAwaitingPin : !hasValidPin;
+
+        updatedOp = {
+          ...op,
+          ...updates,
+          pin: rawPin,
+          isAwaitingPin: awaiting
+        };
         return updatedOp;
       }
       return op;
@@ -898,7 +944,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'PIN code must be exactly 6 numeric digits.' };
     }
 
-    const matchedOp = posOperators.find(op => op.pin === trimmedPin);
+    const matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === trimmedPin));
 
     if (matchedOp) {
       if (matchedOp.status === 'inactive') {
@@ -1050,6 +1096,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...data
           }));
         }
+      }, (error) => {
+        console.warn('Stock alert Firestore sync listener note:', error.message);
       });
       return () => unsub();
     } catch (err) {
@@ -1403,6 +1451,43 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('urban_interior_staff', JSON.stringify(staff));
     } catch (e) {
       console.warn('Error saving staff to localStorage:', e);
+    }
+
+    // Auto-sync existing staff directory into POS operators (Awaiting PIN)
+    if (staff && staff.length > 0) {
+      setPosOperators(prev => {
+        let changed = false;
+        const updated = [...prev];
+        staff.forEach(s => {
+          const exists = updated.some(o =>
+            (o.staffId && o.staffId === s.id) ||
+            o.id === `op-staff-${s.id}` ||
+            (s.employeeNo && o.employeeNo === s.employeeNo) ||
+            (s.email && o.email && o.email.toLowerCase() === s.email.toLowerCase())
+          );
+          if (!exists) {
+            changed = true;
+            const autoOp: POSOperator = {
+              id: `op-staff-${s.id}`,
+              name: s.name,
+              email: s.email || `${s.employeeNo.toLowerCase()}@taji.co.ke`,
+              phone: s.phone || '+254 700 000 000',
+              kraPin: s.kraPin || 'P051982341Z',
+              pin: '',
+              location: s.locationId,
+              role: s.role,
+              status: s.status === 'suspended' ? 'inactive' : 'active',
+              staffId: s.id,
+              employeeNo: s.employeeNo,
+              isAwaitingPin: true,
+              createdAt: s.joinedDate || new Date().toISOString(),
+              createdBy: s.onboardedBy || 'HR Sync'
+            };
+            updated.push(autoOp);
+          }
+        });
+        return changed ? updated : prev;
+      });
     }
   }, [staff]);
 
@@ -2946,9 +3031,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     action: 'supplier_compensated' | 'supplier_replaced' | 'written_off_scrap',
     notes: string,
     restockBatchId?: string,
-    restockQtyKg?: number
+    restockQtyKg?: number,
+    restockLocationId?: LocationId
   ) => {
     const now = new Date().toISOString();
+    const targetLoc = restockLocationId || activeLocation;
+    const locInfo = locations.find(l => l.id === targetLoc);
+
+    let totalResolvedCost = 0;
+    const resolvedRecs = quarantinedDefects.filter(r => recordIds.includes(r.id));
+    resolvedRecs.forEach(r => {
+      totalResolvedCost += r.returnedItem.totalValuationCost;
+    });
 
     setQuarantinedDefects(prev =>
       prev.map(rec => {
@@ -2965,17 +3059,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    // If replacement cones received from manufacturer, restock sellable inventory
+    // If replacement cones/meters received from manufacturer, restock sellable inventory
     if (action === 'supplier_replaced' && restockBatchId && restockQtyKg && restockQtyKg > 0) {
       setProducts(prevProds =>
         prevProds.map(p => {
           if (p.id === restockBatchId) {
-            const cur = p.locationStock[activeLocation] || 0;
+            const cur = p.locationStock[targetLoc] || 0;
             return {
               ...p,
               locationStock: {
                 ...p.locationStock,
-                [activeLocation]: cur + restockQtyKg
+                [targetLoc]: cur + restockQtyKg
               }
             };
           }
@@ -2984,13 +3078,68 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
+    // Double-Entry Ledger Posting for resolution
+    const ledgerEntries: LedgerEntry[] = [];
+    if (action === 'supplier_compensated') {
+      ledgerEntries.push({
+        id: `LEDG-RES-${Date.now().toString().slice(-6)}-1`,
+        timestamp: now,
+        transactionRef: `RES-${recordIds[0]}`,
+        description: `Supplier Reimbursement Received for Defect Claims (${recordIds.length} tickets)`,
+        debitAccount: 'Cash at Hand / Bank (Supplier Settlement)',
+        creditAccount: '1180 - Accounts Receivable (Supplier Claims)',
+        amount: Number(totalResolvedCost.toFixed(2)),
+        locationId: targetLoc,
+        category: 'Adjustment'
+      });
+    } else if (action === 'supplier_replaced') {
+      ledgerEntries.push({
+        id: `LEDG-RES-${Date.now().toString().slice(-6)}-1`,
+        timestamp: now,
+        transactionRef: `RES-REP-${recordIds[0]}`,
+        description: `Supplier Replacement Stock Received into Sellable Inventory (${locInfo?.name})`,
+        debitAccount: `1200 - Inventory Asset (${locInfo?.name})`,
+        creditAccount: '1180 - Accounts Receivable (Supplier Claims)',
+        amount: Number(totalResolvedCost.toFixed(2)),
+        locationId: targetLoc,
+        category: 'Adjustment'
+      });
+    } else if (action === 'written_off_scrap') {
+      ledgerEntries.push({
+        id: `LEDG-RES-${Date.now().toString().slice(-6)}-1`,
+        timestamp: now,
+        transactionRef: `SCRAP-${recordIds[0]}`,
+        description: `Defective Stock Written-Off as Scrap Loss (${recordIds.length} tickets)`,
+        debitAccount: '5200 - Inventory Spoilage & Scrap Write-off Loss',
+        creditAccount: '1350 - Quarantined Damaged Inventory Asset',
+        amount: Number(totalResolvedCost.toFixed(2)),
+        locationId: targetLoc,
+        category: 'Adjustment'
+      });
+    }
+
+    if (ledgerEntries.length > 0) {
+      setLedger(prev => [...ledgerEntries, ...prev]);
+    }
+
     recordAuditLog(
       'Quarantine Defect Resolved',
-      `Resolved ${recordIds.length} defect records via ${action.replace('_', ' ')}. Notes: ${notes}`
+      `Resolved ${recordIds.length} defect records (KSh ${totalResolvedCost.toLocaleString()}) via ${action.replace(/_/g, ' ')}. Notes: ${notes}`
     );
     playSuccessSound();
 
-    return { success: true, message: `Quarantine records resolved successfully.` };
+    return { success: true, message: `Quarantine records resolved successfully (${action.replace(/_/g, ' ')}).` };
+  };
+
+  const deleteQuarantineRecord = (recordId: string) => {
+    const rec = quarantinedDefects.find(r => r.id === recordId);
+    if (!rec) {
+      return { success: false, message: 'RMA Ticket not found.' };
+    }
+
+    setQuarantinedDefects(prev => prev.filter(r => r.id !== recordId));
+    recordAuditLog('RMA Record Removed', `Cancelled and deleted RMA ticket ${rec.rmaNumber} (${rec.customerName})`);
+    return { success: true, message: `RMA ticket ${rec.rmaNumber} removed.` };
   };
 
   // HELD CART OPERATIONS
@@ -3513,7 +3662,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isForwardDated: boolean = false,
     forwardFulfillmentDate: string = '',
     advanceDepositAmount?: number,
-    fulfillmentNotes: string = ''
+    fulfillmentNotes: string = '',
+    customerPhone?: string,
+    customPaymentReference?: string
   ) => {
     // Check Store 1 and Store 2 restriction
     const locInfo = locations.find(l => l.id === activeLocation);
@@ -3567,6 +3718,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const balanceDue = isForwardDated ? Number((grossTotal - depositPaid).toFixed(2)) : 0;
     const targetFulfillmentDate = forwardFulfillmentDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
+    const generatedPayRef = customPaymentReference || (
+      paymentMethod === 'M-Pesa' 
+        ? `MPESA-${Date.now().toString().slice(-6)}` 
+        : `${(paymentMethod || 'CSH').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`
+    );
+
     const newOrder: SaleOrder = {
       id: orderId,
       receiptNumber: receiptNum,
@@ -3577,6 +3734,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fulfilledByLocation: activeLocation,
       customerName,
       customerKraPin: customerKraPin || undefined,
+      customerPhone: customerPhone || undefined,
       items: cart.map(item => ({
         batchId: item.batchId,
         productName: item.productName,
@@ -3604,7 +3762,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       whtCertificateNo: whtCertNumber,
       netReceivableAmount: applyWHT5 ? netReceivableAmount : undefined,
       paymentMethod,
-      paymentReference: `${(paymentMethod || 'CSH').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`,
+      paymentReference: generatedPayRef,
       status: isForwardDated ? 'reserved' : (isQuotation ? 'draft' : 'completed'),
       operatorId: currentUser.id,
       operatorName: currentUser.name,
@@ -3617,7 +3775,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       advanceDepositPaid: isForwardDated ? depositPaid : undefined,
       balanceDue: isForwardDated ? balanceDue : undefined,
       depositPaymentMethod: isForwardDated ? paymentMethod : undefined,
-      depositPaymentReference: isForwardDated ? `DEP-${(paymentMethod || 'CSH').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-5)}` : undefined,
+      depositPaymentReference: isForwardDated ? `DEP-${generatedPayRef}` : undefined,
       reservationStatus: isForwardDated ? 'reserved_active' : undefined,
       fulfillmentNotes: isForwardDated ? fulfillmentNotes : undefined,
       isStockReserved: isForwardDated
@@ -5384,7 +5542,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(prev => [createdProduct, ...prev]);
 
     try {
-      setDoc(doc(db, 'products', batchId), createdProduct);
+      setDoc(doc(db, 'products', batchId), createdProduct).catch(err => {
+        console.warn('Auto create product cloud sync error:', err);
+      });
     } catch (err) {
       console.warn('Auto create product cloud sync error:', err);
     }
@@ -6277,7 +6437,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // STAFF ONBOARDING & PERSONNEL MANAGEMENT (Admin & HR)
   const addStaffMember = (
-    staffData: Omit<StaffMember, 'id' | 'employeeNo' | 'joinedDate'> & { employeeNo?: string; joinedDate?: string }
+    staffData: Omit<StaffMember, 'id' | 'employeeNo' | 'joinedDate'> & { employeeNo?: string; joinedDate?: string; initialPin?: string }
   ): StaffMember => {
     const nextNum = staff.length + 1;
     const autoEmpNo = staffData.employeeNo?.trim() || `EMP-2026-${nextNum.toString().padStart(3, '0')}`;
@@ -6307,9 +6467,44 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setStaff(prev => [newStaff, ...prev]);
+
+    // AUTOMATICALLY PROVISION AS POS OPERATOR (Awaiting PIN or with configured PIN)
+    const rawPin = (staffData.initialPin || '').trim();
+    const hasValidPin = rawPin.length === 6 && /^\d+$/.test(rawPin);
+    const newOp: POSOperator = {
+      id: `op-staff-${newStaff.id}`,
+      name: newStaff.name,
+      email: newStaff.email || `${newStaff.employeeNo.toLowerCase()}@taji.co.ke`,
+      phone: newStaff.phone || '+254 700 000 000',
+      kraPin: newStaff.kraPin || 'P051982341Z',
+      pin: hasValidPin ? rawPin : '',
+      location: newStaff.locationId,
+      role: newStaff.role,
+      status: newStaff.status === 'suspended' ? 'inactive' : 'active',
+      staffId: newStaff.id,
+      employeeNo: newStaff.employeeNo,
+      isAwaitingPin: !hasValidPin,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser.name || 'HR Onboarding'
+    };
+
+    setPosOperators(prev => {
+      const idx = prev.findIndex(o => (o.staffId && o.staffId === newStaff.id) || o.id === `op-staff-${newStaff.id}`);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], ...newOp, pin: copy[idx].pin || newOp.pin, isAwaitingPin: !copy[idx].pin };
+        return copy;
+      }
+      return [newOp, ...prev];
+    });
+
+    try {
+      setDoc(doc(db, 'pos_operators', newOp.id), newOp).catch(() => {});
+    } catch (e) {}
+
     recordAuditLog(
-      'Staff Onboarded',
-      `Onboarded ${newStaff.name} (${newStaff.employeeNo}) as ${newStaff.role} by ${currentUser.name || 'HR/Admin'}`
+      'Staff Onboarded & POS User Provisioned',
+      `Onboarded ${newStaff.name} (${newStaff.employeeNo}) as ${newStaff.role} by ${currentUser.name || 'HR/Admin'}. POS User automatically provisioned (${hasValidPin ? 'PIN Configured' : 'Awaiting PIN Setup'}).`
     );
 
     return newStaff;
@@ -6317,13 +6512,42 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateStaffMember = (id: string, updates: Partial<StaffMember>) => {
     setStaff(prev => prev.map(s => (s.id === id ? { ...s, ...updates } : s)));
-    recordAuditLog('Staff Updated', `Updated personnel records for staff ID ${id}`);
+
+    // Synchronize updates to POS Operator user account
+    setPosOperators(prev => prev.map(op => {
+      if (op.staffId === id || op.id === `op-staff-${id}`) {
+        const updatedOp: POSOperator = {
+          ...op,
+          name: updates.name !== undefined ? updates.name.trim() : op.name,
+          email: updates.email !== undefined ? updates.email.trim() : op.email,
+          phone: updates.phone !== undefined ? updates.phone.trim() : op.phone,
+          kraPin: updates.kraPin !== undefined ? updates.kraPin.toUpperCase().trim() : op.kraPin,
+          location: updates.locationId ?? op.location,
+          role: updates.role ?? op.role,
+          status: updates.status === 'suspended' ? 'inactive' : (updates.status === 'active' ? 'active' : op.status)
+        };
+        try {
+          setDoc(doc(db, 'pos_operators', op.id), updatedOp, { merge: true }).catch(() => {});
+        } catch (e) {}
+        return updatedOp;
+      }
+      return op;
+    }));
+
+    recordAuditLog('Staff Updated', `Updated personnel records & synced POS operator profile for staff ID ${id}`);
   };
 
   const deleteStaffMember = (id: string) => {
     const target = staff.find(s => s.id === id);
     setStaff(prev => prev.filter(s => s.id !== id));
-    recordAuditLog('Staff Offboarded', `Removed staff member ${target?.name || id} from active directory`);
+
+    // Remove corresponding POS Operator user
+    setPosOperators(prev => prev.filter(op => op.staffId !== id && op.id !== `op-staff-${id}`));
+    try {
+      deleteDoc(doc(db, 'pos_operators', `op-staff-${id}`)).catch(() => {});
+    } catch (e) {}
+
+    recordAuditLog('Staff Offboarded', `Removed staff member ${target?.name || id} from active personnel and POS user accounts`);
   };
 
   // SCAN TO ADD PRODUCT WITH ZERO REPETITION AND INSTANT DUPLICATE ALERT
@@ -7263,6 +7487,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         processReturnAndExchange,
         fileSupplierDefectClaim,
         resolveQuarantineRecord,
+        deleteQuarantineRecord,
         isReturnExchangeModalOpen,
         setIsReturnExchangeModalOpen,
         fabricRolls,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Building2, ShieldCheck, Truck, FileText, Receipt, Sparkles } from 'lucide-react';
+import { Building2, ShieldCheck, Truck, FileText, Receipt, Sparkles, User, Clock, Calendar } from 'lucide-react';
 
 export type DocumentBadgeVariant =
   | 'invoice'
@@ -21,6 +21,16 @@ interface DocumentHeaderProps {
   docNumber?: string;
   documentDate?: string | Date;
   docDate?: string | Date;
+  documentTime?: string;
+  docTime?: string;
+  servedBy?: string;
+  operatorName?: string;
+  cashierName?: string;
+  staffName?: string;
+  preparedBy?: string;
+  branchName?: string;
+  branch?: string;
+  locationName?: string;
   badgeVariant?: DocumentBadgeVariant;
   variant?: string;
   badgeLabel?: string;
@@ -30,6 +40,7 @@ interface DocumentHeaderProps {
   compact?: boolean;
   className?: string;
   themeBorder?: boolean;
+  showServedByBanner?: boolean;
 }
 
 export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
@@ -39,6 +50,16 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   docNumber,
   documentDate,
   docDate,
+  documentTime,
+  docTime,
+  servedBy,
+  operatorName,
+  cashierName,
+  staffName,
+  preparedBy,
+  branchName,
+  branch,
+  locationName,
   badgeVariant = 'invoice',
   variant,
   badgeLabel,
@@ -47,14 +68,15 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   extraMetaRight,
   compact = false,
   className = '',
-  themeBorder = true
+  themeBorder = true,
+  showServedByBanner = true
 }) => {
   const finalDocNumber = documentNumber || docNumber;
   const finalDocDate = documentDate || docDate;
   const finalBadgeLabel = badgeLabel || badgeText;
   const finalBadgeVariant = (variant === 'payslip' ? 'payslip' : variant === 'waybill' ? 'waybill' : badgeVariant) as DocumentBadgeVariant;
   const isCompact = compact || variant === 'thermal';
-  const { brandSettings, etrConfig } = useERP();
+  const { brandSettings, etrConfig, currentUser, locations, activeLocation } = useERP();
 
   const brandName = brandSettings?.brandName || etrConfig?.companyName || 'TAJI TEXTILE & APPAREL ERP';
   const logoUrl = brandSettings?.logoUrl;
@@ -63,6 +85,22 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   const companyEmail = brandSettings?.supportEmail || 'billing@zamodasports.com';
   const taxPin = etrConfig?.taxPin || 'P051982341Z';
   const cuSerial = etrConfig?.cuSerialNumber || 'KRAMW019284';
+
+  // Extract Served By, Branch, Date and Time
+  const activeLocInfo = locations.find(l => l.id === activeLocation);
+  const finalServedBy = servedBy || operatorName || cashierName || staffName || preparedBy || currentUser?.name || 'Authorized Staff';
+  const finalBranch = branchName || branch || locationName || activeLocInfo?.name || 'Main Distribution Branch';
+
+  const dateObj = finalDocDate ? (typeof finalDocDate === 'string' ? new Date(finalDocDate) : finalDocDate) : new Date();
+  const isValidDate = dateObj instanceof Date && !isNaN(dateObj.getTime());
+
+  const formattedDate = isValidDate
+    ? dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : new Date().toLocaleDateString('en-GB');
+
+  const formattedTime = documentTime || docTime || (isValidDate
+    ? dateObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' EAT'
+    : new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' EAT');
 
   // Variant color mapping
   const getVariantStyles = (bVariant: DocumentBadgeVariant) => {
@@ -142,11 +180,6 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   };
 
   const styles = getVariantStyles(finalBadgeVariant);
-  const formattedDate = finalDocDate
-    ? typeof finalDocDate === 'string'
-      ? finalDocDate
-      : finalDocDate.toLocaleDateString('en-GB')
-    : new Date().toLocaleDateString('en-GB');
 
   return (
     <div
@@ -222,13 +255,52 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             </p>
           )}
 
-          <p className="text-[11px] text-slate-500 font-medium">
-            Date: <span className="font-semibold text-slate-800">{formattedDate}</span>
-          </p>
+          <div className="text-[11px] text-slate-600 font-medium space-y-0.5">
+            <p>
+              Date: <span className="font-bold text-slate-900">{formattedDate}</span>
+            </p>
+            <p className="text-[10.5px] text-slate-500">
+              Time: <span className="font-mono font-bold text-slate-800">{formattedTime}</span>
+            </p>
+          </div>
 
           {extraMetaRight}
         </div>
       </div>
+
+      {/* Mandatory Official Document Attribution Stamp: Person & Branch Served You, Time, Date */}
+      {showServedByBanner && (
+        <div className="mt-3 pt-2.5 border-t border-slate-200/90 flex flex-wrap items-center justify-between gap-2 text-xs bg-slate-50/80 p-2.5 rounded-xl border border-slate-200">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* Person Served You */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 shadow-2xs rounded-lg text-slate-700">
+              <User className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+              <span className="text-[11px]">
+                Served By: <strong className="text-slate-900 font-extrabold">{finalServedBy}</strong>
+              </span>
+            </div>
+
+            {/* Serving Branch */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 shadow-2xs rounded-lg text-slate-700">
+              <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span className="text-[11px]">
+                Serving Branch: <strong className="text-slate-900 font-extrabold">{finalBranch}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-[11px] text-slate-600">
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded-lg">
+              <Calendar className="w-3 h-3 text-emerald-600" />
+              <span>{formattedDate}</span>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded-lg font-mono font-bold text-slate-800">
+              <Clock className="w-3 h-3 text-amber-600" />
+              <span>{formattedTime}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

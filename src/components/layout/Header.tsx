@@ -53,7 +53,8 @@ import {
   Users,
   ClipboardList,
   BookOpen,
-  HelpCircle
+  HelpCircle,
+  FileText
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -315,9 +316,11 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
     },
     {
       id: 'payroll',
-      label: 'HR & Payroll',
-      icon: Users,
-      desc: 'Staff salary computation, PAYE, NSSF & NHIF'
+      label: (currentUser.role === 'admin' || currentUser.role === 'hr_manager') ? 'HR & Payroll' : 'My Payslips & Records',
+      icon: (currentUser.role === 'admin' || currentUser.role === 'hr_manager') ? Users : FileText,
+      desc: (currentUser.role === 'admin' || currentUser.role === 'hr_manager')
+        ? 'Staff salary computation, PAYE, NSSF & NHIF'
+        : 'View my personal payslips, statutory deductions & records'
     },
     {
       id: 'operators',

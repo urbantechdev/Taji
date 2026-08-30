@@ -19,7 +19,8 @@ import {
   Settings,
   TrendingUp,
   BookOpen,
-  HelpCircle
+  HelpCircle,
+  FileText
 } from 'lucide-react';
 
 export type NavTab =
@@ -95,8 +96,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     },
     {
       id: 'payroll',
-      label: 'HR & Payroll',
-      icon: <Users className="w-4 h-4" />,
+      label: (currentUser.role === 'admin' || currentUser.role === 'hr_manager') ? 'HR & Payroll' : 'My Payslips & Records',
+      icon: (currentUser.role === 'admin' || currentUser.role === 'hr_manager') ? <Users className="w-4 h-4" /> : <FileText className="w-4 h-4 text-emerald-500" />,
     },
     {
       id: 'operators',

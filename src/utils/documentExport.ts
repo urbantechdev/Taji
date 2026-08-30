@@ -26,7 +26,8 @@ import {
   FixedAsset,
   MpesaStatementItem,
   StocktakeSession,
-  StocktakeItem
+  StocktakeItem,
+  QuarantinedDefectRecord
 } from '../types';
 
 // Helper to trigger direct file download for CSV
@@ -57,6 +58,12 @@ export function renderDocumentHeaderWithBrand(
     subtitle?: string;
     docNumber?: string;
     docDate?: string | Date;
+    docTime?: string;
+    servedBy?: string;
+    operatorName?: string;
+    cashierName?: string;
+    branchName?: string;
+    branch?: string;
     refId?: string;
     orientation?: 'portrait' | 'landscape';
     themeColor?: [number, number, number];
@@ -64,6 +71,7 @@ export function renderDocumentHeaderWithBrand(
     brandSettings?: BrandSettings;
     etrConfig?: ETRConfig;
     pageWidth?: number;
+    showAttributionBar?: boolean;
   }
 ): number {
   const orientation = options.orientation || 'portrait';
@@ -75,11 +83,24 @@ export function renderDocumentHeaderWithBrand(
   const taxPin = options.etrConfig?.taxPin || 'P051982341Z';
   const cuSerial = options.etrConfig?.cuSerialNumber || 'KRAMW019284';
   const themeColor = options.themeColor || [225, 29, 72]; // Rose 600 default
-  const formattedDate = options.docDate
+
+  const dateObj = options.docDate
     ? typeof options.docDate === 'string'
-      ? options.docDate
-      : options.docDate.toLocaleDateString('en-GB')
+      ? new Date(options.docDate)
+      : options.docDate
+    : new Date();
+  const isValidDate = dateObj instanceof Date && !isNaN(dateObj.getTime());
+
+  const formattedDate = isValidDate
+    ? dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : new Date().toLocaleDateString('en-GB');
+
+  const formattedTime = options.docTime || (isValidDate
+    ? dateObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' EAT'
+    : new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' EAT');
+
+  const finalServedBy = options.servedBy || options.operatorName || options.cashierName || 'Authorized Staff';
+  const finalBranch = options.branchName || options.branch || 'Main Distribution Hub';
 
   // Top banner bar
   doc.setFillColor(...themeColor);
@@ -120,42 +141,42 @@ export function renderDocumentHeaderWithBrand(
   // Company Details (Left of Banner, next to logo)
   const textStartX = logoBoxX + logoBoxSize + 12;
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13.5);
+  doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text(brandName.toUpperCase(), textStartX, 28);
+  doc.text(brandName.toUpperCase(), textStartX, 27);
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text(options.subtitle || options.title, textStartX, 42);
+  doc.text((options.subtitle || options.title).slice(0, 52), textStartX, 41);
 
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(241, 245, 249);
-  doc.text(`PIN: ${taxPin} | CU: ${cuSerial} | Tel: ${companyPhone} | Addr: ${companyAddress.slice(0, 36)}`, textStartX, 56);
+  doc.text(`PIN: ${taxPin} | CU: ${cuSerial} | Tel: ${companyPhone}`, textStartX, 54);
+  doc.text(`Addr: ${companyAddress.slice(0, 48)}`, textStartX, 64);
 
   // Right Side: Document Reference & Badge
   const rightX = width - 35;
   if (options.badgeText || options.title) {
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text(options.badgeText || options.title, rightX, 28, { align: 'right' });
+    doc.text(options.badgeText || options.title, rightX, 25, { align: 'right' });
   }
 
   if (options.docNumber) {
-    doc.setFontSize(9.5);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text(`#${options.docNumber}`, rightX, 42, { align: 'right' });
+    doc.text(`#${options.docNumber}`, rightX, 37, { align: 'right' });
   }
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(241, 245, 249);
-  if (options.refId) {
-    doc.text(`Ref: ${options.refId}`, rightX, 54, { align: 'right' });
-  }
-  doc.text(`Date: ${formattedDate}`, rightX, 65, { align: 'right' });
+  doc.text(`Date: ${formattedDate} | Time: ${formattedTime}`, rightX, 48, { align: 'right' });
+  doc.text(`Branch: ${finalBranch.slice(0, 26)}`, rightX, 58, { align: 'right' });
+  doc.text(`Served By: ${finalServedBy.slice(0, 24)}`, rightX, 67, { align: 'right' });
 
   return 85;
 }
@@ -1709,6 +1730,9 @@ export function exportBillingDocumentPDF(
   else if (isReceipt) headerBg = [16, 185, 129]; // Emerald 600 (Receipt)
   else if (isCreditNote) headerBg = [234, 88, 12]; // Orange 600 (Credit Note)
 
+  const docDateStr = new Date(order.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const docTimeStr = new Date(order.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' EAT';
+
   // Top Branded Header with Logo
   renderDocumentHeaderWithBrand(doc, {
     title: docTitle,
@@ -1719,6 +1743,9 @@ export function exportBillingDocumentPDF(
       : 'KRA TIMS Registered Fiscal Tax Document',
     docNumber: order.receiptNumber,
     docDate: order.timestamp,
+    docTime: docTimeStr,
+    servedBy: order.operatorName,
+    branchName: fulfillLoc,
     refId: order.id,
     themeColor: headerBg,
     badgeText: docType.replace('_', ' ').toUpperCase(),
@@ -1735,40 +1762,40 @@ export function exportBillingDocumentPDF(
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(isDeliveryNote ? 'CONSIGNEE / DELIVER TO:' : 'BILLED TO / CUSTOMER:', 55, 100);
+  doc.text(isDeliveryNote ? 'CONSIGNEE / DELIVER TO:' : 'BILLED TO / CUSTOMER:', 55, 99);
 
   doc.setFontSize(9.5);
-  doc.text(order.customerName || 'Walk-in Client', 55, 114);
+  doc.text(order.customerName || 'Walk-in Client', 55, 112);
 
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  if (order.customerKraPin) doc.text(`KRA PIN: ${order.customerKraPin}`, 55, 126);
-  if (order.customerPhone) doc.text(`Phone: ${order.customerPhone}`, 55, 137);
+  if (order.customerKraPin) doc.text(`KRA PIN: ${order.customerKraPin}`, 55, 123);
+  if (order.customerPhone) doc.text(`Phone: ${order.customerPhone}`, 55, 134);
   if (order.deliveryAddress || order.customerAddress) {
-    doc.text(`Address: ${(order.deliveryAddress || order.customerAddress || '').slice(0, 42)}`, 55, 147);
+    doc.text(`Address: ${(order.deliveryAddress || order.customerAddress || '').slice(0, 42)}`, 55, 144);
   }
 
-  // Dispatch / Issuer Side
+  // Dispatch / Issuer Side - Prominently Showing Served By, Branch, Date, Time & Payment
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(isDeliveryNote ? 'LOGISTICS & DISPATCH METADATA:' : 'FISCAL & PAYMENT STATUS:', 320, 100);
+  doc.text(isDeliveryNote ? 'LOGISTICS & DISPATCH METADATA:' : 'SERVICE & FISCAL PARTICULARS:', 310, 99);
 
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`Origin Store: ${fulfillLoc}`, 320, 114);
+  doc.text(`Serving Branch: ${fulfillLoc}`, 310, 111);
+  doc.text(`Served By: ${order.operatorName || 'POS Staff'}`, 310, 121);
+  doc.text(`Date: ${docDateStr} | Time: ${docTimeStr}`, 310, 131);
 
   if (isDeliveryNote) {
-    doc.text(`Driver Name: ${order.driverName || 'Designated Courier'}`, 320, 126);
-    doc.text(`Vehicle Reg #: ${order.vehicleRegistration || 'Not Specified'}`, 320, 137);
-    doc.text(`Packages / Bundles: ${order.packageCount || order.items.length} units`, 320, 147);
+    doc.text(`Driver: ${order.driverName || 'Designated Courier'} (${order.vehicleRegistration || 'Vehicle'})`, 310, 141);
+    doc.text(`Packages: ${order.packageCount || order.items.length} units`, 310, 149);
   } else {
-    doc.text(`Payment Mode: ${isQuote ? 'Proforma / Quote (Unpaid)' : order.paymentMethod}`, 320, 126);
-    doc.text(`Cashier / Operator: ${order.operatorName || 'System Admin'}`, 320, 137);
-    if (order.dueDate) doc.text(`Due Date: ${new Date(order.dueDate).toLocaleDateString('en-GB')}`, 320, 147);
-    else doc.text(`KRA Status: TIMS Online Fiscalized`, 320, 147);
+    doc.text(`Payment: ${isQuote ? 'Proforma / Quote (Unpaid)' : `${order.paymentMethod}${order.paymentReference ? ` (${order.paymentReference})` : ''}`}`, 310, 141);
+    if (order.dueDate) doc.text(`Due Date: ${new Date(order.dueDate).toLocaleDateString('en-GB')}`, 310, 149);
+    else doc.text(`KRA Status: TIMS Online Fiscalized`, 310, 149);
   }
 
   // Items Table
@@ -1981,13 +2008,16 @@ export function exportBillingDocumentCSV(order: SaleOrder, etrConfig: ETRConfig,
     'Document Type',
     'Document Number',
     'Reference ID',
-    'Date & Time',
+    'Serving Branch',
+    'Served By (Staff)',
+    'Date',
+    'Time',
     'Customer Name',
     'Customer KRA PIN',
     'Customer Phone',
     'Delivery Address',
-    'Origin Store',
     'Payment Method',
+    'Payment Reference',
     'Driver Name',
     'Vehicle Plate',
     'Package Count',
@@ -2010,17 +2040,23 @@ export function exportBillingDocumentCSV(order: SaleOrder, etrConfig: ETRConfig,
     'CU Serial'
   ];
 
+  const docDate = new Date(order.timestamp).toLocaleDateString('en-GB');
+  const docTime = new Date(order.timestamp).toLocaleTimeString('en-GB') + ' EAT';
+
   const rows = order.items.map((item, idx) => [
     docType.toUpperCase(),
     order.receiptNumber,
     order.id,
-    new Date(order.timestamp).toISOString(),
+    `"${fulfillLoc.replace(/"/g, '""')}"`,
+    `"${(order.operatorName || 'POS Staff').replace(/"/g, '""')}"`,
+    docDate,
+    docTime,
     `"${(order.customerName || 'Walk-in Client').replace(/"/g, '""')}"`,
     order.customerKraPin || 'NOT_REGISTERED',
     order.customerPhone || '',
     `"${(order.deliveryAddress || order.customerAddress || '').replace(/"/g, '""')}"`,
-    `"${fulfillLoc.replace(/"/g, '""')}"`,
     order.paymentMethod,
+    order.paymentReference || 'N/A',
     order.driverName || '',
     order.vehicleRegistration || '',
     order.packageCount || order.items.length,
@@ -2061,6 +2097,9 @@ export function exportBillingDocumentJSON(order: SaleOrder, etrConfig: ETRConfig
 
 export function exportBillingDocumentTextSlip(order: SaleOrder, etrConfig: ETRConfig) {
   const docType = getDocumentTypeName(order.documentType, order.isQuotation);
+  const docDate = new Date(order.timestamp).toLocaleDateString('en-GB');
+  const docTime = new Date(order.timestamp).toLocaleTimeString('en-GB') + ' EAT';
+
   const lines = [
     '========================================',
     `       ${etrConfig.companyName.toUpperCase()}`,
@@ -2069,14 +2108,18 @@ export function exportBillingDocumentTextSlip(order: SaleOrder, etrConfig: ETRCo
     `   KRA PIN: ${etrConfig.taxPin}`,
     `   CU SERIAL: ${etrConfig.cuSerialNumber}`,
     '========================================',
-    ` DOCUMENT: ${docType}`,
-    ` DOC REF:  #${order.receiptNumber}`,
-    ` ORDER ID: ${order.id}`,
-    ` DATE:     ${new Date(order.timestamp).toLocaleString()}`,
-    ` CUSTOMER: ${order.customerName || 'Walk-in Client'}`,
-    order.customerKraPin ? ` KRA PIN:  ${order.customerKraPin}` : '',
-    order.driverName ? ` DRIVER:   ${order.driverName} (${order.vehicleRegistration || 'Vehicle'})` : '',
-    order.deliveryAddress ? ` DEST:     ${order.deliveryAddress}` : '',
+    ` DOCUMENT:  ${docType}`,
+    ` DOC REF:   #${order.receiptNumber}`,
+    ` ORDER ID:  ${order.id}`,
+    ` BRANCH:    ${order.fulfilledByLocation || 'Main Store'}`,
+    ` SERVED BY: ${order.operatorName || 'POS Cashier'}`,
+    ` DATE:      ${docDate}`,
+    ` TIME:      ${docTime}`,
+    ` PAYMENT:   ${order.paymentMethod}${order.paymentReference ? ` (${order.paymentReference})` : ''}`,
+    ` CUSTOMER:  ${order.customerName || 'Walk-in Client'}`,
+    order.customerKraPin ? ` KRA PIN:   ${order.customerKraPin}` : '',
+    order.driverName ? ` DRIVER:    ${order.driverName} (${order.vehicleRegistration || 'Vehicle'})` : '',
+    order.deliveryAddress ? ` DEST:      ${order.deliveryAddress}` : '',
     '----------------------------------------',
     ' ITEM                     QTY    TOTAL',
     '----------------------------------------',
@@ -2092,6 +2135,9 @@ export function exportBillingDocumentTextSlip(order: SaleOrder, etrConfig: ETRCo
     ` GROSS TOTAL:            KSh ${order.grandTotal.toLocaleString()}`,
     order.whtAmount ? ` Less 5% WHT Deduction: -KSh ${order.whtAmount.toLocaleString()}` : '',
     order.whtAmount ? ` NET SETTLEMENT DUE:     KSh ${(order.netReceivableAmount || (order.grandTotal - order.whtAmount)).toLocaleString()}` : '',
+    '========================================',
+    ` Served with pride by ${order.operatorName || 'Our Staff'}`,
+    ` At ${order.fulfilledByLocation || 'Main Store'} on ${docDate} at ${docTime}`,
     '========================================',
     ' KRA TIMS DIGITAL FISCAL RECEIPT CODE',
     ` VERIFY: kra.go.ke/verify/${order.receiptNumber}`,
@@ -3982,3 +4028,688 @@ export function exportStocktakeAuditReportCSV(
 
   downloadCSV(`Stocktake_Audit_${session.sessionNumber}_${session.period}.csv`, csvContent);
 }
+
+// --------------------------------------------------------------------------
+// 21. RMA RETURNS, EXCHANGES & QUARANTINE SUPPLIER CLAIMS EXPORTS
+// --------------------------------------------------------------------------
+
+/**
+ * Export Official RMA Return & Exchange Voucher PDF
+ */
+export function exportRmaReturnVoucherPDF(
+  rma: QuarantinedDefectRecord,
+  locations: LocationInfo[],
+  etrConfig: ETRConfig,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+  const locName = locations.find(l => l.id === rma.locationId)?.name || 'Main Branch';
+  const isExchange = rma.resolutionType === 'exchange_replacement';
+  const isRefund = rma.resolutionType.includes('refund');
+  const isStoreCredit = rma.resolutionType === 'store_credit';
+  const isFabric = rma.returnedItem.unit === 'meter' ||
+    rma.returnedItem.productName.toLowerCase().includes('fleece') ||
+    rma.returnedItem.productName.toLowerCase().includes('derec');
+
+  const themeColor: [number, number, number] = isExchange
+    ? [16, 185, 129] // Emerald
+    : isRefund
+    ? [2, 132, 199] // Sky blue
+    : [147, 51, 234]; // Purple
+
+  // Render Header
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'OFFICIAL RMA RETURN & EXCHANGE VOUCHER',
+    subtitle: 'Material Return Authorization & Defective Stock Quarantine Record',
+    docNumber: rma.rmaNumber,
+    docDate: rma.returnedAt,
+    refId: rma.receiptNumber || rma.orderId || 'DIRECT-RMA',
+    themeColor,
+    badgeText: isExchange ? '1:1 EXCHANGE' : isRefund ? 'REFUND ISSUED' : 'STORE CREDIT',
+    brandSettings,
+    etrConfig
+  });
+
+  // Customer & Inspection Overview Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, 85, 515, 68, 6, 6, 'FD');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('CUSTOMER / GARMENT BUSINESS:', 55, 100);
+
+  doc.setFontSize(9.5);
+  doc.text(rma.customerName || 'Walk-in Client', 55, 114);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  if (rma.customerPhone) doc.text(`Phone: ${rma.customerPhone}`, 55, 126);
+  if (rma.receiptNumber) doc.text(`Original Receipt / ETR: ${rma.receiptNumber}`, 55, 137);
+  if (rma.supplierName) doc.text(`Mill Supplier: ${rma.supplierName}`, 55, 147);
+
+  // Metadata Right Side
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('RMA AUDIT DETAILS:', 340, 100);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Store Branch: ${locName}`, 340, 114);
+  doc.text(`Processed By: ${rma.operatorName || 'Authorized Staff'}`, 340, 126);
+  doc.text(`Quarantine Status: ${rma.quarantineStatus.replace(/_/g, ' ').toUpperCase()}`, 340, 137);
+  if (rma.supplierClaimNumber) {
+    doc.setTextColor(2, 132, 199);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Supplier Claim Ref: ${rma.supplierClaimNumber}`, 340, 147);
+  }
+
+  // 1. Returned Item Table
+  const returnedQtyStr = isFabric
+    ? `${(rma.returnedItem.metersCount || 0).toFixed(2)} meters`
+    : `${rma.returnedItem.conesCount || 0} cones (${(rma.returnedItem.netWeightKg || 0).toFixed(3)} kg net)`;
+
+  const returnedTableData = [
+    [
+      'DEFECTIVE ITEM RETURNED (QUARANTINED)',
+      rma.returnedItem.productName,
+      `Lot: ${rma.returnedItem.dyeLot || 'N/A'} | Shade: ${rma.returnedItem.shadeCode || 'N/A'}${rma.returnedItem.rollNumber ? ` | ${rma.returnedItem.rollNumber}` : ''}`,
+      returnedQtyStr,
+      formatCurrency(rma.returnedItem.unitPrice),
+      formatCurrency(rma.returnedItem.totalValuationRetail)
+    ]
+  ];
+
+  if (rma.returnedItem.grossWeightKg !== undefined && rma.returnedItem.tareDeductionKg !== undefined) {
+    returnedTableData.push([
+      'WEIGHT AUDIT',
+      `Scale Gross: ${rma.returnedItem.grossWeightKg.toFixed(3)} kg`,
+      `Tare Core Deduction: -${rma.returnedItem.tareDeductionKg.toFixed(3)} kg`,
+      `Net Billable: ${(rma.returnedItem.netWeightKg || 0).toFixed(3)} kg`,
+      `Cost Valuation: ${formatCurrency(rma.returnedItem.totalValuationCost)}`,
+      ''
+    ]);
+  }
+
+  autoTable(doc, {
+    startY: 165,
+    head: [['Section', 'Product Description', 'Batch / Roll / Shade', 'Quantity', 'Rate', 'Total Value']],
+    body: returnedTableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [225, 29, 72],
+      textColor: 255,
+      fontSize: 8,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 8,
+      textColor: [30, 41, 59]
+    },
+    margin: { left: 40, right: 40 }
+  });
+
+  let currentY = (doc as any).lastAutoTable.finalY + 12;
+
+  // Defect Inspection Box
+  doc.setFillColor(254, 242, 242);
+  doc.setDrawColor(254, 202, 202);
+  doc.roundedRect(40, currentY, 515, 36, 4, 4, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(153, 27, 27);
+  doc.text(`DEFECT CLASSIFICATION: ${rma.defectReason}`, 50, currentY + 14);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(127, 29, 29);
+  doc.text(`Inspection Notes: ${rma.defectNotes || 'Standard material quality defect quarantine logged.'}`, 50, currentY + 26);
+
+  currentY += 48;
+
+  // 2. Resolution Details Table
+  if (isExchange && rma.replacementItem) {
+    const repIsFabric = rma.replacementItem.unit === 'meter' ||
+      rma.replacementItem.productName.toLowerCase().includes('fleece') ||
+      rma.replacementItem.productName.toLowerCase().includes('derec');
+
+    const repQtyStr = repIsFabric
+      ? `${(rma.replacementItem.metersCount || 0).toFixed(2)} meters`
+      : `${rma.replacementItem.conesCount || 0} cones (${(rma.replacementItem.netWeightKg || 0).toFixed(3)} kg net)`;
+
+    const diff = (rma.financialDetails.priceDifferencePaidByCustomer || 0) - (rma.financialDetails.priceDifferenceRefundedToCustomer || 0);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Resolution Item', 'Product Description', 'Batch / Roll / Shade', 'Quantity', 'Rate', 'Total Value']],
+      body: [
+        [
+          'REPLACEMENT DISPATCHED (ACTIVE STOCK)',
+          rma.replacementItem.productName,
+          `Lot: ${rma.replacementItem.dyeLot || 'N/A'} | Shade: ${rma.replacementItem.shadeCode || 'N/A'}${rma.replacementItem.rollNumber ? ` | ${rma.replacementItem.rollNumber}` : ''}`,
+          repQtyStr,
+          formatCurrency(rma.replacementItem.unitPrice),
+          formatCurrency(rma.replacementItem.totalValuationRetail)
+        ],
+        [
+          'SETTLEMENT VARIANCE',
+          diff > 0
+            ? `Customer paid surcharge: +${formatCurrency(diff)}`
+            : diff < 0
+            ? `Refunded customer variance: -${formatCurrency(Math.abs(diff))}`
+            : 'Exact 1:1 Value Match (KSh 0.00 difference)',
+          '',
+          '',
+          '',
+          formatCurrency(diff)
+        ]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [16, 185, 129],
+        textColor: 255,
+        fontSize: 8,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [30, 41, 59]
+      },
+      margin: { left: 40, right: 40 }
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+  } else if (isRefund) {
+    const refundAmt = rma.financialDetails.refundAmount || rma.returnedItem.totalValuationRetail;
+    const vatAmt = rma.financialDetails.vatReversalAmount || (refundAmt - (refundAmt / 1.16));
+    const netAmt = rma.financialDetails.netRevenueReversalAmount || (refundAmt - vatAmt);
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Financial Resolution', 'Disbursement Channel', 'Reference / Credit Note #', 'Net Sales Reversal', '16% VAT Reversal', 'Gross Refund Paid']],
+      body: [
+        [
+          'FINANCIAL REFUND DISBURSED',
+          rma.financialDetails.originalPaymentMethod || 'Bank Account',
+          rma.financialDetails.creditNoteNumber || rma.financialDetails.bankTransferReference || 'CRN-ETIMS',
+          formatCurrency(netAmt),
+          formatCurrency(vatAmt),
+          formatCurrency(refundAmt)
+        ]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [2, 132, 199],
+        textColor: 255,
+        fontSize: 8,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [30, 41, 59]
+      },
+      margin: { left: 40, right: 40 }
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+  } else if (isStoreCredit) {
+    const creditAmt = rma.financialDetails.refundAmount || rma.returnedItem.totalValuationRetail;
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Resolution Type', 'Credit Voucher Ref', 'Customer Account', 'Status', 'Voucher Amount']],
+      body: [
+        [
+          'STORE CREDIT VOUCHER',
+          rma.financialDetails.creditNoteNumber || `VOUCH-${rma.rmaNumber}`,
+          rma.customerName,
+          'ACTIVE / USABLE ON FUTURE BALE ORDERS',
+          formatCurrency(creditAmt)
+        ]
+      ],
+      theme: 'grid',
+      headStyles: {
+        fillColor: [147, 51, 234],
+        textColor: 255,
+        fontSize: 8,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [30, 41, 59]
+      },
+      margin: { left: 40, right: 40 }
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+  }
+
+  // Accounting & Fiscal Audit Callout
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(40, currentY, 515, 38, 4, 4, 'FD');
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text('DOUBLE-ENTRY LEDGER & KRA ETIMS AUDIT TRAIL:', 50, currentY + 12);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    isExchange
+      ? '• Dr. 1350 Quarantined Damaged Inventory (At Cost)  |  Cr. 1200 Store Active Inventory (Good Replacement Dispatched)'
+      : '• Dr. 4200 Sales Returns & Allowances  |  Dr. 2150 KRA Output VAT Liability  |  Cr. Bank / Cash Payout',
+    50,
+    currentY + 23
+  );
+  doc.text(
+    `• Quarantined defective goods are isolated for supplier debit claim (${rma.supplierName || 'Oster India / Mill'}).`,
+    50,
+    currentY + 32
+  );
+
+  currentY += 50;
+
+  // Signatures
+  doc.setDrawColor(203, 213, 225);
+  doc.line(55, currentY + 35, 210, currentY + 35);
+  doc.line(345, currentY + 35, 500, currentY + 35);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('CUSTOMER ACKNOWLEDGEMENT', 55, currentY + 45);
+  doc.text('STORE QUALITY ASSURANCE SIGN-OFF', 345, currentY + 45);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.text('Received replacement / credit in good order', 55, currentY + 54);
+  doc.text(`Authorized by: ${rma.operatorName || 'Store Manager'}`, 345, currentY + 54);
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    `Urban Interior Kenya ERP • RMA Audit Schedule • Printed: ${new Date().toLocaleString()} • Ticket: ${rma.rmaNumber}`,
+    doc.internal.pageSize.width / 2,
+    doc.internal.pageSize.height - 20,
+    { align: 'center' }
+  );
+
+  doc.save(`RMA_Voucher_${rma.rmaNumber}.pdf`);
+}
+
+/**
+ * Export Supplier Defect Claim Schedule PDF (for Mill / Oster India)
+ */
+export function exportSupplierClaimNotePDF(
+  claimRef: string,
+  supplierName: string,
+  notes: string,
+  records: QuarantinedDefectRecord[],
+  etrConfig: ETRConfig,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF('landscape', 'pt', 'a4');
+
+  const totalCostValuation = records.reduce((sum, r) => sum + r.returnedItem.totalValuationCost, 0);
+  const totalRetailValuation = records.reduce((sum, r) => sum + r.returnedItem.totalValuationRetail, 0);
+  const totalCones = records.reduce((sum, r) => sum + (r.returnedItem.conesCount || 0), 0);
+  const totalNetKg = records.reduce((sum, r) => sum + (r.returnedItem.netWeightKg || 0), 0);
+  const totalMeters = records.reduce((sum, r) => sum + (r.returnedItem.metersCount || 0), 0);
+
+  // Header
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'OFFICIAL SUPPLIER DEFECT & DEBIT CLAIM SCHEDULE',
+    subtitle: 'Formal Spoilage & Quality Discrepancy Debit Note for Mill Settlement',
+    docNumber: claimRef,
+    docDate: new Date().toISOString(),
+    refId: supplierName,
+    themeColor: [225, 29, 72],
+    badgeText: 'DEBIT CLAIM',
+    brandSettings,
+    etrConfig
+  });
+
+  // Supplier & Claim Summary Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, 85, 762, 55, 6, 6, 'FD');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('SUPPLIER / MANUFACTURER MILL:', 55, 100);
+
+  doc.setFontSize(9.5);
+  doc.text(supplierName || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD', 55, 114);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Claim Reason / Notes: ${notes || 'Defective material batches identified during customer quality inspection.'}`, 55, 126);
+
+  // Metrics on right
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('CLAIM METRICS & VALUATION:', 540, 100);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Defective Lots: ${records.length} RMA Tickets  |  Cones: ${totalCones}  |  Meters: ${totalMeters.toFixed(2)}m`, 540, 114);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(225, 29, 72);
+  doc.text(`Total Debit Claim Amount: ${formatCurrency(totalCostValuation)} (Internal Cost Valuation)`, 540, 126);
+
+  // AutoTable of Quarantined Defects
+  const tableData = records.map((rec, idx) => {
+    const isFabric = rec.returnedItem.unit === 'meter' ||
+      rec.returnedItem.productName.toLowerCase().includes('fleece') ||
+      rec.returnedItem.productName.toLowerCase().includes('derec');
+
+    const qtyStr = isFabric
+      ? `${(rec.returnedItem.metersCount || 0).toFixed(2)} m`
+      : `${rec.returnedItem.conesCount || 0} cones (${(rec.returnedItem.netWeightKg || 0).toFixed(3)} kg)`;
+
+    return [
+      (idx + 1).toString(),
+      rec.rmaNumber,
+      new Date(rec.returnedAt).toLocaleDateString(),
+      rec.customerName,
+      rec.returnedItem.productName,
+      `Lot: ${rec.returnedItem.dyeLot || 'N/A'} | Shade: ${rec.returnedItem.shadeCode || 'N/A'}${rec.returnedItem.rollNumber ? ` | ${rec.returnedItem.rollNumber}` : ''}`,
+      rec.defectReason,
+      qtyStr,
+      formatCurrency(rec.returnedItem.costPrice),
+      formatCurrency(rec.returnedItem.totalValuationCost)
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 150,
+    head: [['#', 'RMA #', 'Date', 'Customer', 'Product Item', 'Lot / Shade / Roll', 'Defect Observation', 'Qty / Weight', 'Cost Rate', 'Debit Claim (KSh)']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [15, 23, 42],
+      textColor: 255,
+      fontSize: 7.5,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 7.5,
+      textColor: [30, 41, 59]
+    },
+    margin: { left: 40, right: 40 }
+  });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 15;
+
+  // Summary Totals
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(40, finalY, 762, 36, 4, 4, 'FD');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(`TOTAL DEBIT CLAIM SCHEDULE VALUATION: ${formatCurrency(totalCostValuation)}`, 55, finalY + 15);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Total Yarn Net Weight: ${totalNetKg.toFixed(3)} kg  |  Total Fabric Length: ${totalMeters.toFixed(2)} meters  |  Retail Value Equivalent: ${formatCurrency(totalRetailValuation)}`, 55, finalY + 27);
+
+  // Sign-off
+  const sigY = finalY + 50;
+  if (sigY < doc.internal.pageSize.height - 40) {
+    doc.setDrawColor(203, 213, 225);
+    doc.line(55, sigY + 25, 230, sigY + 25);
+    doc.line(570, sigY + 25, 745, sigY + 25);
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text('PREPARED BY: QUALITY ASSURANCE', 55, sigY + 35);
+    doc.text('SUPPLIER / MILL REPRESENTATIVE SIGN-OFF', 570, sigY + 35);
+  }
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    `Urban Interior Kenya ERP • Supplier Defect Claim Schedule • Ref: ${claimRef} • Generated: ${new Date().toLocaleString()}`,
+    doc.internal.pageSize.width / 2,
+    doc.internal.pageSize.height - 15,
+    { align: 'center' }
+  );
+
+  doc.save(`Supplier_Claim_${claimRef}.pdf`);
+}
+
+/**
+ * Export Standalone KRA eTIMS Credit Note PDF
+ */
+export function exportCreditNoteDirectPDF(
+  creditNote: ETIMSCreditNote,
+  etrConfig: ETRConfig,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'OFFICIAL KRA eTIMS CREDIT NOTE',
+    subtitle: 'Compliant Tax Reversal & Sales Return Fiscal Document',
+    docNumber: creditNote.id,
+    docDate: creditNote.timestamp,
+    refId: creditNote.originalInvoiceNo,
+    themeColor: [234, 88, 12], // Orange 600
+    badgeText: 'CREDIT NOTE',
+    brandSettings,
+    etrConfig
+  });
+
+  // Details Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, 85, 515, 68, 6, 6, 'FD');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('CREDITED TO / CUSTOMER:', 55, 100);
+
+  doc.setFontSize(9.5);
+  doc.text(creditNote.customerName || 'Walk-in Client', 55, 114);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  if (creditNote.customerKraPin) doc.text(`Customer KRA PIN: ${creditNote.customerKraPin}`, 55, 126);
+  doc.text(`Original Tax Invoice #: ${creditNote.originalInvoiceNo}`, 55, 137);
+  doc.text(`Credit Reason: ${creditNote.creditReason}`, 55, 147);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('KRA FISCAL DETAILS:', 340, 100);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Control Unit Serial: ${creditNote.originalCuSerial || etrConfig.cuSerialNumber}`, 340, 114);
+  doc.text(`Issued By: ${creditNote.issuedBy}`, 340, 126);
+  doc.text(`Issue Timestamp: ${new Date(creditNote.timestamp).toLocaleString()}`, 340, 137);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(234, 88, 12);
+  doc.text(`Fiscal Signature: ${creditNote.fiscalSignature}`, 340, 147);
+
+  // Table
+  autoTable(doc, {
+    startY: 165,
+    head: [['Item Description', 'Reason for Credit', 'Net Credited (Excl. VAT)', '16% VAT Credited', 'Total Gross Credited']],
+    body: [
+      [
+        `Sales Return & Adjustment under ${creditNote.originalInvoiceNo}`,
+        creditNote.creditReason,
+        formatCurrency(creditNote.netCredited),
+        formatCurrency(creditNote.vatCredited),
+        formatCurrency(creditNote.creditAmount)
+      ]
+    ],
+    theme: 'grid',
+    headStyles: {
+      fillColor: [234, 88, 12],
+      textColor: 255,
+      fontSize: 8.5,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 8.5,
+      textColor: [30, 41, 59]
+    },
+    margin: { left: 40, right: 40 }
+  });
+
+  const tableFinalY = (doc as any).lastAutoTable.finalY + 15;
+
+  // Fiscal QR & Signature Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, tableFinalY, 515, 60, 4, 4, 'FD');
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('KRA eTIMS COMPLIANT ELECTRONIC FISCAL SIGNATURE', 55, tableFinalY + 16);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Control Unit Serial Number: ${creditNote.originalCuSerial || etrConfig.cuSerialNumber}`, 55, tableFinalY + 28);
+  doc.text(`Cryptographic Signature: ${creditNote.fiscalSignature}`, 55, tableFinalY + 40);
+  doc.text(`KRA Verification Portal URL: https://itax.kra.go.ke/KRA-Portal/creditNoteVerification.htm?cn=${creditNote.id}`, 55, tableFinalY + 52);
+
+  // Signatory
+  const sigY = tableFinalY + 75;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(55, sigY + 25, 210, sigY + 25);
+  doc.line(345, sigY + 25, 500, sigY + 25);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('AUTHORIZED STORE CONTROLLER', 55, sigY + 35);
+  doc.text('BUYER / CUSTOMER SIGNATURE', 345, sigY + 35);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.text(`Issued by: ${creditNote.issuedBy}`, 55, sigY + 44);
+  doc.text('Acknowledged receipt of Credit Note', 345, sigY + 44);
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    `Urban Interior Kenya ERP • KRA eTIMS Fiscal Credit Note • ${creditNote.id} • Printed: ${new Date().toLocaleString()}`,
+    doc.internal.pageSize.width / 2,
+    doc.internal.pageSize.height - 15,
+    { align: 'center' }
+  );
+
+  doc.save(`KRA_Credit_Note_${creditNote.id}.pdf`);
+}
+
+/**
+ * Export Complete RMA Audit Schedule to CSV (Excel format)
+ */
+export function exportRmaAuditScheduleCSV(
+  records: QuarantinedDefectRecord[],
+  locations: LocationInfo[]
+) {
+  const headers = [
+    'RMA Ticket Number',
+    'Date Returned',
+    'Store Location',
+    'Customer Name',
+    'Customer Phone',
+    'Original Invoice / Receipt',
+    'Product SKU',
+    'Product Name',
+    'Category',
+    'Unit',
+    'Dye Lot',
+    'Shade Code',
+    'Roll Number',
+    'Returned Cones',
+    'Returned Gross Weight (kg)',
+    'Tare Cone Deduction (kg)',
+    'Returned Net Weight (kg)',
+    'Returned Meters (m)',
+    'Billing Rate (KSh)',
+    'Retail Valuation (KSh)',
+    'Cost Valuation (KSh)',
+    'Defect Reason',
+    'Defect Inspection Notes',
+    'Resolution Type',
+    'Quarantine Status',
+    'Supplier / Mill Name',
+    'Supplier Claim Number',
+    'Credit Note Number',
+    'Bank / Refund Reference',
+    'Authorized Operator'
+  ];
+
+  const rows = records.map(rec => {
+    const locName = locations.find(l => l.id === rec.locationId)?.name || 'Main Branch';
+    return [
+      `"${rec.rmaNumber}"`,
+      `"${rec.returnedAt}"`,
+      `"${locName}"`,
+      `"${rec.customerName.replace(/"/g, '""')}"`,
+      `"${rec.customerPhone || ''}"`,
+      `"${rec.receiptNumber || rec.orderId || ''}"`,
+      `"${rec.returnedItem.sku}"`,
+      `"${rec.returnedItem.productName.replace(/"/g, '""')}"`,
+      `"${rec.returnedItem.category}"`,
+      `"${rec.returnedItem.unit}"`,
+      `"${rec.returnedItem.dyeLot || ''}"`,
+      `"${rec.returnedItem.shadeCode || ''}"`,
+      `"${rec.returnedItem.rollNumber || ''}"`,
+      rec.returnedItem.conesCount || '',
+      rec.returnedItem.grossWeightKg?.toFixed(3) || '',
+      rec.returnedItem.tareDeductionKg?.toFixed(3) || '',
+      rec.returnedItem.netWeightKg?.toFixed(3) || '',
+      rec.returnedItem.metersCount?.toFixed(2) || '',
+      rec.returnedItem.unitPrice.toFixed(2),
+      rec.returnedItem.totalValuationRetail.toFixed(2),
+      rec.returnedItem.totalValuationCost.toFixed(2),
+      `"${rec.defectReason}"`,
+      `"${(rec.defectNotes || '').replace(/"/g, '""')}"`,
+      `"${rec.resolutionType}"`,
+      `"${rec.quarantineStatus}"`,
+      `"${(rec.supplierName || '').replace(/"/g, '""')}"`,
+      `"${rec.supplierClaimNumber || ''}"`,
+      `"${rec.financialDetails.creditNoteNumber || ''}"`,
+      `"${rec.financialDetails.bankTransferReference || rec.financialDetails.mpesaReference || ''}"`,
+      `"${rec.operatorName}"`
+    ];
+  });
+
+  const totalCost = records.reduce((sum, r) => sum + r.returnedItem.totalValuationCost, 0);
+  const totalRetail = records.reduce((sum, r) => sum + r.returnedItem.totalValuationRetail, 0);
+
+  const summaryRows = [
+    [],
+    ['=== RMA AUDIT SUMMARY ==='],
+    ['Total RMA Defect Tickets', records.length.toString()],
+    ['Total Spoilage Cost Valuation (KSh)', totalCost.toFixed(2)],
+    ['Total Retail Value Equivalent (KSh)', totalRetail.toFixed(2)],
+    ['Generated At', `"${new Date().toISOString()}"`]
+  ];
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(r => r.join(',')),
+    ...summaryRows.map(r => r.join(','))
+  ].join('\n');
+
+  downloadCSV(`RMA_Quarantine_Audit_${new Date().toISOString().slice(0, 10)}.csv`, csvContent);
+}
+

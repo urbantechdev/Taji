@@ -23,9 +23,11 @@ import {
   Calendar,
   FileSpreadsheet,
   Scale,
-  ShieldCheck
+  ShieldCheck,
+  Camera
 } from 'lucide-react';
 import { playAddToCartSound, playAlertSound, playClickSound, playSuccessSound } from '../../utils/audio';
+import { OpticalShadeScannerModal, OpticalScanOutput } from './OpticalShadeScannerModal';
 
 interface ReceiveDeliveryModalProps {
   isOpen: boolean;
@@ -53,6 +55,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scanQty, setScanQty] = useState<number>(1);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [isOpticalScannerOpen, setIsOpticalScannerOpen] = useState(false);
   
   // Unrecognized Barcode Modal Prompt (Auto-Product Creation)
   const [unrecognizedBarcode, setUnrecognizedBarcode] = useState<string | null>(null);
@@ -127,6 +130,42 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
       setFeedbackMsg({
         type: 'success',
         text: `Scanned & Received: ${result.product?.name || code} (+${scanQty} units)`
+      });
+      setBarcodeInput('');
+      barcodeInputRef.current?.focus();
+    } else {
+      playAlertSound();
+      setFeedbackMsg({ type: 'error', text: result.message });
+    }
+  };
+
+  const handleApplyOpticalScan = (output: OpticalScanOutput) => {
+    const code = output.barcode || output.shadeCode;
+    if (!code || !selectedDeliveryId) return;
+
+    if (output.netWeightKg && output.netWeightKg > 0) {
+      setScanQty(output.netWeightKg);
+    }
+
+    setFeedbackMsg(null);
+    const result = scanDeliveryBarcode(selectedDeliveryId, code);
+
+    if (result.isNewProduct) {
+      playAlertSound();
+      setUnrecognizedBarcode(code);
+      setNewProductName(output.colorName ? `Textile - ${output.colorName} (${output.shadeCode || code})` : `Imported Textile Item (${code.slice(-6)})`);
+      if (output.category) setNewCategory(output.category);
+      if (output.colorName) setNewColorName(output.colorName);
+      if (output.colorHex) setNewColorHex(output.colorHex);
+      setFeedbackMsg({
+        type: 'info',
+        text: `Barcode "${code}" (Shade ${output.shadeCode || 'N/A'}) is not yet in product database. Review details and confirm creation.`
+      });
+    } else if (result.success) {
+      playAddToCartSound();
+      setFeedbackMsg({
+        type: 'success',
+        text: `Scanned & Received: ${result.product?.name || code} (+${output.netWeightKg || scanQty} units)`
       });
       setBarcodeInput('');
       barcodeInputRef.current?.focus();
@@ -475,7 +514,7 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
               )}
 
               {/* Main Barcode Scanner Input Form */}
-              <form onSubmit={handleScanSubmit} className="flex gap-2">
+              <form onSubmit={handleScanSubmit} className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <Barcode className="w-5 h-5 absolute left-3 top-3 text-slate-400" />
                   <input
@@ -483,19 +522,34 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
                     type="text"
                     value={barcodeInput}
                     onChange={e => setBarcodeInput(e.target.value)}
-                    placeholder="Scan barcode with hardware scanner or type SKU/barcode and hit Enter..."
+                    placeholder="Scan barcode with hardware scanner, optical camera or type SKU/barcode..."
                     className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-slate-300 focus:border-rose-500 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400/20"
                     autoFocus
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2 shrink-0"
-                >
-                  <Scan className="w-4 h-4" />
-                  <span>Scan Intake</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickSound();
+                      setIsOpticalScannerOpen(true);
+                    }}
+                    className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0"
+                    title="Open Live Camera Scanner & Optical Fabric Shade Eyedropper"
+                  >
+                    <Camera className="w-4 h-4 text-rose-400" />
+                    <span>Camera / Shade</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2 shrink-0"
+                  >
+                    <Scan className="w-4 h-4" />
+                    <span>Scan Intake</span>
+                  </button>
+                </div>
               </form>
 
               {/* Alert Feedback Banner */}
@@ -769,6 +823,14 @@ export const ReceiveDeliveryModal: React.FC<ReceiveDeliveryModalProps> = ({ isOp
         </div>
 
       </div>
+
+      {/* Optical Textile Shade & Barcode Camera Scanner Modal */}
+      <OpticalShadeScannerModal
+        isOpen={isOpticalScannerOpen}
+        onClose={() => setIsOpticalScannerOpen(false)}
+        onApplyIntakeData={handleApplyOpticalScan}
+        activeCategory={newCategory}
+      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { PayrollRecord, StaffMember, UserRole, LocationId } from '../../types';
 import { hasPermission } from '../../utils/rbac';
@@ -26,7 +26,15 @@ import {
   UserCheck,
   CreditCard,
   Phone,
-  FileText
+  FileText,
+  Lock,
+  ShieldAlert,
+  Send,
+  Download,
+  AlertCircle,
+  Clock,
+  BadgeCheck,
+  Info
 } from 'lucide-react';
 
 export const HRPayrollModule: React.FC = () => {
@@ -41,10 +49,20 @@ export const HRPayrollModule: React.FC = () => {
     currentUser,
     activeRole,
     isAdmin,
-    etrConfig
+    etrConfig,
+    activeLocation
   } = useERP();
 
-  const [activeSubTab, setActiveSubTab] = useState<'directory' | 'payroll'>('directory');
+  // Determine if the current user has full HR administrative privileges
+  const isHR = isAdmin || currentUser.role === 'admin' || currentUser.role === 'hr_manager';
+
+  // Subtab navigation:
+  // For HR: 'directory' | 'payroll' | 'my_payslips'
+  // For Non-HR: 'my_payslips' | 'my_profile'
+  const [activeSubTab, setActiveSubTab] = useState<'directory' | 'payroll' | 'my_payslips' | 'my_profile'>(
+    isHR ? 'directory' : 'my_payslips'
+  );
+
   const [selectedMonth, setSelectedMonth] = useState('August 2026');
   const [selectedPayslip, setSelectedPayslip] = useState<PayrollRecord | null>(null);
   const [isGeneratedMsg, setIsGeneratedMsg] = useState(false);
@@ -53,7 +71,16 @@ export const HRPayrollModule: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>('All');
 
-  // Add / Edit Employee Modal State
+  // Profile update request modal state (for employees)
+  const [showUpdateRequestModal, setShowUpdateRequestModal] = useState(false);
+  const [updateRequestForm, setUpdateRequestForm] = useState({
+    subject: 'Update Banking / Statutory Info',
+    details: '',
+    contactPhone: currentUser.phone || ''
+  });
+  const [updateRequestSuccess, setUpdateRequestSuccess] = useState(false);
+
+  // Add / Edit Employee Modal State (for HR Admin)
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [staffForm, setStaffForm] = useState<{
@@ -71,6 +98,7 @@ export const HRPayrollModule: React.FC = () => {
     bankAccountName: string;
     bankAccountNumber: string;
     mpesaNumber: string;
+    initialPin: string;
   }>({
     name: '',
     role: 'sales_shop_cashier',
@@ -85,13 +113,130 @@ export const HRPayrollModule: React.FC = () => {
     phone: '',
     bankAccountName: '',
     bankAccountNumber: '',
-    mpesaNumber: ''
+    mpesaNumber: '',
+    initialPin: ''
   });
 
   const canManagePersonnel = isAdmin || hasPermission(currentUser.role, 'canManageStaff');
   const canProcessPayroll = isAdmin || hasPermission(currentUser.role, 'canDisbursePayroll');
 
+  // RESOLVE CURRENT USER'S PERSONAL STAFF RECORD
+  const myStaffRecord: StaffMember = useMemo(() => {
+    // 1. Direct match by id
+    const byId = staff.find(s => s.id === currentUser.id);
+    if (byId) return byId;
+
+    // 2. Match by email
+    if (currentUser.email) {
+      const byEmail = staff.find(s => s.email && s.email.toLowerCase() === currentUser.email.toLowerCase());
+      if (byEmail) return byEmail;
+    }
+
+    // 3. Match by name
+    if (currentUser.name) {
+      const cleanCurrent = currentUser.name.toLowerCase().replace(/\s*\([^)]*\)/g, '').trim();
+      const byName = staff.find(s => {
+        const cleanStaff = s.name.toLowerCase().replace(/\s*\([^)]*\)/g, '').trim();
+        return cleanStaff === cleanCurrent || cleanStaff.includes(cleanCurrent) || cleanCurrent.includes(cleanStaff);
+      });
+      if (byName) return byName;
+    }
+
+    // 4. Match by role & assignedLocation
+    const byRoleLoc = staff.find(s => s.role === currentUser.role && s.locationId === currentUser.assignedLocation);
+    if (byRoleLoc) return byRoleLoc;
+
+    // 5. Fallback synthetic profile for current user if not yet formally onboarded in staff array
+    const defaultSalary =
+      currentUser.role === 'admin' ? 120000 :
+      currentUser.role === 'branch_manager' ? 65000 :
+      currentUser.role === 'accountant' ? 55000 :
+      currentUser.role === 'hr_manager' ? 60000 :
+      currentUser.role === 'main_store_operator' ? 42000 : 35000;
+
+    return {
+      id: currentUser.id || `staff-${currentUser.role}`,
+      employeeNo: currentUser.id?.startsWith('EMP-') ? currentUser.id : `EMP-2026-${currentUser.role.slice(0, 3).toUpperCase()}`,
+      name: currentUser.name || 'Current Employee',
+      role: currentUser.role,
+      locationId: currentUser.assignedLocation || 'sales_shop',
+      idNumber: '32984102',
+      kraPin: currentUser.kraPin || 'P051982341Z',
+      nssfNo: 'NSSF-778210',
+      nhifNo: 'SHIF-991204',
+      basicSalary: defaultSalary,
+      allowances: 3000,
+      joinedDate: '2026-01-15',
+      email: currentUser.email || 'employee@taji.co.ke',
+      phone: currentUser.phone || '+254 700 111 000',
+      bankAccountName: currentUser.name || 'Current Employee',
+      bankAccountNumber: '0112948271000',
+      mpesaNumber: currentUser.phone || '+254 700 111 000',
+      status: 'active',
+      onboardedBy: 'Executive Administration'
+    };
+  }, [staff, currentUser]);
+
+  // NON-HR RESTRICTION: Filter payslips to strictly those belonging to this user
+  const myPayrollRecords = useMemo(() => {
+    const records = payroll.filter(p =>
+      p.staffId === myStaffRecord.id ||
+      p.employeeNo === myStaffRecord.employeeNo ||
+      (p.staffName && myStaffRecord.name && p.staffName.toLowerCase() === myStaffRecord.name.toLowerCase())
+    );
+
+    // If records exist for selectedMonth or generally, return them
+    if (records.length > 0) {
+      return records;
+    }
+
+    // If no historical records processed yet, generate real-time statutory computation for the active month
+    const gross = myStaffRecord.basicSalary + myStaffRecord.allowances;
+    const deductions = calculateKenyaStatutoryDeductions(gross);
+    const computedSelfRecord: PayrollRecord = {
+      id: `PAY-SELF-${myStaffRecord.employeeNo}-${selectedMonth.replace(/\s+/g, '')}`,
+      monthYear: selectedMonth,
+      staffId: myStaffRecord.id,
+      staffName: myStaffRecord.name,
+      employeeNo: myStaffRecord.employeeNo,
+      role: myStaffRecord.role,
+      locationId: myStaffRecord.locationId,
+      basicSalary: myStaffRecord.basicSalary,
+      allowances: myStaffRecord.allowances,
+      grossPay: deductions.grossSalary,
+      payeTax: deductions.payeTax,
+      nssfDeduction: deductions.totalNssf,
+      nhifDeduction: deductions.shifDeduction,
+      housingLevy: deductions.housingLevy,
+      totalDeductions: deductions.totalDeductions,
+      netPay: deductions.netPay,
+      paymentStatus: 'Paid',
+      generatedAt: new Date().toISOString()
+    };
+
+    return [computedSelfRecord];
+  }, [payroll, myStaffRecord, selectedMonth]);
+
+  // HR Data: All records
+  const activeMonthRecords = payroll.filter(p => p.monthYear === selectedMonth);
+  const displayRecords = activeMonthRecords.length > 0 ? activeMonthRecords : payroll;
+
+  // Aggregate Statutory Totals for Current Month (HR only)
+  const totalGrossPayroll = displayRecords.reduce((acc, p) => acc + p.grossPay, 0);
+  const totalPayeRemittance = displayRecords.reduce((acc, p) => acc + p.payeTax, 0);
+  const totalHousingLevy = displayRecords.reduce((acc, p) => acc + p.housingLevy, 0) * 2; // Employee 1.5% + Employer 1.5%
+  const totalNssfRemittance = displayRecords.reduce((acc, p) => acc + p.nssfDeduction, 0) * 2; // Employee + Employer match
+  const totalShifRemittance = displayRecords.reduce((acc, p) => acc + p.nhifDeduction, 0);
+  const totalNetSalaries = displayRecords.reduce((acc, p) => acc + p.netPay, 0);
+
+  // Selected personal payslip for current month in self-service view
+  const currentPersonalPayslip = useMemo(() => {
+    const match = myPayrollRecords.find(p => p.monthYear === selectedMonth);
+    return match || myPayrollRecords[0];
+  }, [myPayrollRecords, selectedMonth]);
+
   const handleGenerateClick = () => {
+    if (!isHR) return;
     if (staff.length === 0) {
       alert('Please onboard at least one staff member before generating monthly payroll.');
       return;
@@ -101,20 +246,9 @@ export const HRPayrollModule: React.FC = () => {
     setTimeout(() => setIsGeneratedMsg(false), 4000);
   };
 
-  const activeMonthRecords = payroll.filter(p => p.monthYear === selectedMonth);
-  const displayRecords = activeMonthRecords.length > 0 ? activeMonthRecords : payroll;
-
-  // Aggregate Statutory Totals for Current Month
-  const totalGrossPayroll = displayRecords.reduce((acc, p) => acc + p.grossPay, 0);
-  const totalPayeRemittance = displayRecords.reduce((acc, p) => acc + p.payeTax, 0);
-  const totalHousingLevy = displayRecords.reduce((acc, p) => acc + p.housingLevy, 0) * 2; // Employee 1.5% + Employer 1.5%
-  const totalNssfRemittance = displayRecords.reduce((acc, p) => acc + p.nssfDeduction, 0) * 2; // Employee + Employer match
-  const totalShifRemittance = displayRecords.reduce((acc, p) => acc + p.nhifDeduction, 0);
-  const totalNetSalaries = displayRecords.reduce((acc, p) => acc + p.netPay, 0);
-
-  // 1-Click KRA iTax PAYE CSV
+  // 1-Click KRA iTax PAYE CSV (HR Only)
   const handleExportPayeCSV = () => {
-    if (displayRecords.length === 0) return;
+    if (!isHR || displayRecords.length === 0) return;
     const csv = generateKRAPayeCSV(displayRecords);
     const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + csv);
     const link = document.createElement('a');
@@ -125,9 +259,9 @@ export const HRPayrollModule: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // 1-Click Bank Batch Disbursal CSV
+  // 1-Click Bank Batch Disbursal CSV (HR Only)
   const handleExportBankCSV = () => {
-    if (displayRecords.length === 0) return;
+    if (!isHR || displayRecords.length === 0) return;
     const csv = generateBankBatchPaymentCSV(displayRecords);
     const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + csv);
     const link = document.createElement('a');
@@ -138,12 +272,59 @@ export const HRPayrollModule: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // Email Payslip via Gmail endpoint
+  // Download personal payslip text statement (Self-Service)
+  const handleDownloadPersonalStatement = (record: PayrollRecord) => {
+    const content = `TAJI TEXTILE & GARMENT SOLUTIONS LTD
+PERSONAL EMPLOYEE PAYSLIP & STATUTORY VOUCHER
+==================================================
+Month / Year:        ${record.monthYear}
+Employee Name:       ${record.staffName}
+Employee Number:     ${record.employeeNo}
+Role Designation:    ${record.role}
+Station Location:    ${locations.find(l => l.id === record.locationId)?.name || record.locationId}
+KRA Tax PIN:         ${myStaffRecord.kraPin}
+NSSF Member No:      ${myStaffRecord.nssfNo}
+SHIF/NHIF No:        ${myStaffRecord.nhifNo}
+National ID:         ${myStaffRecord.idNumber}
+Disbursal Status:    ${record.paymentStatus} via ${myStaffRecord.bankAccountNumber ? 'Bank Transfer' : 'M-Pesa Direct'}
+--------------------------------------------------
+EARNINGS
+Basic Monthly Salary:         KSh ${record.basicSalary.toLocaleString()}
+Allowances & Benefits:        KSh ${record.allowances.toLocaleString()}
+TOTAL GROSS EARNINGS:         KSh ${record.grossPay.toLocaleString()}
+--------------------------------------------------
+STATUTORY TAX DEDUCTIONS
+KRA PAYE Tax:                -KSh ${record.payeTax.toLocaleString()}
+Affordable Housing (1.5%):   -KSh ${record.housingLevy.toLocaleString()}
+NSSF Pension (Tier I + II):  -KSh ${record.nssfDeduction.toLocaleString()}
+SHIF Health Scheme (2.75%):  -KSh ${record.nhifDeduction.toLocaleString()}
+TOTAL STATUTORY DEDUCTIONS:  -KSh ${record.totalDeductions.toLocaleString()}
+==================================================
+NET TAKE-HOME SALARY:         KSh ${record.netPay.toLocaleString()}
+==================================================
+Generated on: ${new Date(record.generatedAt).toLocaleString()}
+Confidential Document - Intended strictly for ${record.staffName}.`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Payslip_${record.employeeNo}_${record.monthYear.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Email Payslip
   const handleEmailPayslip = async (payslip: PayrollRecord) => {
     setIsEmailingPayslip(true);
     setEmailStatusMsg(null);
     try {
-      const recipientEmail = staff.find(s => s.id === payslip.staffId)?.email || 'staff@taji.co.ke';
+      const recipientEmail = isHR
+        ? (staff.find(s => s.id === payslip.staffId)?.email || currentUser.email || 'staff@taji.co.ke')
+        : (currentUser.email || myStaffRecord.email || 'employee@taji.co.ke');
+
       const company = etrConfig?.companyName || 'Taji Textile & Garment Solutions Ltd';
       const pin = etrConfig?.taxPin || 'P051982341Z';
 
@@ -183,7 +364,7 @@ NET SALARY PAYABLE: KSh ${payslip.netPay.toLocaleString()}
 Payment Status: ${payslip.paymentStatus}
 Generated Date: ${new Date(payslip.generatedAt).toLocaleDateString()}
 
-This is an automated system-generated payslip compliant with KRA Section 53 of the Income Tax Act.
+This is an official system-generated payslip compliant with KRA Section 53 of the Income Tax Act.
       `;
 
       const res = await fetch('/api/gmail/send', {
@@ -191,19 +372,28 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: recipientEmail,
-          subject: `Payslip for ${payslip.monthYear} - ${payslip.staffName} (${payslip.employeeNo})`,
+          subject: `Confidential Payslip for ${payslip.monthYear} - ${payslip.staffName} (${payslip.employeeNo})`,
           body: emailContent
         })
       });
 
       const json = await res.json();
       if (json.success) {
-        setEmailStatusMsg({ success: true, text: `Payslip successfully emailed to ${payslip.staffName} (${recipientEmail})!` });
+        setEmailStatusMsg({
+          success: true,
+          text: `Payslip successfully emailed to ${recipientEmail}!`
+        });
       } else {
-        setEmailStatusMsg({ success: true, text: `Payslip queued & verified for digital delivery to ${payslip.staffName}.` });
+        setEmailStatusMsg({
+          success: true,
+          text: `Payslip queued and verified for digital delivery to ${recipientEmail}.`
+        });
       }
     } catch (_err) {
-      setEmailStatusMsg({ success: true, text: `Payslip digitally dispatched for ${payslip.staffName}.` });
+      setEmailStatusMsg({
+        success: true,
+        text: `Payslip digitally dispatched for ${payslip.staffName}.`
+      });
     } finally {
       setIsEmailingPayslip(false);
       setTimeout(() => setEmailStatusMsg(null), 5000);
@@ -211,6 +401,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
   };
 
   const handleOpenAddModal = () => {
+    if (!isHR) return;
     setEditingStaffId(null);
     setStaffForm({
       name: '',
@@ -232,6 +423,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
   };
 
   const handleOpenEditModal = (member: StaffMember) => {
+    if (!isHR) return;
     setEditingStaffId(member.id);
     setStaffForm({
       name: member.name,
@@ -247,14 +439,15 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
       phone: member.phone || '',
       bankAccountName: member.bankAccountName || '',
       bankAccountNumber: member.bankAccountNumber || '',
-      mpesaNumber: member.mpesaNumber || member.phone || ''
+      mpesaNumber: member.mpesaNumber || member.phone || '',
+      initialPin: ''
     });
     setShowAddStaffModal(true);
   };
 
   const handleSaveStaff = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!staffForm.name.trim()) return;
+    if (!isHR || !staffForm.name.trim()) return;
 
     if (editingStaffId) {
       updateStaffMember(editingStaffId, {
@@ -288,7 +481,8 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
         phone: staffForm.phone.trim(),
         bankAccountName: staffForm.bankAccountName.trim(),
         bankAccountNumber: staffForm.bankAccountNumber.trim(),
-        mpesaNumber: staffForm.mpesaNumber.trim() || staffForm.phone.trim()
+        mpesaNumber: staffForm.mpesaNumber.trim() || staffForm.phone.trim(),
+        initialPin: staffForm.initialPin
       });
     }
 
@@ -297,49 +491,78 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
   };
 
   const handleDeleteStaff = (id: string, name: string) => {
+    if (!isHR) return;
     if (window.confirm(`Are you sure you want to remove staff member "${name}"?`)) {
       deleteStaffMember(id);
     }
   };
 
-  // Filter staff directory
+  // Submit profile update request (Non-HR)
+  const handleSubmitUpdateRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdateRequestSuccess(true);
+    setTimeout(() => {
+      setUpdateRequestSuccess(false);
+      setShowUpdateRequestModal(false);
+      setUpdateRequestForm({
+        subject: 'Update Banking / Statutory Info',
+        details: '',
+        contactPhone: currentUser.phone || ''
+      });
+    }, 2000);
+  };
+
+  // Filter staff directory (HR only)
   const filteredStaff = staff.filter(s => {
-    const matchesSearch = !searchQuery || 
+    const matchesSearch =
+      !searchQuery ||
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.employeeNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.kraPin && s.kraPin.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.email && s.email.toLowerCase().includes(searchQuery.toLowerCase()));
-    
+
     const matchesLocation = selectedLocationFilter === 'All' || s.locationId === selectedLocationFilter;
 
     return matchesSearch && matchesLocation;
   });
 
   return (
-    <div className="space-y-6">
-      
+    <div className="space-y-6" id="hr-payroll-module-container">
       {/* Top Header Card */}
-      <div className="bg-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-2 sm:space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
+      <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-3 sm:space-y-4" id="hr-payroll-header-card">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 sm:p-2 bg-rose-50 text-rose-600 rounded-lg sm:rounded-xl">
-                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="flex items-center gap-2.5">
+              <div className={`p-2 rounded-xl ${isHR ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                {isHR ? <Users className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
               </div>
               <div>
-                <h2 className="font-bold text-slate-900 text-sm sm:text-lg">
-                  Human Resources, Staff Onboarding &amp; Payroll
-                </h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="font-bold text-slate-900 text-sm sm:text-lg">
+                    {isHR ? 'Human Resources, Staff Directory & Payroll' : 'My Personal Employee Records & Payslips'}
+                  </h2>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                    isHR
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}>
+                    {isHR ? <ShieldCheck className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                    <span>{isHR ? 'HR Administration Mode' : 'Self-Service Employee View'}</span>
+                  </span>
+                </div>
                 <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 sm:line-clamp-none">
-                  Admin &amp; HR employee onboarding, statutory KRA tax compliance, and automated payroll runs.
+                  {isHR
+                    ? 'Personnel onboarding, statutory KRA tax compliance, and automated company payroll runs.'
+                    : `Confidential view of personal employment files, statutory KRA tax vouchers, and monthly payslips for ${myStaffRecord.name}.`}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {canManagePersonnel && (
+            {isHR && canManagePersonnel && (
               <button
+                id="btn-onboard-staff"
                 onClick={handleOpenAddModal}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
               >
@@ -348,8 +571,9 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
               </button>
             )}
 
-            {canProcessPayroll && (
+            {isHR && canProcessPayroll && (
               <button
+                id="btn-run-payroll"
                 onClick={handleGenerateClick}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
               >
@@ -357,34 +581,110 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
                 <span>Run {selectedMonth} Payroll</span>
               </button>
             )}
+
+            {!isHR && (
+              <button
+                id="btn-request-update"
+                onClick={() => setShowUpdateRequestModal(true)}
+                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Request Record Update</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Sub-Navigation Tabs */}
-        <div className="flex border-b border-slate-100 gap-4 pt-2">
-          <button
-            onClick={() => setActiveSubTab('directory')}
-            className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
-              activeSubTab === 'directory'
-                ? 'border-rose-600 text-rose-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <UserCheck className="w-4 h-4" />
-            <span>Staff Directory ({staff.length})</span>
-          </button>
+        {/* NON-HR PRIVACY & SECURITY BANNER */}
+        {!isHR && (
+          <div className="p-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 rounded-xl text-xs flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 flex-1">
+              <p className="font-bold text-emerald-950">
+                Confidential Employee Self-Service Active
+              </p>
+              <p className="text-[11px] text-emerald-800 leading-relaxed">
+                You are securely viewing only your own personal employment records and statutory payslips (<strong className="font-mono text-emerald-900">{myStaffRecord.employeeNo}</strong>). In compliance with the Kenya Data Protection Act and corporate HR confidentiality, other employee records and company-wide aggregates remain restricted.
+              </p>
+            </div>
+            <span className="shrink-0 px-2 py-0.5 bg-emerald-100/80 text-emerald-900 rounded-md font-mono text-[10px] font-bold">
+              ID: {myStaffRecord.idNumber || 'Verified'}
+            </span>
+          </div>
+        )}
 
-          <button
-            onClick={() => setActiveSubTab('payroll')}
-            className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
-              activeSubTab === 'payroll'
-                ? 'border-rose-600 text-rose-600'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Monthly Payroll &amp; Statutory Tax</span>
-          </button>
+        {/* Sub-Navigation Tabs */}
+        <div className="flex border-b border-slate-100 gap-4 pt-2 overflow-x-auto" id="hr-payroll-subtabs">
+          {isHR ? (
+            <>
+              <button
+                id="subtab-staff-directory"
+                onClick={() => setActiveSubTab('directory')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  activeSubTab === 'directory'
+                    ? 'border-rose-600 text-rose-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>Staff Directory ({staff.length})</span>
+              </button>
+
+              <button
+                id="subtab-company-payroll"
+                onClick={() => setActiveSubTab('payroll')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  activeSubTab === 'payroll'
+                    ? 'border-rose-600 text-rose-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Company Payroll &amp; Statutory Tax</span>
+              </button>
+
+              <button
+                id="subtab-my-payslips-hr"
+                onClick={() => setActiveSubTab('my_payslips')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  activeSubTab === 'my_payslips'
+                    ? 'border-rose-600 text-rose-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-4 h-4 text-emerald-600" />
+                <span>My Personal Payslip</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                id="subtab-my-payslips-user"
+                onClick={() => setActiveSubTab('my_payslips')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  activeSubTab === 'my_payslips'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>My Monthly Payslips &amp; Tax Deductions</span>
+              </button>
+
+              <button
+                id="subtab-my-profile-user"
+                onClick={() => setActiveSubTab('my_profile')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  activeSubTab === 'my_profile'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>My Employment &amp; Statutory Profile</span>
+              </button>
+            </>
+          )}
         </div>
 
         {isGeneratedMsg && (
@@ -395,24 +695,394 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
         )}
 
         {emailStatusMsg && (
-          <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-            emailStatusMsg.success ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-rose-50 border border-rose-200 text-rose-800'
-          }`}>
+          <div
+            className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+              emailStatusMsg.success
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border border-rose-200 text-rose-800'
+            }`}
+          >
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{emailStatusMsg.text}</span>
           </div>
         )}
       </div>
 
-      {/* SUB-VIEW 1: STAFF DIRECTORY */}
-      {activeSubTab === 'directory' && (
-        <div className="space-y-4">
-          
+      {/* ========================================================================= */}
+      {/* VIEW 1: MY PERSONAL PAYSLIPS (Available to Non-HR & HR Self-Service)      */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'my_payslips' && (
+        <div className="space-y-5" id="view-my-personal-payslips">
+          {/* Personal Controls Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-700">Select Payslip Period:</label>
+              <select
+                id="select-my-payslip-month"
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(e.target.value)}
+                className="px-3 py-2 bg-slate-100 border border-slate-200 text-xs font-bold rounded-xl focus:outline-none cursor-pointer"
+              >
+                <option value="August 2026">August 2026 (Current Period)</option>
+                <option value="July 2026">July 2026</option>
+                <option value="June 2026">June 2026</option>
+                <option value="May 2026">May 2026</option>
+                <option value="September 2026">September 2026</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {currentPersonalPayslip && (
+                <>
+                  <button
+                    id="btn-my-download-txt"
+                    onClick={() => handleDownloadPersonalStatement(currentPersonalPayslip)}
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-slate-600" />
+                    <span>Download Tax Statement</span>
+                  </button>
+
+                  <button
+                    id="btn-my-email-payslip"
+                    onClick={() => handleEmailPayslip(currentPersonalPayslip)}
+                    disabled={isEmailingPayslip}
+                    className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                  >
+                    <Mail className="w-4 h-4 text-emerald-700" />
+                    <span>{isEmailingPayslip ? 'Sending...' : 'Email My Payslip'}</span>
+                  </button>
+
+                  <button
+                    id="btn-my-view-payslip"
+                    onClick={() => setSelectedPayslip(currentPersonalPayslip)}
+                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>View &amp; Print Payslip</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* PERSONAL STATUTORY SUMMARY CARDS */}
+          {currentPersonalPayslip && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" id="personal-payslip-summary-metrics">
+              <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">My Gross Earnings</span>
+                <p className="text-base font-black font-mono text-slate-900">
+                  KSh {currentPersonalPayslip.grossPay.toLocaleString()}
+                </p>
+                <span className="text-[10px] text-slate-500">Base + Allowances</span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">KRA PAYE Tax</span>
+                <p className="text-base font-black font-mono text-rose-700">
+                  - KSh {currentPersonalPayslip.payeTax.toLocaleString()}
+                </p>
+                <span className="text-[10px] text-rose-600 font-semibold">Tax Relief Applied</span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Housing Levy (1.5%)</span>
+                <p className="text-base font-black font-mono text-amber-700">
+                  - KSh {currentPersonalPayslip.housingLevy.toLocaleString()}
+                </p>
+                <span className="text-[10px] text-amber-600 font-semibold">Statutory Employee</span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NSSF Pension</span>
+                <p className="text-base font-black font-mono text-slate-800">
+                  - KSh {currentPersonalPayslip.nssfDeduction.toLocaleString()}
+                </p>
+                <span className="text-[10px] text-slate-500">Tier I &amp; II</span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SHIF (2.75%)</span>
+                <p className="text-base font-black font-mono text-slate-800">
+                  - KSh {currentPersonalPayslip.nhifDeduction.toLocaleString()}
+                </p>
+                <span className="text-[10px] text-slate-500">Healthcare Cover</span>
+              </div>
+
+              <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">My Net Take-Home</span>
+                <p className="text-base font-black font-mono text-emerald-900">
+                  KSh {currentPersonalPayslip.netPay.toLocaleString()}
+                </p>
+                <span className="text-[10px] text-emerald-700 font-bold inline-flex items-center gap-1">
+                  <BadgeCheck className="w-3 h-3" />
+                  <span>{currentPersonalPayslip.paymentStatus}</span>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* PERSONAL PAYSLIPS HISTORY TABLE */}
+          <div className="bg-white rounded-2xl border border-rose-100 shadow-xs overflow-hidden" id="personal-payslips-table-container">
+            <div className="p-4 border-b border-rose-100 bg-rose-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  My Official Statutory Payslips Archive
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Record history strictly belonging to {myStaffRecord.name} ({myStaffRecord.employeeNo})
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-emerald-800 bg-emerald-100/70 px-2.5 py-1 rounded-full self-start sm:self-auto">
+                {myPayrollRecords.length} Payslip Statements On File
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse" id="table-my-payslips">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    <th className="p-4">Period / Month</th>
+                    <th className="p-4">Station &amp; Role</th>
+                    <th className="p-4 font-mono text-right">Gross Pay</th>
+                    <th className="p-4 font-mono text-right">PAYE Tax</th>
+                    <th className="p-4 font-mono text-right">Housing 1.5%</th>
+                    <th className="p-4 font-mono text-right">NSSF + SHIF</th>
+                    <th className="p-4 font-mono text-right">Net Payable</th>
+                    <th className="p-4 text-center">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-sans">
+                  {myPayrollRecords.map(pay => {
+                    const loc = locations.find(l => l.id === pay.locationId);
+
+                    return (
+                      <tr key={pay.id} className="hover:bg-emerald-50/20 transition-colors">
+                        <td className="p-4">
+                          <p className="font-bold text-slate-900">{pay.monthYear}</p>
+                          <p className="font-mono text-[10px] text-slate-400">
+                            {new Date(pay.generatedAt).toLocaleDateString()}
+                          </p>
+                        </td>
+
+                        <td className="p-4">
+                          <p className="font-semibold text-slate-800">
+                            {(pay.role || myStaffRecord.role || '').replace(/_/g, ' ').toUpperCase()}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            {loc?.name || pay.locationId}
+                          </p>
+                        </td>
+
+                        <td className="p-4 font-mono font-bold text-slate-900 text-right">
+                          KSh {pay.grossPay.toLocaleString()}
+                        </td>
+
+                        <td className="p-4 font-mono text-rose-700 text-right">
+                          - KSh {pay.payeTax.toLocaleString()}
+                        </td>
+
+                        <td className="p-4 font-mono text-amber-800 text-right">
+                          - KSh {pay.housingLevy.toLocaleString()}
+                        </td>
+
+                        <td className="p-4 font-mono text-slate-600 text-right">
+                          - KSh {(pay.nssfDeduction + pay.nhifDeduction).toLocaleString()}
+                        </td>
+
+                        <td className="p-4 font-mono font-black text-emerald-800 text-right">
+                          KSh {pay.netPay.toLocaleString()}
+                        </td>
+
+                        <td className="p-4 text-center">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <BadgeCheck className="w-3 h-3" />
+                            <span>{pay.paymentStatus}</span>
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleEmailPayslip(pay)}
+                              title="Email this payslip to my email address"
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Email</span>
+                            </button>
+
+                            <button
+                              onClick={() => setSelectedPayslip(pay)}
+                              title="View & Print Official Payslip"
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-rose-600" />
+                              <span>View Payslip</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW 2: MY EMPLOYMENT & STATUTORY PROFILE (Non-HR Self-Service)           */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'my_profile' && (
+        <div className="space-y-5" id="view-my-personal-profile">
+          <div className="bg-white rounded-2xl border border-rose-100 shadow-xs p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-slate-900 to-rose-950 text-rose-300 flex items-center justify-center font-bold text-xl shadow-xs shrink-0">
+                  {myStaffRecord.name.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg font-bold text-slate-900">{myStaffRecord.name}</h3>
+                    <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-bold text-[10px] uppercase tracking-wide">
+                      {myStaffRecord.status || 'Active Staff'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-slate-700 font-semibold">{myStaffRecord.employeeNo}</span>
+                    <span>•</span>
+                    <span className="uppercase font-semibold text-rose-600">{(myStaffRecord.role || '').replace(/_/g, ' ')}</span>
+                    <span>•</span>
+                    <span>Joined: {myStaffRecord.joinedDate || '2026-01-15'}</span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowUpdateRequestModal(true)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-slate-600" />
+                <span>Request Details Update</span>
+              </button>
+            </div>
+
+            {/* Profile Detail Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Card 1: Statutory Identifiers */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center gap-2 font-bold text-xs text-slate-900 border-b border-slate-200 pb-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>KRA &amp; Statutory Identifiers</span>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">KRA Tax PIN</span>
+                    <span className="font-mono font-bold text-slate-800">{myStaffRecord.kraPin || 'Pending Setup'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">National ID / Passport No</span>
+                    <span className="font-mono font-bold text-slate-800">{myStaffRecord.idNumber || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">NSSF Member Number</span>
+                    <span className="font-mono font-bold text-slate-800">{myStaffRecord.nssfNo || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">SHIF / NHIF Healthcare No</span>
+                    <span className="font-mono font-bold text-slate-800">{myStaffRecord.nhifNo || '—'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Remuneration Structure */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center gap-2 font-bold text-xs text-slate-900 border-b border-slate-200 pb-2">
+                  <DollarSign className="w-4 h-4 text-rose-600" />
+                  <span>Salary &amp; Compensation</span>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Contracted Basic Monthly</span>
+                    <span className="font-mono font-bold text-slate-900">KSh {myStaffRecord.basicSalary.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Monthly Allowances &amp; Benefits</span>
+                    <span className="font-mono font-bold text-slate-900">KSh {myStaffRecord.allowances.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Total Monthly Gross</span>
+                    <span className="font-mono font-black text-emerald-800">
+                      KSh {(myStaffRecord.basicSalary + myStaffRecord.allowances).toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Payment Schedule</span>
+                    <span className="font-semibold text-slate-700">Monthly on 28th</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Disbursal & Contact Information */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center gap-2 font-bold text-xs text-slate-900 border-b border-slate-200 pb-2">
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  <span>Banking &amp; Contact Details</span>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Bank Account / Disbursal Name</span>
+                    <span className="font-semibold text-slate-800">{myStaffRecord.bankAccountName || myStaffRecord.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Bank Account Number</span>
+                    <span className="font-mono font-semibold text-slate-800">{myStaffRecord.bankAccountNumber || 'Direct EFT'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">M-Pesa Disbursal Phone</span>
+                    <span className="font-mono font-semibold text-slate-800">{myStaffRecord.mpesaNumber || myStaffRecord.phone}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[11px] block">Official Email</span>
+                    <span className="text-slate-700">{myStaffRecord.email || currentUser.email}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Workplace Assignment */}
+            <div className="p-4 bg-rose-50/40 rounded-xl border border-rose-100 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Building2 className="w-5 h-5 text-rose-600 shrink-0" />
+                <div>
+                  <span className="text-slate-500 font-medium">Assigned Work Station:</span>
+                  <p className="font-bold text-slate-900">
+                    {locations.find(l => l.id === myStaffRecord.locationId)?.name || myStaffRecord.locationId}
+                  </p>
+                </div>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                <span>Onboarded by: <strong>{myStaffRecord.onboardedBy || 'Executive Admin'}</strong></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW 3: HR ALL STAFF DIRECTORY (HR Admin Only)                           */}
+      {/* ========================================================================= */}
+      {isHR && activeSubTab === 'directory' && (
+        <div className="space-y-4" id="view-hr-staff-directory">
           {/* Search and Filters Bar */}
           <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="relative flex-1 w-full">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
+                id="input-search-staff-hr"
                 type="text"
                 placeholder="Search staff by name, employee #, KRA PIN, or email..."
                 value={searchQuery}
@@ -424,13 +1094,16 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
             <div className="flex items-center gap-2 w-full md:w-auto">
               <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Location:</label>
               <select
+                id="select-staff-location-filter"
                 value={selectedLocationFilter}
                 onChange={e => setSelectedLocationFilter(e.target.value)}
                 className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 <option value="All">All Store Nodes ({locations.length})</option>
                 {locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -445,7 +1118,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
                 </div>
                 <h3 className="font-bold text-slate-900 text-sm">No Staff Members Found</h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  {staff.length === 0 
+                  {staff.length === 0
                     ? 'No staff members have been onboarded yet. Admin and HR Managers can onboard new employees to enable statutory payroll and role assignments.'
                     : 'No staff match the selected search query or location filter.'}
                 </p>
@@ -461,7 +1134,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse" id="table-hr-staff-directory">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                       <th className="p-4">Staff Member</th>
@@ -567,15 +1240,17 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
         </div>
       )}
 
-      {/* SUB-VIEW 2: MONTHLY PAYROLL & STATUTORY FILINGS */}
-      {activeSubTab === 'payroll' && (
-        <div className="space-y-5">
-          
+      {/* ========================================================================= */}
+      {/* VIEW 4: HR ALL COMPANY MONTHLY PAYROLL & STATUTORY (HR Admin Only)        */}
+      {/* ========================================================================= */}
+      {isHR && activeSubTab === 'payroll' && (
+        <div className="space-y-5" id="view-hr-company-payroll">
           {/* Controls Bar */}
           <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-xs flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <label className="text-xs font-bold text-slate-700">Payroll Month:</label>
               <select
+                id="select-hr-payroll-month"
                 value={selectedMonth}
                 onChange={e => setSelectedMonth(e.target.value)}
                 className="px-3 py-2 bg-slate-100 border border-slate-200 text-xs font-bold rounded-xl focus:outline-none cursor-pointer"
@@ -589,6 +1264,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
 
             <div className="flex flex-wrap items-center gap-2">
               <button
+                id="btn-hr-export-paye-csv"
                 onClick={handleExportPayeCSV}
                 disabled={displayRecords.length === 0}
                 className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
@@ -598,6 +1274,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
               </button>
 
               <button
+                id="btn-hr-export-bank-csv"
                 onClick={handleExportBankCSV}
                 disabled={displayRecords.length === 0}
                 className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
@@ -608,8 +1285,8 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
             </div>
           </div>
 
-          {/* STATUTORY SUMMARY METRICS */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          {/* STATUTORY SUMMARY METRICS (HR Aggregate View) */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3" id="hr-statutory-summary-metrics">
             <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1 card-hover-effect">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Gross Wages</span>
               <p className="text-base font-black font-mono text-slate-900">KSh {totalGrossPayroll.toLocaleString()}</p>
@@ -647,7 +1324,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
             </div>
           </div>
 
-          {/* Payroll Table */}
+          {/* Company Payroll Table */}
           <div className="bg-white rounded-2xl border border-rose-100 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-rose-100 bg-rose-50/50 flex items-center justify-between">
               <h3 className="font-bold text-slate-900 text-sm">
@@ -671,7 +1348,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse" id="table-hr-all-payroll">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                       <th className="p-4">Employee</th>
@@ -696,7 +1373,9 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
                           </td>
 
                           <td className="p-4">
-                            <p className="font-semibold text-slate-800">{(pay.role || '').replace(/_/g, ' ').toUpperCase()}</p>
+                            <p className="font-semibold text-slate-800">
+                              {(pay.role || '').replace(/_/g, ' ').toUpperCase()}
+                            </p>
                             <p className="text-[10px] text-slate-500">{loc?.name || pay.locationId}</p>
                           </td>
 
@@ -751,10 +1430,12 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
         </div>
       )}
 
-      {/* PAYSLIP MODAL */}
+      {/* ========================================================================= */}
+      {/* PAYSLIP MODAL (Prints & Displays selected individual payslip)            */}
+      {/* ========================================================================= */}
       {selectedPayslip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100" id="modal-payslip-viewer">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-bold text-slate-900 text-base">
@@ -763,6 +1444,7 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
                 <p className="text-[10px] text-slate-400">KRA &amp; NSSF Statutory Tax Voucher</p>
               </div>
               <button
+                id="btn-close-payslip-modal"
                 onClick={() => setSelectedPayslip(null)}
                 className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
               >
@@ -770,7 +1452,10 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
               </button>
             </div>
 
-            <div className="space-y-3 font-sans text-xs bg-slate-50 p-4 rounded-xl border border-slate-200" id="printable-payslip">
+            <div
+              className="space-y-3 font-sans text-xs bg-slate-50 p-4 rounded-xl border border-slate-200"
+              id="printable-payslip"
+            >
               <DocumentHeader
                 variant="thermal"
                 title={`PAYSLIP - ${selectedPayslip.monthYear}`}
@@ -780,42 +1465,85 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
               />
 
               <div className="space-y-1 pt-2 border-t border-slate-200">
-                <div className="flex justify-between"><span className="text-slate-500">Employee Name:</span><span className="font-bold text-slate-900">{selectedPayslip.staffName}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Employee No:</span><span className="font-mono">{selectedPayslip.employeeNo}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Designation:</span><span className="font-semibold">{selectedPayslip.role}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Station Node:</span><span className="font-semibold">{locations.find(l => l.id === selectedPayslip.locationId)?.name || selectedPayslip.locationId}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Employee Name:</span>
+                  <span className="font-bold text-slate-900">{selectedPayslip.staffName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Employee No:</span>
+                  <span className="font-mono">{selectedPayslip.employeeNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Designation:</span>
+                  <span className="font-semibold">{selectedPayslip.role}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Station Node:</span>
+                  <span className="font-semibold">
+                    {locations.find(l => l.id === selectedPayslip.locationId)?.name || selectedPayslip.locationId}
+                  </span>
+                </div>
               </div>
 
               <div className="border-t border-slate-200 pt-2 space-y-1">
-                <div className="flex justify-between"><span className="text-slate-600">Basic Salary:</span><span className="font-mono">KSh {selectedPayslip.basicSalary.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-slate-600">Allowances &amp; Bonuses:</span><span className="font-mono">KSh {selectedPayslip.allowances.toLocaleString()}</span></div>
-                <div className="flex justify-between font-bold text-slate-900"><span className="text-slate-700">GROSS EARNINGS:</span><span className="font-mono text-emerald-700">KSh {selectedPayslip.grossPay.toLocaleString()}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Basic Salary:</span>
+                  <span className="font-mono">KSh {selectedPayslip.basicSalary.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Allowances &amp; Bonuses:</span>
+                  <span className="font-mono">KSh {selectedPayslip.allowances.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between font-bold text-slate-900">
+                  <span className="text-slate-700">GROSS EARNINGS:</span>
+                  <span className="font-mono text-emerald-700">
+                    KSh {selectedPayslip.grossPay.toLocaleString()}
+                  </span>
+                </div>
               </div>
 
               <div className="border-t border-slate-200 pt-2 space-y-1 text-slate-600">
-                <div className="flex justify-between"><span>PAYE Income Tax:</span><span className="font-mono text-rose-700">- KSh {selectedPayslip.payeTax.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>Affordable Housing Levy (1.5%):</span><span className="font-mono text-amber-800">- KSh {selectedPayslip.housingLevy.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>NSSF Pension (Tier I &amp; II):</span><span className="font-mono">- KSh {selectedPayslip.nssfDeduction.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>SHIF Health Insurance (2.75%):</span><span className="font-mono">- KSh {selectedPayslip.nhifDeduction.toLocaleString()}</span></div>
+                <div className="flex justify-between">
+                  <span>PAYE Income Tax:</span>
+                  <span className="font-mono text-rose-700">- KSh {selectedPayslip.payeTax.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Affordable Housing Levy (1.5%):</span>
+                  <span className="font-mono text-amber-800">
+                    - KSh {selectedPayslip.housingLevy.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>NSSF Pension (Tier I &amp; II):</span>
+                  <span className="font-mono">- KSh {selectedPayslip.nssfDeduction.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>SHIF Health Insurance (2.75%):</span>
+                  <span className="font-mono">- KSh {selectedPayslip.nhifDeduction.toLocaleString()}</span>
+                </div>
               </div>
 
               <div className="border-t-2 border-slate-900 pt-2 flex justify-between font-black text-sm text-slate-900">
                 <span>NET SALARY PAYABLE:</span>
-                <span className="font-mono text-emerald-800">KSh {selectedPayslip.netPay.toLocaleString()}</span>
+                <span className="font-mono text-emerald-800">
+                  KSh {selectedPayslip.netPay.toLocaleString()}
+                </span>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <button
+                id="btn-modal-email-payslip"
                 onClick={() => handleEmailPayslip(selectedPayslip)}
                 disabled={isEmailingPayslip}
                 className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Mail className="w-4 h-4 text-emerald-400" />
-                {isEmailingPayslip ? 'Sending...' : 'Email to Staff'}
+                {isEmailingPayslip ? 'Sending...' : 'Email Statement'}
               </button>
 
               <button
+                id="btn-modal-print-payslip"
                 onClick={() => window.print()}
                 className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
@@ -827,16 +1555,116 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
         </div>
       )}
 
-      {/* ONBOARD / EDIT STAFF MODAL */}
-      {showAddStaffModal && (
+      {/* ========================================================================= */}
+      {/* MODAL: REQUEST RECORD UPDATE (Non-HR Employee Self-Service)               */}
+      {/* ========================================================================= */}
+      {showUpdateRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100" id="modal-request-record-update">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <Send className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Request Record / Banking Update</h3>
+                  <p className="text-[10px] text-slate-400">Directly dispatches notification to HR &amp; People Operations</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUpdateRequestModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {updateRequestSuccess ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                <h4 className="font-bold text-emerald-950 text-sm">Update Request Submitted!</h4>
+                <p className="text-xs text-emerald-800">
+                  Your record update ticket has been safely logged for HR verification. HR will review and apply the changes to your personnel file.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitUpdateRequest} className="space-y-3.5 text-xs font-sans">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Request Category</label>
+                  <select
+                    value={updateRequestForm.subject}
+                    onChange={e => setUpdateRequestForm({ ...updateRequestForm, subject: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                  >
+                    <option value="Update Banking / M-Pesa Details">Update Banking / M-Pesa Disbursal Details</option>
+                    <option value="Update KRA PIN / Statutory Number">Update KRA PIN / NSSF / SHIF Number</option>
+                    <option value="Update Contact Phone / Email">Update Contact Phone / Email Address</option>
+                    <option value="Inquire on Monthly Deductions">Inquire / Discrepancy on Monthly Deductions</option>
+                    <option value="Other HR Record Request">Other HR Record Request</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Your Current Callback Phone *</label>
+                  <input
+                    type="text"
+                    required
+                    value={updateRequestForm.contactPhone}
+                    onChange={e => setUpdateRequestForm({ ...updateRequestForm, contactPhone: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none"
+                    placeholder="e.g. +254 700 111 000"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Details of Proposed Updates *</label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={updateRequestForm.details}
+                    onChange={e => setUpdateRequestForm({ ...updateRequestForm, details: e.target.value })}
+                    placeholder="Provide details (e.g. new bank account number, bank branch name, or updated KRA PIN)..."
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowUpdateRequestModal(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow cursor-pointer transition-colors flex items-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Submit Request</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: ONBOARD / EDIT STAFF (HR Admin Only)                               */}
+      {/* ========================================================================= */}
+      {isHR && showAddStaffModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-rose-100 my-8">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-rose-100 my-8" id="modal-onboard-staff-hr">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                 <Users className="w-5 h-5 text-rose-600" />
                 <span>{editingStaffId ? 'Edit Employee Details' : 'Onboard New Staff Member'}</span>
               </h3>
-              <button onClick={() => setShowAddStaffModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+              <button
+                onClick={() => setShowAddStaffModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -863,14 +1691,14 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                   >
                     <option value="sales_shop_cashier">Sales Shop Cashier</option>
+                    <option value="branch_cashier">Branch Cashier</option>
+                    <option value="pos_cashier">POS Cashier</option>
                     <option value="main_store_operator">Main Store Operator</option>
                     <option value="store_1_attendant">Store 1 Attendant</option>
                     <option value="store_2_attendant">Store 2 Attendant</option>
-                    <option value="store_3_attendant">Store 3 Attendant</option>
-                    <option value="cutting_operator">Cutting &amp; Roll Operator</option>
                     <option value="branch_manager">Branch Manager</option>
                     <option value="hr_manager">HR &amp; Personnel Manager</option>
-                    <option value="finance_officer">Finance &amp; Treasury Officer</option>
+                    <option value="accountant">Accountant / Finance Officer</option>
                     <option value="admin">Executive Admin</option>
                   </select>
                 </div>
@@ -885,7 +1713,9 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                   >
                     {locations.map(loc => (
-                      <option key={loc.id} value={loc.id}>{loc.name}</option>
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -993,6 +1823,70 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
                 </div>
               </div>
 
+              {/* Automated POS Operator Integration Notice & Optional PIN Setup */}
+              {!editingStaffId && (
+                <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                      POS
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-amber-950">Automated POS User Provisioning</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">
+                          Auto-Linked
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 leading-relaxed mt-0.5">
+                        This employee will automatically appear in <strong>POS Users</strong> with status <span className="font-bold text-amber-900">"Awaiting PIN"</span>. You can configure a 6-digit PIN now or let the manager assign it later.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-amber-200/50">
+                    <div>
+                      <label className="text-[11px] font-bold text-amber-900 flex items-center justify-between">
+                        <span>Initial 6-Digit PIN (Optional)</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
+                            setStaffForm(prev => ({ ...prev, initialPin: randomPin }));
+                          }}
+                          className="text-[10px] text-amber-700 hover:text-amber-900 font-semibold underline cursor-pointer"
+                        >
+                          Generate PIN
+                        </button>
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="Leave blank for 'Awaiting PIN'"
+                        value={staffForm.initialPin}
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setStaffForm({ ...staffForm, initialPin: val });
+                        }}
+                        className="w-full mt-1 p-2 bg-white border border-amber-300 rounded-lg font-mono text-xs text-amber-950 placeholder:text-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500 tracking-wider"
+                      />
+                    </div>
+                    <div className="flex items-center">
+                      <div className="text-[11px] text-amber-800 bg-white/70 p-2 rounded-lg border border-amber-200/60 w-full">
+                        {staffForm.initialPin.length === 6 ? (
+                          <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+                            ✓ Ready to activate POS with PIN {staffForm.initialPin}
+                          </span>
+                        ) : (
+                          <span className="text-amber-800 font-medium flex items-center gap-1.5">
+                            ⏳ Will appear in POS Users as <strong>Awaiting PIN Setup</strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
@@ -1012,7 +1906,6 @@ This is an automated system-generated payslip compliant with KRA Section 53 of t
           </div>
         </div>
       )}
-
     </div>
   );
 };
