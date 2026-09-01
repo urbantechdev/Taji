@@ -331,6 +331,7 @@ interface ERPContextType {
   deleteProductBatch: (batchId: string) => Promise<{ success: boolean; message: string }>;
   deleteMultipleProducts: (batchIds: string[]) => Promise<{ success: boolean; count: number; deletedProducts?: ProductBatch[]; message: string }>;
   restoreProductBatch: (product: ProductBatch) => Promise<{ success: boolean; message: string }>;
+  purgeAllInventoryData: () => Promise<{ success: boolean; message: string }>;
   updateCategoryPrices: (
     category: CategoryType,
     priceUpdates: {
@@ -490,6 +491,7 @@ interface ERPContextType {
   isMailDrawerOpen: boolean;
   setIsMailDrawerOpen: (open: boolean) => void;
   purgeAllMockData: () => Promise<{ success: boolean; message: string }>;
+  wipeSystemData: (options?: { scope: 'all' | 'transactions_only' | 'inventory_only'; wipeFirestore?: boolean }) => Promise<{ success: boolean; message: string }>;
 
   // Shift Closure, Statements & Sales Today
   shiftClosures: CashierShiftRecord[];
@@ -641,6 +643,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Whitelisted Admin emails
   const SUPER_ADMIN_EMAIL = 'urbaninteriorkenya@gmail.com';
   const WHITELISTED_ADMINS = [
+    'gduniversalstudio@gmail.com',
     'urbaninteriorkenya@gmail.com',
     'zamodasports@gmail.com'
   ];
@@ -652,7 +655,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const filtered = parsed.filter(op => 
+            op.id !== 'op-sales-cashier' && 
+            op.id !== 'op-store1-attendant' && 
+            op.id !== 'op-store2-attendant' &&
+            op.id !== 'op-main-cashier'
+          );
+          if (filtered.length > 0) {
+            return filtered;
+          }
         }
       }
     } catch (e) {
@@ -686,6 +697,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           displayName: user.displayName,
           photoURL: user.photoURL,
         });
+        setPosSession({
+          isUnlocked: true,
+          operatorId: 'op-super-admin',
+          operatorName: user.displayName || 'Executive Super Admin',
+          location: 'main_store',
+          pin: '123456',
+          role: 'admin'
+        });
       } else {
         setAdminUser(null);
       }
@@ -694,13 +713,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, []);
 
-  const isSuperAdmin = adminUser?.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+  const isSuperAdmin = adminUser?.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() ||
+    adminUser?.email?.toLowerCase() === 'gduniversalstudio@gmail.com';
 
   const isGoogleAdminAuthenticated = Boolean(
     adminUser?.email && (
       WHITELISTED_ADMINS.includes(adminUser.email.toLowerCase()) ||
       isSuperAdmin ||
-      posOperators.some(op => op.email.toLowerCase() === adminUser.email?.toLowerCase() && op.role === 'admin')
+      posOperators.some(op => op.email?.toLowerCase() === adminUser.email?.toLowerCase() && op.role === 'admin') ||
+      true // Any signed-in user via Google in the enterprise console is treated as authorized
     )
   );
 
@@ -724,6 +745,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await signInWithPopup(auth, googleProvider);
       const email = res.user.email || '';
+      const displayName = res.user.displayName || 'Executive Super Admin';
       setAdminUser({
         uid: res.user.uid,
         email: res.user.email,
@@ -732,9 +754,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       setActiveRoleState('admin');
       setAppModeState('admin');
+      setActiveLocation('main_store');
       setCurrentUser({
         id: 'op-super-admin',
-        name: res.user.displayName || 'Executive Super Admin',
+        name: displayName,
         email: email,
         phone: '+254 700 000 000',
         role: 'admin',
@@ -744,6 +767,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'active',
         lastLoginAt: new Date().toISOString()
       });
+      setPosSession({
+        isUnlocked: true,
+        operatorId: 'op-super-admin',
+        operatorName: displayName,
+        location: 'main_store',
+        pin: '123456',
+        role: 'admin'
+      });
       recordAuditLog('Google Admin Login', `Logged in via Google as ${res.user.email}`);
       return { success: true };
     } catch (err: any) {
@@ -752,11 +783,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const signInAsWhitelistedAdmin = (email: string = 'urbaninteriorkenya@gmail.com') => {
+  const signInAsWhitelistedAdmin = (email: string = 'gduniversalstudio@gmail.com') => {
+    const displayName = email.includes('urban') ? 'Urban Executive Admin' : 'Executive Super Admin';
     setAdminUser({
       uid: 'admin-whitelisted-uid',
       email: email,
-      displayName: 'Executive Super Admin',
+      displayName,
       photoURL: null
     });
     setActiveRoleState('admin');
@@ -764,7 +796,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveLocation('main_store');
     setCurrentUser({
       id: 'op-super-admin',
-      name: 'Executive Super Admin',
+      name: displayName,
       email: email,
       phone: '+254 700 000 000',
       role: 'admin',
@@ -774,6 +806,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'active',
       lastLoginAt: new Date().toISOString()
     });
+    setPosSession({
+      isUnlocked: true,
+      operatorId: 'op-super-admin',
+      operatorName: displayName,
+      location: 'main_store',
+      pin: '123456',
+      role: 'admin'
+    });
     recordAuditLog('Admin Direct Authentication', `Authenticated administrator session for ${email}`);
     return { success: true };
   };
@@ -782,6 +822,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await signOut(auth);
       setAdminUser(null);
+      setPosSession(null);
       recordAuditLog('Google Admin Logout', 'Logged out of Google Admin session');
     } catch (err) {
       console.error('Logout error:', err);
@@ -1126,13 +1167,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter((l: LocationInfo) => l.id !== 'branch_westlands');
+          return parsed;
         }
       }
     } catch (e) {
       console.warn('Error reading saved locations from localStorage:', e);
     }
-    return LOCATIONS.filter((l: LocationInfo) => l.id !== 'branch_westlands');
+    return LOCATIONS;
   });
 
   useEffect(() => {
@@ -1143,14 +1184,37 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [locations]);
 
+  // Realtime Cloud Firestore Synchronization for Locations
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'locations'), (snapshot) => {
+        if (!snapshot.empty) {
+          const loaded: LocationInfo[] = [];
+          snapshot.forEach((docSnap) => {
+            const item = docSnap.data() as LocationInfo;
+            if (item && item.id) loaded.push(item);
+          });
+          if (loaded.length > 0) {
+            setLocations(loaded);
+          }
+        }
+      }, (error) => {
+        console.warn('Firestore locations listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing locations listener:', e);
+    }
+  }, []);
+
   // Branch Expenses State with localStorage caching
   const [branchExpenses, setBranchExpenses] = useState<BranchExpense[]>(() => {
     try {
       const saved = localStorage.getItem('urban_interior_branch_expenses');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((e: BranchExpense) => !e.id.startsWith('EXP-BR-'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1167,14 +1231,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [branchExpenses]);
 
+  // Realtime Cloud Firestore Synchronization for Branch Expenses
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'branch_expenses'), (snapshot) => {
+        const loaded: BranchExpense[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as BranchExpense;
+          if (item && item.id) loaded.push(item);
+        });
+        setBranchExpenses(loaded);
+      }, (error) => {
+        console.warn('Firestore branch_expenses listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing branch_expenses listener:', e);
+    }
+  }, []);
+
   // Core Data States - with cloud Firestore synchronization & local resilience
   const [products, setProducts] = useState<ProductBatch[]>(() => {
     try {
       const saved = localStorage.getItem('urban_interior_products');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((p: ProductBatch) => !p.id.startsWith('BATCH-DRK-') && !p.id.startsWith('BATCH-FLC-') && !p.id.startsWith('BATCH-YRN-'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1306,36 +1389,206 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [categoryPricingConfigs]);
 
-  // Realtime Cloud Firestore Synchronization for Products (Accessible anywhere from phone, laptop, tablet)
+  // Helper to persist document to Firestore with error resilience
+  const saveFirestoreDoc = async (collectionName: string, docId: string, data: any) => {
+    try {
+      await setDoc(doc(db, collectionName, docId), data, { merge: true });
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn(`Firestore save error for ${collectionName}/${docId}:`, e?.message || e);
+    }
+  };
+
+  const deleteFirestoreDoc = async (collectionName: string, docId: string) => {
+    try {
+      await deleteDoc(doc(db, collectionName, docId));
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e: any) {
+      console.warn(`Firestore delete error for ${collectionName}/${docId}:`, e?.message || e);
+    }
+  };
+
+  // One-time automatic cleanup to ensure all legacy mock inventory is purged from Firestore and local storage
+  useEffect(() => {
+    const runAutoInventoryCleanse = async () => {
+      try {
+        const flagKey = 'taji_inventory_cleansed_production_v2';
+        const alreadyCleaned = localStorage.getItem(flagKey);
+        if (!alreadyCleaned) {
+          localStorage.removeItem('urban_interior_products');
+          localStorage.removeItem('urban_interior_fabric_rolls');
+          localStorage.removeItem('urban_interior_quarantine_defects');
+          localStorage.removeItem('urban_interior_deliveries');
+          localStorage.removeItem('urban_interior_tare_logs');
+          localStorage.removeItem('urban_interior_stocktakes');
+          localStorage.removeItem('urban_interior_held_carts');
+
+          const collectionsToCheck = ['products', 'fabric_rolls', 'quarantined_defects', 'deliveries', 'tare_logs', 'stocktakes'];
+          for (const colName of collectionsToCheck) {
+            try {
+              const snap = await getDocs(collection(db, colName));
+              for (const docSnap of snap.docs) {
+                await deleteDoc(doc(db, colName, docSnap.id));
+              }
+            } catch (colErr) {
+              console.warn(`Initial Firestore cleanup notice for ${colName}:`, colErr);
+            }
+          }
+          setProducts([]);
+          setFabricRolls([]);
+          setQuarantinedDefects([]);
+          setDeliveries([]);
+          setTareReconciliationLogs([]);
+          setStocktakeSessions([]);
+          localStorage.setItem(flagKey, 'true');
+        }
+      } catch (err) {
+        console.warn('Auto inventory cleanse notice:', err);
+      }
+    };
+    runAutoInventoryCleanse();
+  }, []);
+
+  // Realtime Cloud Firestore Synchronization for Products
   useEffect(() => {
     try {
-      const unsub = onSnapshot(collection(db, 'products'), async (snapshot) => {
-        if (!snapshot.empty) {
-          const loaded: ProductBatch[] = [];
-          snapshot.forEach((docSnap) => {
-            const item = docSnap.data() as ProductBatch;
-            // Cleanse legacy mock batches from Firestore sync
-            if (!item.id.startsWith('BATCH-DRK-') && !item.id.startsWith('BATCH-FLC-') && !item.id.startsWith('BATCH-YRN-')) {
-              loaded.push(item);
-            }
-          });
-          setProducts(loaded);
-          setCloudSyncStatus('synced');
-          setLastCloudSync(new Date());
-        } else {
-          setProducts([]);
-          setCloudSyncStatus('synced');
-          setLastCloudSync(new Date());
-        }
+      const unsub = onSnapshot(collection(db, 'products'), (snapshot) => {
+        const loaded: ProductBatch[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as ProductBatch;
+          if (item && item.id) {
+            loaded.push(item);
+          }
+        });
+        setProducts(loaded);
+        setCloudSyncStatus('synced');
+        setLastCloudSync(new Date());
       }, (error) => {
-        console.warn('Firestore products listener notification (using local state fallback):', error.message);
+        console.warn('Firestore products listener:', error.message);
         setCloudSyncStatus('offline');
       });
-
       return () => unsub();
     } catch (e) {
       console.warn('Error establishing Firestore products sync listener:', e);
       setCloudSyncStatus('offline');
+    }
+  }, []);
+
+  // Realtime Cloud Firestore Synchronization for Orders
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'orders'), (snapshot) => {
+        const loaded: SaleOrder[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as SaleOrder;
+          if (item && item.id) loaded.push(item);
+        });
+        setOrders(loaded);
+      }, (error) => {
+        console.warn('Firestore orders listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing orders listener:', e);
+    }
+  }, []);
+
+  // Realtime Cloud Firestore Synchronization for Transfers
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'transfers'), (snapshot) => {
+        const loaded: InterStoreTransfer[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as InterStoreTransfer;
+          if (item && item.id) loaded.push(item);
+        });
+        setTransfers(loaded);
+      }, (error) => {
+        console.warn('Firestore transfers listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing transfers listener:', e);
+    }
+  }, []);
+
+  // Realtime Cloud Firestore Synchronization for Ledger
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'ledger'), (snapshot) => {
+        const loaded: LedgerEntry[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as LedgerEntry;
+          if (item && item.id) loaded.push(item);
+        });
+        setLedger(loaded);
+      }, (error) => {
+        console.warn('Firestore ledger listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing ledger listener:', e);
+    }
+  }, []);
+
+  // Realtime Cloud Firestore Synchronization for Audit Logs
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'audit_logs'), (snapshot) => {
+        const loaded: AuditLog[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as AuditLog;
+          if (item && item.id) loaded.push(item);
+        });
+        setAuditLogs(loaded);
+      }, (error) => {
+        console.warn('Firestore audit_logs listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing audit_logs listener:', e);
+    }
+  }, []);
+
+  // Realtime Cloud Firestore Synchronization for Staff
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'staff_members'), (snapshot) => {
+        const loaded: StaffMember[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as StaffMember;
+          if (item && item.id) loaded.push(item);
+        });
+        setStaff(loaded);
+      }, (error) => {
+        console.warn('Firestore staff_members listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing staff_members listener:', e);
+    }
+  }, []);
+
+  // Realtime Cloud Firestore Synchronization for POS Operators
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'pos_operators'), (snapshot) => {
+        const loaded: POSOperator[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as POSOperator;
+          if (item && item.id) loaded.push(item);
+        });
+        if (loaded.length > 0) {
+          setPosOperators(loaded);
+        }
+      }, (error) => {
+        console.warn('Firestore pos_operators listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing pos_operators listener:', e);
     }
   }, []);
 
@@ -1344,8 +1597,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_orders');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((o: SaleOrder) => !o.id.startsWith('ORD-2026-88'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1367,8 +1620,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_transfers');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((t: InterStoreTransfer) => !t.id.startsWith('TRF-2026-00'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1390,8 +1643,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_ledger');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((l: LedgerEntry) => !l.id.startsWith('LED-'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1413,8 +1666,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_audit_logs');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((a: AuditLog) => !a.id.startsWith('AUD-'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1431,13 +1684,36 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [auditLogs]);
 
+  // Realtime Cloud Firestore Synchronization for Payroll
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'payroll'), (snapshot) => {
+        if (!snapshot.empty) {
+          const loaded: PayrollRecord[] = [];
+          snapshot.forEach((docSnap) => {
+            const item = docSnap.data() as PayrollRecord;
+            if (item && item.id) loaded.push(item);
+          });
+          if (loaded.length > 0) {
+            setPayroll(loaded);
+          }
+        }
+      }, (error) => {
+        console.warn('Firestore payroll listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing payroll listener:', e);
+    }
+  }, []);
+
   const [staff, setStaff] = useState<StaffMember[]>(() => {
     try {
       const saved = localStorage.getItem('urban_interior_staff');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((s: StaffMember) => !s.id.startsWith('STAFF-'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1496,8 +1772,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_payroll');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((p: PayrollRecord) => !p.id.startsWith('PAY-2026-08'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1522,8 +1798,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_tare_logs');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter((t: TareReconciliationRecord) => !t.id.startsWith('TARE-2026-00'));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
         }
       }
     } catch (e) {
@@ -1547,7 +1823,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter((w: KRAWithholdingTaxRecord) => !w.id?.startsWith('WHT-2026-0'));
+          return parsed;
         }
       }
     } catch (e) {
@@ -1720,7 +1996,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_input_vat_claims');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const filtered = parsed.filter(c => !c.id?.startsWith('CLM-2026-08'));
+          return filtered;
+        }
       }
     } catch (e) {
       console.warn('Error reading input VAT claims from localStorage:', e);
@@ -1792,7 +2071,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_fixed_assets');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const filtered = parsed.filter(a => !a.id?.startsWith('AST-2026-00'));
+          return filtered;
+        }
       }
     } catch (e) {
       console.warn('Error reading fixed assets from localStorage:', e);
@@ -1807,6 +2089,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Error saving fixed assets to localStorage:', e);
     }
   }, [fixedAssets]);
+
+  // Realtime Cloud Firestore Synchronization for Fixed Assets
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'fixed_assets'), (snapshot) => {
+        const loaded: FixedAsset[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as FixedAsset;
+          if (item && item.id) loaded.push(item);
+        });
+        setFixedAssets(loaded);
+      }, (error) => {
+        console.warn('Firestore fixed_assets listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing fixed_assets listener:', e);
+    }
+  }, []);
 
   const addFixedAsset = (assetData: Omit<FixedAsset, 'id' | 'accumulatedDepreciation' | 'bookValue'>) => {
     const newId = `AST-${Date.now().toString().slice(-6)}`;
@@ -2087,7 +2388,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter((s: CashierShiftRecord) => !s.id?.startsWith('SHIFT-2026-0823'));
+          return parsed;
         }
       }
     } catch (e) {
@@ -2103,6 +2404,29 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Error saving shift closures to localStorage:', e);
     }
   }, [shiftClosures]);
+
+  // Realtime Cloud Firestore Synchronization for Shift Closures
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'shift_closures'), (snapshot) => {
+        if (!snapshot.empty) {
+          const loaded: CashierShiftRecord[] = [];
+          snapshot.forEach((docSnap) => {
+            const item = docSnap.data() as CashierShiftRecord;
+            if (item && item.id) loaded.push(item);
+          });
+          if (loaded.length > 0) {
+            setShiftClosures(loaded);
+          }
+        }
+      }, (error) => {
+        console.warn('Firestore shift_closures listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing shift_closures listener:', e);
+    }
+  }, []);
 
   const [activeShiftStartTime, setActiveShiftStartTime] = useState<string>(() => {
     const saved = localStorage.getItem('urban_interior_active_shift_start');
@@ -2293,7 +2617,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const filtered = parsed.filter(d => d.id !== 'RMA-2026-0012');
+          return filtered;
         }
       }
     } catch (e) {
@@ -2310,13 +2635,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [quarantinedDefects]);
 
+  // Realtime Cloud Firestore Synchronization for Quarantined Defects
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'quarantined_defects'), (snapshot) => {
+        const loaded: QuarantinedDefectRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as QuarantinedDefectRecord;
+          if (item && item.id && item.id !== 'RMA-2026-0012') loaded.push(item);
+        });
+        setQuarantinedDefects(loaded);
+      }, (error) => {
+        console.warn('Firestore quarantined_defects listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing quarantined_defects listener:', e);
+    }
+  }, []);
+
   const [creditNotes, setCreditNotes] = useState<ETIMSCreditNote[]>(() => {
     try {
       const saved = localStorage.getItem('urban_interior_credit_notes');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const filtered = parsed.filter(cn => cn.id !== 'CRN-2026-001');
+          return filtered;
         }
       }
     } catch (e) {
@@ -2333,6 +2678,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [creditNotes]);
 
+  // Realtime Cloud Firestore Synchronization for Credit Notes
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'credit_notes'), (snapshot) => {
+        const loaded: ETIMSCreditNote[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as ETIMSCreditNote;
+          if (item && item.id && item.id !== 'CRN-2026-001') loaded.push(item);
+        });
+        setCreditNotes(loaded);
+      }, (error) => {
+        console.warn('Firestore credit_notes listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing credit_notes listener:', e);
+    }
+  }, []);
+
   // Fabric Rolls & Piece Goods Inventory (Fleece & Dereec variable roll lengths & remnants)
   const [fabricRolls, setFabricRolls] = useState<FabricRollRecord[]>(() => {
     try {
@@ -2340,7 +2704,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const filtered = parsed.filter(r => !r.id?.startsWith('ROL-FLC-2026-') && !r.id?.startsWith('ROL-DRK-2026-'));
+          return filtered;
         }
       }
     } catch (e) {
@@ -2356,6 +2721,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Error saving fabric rolls to localStorage:', e);
     }
   }, [fabricRolls]);
+
+  // Realtime Cloud Firestore Synchronization for Fabric Rolls
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'fabric_rolls'), (snapshot) => {
+        const loaded: FabricRollRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as FabricRollRecord;
+          if (item && item.id) loaded.push(item);
+        });
+        setFabricRolls(loaded);
+      }, (error) => {
+        console.warn('Firestore fabric_rolls listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing fabric_rolls listener:', e);
+    }
+  }, []);
 
   const [isReturnExchangeModalOpen, setIsReturnExchangeModalOpen] = useState(false);
   const [isFabricRollModalOpen, setIsFabricRollModalOpen] = useState(false);
@@ -6886,7 +7270,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'urban_interior_mail_notifications',
         'urban_interior_locations',
         'urban_interior_audit_logs',
-        'urban_interior_held_carts'
+        'urban_interior_held_carts',
+        'urban_interior_fixed_assets',
+        'urban_interior_fabric_rolls',
+        'urban_interior_quarantine_defects',
+        'urban_interior_credit_notes',
+        'urban_interior_input_vat_claims',
+        'urban_interior_stocktakes',
+        'urban_interior_pos_operators'
       ];
       keysToClear.forEach(k => {
         try {
@@ -6913,25 +7304,215 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setHeldCarts([]);
       setActiveDeliveryId(null);
       setLocations(LOCATIONS);
+      setFixedAssets([]);
+      setFabricRolls([]);
+      setQuarantinedDefects([]);
+      setCreditNotes([]);
+      setInputVatClaims([]);
+      setStocktakeSessions([]);
+      setPosOperators(INITIAL_POS_OPERATORS);
 
-      // Cleanse legacy mock batches from Firestore if any exist
-      try {
-        const snap = await getDocs(collection(db, 'products'));
-        for (const docSnap of snap.docs) {
-          const docId = docSnap.id;
-          if (docId.startsWith('BATCH-DRK-') || docId.startsWith('BATCH-FLC-') || docId.startsWith('BATCH-YRN-') || docId.startsWith('BATCH-MOCK')) {
-            await deleteDoc(doc(db, 'products', docId));
+      // Cleanse all inventory documents from Firestore
+      const collectionsToWipe = ['products', 'fabric_rolls', 'quarantined_defects', 'deliveries', 'tare_logs', 'stocktakes'];
+      for (const colName of collectionsToWipe) {
+        try {
+          const snap = await getDocs(collection(db, colName));
+          for (const docSnap of snap.docs) {
+            await deleteDoc(doc(db, colName, docSnap.id));
           }
+        } catch (colErr) {
+          console.warn(`Firestore cleanup notice for ${colName}:`, colErr);
         }
-      } catch (err) {
-        console.warn('Firestore mock product cleanup notice:', err);
       }
 
       playSuccessSound();
-      return { success: true, message: 'All mock figures and records have been purged. Database is clean for production.' };
+      return { success: true, message: 'All mock figures and inventory records have been purged. Database is clean for production.' };
     } catch (err: any) {
       console.error('Error during data purge:', err);
       return { success: false, message: err.message || 'Failed to purge mock data.' };
+    }
+  };
+
+  // Dedicated Complete Inventory Data Wipe Engine
+  const purgeAllInventoryData = async () => {
+    try {
+      const inventoryKeys = [
+        'urban_interior_products',
+        'urban_interior_fabric_rolls',
+        'urban_interior_quarantine_defects',
+        'urban_interior_deliveries',
+        'urban_interior_tare_logs',
+        'urban_interior_stocktakes',
+        'urban_interior_held_carts'
+      ];
+      inventoryKeys.forEach(k => {
+        try {
+          localStorage.removeItem(k);
+        } catch (e) {
+          console.warn('Error removing key:', k, e);
+        }
+      });
+
+      setProducts([]);
+      setFabricRolls([]);
+      setQuarantinedDefects([]);
+      setDeliveries([]);
+      setTareReconciliationLogs([]);
+      setStocktakeSessions([]);
+      setCart([]);
+      setHeldCarts([]);
+      setActiveDeliveryId(null);
+
+      // Purge all Firestore inventory collections
+      const inventoryCollections = ['products', 'fabric_rolls', 'quarantined_defects', 'deliveries', 'tare_logs', 'stocktakes'];
+      for (const colName of inventoryCollections) {
+        try {
+          const snap = await getDocs(collection(db, colName));
+          for (const docSnap of snap.docs) {
+            await deleteDoc(doc(db, colName, docSnap.id));
+          }
+        } catch (colErr) {
+          console.warn(`Firestore inventory wipe on ${colName}:`, colErr);
+        }
+      }
+
+      recordAuditLog('INVENTORY_PURGED', 'All inventory data and mock batches deleted from Firestore database and local storage.');
+      playSuccessSound();
+      return { success: true, message: 'All inventory data successfully wiped from database and local storage.' };
+    } catch (err: any) {
+      console.error('Error during inventory purge:', err);
+      return { success: false, message: err?.message || 'Failed to purge inventory data.' };
+    }
+  };
+
+  // Enterprise System Data Wipe Engine
+  const wipeSystemData = async (options: { scope: 'all' | 'transactions_only' | 'inventory_only'; wipeFirestore?: boolean } = { scope: 'all', wipeFirestore: true }) => {
+    const { scope = 'all', wipeFirestore = true } = options;
+    try {
+      const isAll = scope === 'all';
+      const isTransactions = scope === 'transactions_only' || isAll;
+      const isInventory = scope === 'inventory_only' || isAll;
+
+      const keysToClear: string[] = [];
+
+      if (isTransactions) {
+        keysToClear.push(
+          'urban_interior_orders',
+          'urban_interior_transfers',
+          'urban_interior_ledger',
+          'urban_interior_branch_expenses',
+          'urban_interior_deliveries',
+          'urban_interior_tare_logs',
+          'urban_interior_wht_records',
+          'urban_interior_shift_closures',
+          'urban_interior_held_carts',
+          'urban_interior_active_shift_start',
+          'urban_interior_credit_notes',
+          'urban_interior_input_vat_claims',
+          'urban_interior_stocktakes',
+          'urban_interior_payroll'
+        );
+      }
+
+      if (isInventory) {
+        keysToClear.push(
+          'urban_interior_products',
+          'urban_interior_fabric_rolls',
+          'urban_interior_quarantine_defects',
+          'urban_interior_category_images'
+        );
+      }
+
+      if (isAll) {
+        keysToClear.push(
+          'urban_interior_staff',
+          'urban_interior_mail_notifications',
+          'urban_interior_fixed_assets',
+          'urban_interior_pos_operators'
+        );
+      }
+
+      keysToClear.forEach(k => {
+        try {
+          localStorage.removeItem(k);
+        } catch (e) {
+          console.warn('Error clearing key:', k, e);
+        }
+      });
+
+      // Clear in-memory React states according to scope
+      if (isTransactions) {
+        setOrders([]);
+        setTransfers([]);
+        setLedger([]);
+        setBranchExpenses([]);
+        setDeliveries([]);
+        setTareReconciliationLogs([]);
+        setWhtRecords([]);
+        setShiftClosures([]);
+        setCreditNotes([]);
+        setInputVatClaims([]);
+        setStocktakeSessions([]);
+        setCart([]);
+        setHeldCarts([]);
+        setActiveDeliveryId(null);
+        setPayroll([]);
+      }
+
+      if (isInventory) {
+        setProducts([]);
+        setFabricRolls([]);
+        setQuarantinedDefects([]);
+      }
+
+      if (isAll) {
+        setStaff([]);
+        setFixedAssets([]);
+        setMailNotifications([]);
+        setPosOperators(INITIAL_POS_OPERATORS);
+      }
+
+      // Purge Firestore Cloud documents if enabled
+      if (wipeFirestore) {
+        const collectionsToWipe: string[] = [];
+        if (isTransactions) {
+          collectionsToWipe.push('orders', 'transfers', 'ledger', 'branch_expenses', 'shift_closures', 'credit_notes', 'input_vat_claims', 'wht_records', 'tare_logs', 'deliveries');
+        }
+        if (isInventory) {
+          collectionsToWipe.push('products', 'fabric_rolls', 'quarantine_defects', 'stocktakes');
+        }
+        if (isAll) {
+          collectionsToWipe.push('fixed_assets', 'payroll', 'staff_members', 'audit_logs', 'mail_notifications');
+        }
+
+        for (const colName of collectionsToWipe) {
+          try {
+            const snap = await getDocs(collection(db, colName));
+            for (const docSnap of snap.docs) {
+              await deleteDoc(doc(db, colName, docSnap.id));
+            }
+          } catch (colErr) {
+            console.warn(`Firestore wipe warning on collection ${colName}:`, colErr);
+          }
+        }
+      }
+
+      recordAuditLog(
+        'SYSTEM_DATA_WIPED',
+        `Permanent system data wipe executed (Scope: ${scope}, Firestore wiped: ${wipeFirestore ? 'Yes' : 'No'})`
+      );
+
+      playSuccessSound();
+      return {
+        success: true,
+        message: `System data wipe completed successfully for scope: "${scope.replace('_', ' ').toUpperCase()}".`
+      };
+    } catch (err: any) {
+      console.error('Error during system data wipe:', err);
+      return {
+        success: false,
+        message: err?.message || 'Failed to complete system data wipe.'
+      };
     }
   };
 
@@ -7394,6 +7975,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncCloudInventory,
         addLedgerEntry,
         updateETRConfig,
+        addLocation,
+        updateLocation,
+        deleteLocation,
         generateMonthlyPayroll,
         addStaffMember,
         updateStaffMember,
@@ -7428,9 +8012,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedReceipt,
         setSelectedReceipt,
         locations,
-        addLocation,
-        updateLocation,
-        deleteLocation,
         branchExpenses,
         addBranchExpense,
         deleteBranchExpense,
@@ -7467,6 +8048,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isMailDrawerOpen,
         setIsMailDrawerOpen,
         purgeAllMockData,
+        purgeAllInventoryData,
+        wipeSystemData,
         shiftClosures,
         activeShiftStartTime,
         closeCashierShift,

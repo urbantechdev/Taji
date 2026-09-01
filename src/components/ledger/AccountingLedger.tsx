@@ -205,23 +205,7 @@ export const AccountingLedger: React.FC = () => {
   const [newTaxableAmount, setNewTaxableAmount] = useState('');
 
   // eTIMS Credit Notes State
-  const [creditNotes, setCreditNotes] = useState<ETIMSCreditNote[]>([
-    {
-      id: 'CRN-2026-001',
-      originalInvoiceNo: 'INV-2026-8891',
-      originalCuSerial: 'KRA-CU-8812930',
-      customerName: 'Eldoret Tailoring Ltd',
-      customerKraPin: 'P051982341Z',
-      creditReason: 'Damaged Fabric Return',
-      originalAmount: 18400,
-      creditAmount: 4600,
-      vatCredited: 634.48,
-      netCredited: 3965.52,
-      issuedBy: 'James Mwangi (Accountant)',
-      timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
-      fiscalSignature: 'KRA-CRN-SIG-991204'
-    }
-  ]);
+  const [creditNotes, setCreditNotes] = useState<ETIMSCreditNote[]>([]);
   const [isCreditNoteModalOpen, setIsCreditNoteModalOpen] = useState(false);
   const [selectedInvoiceForCredit, setSelectedInvoiceForCredit] = useState<string>('');
   const [creditReason, setCreditReason] = useState<ETIMSCreditNote['creditReason']>('Damaged Fabric Return');
@@ -685,45 +669,45 @@ export const AccountingLedger: React.FC = () => {
       <div className="bg-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-2 sm:space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-4">
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="p-1.5 sm:p-2.5 bg-rose-50 text-rose-600 rounded-lg sm:rounded-xl border border-rose-100 shrink-0">
-              <BookOpenCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="p-2 sm:p-3 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 shrink-0">
+              <BookOpenCheck className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
             <div>
-              <h2 className="font-extrabold text-slate-900 text-sm sm:text-lg tracking-tight">
+              <h2 className="font-black text-slate-900 text-sm sm:text-base tracking-tight">
                 Autonomous Finance Manager &amp; Accounting Engine
               </h2>
-              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2 sm:line-clamp-none">
+              <p className="text-[10.5px] sm:text-xs text-slate-500 mt-0.5 line-clamp-2 sm:line-clamp-none">
                 Self-balancing double-entry ledger, live 3-statement financial modeling (Balance Sheet, P&amp;L, Cash Flow), and statutory KRA eTIMS compliance.
               </p>
             </div>
           </div>
 
           {/* Master Export Toolbar */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => exportGeneralLedgerPDF(filteredLedger, locations, { location: selectedLocation, category: selectedCategory })}
-              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px] rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
               title="Download Full General Ledger as PDF"
             >
-              <FileDown className="w-4 h-4 text-rose-600" />
+              <FileDown className="w-5 h-5 text-rose-600 shrink-0" />
               <span>Ledger PDF</span>
             </button>
 
             <button
               onClick={() => exportGeneralLedgerCSV(filteredLedger, locations)}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-[11px] rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
               title="Export Full General Ledger as CSV"
             >
-              <Download className="w-4 h-4 text-slate-600" />
+              <Download className="w-5 h-5 text-slate-600 shrink-0" />
               <span>Ledger CSV</span>
             </button>
 
             {canManageJournal && (
               <button
                 onClick={() => setIsJournalModalOpen(true)}
-                className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer hover:scale-102 whitespace-nowrap"
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <Plus className="w-5 h-5 stroke-[2.5] shrink-0" />
                 <span>Post Journal Voucher</span>
               </button>
             )}
@@ -731,13 +715,13 @@ export const AccountingLedger: React.FC = () => {
             {canManageJournal && (
               <button
                 onClick={() => setIsReturnExchangeModalOpen(true)}
-                className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
+                className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white font-bold text-[11px] rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer hover:scale-102 whitespace-nowrap"
                 title="Manage Damaged Yarn Returns, Exchanges, Quarantine Ledger & eTIMS Credit Notes"
               >
-                <RotateCcw className="w-4 h-4 text-amber-200" />
+                <RotateCcw className="w-5 h-5 text-amber-200 shrink-0" />
                 <span>RMA Returns &amp; Credit Notes</span>
                 {quarantinedDefects.length > 0 && (
-                  <span className="bg-amber-300 text-slate-900 font-black text-[10px] px-1.5 py-0.2 rounded-full">
+                  <span className="bg-amber-300 text-slate-900 font-black text-[9px] px-1.5 py-0.2 rounded-full shrink-0">
                     {quarantinedDefects.length}
                   </span>
                 )}
@@ -747,89 +731,89 @@ export const AccountingLedger: React.FC = () => {
         </div>
 
         {/* Sub Navigation Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-3 border-t border-slate-100 pb-1 scrollbar-thin">
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-slate-100 pb-1 scrollbar-thin">
           <button
             onClick={() => setActiveSubTab('cfo_advisory')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeSubTab === 'cfo_advisory'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <Sparkles className="w-5 h-5 text-amber-300 shrink-0" />
             <span>Virtual CFO Intelligence</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('financial_statements')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeSubTab === 'financial_statements'
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60'
             }`}
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 group-hover:text-emerald-700" />
+            <FileSpreadsheet className="w-5 h-5 text-emerald-600 group-hover:text-emerald-700 shrink-0" />
             <span>Financial Statements &amp; Channel Settlement</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('general_ledger')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeSubTab === 'general_ledger'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
             }`}
           >
-            <Scale className="w-3.5 h-3.5" />
+            <Scale className="w-5 h-5 shrink-0" />
             <span>General Ledger &amp; Trial Balance</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('balance_sheet')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeSubTab === 'balance_sheet'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
             }`}
           >
-            <Building2 className="w-3.5 h-3.5" />
+            <Building2 className="w-5 h-5 shrink-0" />
             <span>Live Balance Sheet</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('income_statement')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeSubTab === 'income_statement'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
             }`}
           >
-            <TrendingUp className="w-3.5 h-3.5" />
+            <TrendingUp className="w-5 h-5 shrink-0" />
             <span>Income Statement (P&amp;L)</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('cash_flow')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeSubTab === 'cash_flow'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
             }`}
           >
-            <Wallet className="w-3.5 h-3.5" />
+            <Wallet className="w-5 h-5 shrink-0" />
             <span>Cash Flow Statement</span>
           </button>
 
           {canGenerateTax && (
             <button
               onClick={() => setActiveSubTab('tax_engine')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeSubTab === 'tax_engine'
                   ? 'bg-rose-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
               }`}
             >
-              <Receipt className="w-3.5 h-3.5" />
+              <Receipt className="w-5 h-5 shrink-0" />
               <span>KRA Tax &amp; iTax Compliance</span>
             </button>
           )}
@@ -837,26 +821,26 @@ export const AccountingLedger: React.FC = () => {
           {canReconcile && (
             <button
               onClick={() => setActiveSubTab('bank_reconciliation')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeSubTab === 'bank_reconciliation'
                   ? 'bg-rose-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
               }`}
             >
-              <CreditCard className="w-3.5 h-3.5" />
+              <CreditCard className="w-5 h-5 shrink-0" />
               <span>Bank &amp; M-Pesa Reconciliation</span>
             </button>
           )}
 
           <button
             onClick={() => setActiveSubTab('fixed_assets')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeSubTab === 'fixed_assets'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
             }`}
           >
-            <Building className="w-3.5 h-3.5" />
+            <Building className="w-5 h-5 shrink-0" />
             <span>Fixed Asset Register &amp; Depreciation</span>
           </button>
         </div>
@@ -979,9 +963,9 @@ export const AccountingLedger: React.FC = () => {
             
             {/* Pillar 1: Tax Optimization & KRA Strategy */}
             <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3 card-hover-effect">
-              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
-                  <Receipt className="w-4 h-4" />
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl">
+                  <Receipt className="w-6 h-6 stroke-[2.2]" />
                 </div>
                 <div>
                   <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Automated Tax Optimization</h4>
@@ -996,7 +980,7 @@ export const AccountingLedger: React.FC = () => {
                   'Utilize capital allowances on cutting machinery to reduce taxable corporate income (CIT 30%).'
                 ]).map((tip, idx) => (
                   <div key={idx} className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/60 text-slate-700 flex items-start gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <span className="leading-snug">{tip}</span>
                   </div>
                 ))}
@@ -1005,9 +989,9 @@ export const AccountingLedger: React.FC = () => {
 
             {/* Pillar 2: Working Capital & Stock Turnover */}
             <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3 card-hover-effect">
-              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-                <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
-                  <TrendingUp className="w-4 h-4" />
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl">
+                  <TrendingUp className="w-6 h-6 stroke-[2.2]" />
                 </div>
                 <div>
                   <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Working Capital Acceleration</h4>
@@ -1022,7 +1006,7 @@ export const AccountingLedger: React.FC = () => {
                   'Maintain a 45-day emergency liquidity reserve in separate operational sub-account.'
                 ]).map((action, idx) => (
                   <div key={idx} className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/60 text-slate-700 flex items-start gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span className="leading-snug">{action}</span>
                   </div>
                 ))}
@@ -1031,61 +1015,9 @@ export const AccountingLedger: React.FC = () => {
 
             {/* Pillar 3: Cost Rationalization & 30-Day Outlook */}
             <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3 card-hover-effect">
-              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
-                  <Receipt className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Automated Tax Optimization</h4>
-                  <p className="text-[10px] text-slate-500">Zero-penalty KRA mitigation rules</p>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                {(cfoData?.taxOptimizationPlan || [
-                  'Reconcile raw material input VAT claims before filing the monthly KRA VAT-3 return by the 20th.',
-                  'Maintain digital transfer delivery notes for inter-store stock movements to support audit trails.',
-                  'Utilize capital allowances on cutting machinery to reduce taxable corporate income (CIT 30%).'
-                ]).map((tip, idx) => (
-                  <div key={idx} className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/60 text-slate-700 flex items-start gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                    <span className="leading-snug">{tip}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Pillar 2: Working Capital & Stock Turnover */}
-            <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3">
-              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-                <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Working Capital Acceleration</h4>
-                  <p className="text-[10px] text-slate-500">Unlocking trapped inventory cash</p>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-xs">
-                {(cfoData?.workingCapitalActions || [
-                  'Automate replenishment of high-velocity Dereck weaves to avoid stockouts at retail shops.',
-                  'Bundle slower-moving yarn skeins into multi-roll promotional packages for instant cash generation.',
-                  'Maintain a 45-day emergency liquidity reserve in separate operational sub-account.'
-                ]).map((action, idx) => (
-                  <div key={idx} className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/60 text-slate-700 flex items-start gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                    <span className="leading-snug">{action}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Pillar 3: Cost Rationalization & 30-Day Outlook */}
-            <div className="bg-white p-5 rounded-2xl border border-rose-100 shadow-xs space-y-3">
-              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-                <div className="p-2 bg-rose-100 text-rose-800 rounded-xl">
-                  <Scale className="w-4 h-4" />
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                <div className="p-2.5 bg-rose-100 text-rose-800 rounded-xl">
+                  <Scale className="w-6 h-6 stroke-[2.2]" />
                 </div>
                 <div>
                   <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider">Cost Discipline &amp; Overheads</h4>
@@ -1109,7 +1041,7 @@ export const AccountingLedger: React.FC = () => {
                   </div>
                 </div>
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-600 flex items-start gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
                   <span className="leading-snug">Current Operating Expense ratio is optimized at ~{((incomeStatement.operatingExpenses.totalOperatingExpenses / (totalGrossRevenue || 1)) * 100).toFixed(1)}% of gross sales.</span>
                 </div>
               </div>
@@ -1290,21 +1222,21 @@ export const AccountingLedger: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {ledgerViewMode === 'journal' ? (
                 <>
                   <button
                     onClick={() => exportGeneralLedgerPDF(filteredLedger, locations, { location: selectedLocation, category: selectedCategory })}
-                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px] rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                   >
-                    <FileDown className="w-3.5 h-3.5 text-rose-600" />
+                    <FileDown className="w-5 h-5 text-rose-600 shrink-0" />
                     <span>Download PDF</span>
                   </button>
                   <button
                     onClick={() => exportGeneralLedgerCSV(filteredLedger, locations)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-[11px] rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                   >
-                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                    <Download className="w-5 h-5 text-slate-600 shrink-0" />
                     <span>Download CSV</span>
                   </button>
                 </>
@@ -1312,16 +1244,16 @@ export const AccountingLedger: React.FC = () => {
                 <>
                   <button
                     onClick={() => exportTrialBalancePDF(trialBalanceItems)}
-                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px] rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                   >
-                    <FileDown className="w-3.5 h-3.5 text-rose-600" />
+                    <FileDown className="w-5 h-5 text-rose-600 shrink-0" />
                     <span>Trial Balance PDF</span>
                   </button>
                   <button
                     onClick={() => exportTrialBalanceCSV(trialBalanceItems)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-[11px] rounded-xl flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                   >
-                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                    <Download className="w-5 h-5 text-slate-600 shrink-0" />
                     <span>Trial Balance CSV</span>
                   </button>
                 </>
@@ -1530,22 +1462,22 @@ export const AccountingLedger: React.FC = () => {
                 <h3 className="font-bold text-slate-900 text-base">Statement of Financial Position (Balance Sheet)</h3>
                 <p className="text-xs text-slate-500">As at {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} • Multi-Branch Consolidated</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-full border border-emerald-200">
                   Total Assets = Total Liabilities + Equity (KSh {balanceSheet.totalAssets.toLocaleString()})
                 </span>
                 <button
                   onClick={() => exportBalanceSheetPDF(balanceSheet)}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
                 >
-                  <FileDown className="w-3.5 h-3.5" />
+                  <FileDown className="w-5 h-5 shrink-0" />
                   <span>PDF Statement</span>
                 </button>
                 <button
                   onClick={() => exportBalanceSheetCSV(balanceSheet)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                  <Download className="w-5 h-5 text-slate-600 shrink-0" />
                   <span>CSV File</span>
                 </button>
               </div>
@@ -1671,22 +1603,22 @@ export const AccountingLedger: React.FC = () => {
                 <h3 className="font-bold text-slate-900 text-base">Statement of Comprehensive Income (Profit &amp; Loss)</h3>
                 <p className="text-xs text-slate-500">Live Operating Performance • Multi-Branch Consolidated</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-full border border-emerald-200">
                   Gross Margin: {incomeStatement.grossMarginPercent}% • Net Margin: {incomeStatement.netMarginPercent}%
                 </span>
                 <button
                   onClick={() => exportIncomeStatementPDF(incomeStatement)}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
                 >
-                  <FileDown className="w-3.5 h-3.5" />
+                  <FileDown className="w-5 h-5 shrink-0" />
                   <span>PDF Statement</span>
                 </button>
                 <button
                   onClick={() => exportIncomeStatementCSV(incomeStatement)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                  <Download className="w-5 h-5 text-slate-600 shrink-0" />
                   <span>CSV File</span>
                 </button>
               </div>
@@ -1778,22 +1710,22 @@ export const AccountingLedger: React.FC = () => {
                 <h3 className="font-bold text-slate-900 text-base">Statement of Cash Flows (Direct Method)</h3>
                 <p className="text-xs text-slate-500">Net Operating, Investing and Financing Cash Flow Trajectory</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-full border border-emerald-200">
                   Closing Cash: KSh {cashFlow.closingCashPosition.toLocaleString()}
                 </span>
                 <button
                   onClick={() => exportCashFlowPDF(cashFlow)}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
                 >
-                  <FileDown className="w-3.5 h-3.5" />
+                  <FileDown className="w-5 h-5 shrink-0" />
                   <span>PDF Statement</span>
                 </button>
                 <button
                   onClick={() => exportCashFlowCSV(cashFlow)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <Download className="w-3.5 h-3.5 text-slate-600" />
+                  <Download className="w-5 h-5 text-slate-600 shrink-0" />
                   <span>CSV File</span>
                 </button>
               </div>
@@ -1878,13 +1810,13 @@ export const AccountingLedger: React.FC = () => {
             </div>
 
             {/* Quick Export Master Menu */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => exportKRAVat3PDF(orders, etrConfig)}
-                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[11px] rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 title="Download Official KRA VAT-3 Return in PDF"
               >
-                <FileDown className="w-4 h-4" />
+                <FileDown className="w-5 h-5 shrink-0" />
                 <span>VAT-3 Return PDF</span>
               </button>
               <button
@@ -1892,33 +1824,33 @@ export const AccountingLedger: React.FC = () => {
                   const csv = generateKRAVat3CSV(orders, etrConfig.taxPin);
                   downloadCSV(`KRA_VAT3_Monthly_Return_${new Date().toISOString().split('T')[0]}.csv`, csv);
                 }}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 title="Download iTax-compatible VAT-3 CSV pack"
               >
-                <Download className="w-4 h-4 text-amber-400" />
+                <Download className="w-5 h-5 text-amber-400 shrink-0" />
                 <span>VAT-3 iTax CSV</span>
               </button>
               <button
                 onClick={() => exportETIMSInvoiceAuditSchedulePDF(orders, etrConfig, creditNotes)}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 title="Download eTIMS Electronic Invoice Master Register"
               >
-                <FileCheck className="w-4 h-4 text-emerald-400" />
+                <FileCheck className="w-5 h-5 text-emerald-400 shrink-0" />
                 <span>eTIMS Audit PDF</span>
               </button>
               <button
                 onClick={() => exportCorporateIncomeTaxComputationPDF(incomeStatement, etrConfig)}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 title="Download Corporate Income Tax Computation"
               >
-                <Calculator className="w-4 h-4 text-sky-400" />
+                <Calculator className="w-5 h-5 text-sky-400 shrink-0" />
                 <span>CIT (30%) PDF</span>
               </button>
             </div>
           </div>
 
           {/* Sub-Navigation Tabs */}
-          <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap gap-1">
+          <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap gap-1">
             {[
               { id: 'vat3_return', label: '1. KRA VAT-3 Return', icon: FileSpreadsheet, badge: 'Due 20th' },
               { id: 'etims_invoices', label: '2. eTIMS Invoices & Credit Notes', icon: QrCode, count: orders.length + creditNotes.length },
@@ -1934,23 +1866,23 @@ export const AccountingLedger: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => setKraTaxView(tab.id as any)}
-                  className={`px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                     isActive
                       ? 'bg-slate-900 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
+                  <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
                   <span>{tab.label}</span>
                   {tab.badge && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-semibold ${
                       isActive ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-700'
                     }`}>
                       {tab.badge}
                     </span>
                   )}
                   {tab.count !== undefined && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
                       isActive ? 'bg-slate-800 text-amber-300' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {tab.count}
@@ -3517,20 +3449,20 @@ export const AccountingLedger: React.FC = () => {
               </div>
 
               {/* Master Consolidated Export Quick Action */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <button
                   onClick={() => exportFullConsolidatedFinancialStatementPDF(fullConsolidatedStatement, locations)}
-                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer hover:scale-102"
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102 whitespace-nowrap"
                 >
-                  <FileDown className="w-4 h-4 stroke-[2.5]" />
+                  <FileDown className="w-5 h-5 stroke-[2.5] shrink-0" />
                   <span>Full Statement (PDF)</span>
                 </button>
 
                 <button
                   onClick={() => exportFullConsolidatedFinancialStatementCSV(fullConsolidatedStatement)}
-                  className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold text-[11px] rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <Download className="w-4 h-4 text-emerald-400" />
+                  <Download className="w-5 h-5 text-emerald-400 shrink-0" />
                   <span>Full Statement (CSV)</span>
                 </button>
               </div>
@@ -3573,53 +3505,53 @@ export const AccountingLedger: React.FC = () => {
           </div>
 
           {/* Sub-Channel View Selector */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2 sm:p-3 rounded-2xl border border-slate-200 shadow-xs">
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
               <button
                 onClick={() => setStatementChannelView('all_consolidated')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                   statementChannelView === 'all_consolidated'
                     ? 'bg-slate-900 text-white shadow-xs'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                <Scale className="w-3.5 h-3.5" />
+                <Scale className="w-5 h-5 shrink-0" />
                 <span>1. Full Consolidated Statement</span>
               </button>
 
               <button
                 onClick={() => setStatementChannelView('mobile_money')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                   statementChannelView === 'mobile_money'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                 }`}
               >
-                <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                <Wallet className="w-5 h-5 text-emerald-600 shrink-0" />
                 <span>2. Safaricom M-Pesa Statement</span>
               </button>
 
               <button
                 onClick={() => setStatementChannelView('bank')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                   statementChannelView === 'bank'
                     ? 'bg-blue-700 text-white shadow-xs'
                     : 'bg-blue-50 text-blue-800 hover:bg-blue-100'
                 }`}
               >
-                <Building className="w-3.5 h-3.5 text-blue-600" />
+                <Building className="w-5 h-5 text-blue-600 shrink-0" />
                 <span>3. Commercial Bank Statement</span>
               </button>
 
               <button
                 onClick={() => setStatementChannelView('pdq')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                   statementChannelView === 'pdq'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'
                 }`}
               >
-                <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+                <CreditCard className="w-5 h-5 text-indigo-600 shrink-0" />
                 <span>4. PDQ POS Card Statement</span>
               </button>
             </div>

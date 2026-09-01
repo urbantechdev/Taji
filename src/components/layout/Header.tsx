@@ -652,11 +652,11 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
           </div>
 
           {/* Desktop Right Toolbar */}
-          <div className="flex flex-wrap items-center justify-end gap-1.5 lg:gap-2 relative z-40">
+          <div className="flex flex-wrap items-center justify-end gap-2 lg:gap-2.5 relative z-40">
             
             {/* Mode Switcher: Admin / POS Toggle */}
             {isAdmin ? (
-              <div className="bg-black/25 p-1 rounded-xl flex items-center gap-1 border border-white/20 backdrop-blur-md shadow-inner">
+              <div className="bg-black/25 p-1 rounded-2xl flex items-center gap-1.5 border border-white/20 backdrop-blur-md shadow-inner">
                 <CapabilityTooltip
                   title="Executive Admin Dashboard"
                   description="Access global sales analytics, inventory adjustments, double-entry ledger & system settings."
@@ -671,14 +671,14 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       playClickSound();
                       setAppMode('admin');
                     }}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                       appMode === 'admin'
                         ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
                         : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
                     title="Switch to Admin Dashboard"
                   >
-                    <LayoutDashboard className="w-3.5 h-3.5" />
+                    <LayoutDashboard className="w-5 h-5" />
                     <span className="text-xs">Admin</span>
                   </button>
                 </CapabilityTooltip>
@@ -697,14 +697,14 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       playClickSound();
                       setAppMode('pos');
                     }}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                       appMode === 'pos'
                         ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
                         : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
                     title="Switch to POS Terminal"
                   >
-                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <ShoppingBag className="w-5 h-5" />
                     <span className="text-xs">POS</span>
                   </button>
                 </CapabilityTooltip>
@@ -718,10 +718,10 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 align="left"
               >
                 <div
-                  className="px-3 py-1.5 bg-white/15 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-xs flex items-center gap-1.5 text-xs font-bold"
+                  className="px-3.5 py-2 bg-white/15 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-xs flex items-center gap-2 text-xs font-bold"
                   title="POS Terminal (Staff Mode Active)"
                 >
-                  <ShoppingBag className="w-3.5 h-3.5 text-pink-200" />
+                  <ShoppingBag className="w-5 h-5 text-pink-200" />
                   <span>POS</span>
                 </div>
               </CapabilityTooltip>
@@ -744,19 +744,19 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                     setIsLocationDropdownOpen(prev => !prev);
                     setIsRoleDropdownOpen(false);
                   }}
-                  className={`px-2.5 py-1.5 rounded-xl backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer group border shadow-xs ${
+                  className={`px-3 py-2 rounded-xl backdrop-blur-md transition-all flex items-center gap-2 cursor-pointer group border shadow-xs ${
                     isLocationDropdownOpen
                       ? 'bg-white text-pink-900 border-white shadow-md font-bold'
                       : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
                   }`}
                   title={`Active Branch: ${activeLocInfo?.name || 'All Branches'}`}
                 >
-                  <Building className={`w-3.5 h-3.5 transition-transform shrink-0 ${isLocationDropdownOpen ? 'text-pink-700 scale-110' : 'text-white group-hover:scale-110'}`} />
-                  <span className="text-xs font-bold max-w-[85px] lg:max-w-[110px] truncate">
+                  <Building className={`w-5 h-5 transition-transform shrink-0 ${isLocationDropdownOpen ? 'text-pink-700 scale-110' : 'text-white group-hover:scale-110'}`} />
+                  <span className="text-xs font-bold max-w-[95px] lg:max-w-[125px] truncate">
                     {getLocationShortLabel(activeLocation)}
                   </span>
                   <ChevronDown
-                    className={`w-3 h-3 transition-transform duration-200 shrink-0 ${
+                    className={`w-3.5 h-3.5 transition-transform duration-200 shrink-0 ${
                       isLocationDropdownOpen ? 'rotate-180 text-pink-700' : 'text-white/70 group-hover:text-white'
                     }`}
                   />
@@ -999,14 +999,14 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               <button
                 type="button"
                 onClick={() => setIsMailDrawerOpen(true)}
-                className={`relative px-2.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
+                className={`relative px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 text-xs font-bold ${
                   totalMessageAlerts > 0
                     ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-black animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
                     : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
                 }`}
                 title={`Store Messages & Transfers: ${pendingTransfersCount} pending, ${unreadMails} unread`}
               >
-                <Mail className={`w-3.5 h-3.5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
+                <Mail className={`w-5 h-5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
                 <span>Inbox</span>
                 {totalMessageAlerts > 0 && (
                   <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
@@ -1032,10 +1032,10 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                   playClickSound();
                   setIsFabricRollModalOpen(true);
                 }}
-                className="px-2.5 py-1.5 bg-gradient-to-r from-teal-700 to-emerald-800 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-teal-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+                className="px-3 py-2 bg-gradient-to-r from-teal-700 to-emerald-800 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-teal-400/40 hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-bold group"
                 title="Fabric Rolls & Piece Goods Inventory"
               >
-                <Layers className="w-3.5 h-3.5 text-teal-200 group-hover:scale-110 transition-transform" />
+                <Layers className="w-5 h-5 text-teal-200 group-hover:scale-110 transition-transform" />
                 <span>Fabric</span>
                 {fabricRolls.length > 0 && (
                   <span className="bg-teal-300 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
@@ -1061,10 +1061,10 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                   playClickSound();
                   setIsReturnExchangeModalOpen(true);
                 }}
-                className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-amber-400/40 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+                className="px-3 py-2 bg-gradient-to-r from-amber-600 to-rose-700 hover:from-amber-500 hover:to-rose-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-amber-400/40 hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-bold group"
                 title="RMA / Returns & Exchanges"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-200 group-hover:rotate-180 transition-transform duration-500" />
+                <RotateCcw className="w-5 h-5 text-amber-200 group-hover:rotate-180 transition-transform duration-500" />
                 <span>RMA</span>
                 {quarantinedDefects.length > 0 && (
                   <span className="bg-amber-400 text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
@@ -1086,10 +1086,10 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               <button
                 type="button"
                 onClick={() => setIsMobileBarcodeScannerOpen(true)}
-                className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-emerald-400/50 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+                className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-emerald-400/50 hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-bold group"
                 title="Camera Barcode Scanner"
               >
-                <Camera className="w-3.5 h-3.5 text-emerald-200 group-hover:scale-110 transition-transform" />
+                <Camera className="w-5 h-5 text-emerald-200 group-hover:scale-110 transition-transform" />
                 <span>Barcode</span>
               </button>
             </CapabilityTooltip>
@@ -1105,10 +1105,10 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               <button
                 type="button"
                 onClick={() => setIsQRScannerOpen(true)}
-                className="px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-slate-700 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs font-bold group"
+                className="px-3 py-2 bg-slate-900/80 hover:bg-slate-800 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-slate-700 hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-bold group"
                 title="Open Batch QR Scanner"
               >
-                <QrCode className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
+                <QrCode className="w-5 h-5 text-pink-400 group-hover:scale-110 transition-transform" />
                 <span>QR</span>
               </button>
             </CapabilityTooltip>
@@ -1132,9 +1132,9 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 title={soundOn ? 'Sound: Enabled' : 'Sound: Muted'}
               >
                 {soundOn ? (
-                  <Volume2 className="w-4 h-4 text-emerald-300" />
+                  <Volume2 className="w-5 h-5 text-emerald-300" />
                 ) : (
-                  <VolumeX className="w-4 h-4 text-rose-300" />
+                  <VolumeX className="w-5 h-5 text-rose-300" />
                 )}
               </button>
             </CapabilityTooltip>
@@ -1165,7 +1165,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 }`}
                 title="User Guide: Search How-To, Yarn Tare & Meter Guides"
               >
-                <BookOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <BookOpen className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </button>
             </CapabilityTooltip>
 
@@ -1196,7 +1196,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                   }`}
                   title="System Settings, Roles, Pricing & Barcodes"
                 >
-                  <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform" />
+                  <Settings className="w-5 h-5 group-hover:rotate-45 transition-transform" />
                 </button>
               </CapabilityTooltip>
             )}
@@ -1216,7 +1216,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group flex items-center justify-center hover:scale-105 active:scale-95"
                 title={`Profile: ${currentUser.name}`}
               >
-                <User className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+                <User className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
               </button>
             </CapabilityTooltip>
 
@@ -1238,7 +1238,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 className="p-2.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center group"
                 title="Lock Terminal Session"
               >
-                <Lock className="w-4 h-4 text-rose-300 group-hover:scale-110 transition-transform" />
+                <Lock className="w-5 h-5 text-rose-300 group-hover:scale-110 transition-transform" />
               </button>
             </CapabilityTooltip>
 
@@ -1508,8 +1508,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       }}
                       className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-emerald-300 text-slate-800 hover:bg-emerald-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs cursor-pointer"
                     >
-                      <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700 group-hover:scale-110 transition-transform">
-                        <Camera className="w-4 h-4" />
+                      <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 group-hover:scale-110 transition-transform">
+                        <Camera className="w-5 h-5" />
                       </div>
                       <span className="text-[10px] font-bold text-slate-800">Barcode</span>
                     </button>
@@ -1524,8 +1524,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       }}
                       className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-indigo-300 text-slate-800 hover:bg-indigo-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs cursor-pointer"
                     >
-                      <div className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700 group-hover:scale-110 transition-transform">
-                        <QrCode className="w-4 h-4" />
+                      <div className="p-2 rounded-xl bg-indigo-100 text-indigo-700 group-hover:scale-110 transition-transform">
+                        <QrCode className="w-5 h-5" />
                       </div>
                       <span className="text-[10px] font-bold text-slate-800">QR Scan</span>
                     </button>
@@ -1540,8 +1540,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       }}
                       className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-teal-300 text-slate-800 hover:bg-teal-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs relative cursor-pointer"
                     >
-                      <div className="p-1.5 rounded-lg bg-teal-100 text-teal-700 group-hover:scale-110 transition-transform">
-                        <Layers className="w-4 h-4" />
+                      <div className="p-2 rounded-xl bg-teal-100 text-teal-700 group-hover:scale-110 transition-transform">
+                        <Layers className="w-5 h-5" />
                       </div>
                       <span className="text-[10px] font-bold text-slate-800">Fabric</span>
                       {fabricRolls.length > 0 && (
@@ -1561,8 +1561,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       }}
                       className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-amber-300 text-slate-800 hover:bg-amber-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs relative cursor-pointer"
                     >
-                      <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700 group-hover:scale-110 transition-transform">
-                        <RotateCcw className="w-4 h-4" />
+                      <div className="p-2 rounded-xl bg-amber-100 text-amber-700 group-hover:scale-110 transition-transform">
+                        <RotateCcw className="w-5 h-5" />
                       </div>
                       <span className="text-[10px] font-bold text-slate-800">RMA</span>
                       {quarantinedDefects.length > 0 && (
@@ -1582,8 +1582,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       }}
                       className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-rose-300 text-slate-800 hover:bg-rose-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs relative cursor-pointer"
                     >
-                      <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700 group-hover:scale-110 transition-transform">
-                        <Mail className="w-4 h-4" />
+                      <div className="p-2 rounded-xl bg-rose-100 text-rose-700 group-hover:scale-110 transition-transform">
+                        <Mail className="w-5 h-5" />
                       </div>
                       <span className="text-[10px] font-bold text-slate-800">Inbox</span>
                       {totalMessageAlerts > 0 && (
@@ -1599,8 +1599,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       onClick={handleToggleSound}
                       className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-slate-300 text-slate-800 hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-1 text-center shadow-2xs cursor-pointer"
                     >
-                      <div className={`p-1.5 rounded-lg ${soundOn ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                        {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                      <div className={`p-2 rounded-xl ${soundOn ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {soundOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
                       </div>
                       <span className="text-[10px] font-bold text-slate-800">{soundOn ? 'Sound On' : 'Muted'}</span>
                     </button>
@@ -1629,8 +1629,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className={`p-2 rounded-xl shrink-0 ${isActive ? 'bg-white/20 text-white' : 'bg-pink-50 text-pink-700 border border-pink-100'}`}>
-                              <IconComp className="w-4 h-4" />
+                            <div className={`p-2.5 rounded-xl shrink-0 ${isActive ? 'bg-white/20 text-white' : 'bg-pink-50 text-pink-700 border border-pink-100'}`}>
+                              <IconComp className="w-5 h-5 stroke-[2.2]" />
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs font-bold truncate">{item.label}</p>

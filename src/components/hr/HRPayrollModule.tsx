@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { PayrollRecord, StaffMember, UserRole, LocationId } from '../../types';
 import { hasPermission } from '../../utils/rbac';
 import DocumentHeader from '../common/DocumentHeader';
+import { POSOperatorManager } from '../admin/POSOperatorManager';
 import {
   calculateKenyaStatutoryDeductions,
   generateKRAPayeCSV,
@@ -34,10 +35,20 @@ import {
   AlertCircle,
   Clock,
   BadgeCheck,
-  Info
+  Info,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Sparkles,
+  RotateCcw,
+  CheckCircle
 } from 'lucide-react';
 
-export const HRPayrollModule: React.FC = () => {
+interface HRPayrollModuleProps {
+  initialSubTab?: 'directory' | 'pos_users' | 'payroll' | 'my_payslips' | 'my_profile';
+}
+
+export const HRPayrollModule: React.FC<HRPayrollModuleProps> = ({ initialSubTab }) => {
   const {
     staff,
     payroll,
@@ -46,6 +57,11 @@ export const HRPayrollModule: React.FC = () => {
     addStaffMember,
     updateStaffMember,
     deleteStaffMember,
+    posOperators,
+    addPOSOperator,
+    updatePOSOperator,
+    deletePOSOperator,
+    loginAsOperator,
     currentUser,
     activeRole,
     isAdmin,
@@ -57,11 +73,18 @@ export const HRPayrollModule: React.FC = () => {
   const isHR = isAdmin || currentUser.role === 'admin' || currentUser.role === 'hr_manager';
 
   // Subtab navigation:
-  // For HR: 'directory' | 'payroll' | 'my_payslips'
+  // For HR: 'directory' | 'pos_users' | 'payroll' | 'my_payslips'
   // For Non-HR: 'my_payslips' | 'my_profile'
-  const [activeSubTab, setActiveSubTab] = useState<'directory' | 'payroll' | 'my_payslips' | 'my_profile'>(
-    isHR ? 'directory' : 'my_payslips'
+  const [activeSubTab, setActiveSubTab] = useState<'directory' | 'pos_users' | 'payroll' | 'my_payslips' | 'my_profile'>(
+    initialSubTab || (isHR ? 'directory' : 'my_payslips')
   );
+
+  // Sync if initialSubTab prop changes externally
+  useEffect(() => {
+    if (initialSubTab && isHR) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab, isHR]);
 
   const [selectedMonth, setSelectedMonth] = useState('August 2026');
   const [selectedPayslip, setSelectedPayslip] = useState<PayrollRecord | null>(null);
@@ -70,6 +93,14 @@ export const HRPayrollModule: React.FC = () => {
   const [emailStatusMsg, setEmailStatusMsg] = useState<{ success: boolean; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocationFilter, setSelectedLocationFilter] = useState<string>('All');
+  const [showStaffPins, setShowStaffPins] = useState<boolean>(false);
+
+  // Quick PIN Edit / Reset Modal State
+  const [quickPinStaff, setQuickPinStaff] = useState<StaffMember | null>(null);
+  const [quickPinValue, setQuickPinValue] = useState<string>('');
+  const [quickPinLocation, setQuickPinLocation] = useState<LocationId>('sales_shop');
+  const [quickPinRole, setQuickPinRole] = useState<UserRole>('sales_shop_cashier');
+  const [quickPinMsg, setQuickPinMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Profile update request modal state (for employees)
   const [showUpdateRequestModal, setShowUpdateRequestModal] = useState(false);
@@ -99,6 +130,7 @@ export const HRPayrollModule: React.FC = () => {
     bankAccountNumber: string;
     mpesaNumber: string;
     initialPin: string;
+    enablePos: boolean;
   }>({
     name: '',
     role: 'sales_shop_cashier',
@@ -114,7 +146,8 @@ export const HRPayrollModule: React.FC = () => {
     bankAccountName: '',
     bankAccountNumber: '',
     mpesaNumber: '',
-    initialPin: ''
+    initialPin: '',
+    enablePos: true
   });
 
   const canManagePersonnel = isAdmin || hasPermission(currentUser.role, 'canManageStaff');
@@ -400,6 +433,77 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
     }
   };
 
+  // Helper to resolve linked POS Operator account for a given staff member
+  const getOperatorForStaff = (s: StaffMember) => {
+    return posOperators.find(op =>
+      (op.staffId && op.staffId === s.id) ||
+      op.id === `op-staff-${s.id}` ||
+      (op.employeeNo && op.employeeNo === s.employeeNo) ||
+      (op.email && s.email && op.email.toLowerCase() === s.email.toLowerCase()) ||
+      (op.name && s.name && op.name.toLowerCase() === s.name.toLowerCase())
+    );
+  };
+
+  // Open Quick PIN Modal for a specific employee
+  const handleOpenQuickPin = (member: StaffMember) => {
+    const op = getOperatorForStaff(member);
+    setQuickPinStaff(member);
+    setQuickPinValue(op?.pin || '');
+    setQuickPinLocation(op?.location || member.locationId);
+    setQuickPinRole(op?.role || member.role);
+    setQuickPinMsg(null);
+  };
+
+  // Save Quick PIN
+  const handleSaveQuickPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickPinStaff) return;
+    const cleanPin = quickPinValue.trim();
+    if (cleanPin.length !== 6 || !/^\d+$/.test(cleanPin)) {
+      setQuickPinMsg({ type: 'error', text: 'PIN code must be exactly 6 numeric digits.' });
+      return;
+    }
+
+    const op = getOperatorForStaff(quickPinStaff);
+    if (op) {
+      const res = await updatePOSOperator(op.id, {
+        pin: cleanPin,
+        location: quickPinLocation,
+        role: quickPinRole,
+        status: 'active'
+      });
+      if (res.success) {
+        setQuickPinMsg({ type: 'success', text: `6-Digit PIN ${cleanPin} configured for ${quickPinStaff.name}!` });
+        setTimeout(() => {
+          setQuickPinStaff(null);
+          setQuickPinMsg(null);
+        }, 1200);
+      } else {
+        setQuickPinMsg({ type: 'error', text: res.message || 'Failed to update PIN.' });
+      }
+    } else {
+      const res = await addPOSOperator({
+        name: quickPinStaff.name,
+        email: quickPinStaff.email || `${quickPinStaff.employeeNo.toLowerCase()}@taji.co.ke`,
+        phone: quickPinStaff.phone,
+        kraPin: quickPinStaff.kraPin,
+        pin: cleanPin,
+        location: quickPinLocation,
+        role: quickPinRole,
+        status: 'active'
+      });
+      if (res.success) {
+        setQuickPinMsg({ type: 'success', text: `POS account activated with PIN ${cleanPin} for ${quickPinStaff.name}!` });
+        setTimeout(() => {
+          setQuickPinStaff(null);
+          setQuickPinMsg(null);
+        }, 1200);
+      } else {
+        setQuickPinMsg({ type: 'error', text: 'Failed to provision POS account.' });
+      }
+    }
+  };
+
   const handleOpenAddModal = () => {
     if (!isHR) return;
     setEditingStaffId(null);
@@ -417,13 +521,16 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
       phone: '',
       bankAccountName: '',
       bankAccountNumber: '',
-      mpesaNumber: ''
+      mpesaNumber: '',
+      initialPin: Math.floor(100000 + Math.random() * 900000).toString(),
+      enablePos: true
     });
     setShowAddStaffModal(true);
   };
 
   const handleOpenEditModal = (member: StaffMember) => {
     if (!isHR) return;
+    const op = getOperatorForStaff(member);
     setEditingStaffId(member.id);
     setStaffForm({
       name: member.name,
@@ -440,7 +547,8 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
       bankAccountName: member.bankAccountName || '',
       bankAccountNumber: member.bankAccountNumber || '',
       mpesaNumber: member.mpesaNumber || member.phone || '',
-      initialPin: ''
+      initialPin: op?.pin || '',
+      enablePos: Boolean(op)
     });
     setShowAddStaffModal(true);
   };
@@ -448,6 +556,9 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
   const handleSaveStaff = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isHR || !staffForm.name.trim()) return;
+
+    const rawPin = staffForm.initialPin.trim();
+    const hasValidPin = rawPin.length === 6 && /^\d+$/.test(rawPin);
 
     if (editingStaffId) {
       updateStaffMember(editingStaffId, {
@@ -466,6 +577,28 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
         bankAccountNumber: staffForm.bankAccountNumber.trim(),
         mpesaNumber: staffForm.mpesaNumber.trim() || staffForm.phone.trim()
       });
+
+      // Synchronize POS PIN if updated
+      const op = posOperators.find(o => o.staffId === editingStaffId || o.id === `op-staff-${editingStaffId}`);
+      if (op && hasValidPin) {
+        updatePOSOperator(op.id, {
+          pin: rawPin,
+          location: staffForm.locationId,
+          role: staffForm.role,
+          status: 'active'
+        });
+      } else if (!op && staffForm.enablePos && hasValidPin) {
+        addPOSOperator({
+          name: staffForm.name.trim(),
+          email: staffForm.email.trim() || `emp-${editingStaffId}@taji.co.ke`,
+          phone: staffForm.phone.trim(),
+          kraPin: staffForm.kraPin.toUpperCase().trim(),
+          pin: rawPin,
+          location: staffForm.locationId,
+          role: staffForm.role,
+          status: 'active'
+        });
+      }
     } else {
       addStaffMember({
         name: staffForm.name.trim(),
@@ -628,6 +761,19 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
               >
                 <UserCheck className="w-4 h-4" />
                 <span>Staff Directory ({staff.length})</span>
+              </button>
+
+              <button
+                id="subtab-pos-users-hr"
+                onClick={() => setActiveSubTab('pos_users')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                  activeSubTab === 'pos_users'
+                    ? 'border-rose-600 text-rose-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <KeyRound className="w-4 h-4 text-rose-600" />
+                <span>POS Users &amp; PINs ({posOperators.length})</span>
               </button>
 
               <button
@@ -1073,6 +1219,44 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
       )}
 
       {/* ========================================================================= */}
+      {/* VIEW: HR POS USERS & PIN MANAGEMENT (HR & Admin Mode)                      */}
+      {/* ========================================================================= */}
+      {isHR && activeSubTab === 'pos_users' && (
+        <div className="space-y-4" id="view-hr-pos-users">
+          <div className="bg-gradient-to-r from-rose-900 via-slate-900 to-purple-950 text-white p-4 sm:p-5 rounded-2xl border border-rose-800/40 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-600/30 border border-rose-500/40 flex items-center justify-center text-rose-300">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                  POS User Authentication &amp; 6-Digit PIN Center
+                  <span className="text-[10px] font-bold bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/30">
+                    HR Managed
+                  </span>
+                </h2>
+                <p className="text-[11px] sm:text-xs text-rose-200/80">
+                  Manage POS cashier accounts, instant 6-digit PIN setup, passcode verifier tool, role access, and store assignments.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('directory')}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-white/20"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Staff Directory ({staff.length})</span>
+              </button>
+            </div>
+          </div>
+
+          <POSOperatorManager />
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* VIEW 3: HR ALL STAFF DIRECTORY (HR Admin Only)                           */}
       {/* ========================================================================= */}
       {isHR && activeSubTab === 'directory' && (
@@ -1091,21 +1275,33 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Location:</label>
-              <select
-                id="select-staff-location-filter"
-                value={selectedLocationFilter}
-                onChange={e => setSelectedLocationFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <button
+                type="button"
+                onClick={() => setShowStaffPins(!showStaffPins)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Reveal or mask staff POS PINs"
               >
-                <option value="All">All Store Nodes ({locations.length})</option>
-                {locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </option>
-                ))}
-              </select>
+                {showStaffPins ? <EyeOff className="w-3.5 h-3.5 text-slate-500" /> : <Eye className="w-3.5 h-3.5 text-slate-500" />}
+                <span>{showStaffPins ? 'Mask PINs' : 'Reveal PINs'}</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Location:</label>
+                <select
+                  id="select-staff-location-filter"
+                  value={selectedLocationFilter}
+                  onChange={e => setSelectedLocationFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
+                >
+                  <option value="All">All Store Nodes ({locations.length})</option>
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1139,6 +1335,7 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                     <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                       <th className="p-4">Staff Member</th>
                       <th className="p-4">Designation &amp; Branch</th>
+                      <th className="p-4">POS User &amp; PIN</th>
                       <th className="p-4">Statutory Identifiers</th>
                       <th className="p-4">Contact Info</th>
                       <th className="p-4 font-mono text-right">Basic Salary</th>
@@ -1149,6 +1346,9 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                   <tbody className="divide-y divide-slate-100 text-xs font-sans">
                     {filteredStaff.map(member => {
                       const loc = locations.find(l => l.id === member.locationId);
+                      const op = getOperatorForStaff(member);
+                      const hasPin = Boolean(op?.pin && op.pin.length === 6);
+
                       return (
                         <tr key={member.id} className="hover:bg-rose-50/20 transition-colors">
                           <td className="p-4">
@@ -1171,6 +1371,65 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                               <Building2 className="w-3 h-3 text-slate-400" />
                               {loc?.name || member.locationId}
                             </p>
+                          </td>
+
+                          {/* POS User & PIN Column */}
+                          <td className="p-4">
+                            <div className="space-y-1">
+                              {op ? (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                    hasPin
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60'
+                                      : 'bg-amber-100 text-amber-900 border border-amber-300/60'
+                                  }`}>
+                                    <KeyRound className="w-3 h-3 text-emerald-600" />
+                                    <span>
+                                      {hasPin
+                                        ? showStaffPins
+                                          ? op.pin
+                                          : `•••••• (${op.pin.slice(-2)})`
+                                        : 'Awaiting PIN'}
+                                    </span>
+                                  </span>
+
+                                  {canManagePersonnel && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenQuickPin(member)}
+                                      title="Change / Reset 6-Digit PIN"
+                                      className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div>
+                                  {canManagePersonnel ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenQuickPin(member)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 transition-colors cursor-pointer border border-slate-200"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      <span>Assign POS PIN</span>
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 italic">No POS Access</span>
+                                  )}
+                                </div>
+                              )}
+                              <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                                {op?.status === 'active' ? (
+                                  <span className="text-emerald-600 font-bold">● Active Station</span>
+                                ) : op ? (
+                                  <span className="text-amber-600">○ Inactive</span>
+                                ) : (
+                                  <span>No Terminal Profile</span>
+                                )}
+                              </p>
+                            </div>
                           </td>
 
                           <td className="p-4 space-y-0.5">
@@ -1213,7 +1472,7 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
                                   onClick={() => handleOpenEditModal(member)}
-                                  title="Edit Staff Info"
+                                  title="Edit Staff Info & PIN"
                                   className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -1823,69 +2082,77 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                 </div>
               </div>
 
-              {/* Automated POS Operator Integration Notice & Optional PIN Setup */}
-              {!editingStaffId && (
-                <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3.5 space-y-2.5">
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                      POS
+              {/* Automated POS Operator & 6-Digit PIN Setup (For Both New & Existing Staff) */}
+              <div className="bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-200/80 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-rose-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-xs">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-slate-900">
+                        {editingStaffId ? 'POS Operator Account & PIN' : 'Automated POS User Provisioning'}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-200/80 text-rose-900 px-2 py-0.5 rounded-full">
+                        HR &amp; POS Integrated
+                      </span>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-amber-950">Automated POS User Provisioning</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">
-                          Auto-Linked
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-amber-800 leading-relaxed mt-0.5">
-                        This employee will automatically appear in <strong>POS Users</strong> with status <span className="font-bold text-amber-900">"Awaiting PIN"</span>. You can configure a 6-digit PIN now or let the manager assign it later.
+                    <p className="text-[11px] text-slate-600 leading-relaxed mt-0.5">
+                      {editingStaffId
+                        ? 'Set or update the 6-digit passcode used by this employee to log into POS terminals and cash registers.'
+                        : 'This staff member is automatically provisioned as a POS user. Enter a 6-digit PIN code or generate one now.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-amber-200/50">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                      <span>6-Digit Login PIN</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
+                          setStaffForm(prev => ({ ...prev, initialPin: randomPin }));
+                        }}
+                        className="text-[10px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>Generate Random PIN</span>
+                      </button>
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="e.g. 123456"
+                      value={staffForm.initialPin}
+                      onChange={e => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setStaffForm({ ...staffForm, initialPin: val });
+                      }}
+                      className="w-full mt-1 p-2 bg-white border border-rose-300 rounded-lg font-mono text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 tracking-widest text-center"
+                    />
+                  </div>
+                  <div className="flex items-center">
+                    <div className="text-[11px] bg-white/90 p-2.5 rounded-lg border border-rose-200/70 w-full space-y-1">
+                      {staffForm.initialPin.length === 6 ? (
+                        <div className="text-emerald-700 font-bold flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>Active 6-digit PIN ready ({staffForm.initialPin})</span>
+                        </div>
+                      ) : (
+                        <div className="text-amber-800 font-medium flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Needs 6 digits ({staffForm.initialPin.length}/6 entered)</span>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-slate-500">
+                        Assigned to <strong>{locations.find(l => l.id === staffForm.locationId)?.name || 'Current Branch'}</strong>
                       </p>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-amber-200/50">
-                    <div>
-                      <label className="text-[11px] font-bold text-amber-900 flex items-center justify-between">
-                        <span>Initial 6-Digit PIN (Optional)</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
-                            setStaffForm(prev => ({ ...prev, initialPin: randomPin }));
-                          }}
-                          className="text-[10px] text-amber-700 hover:text-amber-900 font-semibold underline cursor-pointer"
-                        >
-                          Generate PIN
-                        </button>
-                      </label>
-                      <input
-                        type="text"
-                        maxLength={6}
-                        placeholder="Leave blank for 'Awaiting PIN'"
-                        value={staffForm.initialPin}
-                        onChange={e => {
-                          const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                          setStaffForm({ ...staffForm, initialPin: val });
-                        }}
-                        className="w-full mt-1 p-2 bg-white border border-amber-300 rounded-lg font-mono text-xs text-amber-950 placeholder:text-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500 tracking-wider"
-                      />
-                    </div>
-                    <div className="flex items-center">
-                      <div className="text-[11px] text-amber-800 bg-white/70 p-2 rounded-lg border border-amber-200/60 w-full">
-                        {staffForm.initialPin.length === 6 ? (
-                          <span className="text-emerald-700 font-bold flex items-center gap-1.5">
-                            ✓ Ready to activate POS with PIN {staffForm.initialPin}
-                          </span>
-                        ) : (
-                          <span className="text-amber-800 font-medium flex items-center gap-1.5">
-                            ⏳ Will appear in POS Users as <strong>Awaiting PIN Setup</strong>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 </div>
-              )}
+              </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
@@ -1900,6 +2167,132 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow cursor-pointer transition-colors"
                 >
                   {editingStaffId ? 'Save Changes' : 'Complete Onboarding'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: QUICK POS PIN ASSIGNMENT & RESET (HR Admin Only)                   */}
+      {/* ========================================================================= */}
+      {isHR && quickPinStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Configure POS Login PIN</h3>
+                  <p className="text-[11px] text-slate-500">{quickPinStaff.name} ({quickPinStaff.employeeNo})</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setQuickPinStaff(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {quickPinMsg && (
+              <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                quickPinMsg.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                {quickPinMsg.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                <span>{quickPinMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveQuickPin} className="space-y-4 text-xs font-sans">
+              <div className="space-y-2">
+                <label className="font-bold text-slate-800 flex items-center justify-between">
+                  <span>6-Digit Security PIN Code *</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
+                      setQuickPinValue(randomPin);
+                    }}
+                    className="text-[10px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Generate Random PIN</span>
+                  </button>
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  placeholder="e.g. 123456"
+                  value={quickPinValue}
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setQuickPinValue(val);
+                  }}
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-mono text-base font-black text-center tracking-widest focus:outline-none focus:border-rose-500 focus:bg-white"
+                />
+                <p className="text-[11px] text-slate-500 text-center">
+                  This 6-digit PIN is entered by the employee on the POS Terminal to open shifts and process cash sales.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Terminal Station</label>
+                  <select
+                    value={quickPinLocation}
+                    onChange={e => setQuickPinLocation(e.target.value as LocationId)}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  >
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">POS Role</label>
+                  <select
+                    value={quickPinRole}
+                    onChange={e => setQuickPinRole(e.target.value as UserRole)}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  >
+                    <option value="sales_shop_cashier">Sales Shop Cashier</option>
+                    <option value="branch_cashier">Branch Cashier</option>
+                    <option value="pos_cashier">POS Cashier</option>
+                    <option value="main_store_operator">Main Store Operator</option>
+                    <option value="store_1_attendant">Store 1 Attendant</option>
+                    <option value="store_2_attendant">Store 2 Attendant</option>
+                    <option value="branch_manager">Branch Manager</option>
+                    <option value="hr_manager">HR Manager</option>
+                    <option value="accountant">Accountant</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setQuickPinStaff(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={quickPinValue.length !== 6}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl shadow cursor-pointer transition-colors flex items-center gap-1.5"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Save &amp; Activate PIN</span>
                 </button>
               </div>
             </form>

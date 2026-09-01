@@ -75,6 +75,7 @@ export const InventoryCatalog: React.FC = () => {
     checkProductDuplicate,
     scanAllCatalogDuplicates,
     restockExistingProduct,
+    purgeAllInventoryData,
     stockAlertSettings,
     currentUser,
     isAdmin
@@ -115,6 +116,8 @@ export const InventoryCatalog: React.FC = () => {
   const [productToDelete, setProductToDelete] = useState<ProductBatch | null>(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showPurgeAllModal, setShowPurgeAllModal] = useState(false);
+  const [isPurgingAll, setIsPurgingAll] = useState(false);
   const [undoNotification, setUndoNotification] = useState<{
     message: string;
     products: ProductBatch[];
@@ -288,6 +291,17 @@ export const InventoryCatalog: React.FC = () => {
 
     setSyncToast(`Restored ${prodsToRestore.length} product(s) back to inventory.`);
     setTimeout(() => setSyncToast(null), 3000);
+  };
+
+  // Handle Purge All Inventory from Database
+  const handlePurgeAllInventory = async () => {
+    setIsPurgingAll(true);
+    const res = await purgeAllInventoryData();
+    setIsPurgingAll(false);
+    setShowPurgeAllModal(false);
+    setSelectedProductIds([]);
+    setSyncToast(res.message);
+    setTimeout(() => setSyncToast(null), 3500);
   };
 
   const toggleSelectProduct = (id: string) => {
@@ -535,14 +549,25 @@ export const InventoryCatalog: React.FC = () => {
               )}
 
               {canDelete && (
-                <button
-                  onClick={() => setIsDuplicateAuditOpen(true)}
-                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Scan and Resolve Product Duplicates to prevent financial audit errors"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Duplication Control</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => setIsDuplicateAuditOpen(true)}
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Scan and Resolve Product Duplicates to prevent financial audit errors"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Duplication Control</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowPurgeAllModal(true)}
+                    className="px-2.5 py-1.5 bg-rose-100/70 hover:bg-rose-200 text-rose-900 border border-rose-300/80 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Delete and purge all inventory data from Cloud Firestore database and local storage"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Purge All Inventory</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -928,6 +953,47 @@ export const InventoryCatalog: React.FC = () => {
                       </tr>
                     );
                   })}
+
+                  {/* Empty Catalog State */}
+                  {filteredProducts.length === 0 && (
+                    <tr>
+                      <td colSpan={10} className="p-12 text-center">
+                        <div className="max-w-md mx-auto space-y-4">
+                          <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center mx-auto text-rose-600 shadow-sm">
+                            <Boxes className="w-7 h-7" />
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-slate-900 text-base">
+                              {products.length === 0 ? 'No Inventory Data in Database' : 'No Matching Batches Found'}
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {products.length === 0
+                                ? 'The database has zero mock inventory records. All inventory has been wiped clean and is ready for real production batches.'
+                                : 'No products matched your active filters or search terms. Try clearing search or switching category.'}
+                            </p>
+                          </div>
+                          {products.length === 0 && canAdd && (
+                            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                              <button
+                                onClick={() => setIsAddBatchModalOpen(true)}
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer hover:scale-102"
+                              >
+                                <Plus className="w-4 h-4 stroke-[2.5]" />
+                                <span>Add First Product Batch</span>
+                              </button>
+                              <button
+                                onClick={() => setIsReceiveDeliveryOpen(true)}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Truck className="w-4 h-4 text-slate-600" />
+                                <span>Receive Supplier Intake</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1668,6 +1734,60 @@ export const InventoryCatalog: React.FC = () => {
         isOpen={isDuplicateAuditOpen}
         onClose={() => setIsDuplicateAuditOpen(false)}
       />
+
+      {/* CONFIRM PURGE ALL INVENTORY MODAL */}
+      {showPurgeAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  Purge All Inventory from Database?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Permanent Database &amp; Local Storage Action
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-rose-50/70 p-3 rounded-xl border border-rose-100">
+              This will permanently delete <strong>all product batches</strong>, <strong>fabric rolls</strong>, <strong>quarantine defect records</strong>, <strong>supplier delivery intakes</strong>, and <strong>stocktake counts</strong> from the Cloud Firestore database and local storage. No mock data will remain unless newly created.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isPurgingAll}
+                onClick={() => setShowPurgeAllModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPurgingAll}
+                onClick={handlePurgeAllInventory}
+                className="px-4 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isPurgingAll ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Purging Database...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Yes, Wipe All Inventory</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

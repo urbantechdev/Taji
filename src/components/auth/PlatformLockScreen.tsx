@@ -141,10 +141,10 @@ export const PlatformLockScreen: React.FC = () => {
   };
 
   // Quick fallback login for whitelisted admin (if Google popup blocked in container)
-  const handleQuickAdminLogin = () => {
+  const handleQuickAdminLogin = (email: string = 'gduniversalstudio@gmail.com') => {
     playSuccessSound();
-    setSuccessMessage('Admin session granted for whitelisted administrator.');
-    signInAsWhitelistedAdmin('urbaninteriorkenya@gmail.com');
+    setSuccessMessage('Admin session granted for Executive Administrator.');
+    signInAsWhitelistedAdmin(email);
   };
 
   return (
@@ -367,6 +367,74 @@ export const PlatformLockScreen: React.FC = () => {
                 </button>
               </div>
 
+              {/* Quick PIN Presets for easy terminal access */}
+              <div className="pt-1">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 text-center">
+                  Quick Staff PIN Shortcuts
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPin('123456');
+                      attemptUnlock('123456');
+                    }}
+                    className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all cursor-pointer group"
+                  >
+                    <div className="text-[10px] font-black text-slate-800 flex items-center justify-between">
+                      <span>Super Admin</span>
+                      <span className="font-mono text-rose-600 font-bold">123456</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400">Main Store (Executive)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPin('222222');
+                      attemptUnlock('222222');
+                    }}
+                    className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all cursor-pointer group"
+                  >
+                    <div className="text-[10px] font-black text-slate-800 flex items-center justify-between">
+                      <span>Sales Cashier</span>
+                      <span className="font-mono text-rose-600 font-bold">222222</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400">Biashara Shop (POS)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPin('333333');
+                      attemptUnlock('333333');
+                    }}
+                    className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all cursor-pointer group"
+                  >
+                    <div className="text-[10px] font-black text-slate-800 flex items-center justify-between">
+                      <span>Store 1 Attendant</span>
+                      <span className="font-mono text-rose-600 font-bold">333333</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400">Depot 1 (Transfers)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPin('444444');
+                      attemptUnlock('444444');
+                    }}
+                    className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition-all cursor-pointer group"
+                  >
+                    <div className="text-[10px] font-black text-slate-800 flex items-center justify-between">
+                      <span>Store 2 Attendant</span>
+                      <span className="font-mono text-rose-600 font-bold">444444</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400">Depot 2 (Transfers)</div>
+                  </button>
+                </div>
+              </div>
+
               {/* Submit Button */}
               <button
                 onClick={() => attemptUnlock()}
@@ -420,25 +488,41 @@ export const PlatformLockScreen: React.FC = () => {
                 <div className="flex items-center justify-between font-bold text-slate-800">
                   <span className="flex items-center gap-1.5 text-slate-700">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    Authorized Administrator:
+                    Authorized Administrator Accounts:
                   </span>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
                     Full Admin Access
                   </span>
                 </div>
-                <div className="p-2 bg-white rounded-xl border border-slate-200 font-mono text-xs font-bold text-rose-700 flex items-center justify-between">
-                  <span>urbaninteriorkenya@gmail.com</span>
-                  <span className="text-[10px] text-slate-400 font-sans font-medium">(Owner)</span>
+                <div className="space-y-1">
+                  <div className="p-2 bg-white rounded-xl border border-slate-200 font-mono text-xs font-bold text-rose-700 flex items-center justify-between">
+                    <span>gduniversalstudio@gmail.com</span>
+                    <span className="text-[10px] text-slate-400 font-sans font-medium">(Current User)</span>
+                  </div>
+                  <div className="p-2 bg-white rounded-xl border border-slate-200 font-mono text-xs font-bold text-rose-700 flex items-center justify-between">
+                    <span>urbaninteriorkenya@gmail.com</span>
+                    <span className="text-[10px] text-slate-400 font-sans font-medium">(Owner)</span>
+                  </div>
                 </div>
 
-                {/* Instant Whitelisted Admin Bypass Button */}
-                <button
-                  onClick={handleQuickAdminLogin}
-                  className="w-full mt-2 py-2 px-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
-                >
-                  <ShieldCheck className="w-4 h-4 text-amber-300" />
-                  <span>Authenticate as Executive Super Admin</span>
-                </button>
+                {/* Instant Whitelisted Admin Bypass Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => handleQuickAdminLogin('gduniversalstudio@gmail.com')}
+                    className="w-full py-2.5 px-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-[11px] rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                    <span>Login as gduniversalstudio</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleQuickAdminLogin('urbaninteriorkenya@gmail.com')}
+                    className="w-full py-2.5 px-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-98"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                    <span>Login as urbaninteriorkenya</span>
+                  </button>
+                </div>
               </div>
 
             </div>

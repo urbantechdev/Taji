@@ -147,8 +147,8 @@ const ERPContent: React.FC = () => {
                 {effectiveTab === 'transfers' && <InterStoreTransfers />}
                 {effectiveTab === 'ledger' && <AccountingLedger />}
                 {effectiveTab === 'etr' && <ETRModule />}
-                {effectiveTab === 'payroll' && <HRPayrollModule />}
-                {effectiveTab === 'operators' && <POSOperatorManager />}
+                {effectiveTab === 'payroll' && <HRPayrollModule initialSubTab="directory" />}
+                {effectiveTab === 'operators' && <HRPayrollModule initialSubTab="pos_users" />}
                 {effectiveTab === 'audit' && <AuditLogsModule />}
                 {effectiveTab === 'gmail' && <GmailInbox />}
                 {effectiveTab === 'settings' && <SettingsModule />}
