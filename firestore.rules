@@ -1,13 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Default Deny Catch-All
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
-    // Helper primitives
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
@@ -15,59 +10,118 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'urbaninteriorkenya@gmail.com' ||
-        request.auth.token.email == 'zamodasports@gmail.com'
+        request.auth.token.email == 'zamodasports@gmail.com' ||
+        request.auth.token.email == 'gduniversalstudio@gmail.com'
       );
     }
 
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    // POS Operators Collection - readable by store cashiers/devices, managed by admin or operators
+    // POS Operators Collection
     match /pos_operators/{operatorId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+      allow read, write: if true;
     }
 
-    // Products Collection - accessible and editable from anywhere (phone, laptop, tablet)
+    // Products Collection
     match /products/{productId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+      allow read, write: if true;
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    // Inter-Store Transfers Collection
+    match /transfers/{transferId} {
+      allow read, write: if true;
+    }
+
+    // Accounting Ledger Collection
+    match /ledger/{ledgerId} {
+      allow read, write: if true;
+    }
+
+    // Branch Locations Collection
+    match /locations/{locationId} {
+      allow read, write: if true;
+    }
+
+    // Branch Expenses Collection
+    match /branch_expenses/{expenseId} {
+      allow read, write: if true;
+    }
+
+    // Staff Members Collection
+    match /staff_members/{staffId} {
+      allow read, write: if true;
+    }
+
+    // HR Payroll Records Collection
+    match /payroll/{payrollId} {
+      allow read, write: if true;
+    }
+
+    // Cashier Shift Closures Collection
+    match /shift_closures/{shiftId} {
+      allow read, write: if true;
+    }
+
+    // Fabric Rolls & Piece Goods Inventory
+    match /fabric_rolls/{rollId} {
+      allow read, write: if true;
+    }
+
+    // Fixed Assets Collection
+    match /fixed_assets/{assetId} {
+      allow read, write: if true;
+    }
+
+    // Audit Logs Collection
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // System Settings Collection
+    match /system_settings/{settingId} {
+      allow read, write: if true;
     }
 
     // Category Pricing Configurations
     match /category_pricing/{categoryId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+      allow read, write: if true;
     }
 
     match /category_pricing_configs/{categoryId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+      allow read, write: if true;
     }
 
-    // Category Images
+    // Category Images & Brand Visuals
     match /category_images/{imageId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+      allow read, write: if true;
     }
 
-    // System Settings (Stock Alerts, etc.)
-    match /system_settings/{settingId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+    // Category Discounts & Wholesale Rules
+    match /category_discounts/{discountId} {
+      allow read, write: if true;
     }
 
-    // Sales Orders Collection
-    match /orders/{orderId} {
-      allow read: if true;
-      allow create, update, delete: if true;
-    }
-
-    // Brand Settings Collection
+    // Brand Identity & Enterprise Terminal Settings
     match /brand_settings/{settingsId} {
-      allow read: if true;
-      allow create, update, delete: if true;
+      allow read, write: if true;
+    }
+
+    // Quarantined Defects
+    match /quarantine_defects/{defectId} {
+      allow read, write: if true;
+    }
+
+    // Credit Notes
+    match /credit_notes/{noteId} {
+      allow read, write: if true;
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read, write: if true;
     }
   }
 }
