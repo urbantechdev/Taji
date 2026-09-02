@@ -52,7 +52,8 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
     brandSettings,
     products,
     stockAlertSettings,
-    isAdmin
+    isAdmin,
+    setAppMode
   } = useERP();
 
   const effectiveRole = activeRole || currentUser.role;
@@ -276,6 +277,11 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
                 key={item.id}
                 onClick={() => {
                   playClickSound();
+                  if (item.id === 'pos') {
+                    setAppMode('pos');
+                  } else {
+                    setAppMode('admin');
+                  }
                   setActiveTab(item.id);
                 }}
                 whileHover={{ scale: 1.05, y: -2 }}

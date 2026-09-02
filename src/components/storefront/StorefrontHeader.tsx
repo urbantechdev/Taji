@@ -9,7 +9,8 @@ import {
   MapPin,
   Menu,
   X,
-  Clock
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 
 interface StorefrontHeaderProps {

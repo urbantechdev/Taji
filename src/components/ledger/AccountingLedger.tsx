@@ -104,11 +104,16 @@ import {
   FileCheck,
   Calculator,
   RotateCcw,
+  Ship,
   X
 } from 'lucide-react';
+import { ImportTaxLandedCostingModule } from './ImportTaxLandedCostingModule';
+import { DebtorsAgingScheduleTab } from './DebtorsAgingScheduleTab';
 
 type LedgerTab = 
   | 'cfo_advisory'
+  | 'import_costing'
+  | 'debtors_aging'
   | 'financial_statements'
   | 'general_ledger'
   | 'balance_sheet'
@@ -745,6 +750,30 @@ export const AccountingLedger: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveSubTab('import_costing')}
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'import_costing'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200/60'
+            }`}
+          >
+            <Ship className="w-5 h-5 text-rose-600 shrink-0" />
+            <span>Import Landed Costing &amp; Tax Suite</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('debtors_aging')}
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'debtors_aging'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+            }`}
+          >
+            <FileText className="w-5 h-5 shrink-0" />
+            <span>Debtors Aging &amp; Statements</span>
+          </button>
+
+          <button
             onClick={() => setActiveSubTab('financial_statements')}
             className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all shrink-0 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeSubTab === 'financial_statements'
@@ -845,6 +874,24 @@ export const AccountingLedger: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* TAB: IMPORT TAX & LANDED COSTING MODULE */}
+      {/* ------------------------------------------------------------- */}
+      {activeSubTab === 'import_costing' && (
+        <div className="animate-in fade-in duration-200">
+          <ImportTaxLandedCostingModule />
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TAB: DEBTORS AGING & CUSTOMER STATEMENTS */}
+      {/* ------------------------------------------------------------- */}
+      {activeSubTab === 'debtors_aging' && (
+        <div className="animate-in fade-in duration-200">
+          <DebtorsAgingScheduleTab />
+        </div>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* TAB 1: VIRTUAL CFO INTELLIGENCE */}

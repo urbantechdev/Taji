@@ -49,7 +49,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { currentUser, setIsUserProfileModalOpen, locations, products, orders, stockAlertSettings, setViewMode, lockPlatform } = useERP();
+  const { currentUser, setIsUserProfileModalOpen, locations, products, orders, stockAlertSettings, setViewMode, lockPlatform, setAppMode } = useERP();
 
   const lowStockCount = products.filter(
     p => evaluateStockStatus(p, orders, stockAlertSettings).isLowStock
@@ -158,7 +158,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'pos') {
+                    setAppMode('pos');
+                  } else {
+                    setAppMode('admin');
+                  }
+                  setActiveTab(item.id);
+                }}
                 className={`group/btn relative w-full flex items-center justify-between px-3.5 py-3 rounded-2xl font-semibold text-xs leading-tight transition-all duration-200 cursor-pointer overflow-hidden ${
                   isActive
                     ? 'text-white bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 shadow-lg shadow-rose-950/60 border border-rose-400/40 font-bold scale-[1.02]'

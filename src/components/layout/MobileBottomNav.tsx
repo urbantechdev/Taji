@@ -308,13 +308,19 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 </label>
                 <div className="bg-slate-100 p-1 rounded-2xl flex items-center gap-1 border border-slate-200/80">
                   <button
+                    type="button"
                     onClick={() => {
+                      playClickSound();
                       setAppMode('admin');
+                      if (activeTab === 'pos') {
+                        setActiveTab('dashboard');
+                      }
+                      setIsMoreMenuOpen(false);
                     }}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                      appMode === 'admin'
-                        ? 'bg-rose-600 text-white shadow-md'
-                        : 'text-slate-600 hover:text-slate-900'
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      appMode === 'admin' && activeTab !== 'pos'
+                        ? 'bg-rose-600 text-white shadow-md font-black'
+                        : 'text-slate-600 hover:text-slate-900 bg-white/70'
                     }`}
                   >
                     <LayoutDashboard className="w-4 h-4" />
@@ -322,13 +328,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
+                      playClickSound();
                       setAppMode('pos');
+                      setActiveTab('pos');
+                      setIsMoreMenuOpen(false);
                     }}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                      appMode === 'pos'
-                        ? 'bg-rose-600 text-white shadow-md'
-                        : 'text-slate-600 hover:text-slate-900'
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      appMode === 'pos' || activeTab === 'pos'
+                        ? 'bg-rose-600 text-white shadow-md font-black'
+                        : 'text-slate-600 hover:text-slate-900 bg-white/70'
                     }`}
                   >
                     <ShoppingCart className="w-4 h-4" />

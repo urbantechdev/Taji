@@ -140,6 +140,12 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
         setIsLocationDropdownOpen(false);
         setIsRoleDropdownOpen(false);
         setIsMobileMenuOpen(false);
+      } else if (e.altKey && (e.key === '1' || e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        handleSetMode('admin');
+      } else if (e.altKey && (e.key === '2' || e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        handleSetMode('pos');
       }
     };
 
@@ -364,6 +370,11 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
 
   const handleNavClick = (tab: NavTab) => {
     playClickSound();
+    if (tab === 'pos') {
+      setAppMode('pos');
+    } else {
+      setAppMode('admin');
+    }
     if (setActiveTab) {
       setActiveTab(tab);
     }
@@ -373,8 +384,16 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
   const handleSetMode = (mode: 'admin' | 'pos') => {
     playClickSound();
     setAppMode(mode);
-    if (mode === 'pos' && setActiveTab) {
-      setActiveTab('pos');
+    if (mode === 'pos') {
+      if (setActiveTab) {
+        setActiveTab('pos');
+      }
+    } else {
+      if (setActiveTab) {
+        if (activeTab === 'pos') {
+          setActiveTab('dashboard');
+        }
+      }
     }
     setIsMobileMenuOpen(false);
   };
@@ -694,16 +713,13 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 >
                   <button
                     type="button"
-                    onClick={() => {
-                      playClickSound();
-                      setAppMode('admin');
-                    }}
+                    onClick={() => handleSetMode('admin')}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                      appMode === 'admin'
+                      appMode === 'admin' && activeTab !== 'pos'
                         ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
                         : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
-                    title="Switch to Admin Dashboard"
+                    title="Switch to Admin Dashboard (Alt + 1)"
                   >
                     <LayoutDashboard className="w-5 h-5" />
                     <span className="text-xs">Admin</span>
@@ -720,16 +736,13 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 >
                   <button
                     type="button"
-                    onClick={() => {
-                      playClickSound();
-                      setAppMode('pos');
-                    }}
+                    onClick={() => handleSetMode('pos')}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                      appMode === 'pos'
+                      appMode === 'pos' || activeTab === 'pos'
                         ? 'bg-white text-pink-700 shadow-md scale-105 font-black'
                         : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
-                    title="Switch to POS Terminal"
+                    title="Switch to POS Terminal (Alt + 2)"
                   >
                     <ShoppingBag className="w-5 h-5" />
                     <span className="text-xs">POS</span>
