@@ -289,8 +289,11 @@ export const RealBarcodeSettings: React.FC = () => {
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(71, 85, 105);
+        const isYarnItem = item.category === 'Yarns' || item.sku.startsWith('YRN');
+        const unitLabel = isYarnItem ? `Net Weight: ${item.meterage} KGs` : `Roll Length: ${item.meterage} Meters`;
+        const unitPriceSuffix = isYarnItem ? '/ kg' : '/ m';
         doc.text(`Category: ${item.category} | Color: ${item.color} | Fiber: ${item.fiber}`, 20, startY + 14);
-        doc.text(`Roll Length: ${item.meterage} Mtrs | Retail Price: KSh ${item.price.toLocaleString()}`, 20, startY + 19);
+        doc.text(`${unitLabel} | Retail Price: KSh ${item.price.toLocaleString()} ${unitPriceSuffix}`, 20, startY + 19);
 
         // Barcode Image
         const barcodeDataUrl = generateBarcodeSvgDataUrl(item.sku);
@@ -457,7 +460,7 @@ export const RealBarcodeSettings: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Retail Price (KSh)
+                  Retail Price (KSh / {selectedCategoryPreset === 'Yarns' ? 'kg' : 'm'})
                 </label>
                 <input
                   type="number"
@@ -481,7 +484,7 @@ export const RealBarcodeSettings: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Roll Length (Meters)
+                  {selectedCategoryPreset === 'Yarns' ? 'Net Weight (KGs)' : 'Roll Length (Meters)'}
                 </label>
                 <input
                   type="number"
@@ -592,7 +595,7 @@ export const RealBarcodeSettings: React.FC = () => {
                     {includeColor && `Color: ${colorName}`} {includeFiber && `• ${fiberComposition}`}
                   </p>
                   <p className="text-[10px] font-bold text-slate-700 mt-0.5">
-                    Roll Length: {rollMeterage} Mtrs
+                    {selectedCategoryPreset === 'Yarns' ? `Net Weight: ${rollMeterage} KGs` : `Roll Length: ${rollMeterage} Meters`}
                   </p>
                 </div>
 
@@ -600,7 +603,7 @@ export const RealBarcodeSettings: React.FC = () => {
                   <div className="text-right shrink-0">
                     <p className="text-[9px] font-bold text-slate-400 uppercase">Retail</p>
                     <p className="text-sm font-black text-pink-800 font-mono">
-                      KSh {price.toLocaleString()}
+                      KSh {price.toLocaleString()} <span className="text-[10px] text-slate-500 font-normal">/{selectedCategoryPreset === 'Yarns' ? 'kg' : 'm'}</span>
                     </p>
                   </div>
                 )}
