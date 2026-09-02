@@ -34,9 +34,10 @@ import { ReturnExchangeModal } from './components/ReturnExchangeModal';
 import { FabricRollManagerModal } from './components/FabricRollManagerModal';
 import { UserGuideModule } from './components/docs/UserGuideModule';
 import { Footer } from './components/layout/Footer';
+import { StorefrontView } from './components/storefront/StorefrontView';
 
 const ERPContent: React.FC = () => {
-  const { appMode, isPlatformUnlocked, isAdmin, currentUser } = useERP();
+  const { appMode, isPlatformUnlocked, isAdmin, currentUser, viewMode, setViewMode } = useERP();
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
 
   // Verify and enforce role permission for currently selected tab
@@ -75,6 +76,9 @@ const ERPContent: React.FC = () => {
   };
 
   useEffect(() => {
+    // Only engage fullscreen locked interface in internal Admin/POS terminal mode
+    if (viewMode !== 'admin') return;
+
     // Attempt immediate fullscreen upon platform mount
     triggerFullscreen();
 
@@ -94,11 +98,23 @@ const ERPContent: React.FC = () => {
       window.removeEventListener('keydown', handleGesture);
       window.removeEventListener('pointerdown', handleGesture);
     };
-  }, []);
+  }, [viewMode]);
 
   useEffect(() => {
-    triggerFullscreen();
-  }, [appMode, activeTab]);
+    if (viewMode === 'admin') {
+      triggerFullscreen();
+    }
+  }, [viewMode, appMode, activeTab]);
+
+  // PUBLIC STOREFRONT VIEW: Default customer-facing e-commerce portal
+  if (viewMode === 'storefront') {
+    return (
+      <>
+        <StorefrontView onOpenAdminPortal={() => setViewMode('admin')} />
+        <MailNotificationPopup />
+      </>
+    );
+  }
 
   // HARD AUTHENTICATION GATE: Lock platform until Admin logs in with Gmail or User logs in with PIN
   if (!isPlatformUnlocked) {

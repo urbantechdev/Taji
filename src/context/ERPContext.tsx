@@ -99,6 +99,10 @@ import {
 import { calculateKenyaStatutoryDeductions, calculateAssetMonthlyDepreciation } from '../utils/financeEngine';
 
 interface ERPContextType {
+  // Public Storefront vs Admin ERP View
+  viewMode: 'storefront' | 'admin';
+  setViewMode: (mode: 'storefront' | 'admin') => void;
+
   // Navigation, Mode & Role Context
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
@@ -631,6 +635,36 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeLocation, setActiveLocation] = useState<LocationId>('sales_shop');
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
 
+  // Storefront Frontend vs ERP Admin Control View Mode (ERP default with Website link)
+  const [viewMode, setViewModeState] = useState<'storefront' | 'admin'>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('view') === 'storefront' || urlParams.get('view') === 'website' || window.location.hash === '#storefront' || window.location.hash === '#website') {
+        return 'storefront';
+      }
+      if (urlParams.get('view') === 'admin' || window.location.hash === '#admin') {
+        return 'admin';
+      }
+      const saved = localStorage.getItem('taji_view_mode');
+      if (saved === 'admin' || saved === 'storefront') {
+        return saved;
+      }
+    } catch (e) {}
+    return 'admin';
+  });
+
+  const handleSetViewMode = (mode: 'storefront' | 'admin') => {
+    setViewModeState(mode);
+    try {
+      localStorage.setItem('taji_view_mode', mode);
+      if (mode === 'admin') {
+        window.location.hash = '#admin';
+      } else {
+        window.location.hash = '#website';
+      }
+    } catch (e) {}
+  };
+
   // Google Auth State for Admin
   const [adminUser, setAdminUser] = useState<{
     uid: string;
@@ -679,6 +713,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Error saving pos operators to localStorage:', e);
     }
   }, [posOperators]);
+
   const [posSession, setPosSession] = useState<{
     isUnlocked: boolean;
     operatorId: string;
@@ -686,7 +721,36 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     location: LocationId;
     pin: string;
     role: UserRole;
-  } | null>(null);
+  } | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('taji_pos_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.isUnlocked) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    // Default unlocked admin session on initial launch
+    return {
+      isUnlocked: true,
+      operatorId: 'op-super-admin',
+      operatorName: 'Executive Super Admin',
+      location: 'sales_shop',
+      pin: '123456',
+      role: 'admin'
+    };
+  });
+
+  useEffect(() => {
+    try {
+      if (posSession && posSession.isUnlocked) {
+        sessionStorage.setItem('taji_pos_session', JSON.stringify(posSession));
+      } else {
+        sessionStorage.removeItem('taji_pos_session');
+      }
+    } catch (e) {}
+  }, [posSession]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -725,14 +789,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     )
   );
 
-  // An admin is either authenticated via Google Admin or active with the 'admin' role
-  const isRoleAdmin = currentUser.role === 'admin' || activeRole === 'admin' || posSession?.role === 'admin';
+  // An admin is either authenticated via Google Admin or active with the 'admin' role in an unlocked session
+  const isRoleAdmin = Boolean(posSession?.isUnlocked && (posSession.role === 'admin' || currentUser.role === 'admin'));
   const isAdmin = Boolean(isGoogleAdminAuthenticated || isRoleAdmin);
 
   const isPlatformUnlocked = Boolean(
     (posSession && posSession.isUnlocked) ||
-    isGoogleAdminAuthenticated ||
-    isRoleAdmin
+    isGoogleAdminAuthenticated
   );
 
   const setAppMode = (mode: AppMode) => {
@@ -1087,16 +1150,23 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const lockPOSSession = () => {
+    try {
+      sessionStorage.removeItem('taji_pos_session');
+    } catch (e) {}
     setPosSession(null);
+    setAdminUser(null);
     recordAuditLog('Session Locked', `Active session locked for user ${currentUser.name}`);
   };
 
   const lockPlatform = () => {
+    try {
+      sessionStorage.removeItem('taji_pos_session');
+    } catch (e) {}
     setPosSession(null);
     setAdminUser(null);
     signOutGoogleAdmin();
     setAppModeState('pos');
-    recordAuditLog('Platform Locked', `Terminal locked by user.`);
+    recordAuditLog('Platform Locked', `Terminal locked / signed out by user ${currentUser.name}.`);
   };
 
   // Brand Settings & Modals
@@ -8093,7 +8163,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateStocktakeItemCount,
         bulkUpdateStocktakeItems,
         finalizeAndReconcileStocktake,
-        deleteStocktakeSession
+        deleteStocktakeSession,
+        viewMode,
+        setViewMode: handleSetViewMode
       }}
     >
       {children}
