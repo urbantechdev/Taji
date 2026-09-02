@@ -1,6 +1,6 @@
 {
   "name": "Taji",
-  "description": "Taji - Globally synchronized multi-device textile ERP with real-time cloud database inventory management, category pricing control, ETR billing, auto-balancing ledger, and payroll platform.",
+  "description": "Taji - Certified textile supply, Dereck suiting fabrics, Polar & Coral Fleece rolls, and Acrylic knitting yarns with integrated ERP inventory, ETR billing, and multi-device POS.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
