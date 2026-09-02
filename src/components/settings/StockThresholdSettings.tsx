@@ -492,10 +492,12 @@ export const StockThresholdSettings: React.FC = () => {
             <div className="grid grid-cols-3 gap-2.5">
               {(['Dereck', 'Fleece', 'Yarns'] as CategoryType[]).map(cat => {
                 const currentVal = draftSettings.categoryLowStockThresholds?.[cat] ?? draftSettings.defaultLowStockThreshold;
+                const unitBadge = cat === 'Yarns' ? 'kg' : 'm';
+                const label = cat === 'Dereck' ? 'Dereec (m)' : cat === 'Fleece' ? 'Fleece (m)' : 'Yarns (kg)';
                 return (
                   <div key={cat} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                    <span className="text-[11px] font-extrabold text-slate-700 block truncate">
-                      {cat}
+                    <span className="text-[11px] font-extrabold text-slate-700 block truncate" title={label}>
+                      {label}
                     </span>
                     <div className="flex items-center gap-1">
                       <input
@@ -515,7 +517,7 @@ export const StockThresholdSettings: React.FC = () => {
                         }}
                         className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-rose-500"
                       />
-                      <span className="text-[10px] text-slate-400 font-mono">u</span>
+                      <span className="text-[10px] text-slate-500 font-mono font-bold">{unitBadge}</span>
                     </div>
                   </div>
                 );
