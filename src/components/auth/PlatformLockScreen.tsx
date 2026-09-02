@@ -15,7 +15,9 @@ import {
   ShieldAlert,
   Building,
   UserCheck,
-  Keyboard
+  Keyboard,
+  Globe,
+  ArrowLeft
 } from 'lucide-react';
 
 export const PlatformLockScreen: React.FC = () => {
@@ -28,7 +30,8 @@ export const PlatformLockScreen: React.FC = () => {
     setActiveLocation,
     brandSettings,
     locations,
-    posOperators
+    posOperators,
+    setViewMode
   } = useERP();
 
   const [activeTab, setActiveTab] = useState<'pin' | 'admin'>('pin');
@@ -527,6 +530,23 @@ export const PlatformLockScreen: React.FC = () => {
 
             </div>
           )}
+
+          {/* Return to Public Customer Storefront Footer */}
+          <div className="p-4 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between gap-3">
+            <button
+              onClick={() => {
+                playClickSound();
+                setViewMode('storefront');
+              }}
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl border border-rose-200 flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-2xs"
+            >
+              <Globe className="w-3.5 h-3.5 text-rose-600" />
+              <span>Visit Public Website</span>
+            </button>
+            <span className="text-[11px] text-slate-500 font-medium">
+              Taji Enterprise ERP
+            </span>
+          </div>
 
         </div>
 

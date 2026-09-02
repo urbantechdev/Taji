@@ -20,7 +20,11 @@ import {
   TrendingUp,
   BookOpen,
   HelpCircle,
-  FileText
+  FileText,
+  Globe,
+  ExternalLink,
+  Lock,
+  LogOut
 } from 'lucide-react';
 
 export type NavTab =
@@ -45,7 +49,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { currentUser, setIsUserProfileModalOpen, locations, products, orders, stockAlertSettings } = useERP();
+  const { currentUser, setIsUserProfileModalOpen, locations, products, orders, stockAlertSettings, setViewMode, lockPlatform } = useERP();
 
   const lowStockCount = products.filter(
     p => evaluateStockStatus(p, orders, stockAlertSettings).isLowStock
@@ -197,6 +201,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
         </nav>
       </div>
 
+      {/* Switch to Online Storefront Website */}
+      <div className="px-3 pb-1">
+        <button
+          onClick={() => setViewMode('storefront')}
+          className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-rose-900/70 via-pink-900/60 to-slate-900/80 hover:from-rose-800 hover:to-pink-800 border border-rose-500/40 hover:border-rose-400 text-white flex items-center justify-between text-xs font-bold transition-all cursor-pointer shadow-md hover:shadow-rose-950/40 group active:scale-98"
+          title="Open Public Customer Website & Storefront"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-pink-500/20 text-pink-300 flex items-center justify-center border border-pink-400/30 group-hover:scale-105 transition-transform shrink-0">
+              <Globe className="w-4 h-4" />
+            </div>
+            <div className="text-left min-w-0">
+              <span className="block text-white font-bold leading-tight truncate">Visit Website</span>
+              <span className="block text-[10px] text-pink-200/80 font-medium truncate">Public Storefront</span>
+            </div>
+          </div>
+          <ExternalLink className="w-3.5 h-3.5 text-pink-200/80 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0 ml-1.5" />
+        </button>
+      </div>
+
       {/* User Profile & Active Role Card in Sidebar Footer */}
       <div className="p-3 m-3 bg-slate-800/80 border border-slate-700/80 rounded-2xl relative z-10 space-y-2">
         <div className="flex items-center justify-between">
@@ -212,13 +236,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             </div>
           </div>
 
-          <button
-            onClick={() => setIsUserProfileModalOpen(true)}
-            className="p-2 bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer shrink-0 ml-1"
-            title="Open Account Profile Settings"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0 ml-1">
+            <button
+              onClick={() => setIsUserProfileModalOpen(true)}
+              className="p-2 bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer"
+              title="Open Account Profile Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => lockPlatform()}
+              className="p-2 bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl transition-colors cursor-pointer"
+              title="Lock Terminal & Log Out"
+            >
+              <Lock className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div className="pt-1.5 border-t border-slate-700/60 flex items-center justify-between text-[10.5px] text-slate-400 font-medium">

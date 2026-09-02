@@ -54,7 +54,9 @@ import {
   ClipboardList,
   BookOpen,
   HelpCircle,
-  FileText
+  FileText,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -97,7 +99,9 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
     setIsFabricRollModalOpen,
     fabricRolls,
     orders,
-    stockAlertSettings
+    stockAlertSettings,
+    viewMode,
+    setViewMode
   } = useERP();
 
   const [soundOn, setSoundOn] = useState<boolean>(true);
@@ -654,6 +658,29 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
           {/* Desktop Right Toolbar */}
           <div className="flex flex-wrap items-center justify-end gap-2 lg:gap-2.5 relative z-40">
             
+            {/* View Online Website / Customer Storefront Button */}
+            <CapabilityTooltip
+              title="Visit Online Customer Storefront"
+              description="Open public customer-facing textile catalog, Dereck/Fleece/Yarn specs, and M-Pesa store."
+              roleRequired="All Roles"
+              placement="bottom"
+              align="center"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  setViewMode('storefront');
+                }}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 bg-gradient-to-r from-pink-500/30 to-rose-500/30 hover:from-pink-500/45 hover:to-rose-500/45 text-white border border-white/35 backdrop-blur-md shadow-xs hover:scale-105 active:scale-95 group"
+                title="Visit Public Website & Storefront"
+              >
+                <Globe className="w-4 h-4 text-pink-200 group-hover:scale-110 group-hover:rotate-12 transition-transform shrink-0" />
+                <span className="font-bold tracking-tight">Visit Website</span>
+                <ExternalLink className="w-3 h-3 text-pink-200/80 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0" />
+              </button>
+            </CapabilityTooltip>
+
             {/* Mode Switcher: Admin / POS Toggle */}
             {isAdmin ? (
               <div className="bg-black/25 p-1 rounded-2xl flex items-center gap-1.5 border border-white/20 backdrop-blur-md shadow-inner">
@@ -1220,9 +1247,9 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               </button>
             </CapabilityTooltip>
 
-            {/* Lock Session Terminal Button */}
+            {/* Lock Terminal / Log Out Button */}
             <CapabilityTooltip
-              title="Lock Terminal Session"
+              title="Lock Terminal & Log Out"
               description="Immediately lock and secure the POS terminal screen with PIN / Google Auth."
               roleRequired="All Users"
               shortcut="Alt + Q"
@@ -1230,15 +1257,17 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               align="right"
             >
               <button
+                id="header-lock-terminal-btn"
                 type="button"
                 onClick={() => {
                   playClickSound();
                   lockPlatform();
                 }}
-                className="p-2.5 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/50 text-rose-100 rounded-xl shadow-xs transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center group"
-                title="Lock Terminal Session"
+                className="px-3 py-2 bg-gradient-to-r from-rose-600/70 via-rose-700/80 to-pink-800/80 hover:from-rose-600 hover:to-pink-700 border border-rose-400/60 hover:border-rose-300 text-white rounded-xl shadow-md hover:shadow-rose-950/40 transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1.5 group font-bold text-xs"
+                title="Lock Terminal & Log Out (Alt + Q)"
               >
-                <Lock className="w-5 h-5 text-rose-300 group-hover:scale-110 transition-transform" />
+                <Lock className="w-4 h-4 text-rose-200 group-hover:scale-110 transition-transform shrink-0" />
+                <span className="hidden xl:inline text-xs font-bold">Lock / Log Out</span>
               </button>
             </CapabilityTooltip>
 
@@ -1603,6 +1632,32 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                         {soundOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
                       </div>
                       <span className="text-[10px] font-bold text-slate-800">{soundOn ? 'Sound On' : 'Muted'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Switch to Online Storefront Portal */}
+                <div className="p-3 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl text-white border border-slate-700 shadow-md">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-pink-500/20 text-pink-300 border border-pink-500/30 shrink-0">
+                        <Globe className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white truncate">Online Customer Storefront</p>
+                        <p className="text-[10px] text-slate-300 truncate">Customer catalog & M-Pesa store</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsMobileMenuOpen(false);
+                        setViewMode('storefront');
+                      }}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
+                    >
+                      Open
                     </button>
                   </div>
                 </div>
