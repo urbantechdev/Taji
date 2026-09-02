@@ -38,7 +38,13 @@ import { StorefrontView } from './components/storefront/StorefrontView';
 
 const ERPContent: React.FC = () => {
   const { appMode, isPlatformUnlocked, isAdmin, currentUser, viewMode, setViewMode } = useERP();
-  const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
+  const [activeTab, setActiveTab] = useState<NavTab>(() => {
+    const role = currentUser?.role;
+    if (role === 'admin' || role === 'branch_manager' || role === 'accountant') {
+      return 'dashboard';
+    }
+    return 'pos';
+  });
 
   // Verify and enforce role permission for currently selected tab
   const roleAllowedTabs = ROLE_DEFINITIONS[currentUser.role]?.allowedTabs || ['pos'];

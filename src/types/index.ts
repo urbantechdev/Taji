@@ -104,6 +104,17 @@ export interface BranchCashReconciliation {
 
 export type CategoryType = 'Dereck' | 'Fleece' | 'Yarns';
 
+export type LocalFabricCategory = 
+  | 'Single Jersey' 
+  | 'Rib' 
+  | 'Heavy Pique' 
+  | 'Dereck' 
+  | 'Fleece' 
+  | 'Yarns' 
+  | 'Interlock' 
+  | 'School Uniform Fabric' 
+  | string;
+
 export type UnitType = 'kg' | 'roll' | 'meter' | 'skein' | 'yard';
 
 export type CloudSyncStatus = 'synced' | 'syncing' | 'offline';
@@ -633,6 +644,7 @@ export type LedgerCategory =
   | 'Tax VAT' 
   | 'Withholding Tax 5%'
   | 'Inventory Revaluation' 
+  | 'Import Landed Costing Capitalization'
   | 'Expense'
   | 'Payroll'
   | 'Depreciation'
@@ -1461,3 +1473,234 @@ export interface StocktakeSession {
   notes?: string;
   autoAdjustedInventory?: boolean;
 }
+
+// -----------------------------------------------------------------------------
+// Import Tax & Landed Costing Module Types (KRA SAD ICMS / Landed Capitalization)
+// -----------------------------------------------------------------------------
+export interface ImportShipmentLineItem {
+  id: string;
+  description: string; // e.g. "100% Poly Special Derek 150CM 260GSM"
+  category: CategoryType;
+  hsCode: string; // e.g. "6006.32.00"
+  fobUSD: number;
+  netWeightKg: number;
+  grossWeightKg: number;
+  gsm?: number; // Grams per square meter (for fabrics)
+  widthCm?: number; // Fabric width in centimeters (for fabrics)
+  matchedProductId?: string; // Link to existing catalog product to update cost price
+}
+
+export interface ComputedImportLineItem extends ImportShipmentLineItem {
+  fobRatio: number;
+  weightRatio: number;
+  apportionedFreightUSD: number;
+  apportionedInsuranceUSD: number;
+  apportionedCoCUSD: number;
+  apportionedCoCKES: number;
+  apportionedPortClearingKES: number;
+  apportionedMssUSD: number;
+  apportionedMssKES: number;
+  cifUSD: number;
+  customsValueKES: number;
+  adValoremDutyKES: number;
+  specificDutyKES: number;
+  dutyAppliedKES: number;
+  dutyRuleApplied: 'ad_valorem' | 'specific_duty';
+  importDuty1002KES: number;
+  idf1801KES: number;
+  rdl6001KES: number;
+  vat1202KES: number;
+  mss6401KES: number;
+  totalTaxesKES: number;
+  totalLandedCostKES: number;
+  fabricLengthMetres?: number;
+  landedCostPerUnit: number; // KES/m (fabrics) or KES/kg (yarns)
+  landedCostPerUnitExclVat: number;
+  suggestedRetailPrice: number;
+  projectedGrossProfitPerUnit: number;
+}
+
+export interface ImportShipmentSummary {
+  totalFOB_USD: number;
+  totalNetWeightKg: number;
+  totalGrossWeightKg: number;
+  totalFreightUSD: number;
+  totalInsuranceUSD: number;
+  totalCIF_USD: number;
+  totalCustomsValueKES: number;
+  totalImportDuty1002KES: number;
+  totalIDF1801KES: number;
+  totalRDL6001KES: number;
+  totalVAT1202KES: number;
+  totalMSS6401KES: number;
+  totalKRATaxesKES: number;
+  totalCoCKES: number;
+  totalPortClearingKES: number;
+  totalLandedInventoryKES: number;
+  totalFabricMetres: number;
+  totalYarnKgs: number;
+  items: ComputedImportLineItem[];
+}
+
+export interface ImportShipmentRecord {
+  id: string;
+  shipmentNumber: string; // e.g. "IMP-2026-PA222"
+  invoiceNumber: string; // e.g. "26PA222"
+  invoiceDate: string;
+  supplierName: string; // e.g. "ZHEJIANG PUAN TEXTILE TECHNOLOGY CO.,LTD."
+  supplierCountry: string;
+  consigneeName: string;
+  consigneePin: string;
+  declarantName: string;
+  declarantPin: string;
+  customsEntryNo: string; // e.g. "26EMKIM400955090"
+  kraEslipRef: string; // e.g. "1020260001007429"
+  portOfEntry: string;
+  destinationLocationId: LocationId;
+  exchangeRate: number; // KES per USD (default 129.38999)
+  specificDutyRatePerTonne: number; // 97,500 KES
+  adValoremRatePct: number; // 25% (or 10% for yarns)
+  idfRatePct: number; // 2.5%
+  rdlRatePct: number; // 2.0%
+  vatRatePct: number; // 16.0%
+  mssLevyUSDRatePerTonne: number; // USD 1.75
+  cocFeesUSD: number; // USD 600.00
+  totalFreightUSD: number; // USD 5,500.00
+  totalInsuranceUSD: number; // USD 14.38
+  portClearingFeesKES: number; // KES 180,000.00
+  targetMarkupPct: number; // 35%
+  status: 'draft' | 'assessed' | 'approved_capitalized';
+  capitalizedAt?: string;
+  capitalizedBy?: string;
+  journalVoucherRef?: string;
+  lineItems: ImportShipmentLineItem[];
+  notes?: string;
+}
+
+export interface SupplierDebitNoteRecord {
+  id: string;
+  debitNoteNumber: string;
+  date: string;
+  supplierName: string;
+  supplierCountry: string;
+  originalInvoiceNo: string;
+  customsEntryNo: string;
+  kraEslipRef: string;
+  exchangeRate: number;
+  items: Array<{
+    lineItemId: string;
+    description: string;
+    invoicedWeightKg: number;
+    receivedWeightKg: number;
+    shortageKg: number;
+    unitFobUSD: number;
+    shortageAmountUSD: number;
+    shortageAmountKES: number;
+  }>;
+  totalShortageKg: number;
+  totalShortageUSD: number;
+  totalShortageKES: number;
+  kraDutyImpactKES: number;
+  totalClaimAmountUSD: number;
+  totalClaimAmountKES: number;
+  reason: string;
+  status: 'draft' | 'posted_to_gl' | 'settled';
+  glJournalRef?: string;
+}
+
+export interface KRAVat3ReturnSummary {
+  taxPeriod: string;
+  companyPin: string;
+  companyName: string;
+  grossSalesExclVat: number;
+  outputVat16: number;
+  localPurchasesExclVat: number;
+  localInputVat16: number;
+  importCustomsValueExclVat: number;
+  importVat1202Claimable: number;
+  withholdingVat2Percent: number;
+  netVatPayable: number;
+  isCreditCarriedForward: boolean;
+  status: 'draft' | 'filed_with_kra';
+}
+
+export interface MonthEndStep {
+  id: string;
+  title: string;
+  category: 'cash' | 'inventory' | 'payroll' | 'assets' | 'period_lock';
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'warning';
+  actionLabel: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  notes?: string;
+}
+
+// -------------------------------------------------------------
+// SUPPLY PROCUREMENT TYPES: LPS (Local) vs IPS (Import)
+// -------------------------------------------------------------
+export type SupplyType = 'LPS' | 'IPS';
+
+export interface LocalPurchaseLineItem {
+  id: string;
+  description: string;
+  category: LocalFabricCategory;
+  quantity: number; // e.g., meters or kgs
+  unit: UnitType; // 'meter' | 'kg' | 'yard' | 'piece'
+  netUnitPriceKES: number; // Purchase price excl. VAT
+  vatRatePct: number; // default 16% (0% if zero-rated or exempt)
+  rollsCount?: number;
+  gsm?: number;
+  widthCm?: number;
+  colorName?: string;
+  allocatedFreightKES?: number;
+  allocatedHandlingKES?: number;
+  totalCapitalizedCostKES?: number;
+  capitalizedUnitCostKES?: number;
+  suggestedRetailPriceKES?: number;
+  suggestedBulkPriceKES?: number;
+}
+
+export interface LocalPurchaseRecord {
+  id: string;
+  purchaseOrderNo: string; // e.g. "LPS-2026-0042"
+  invoiceNumber: string; // Supplier's Invoice No, e.g. "INV-RIV-8921"
+  etimsControlNo?: string; // eTIMS / CU Invoice Number, e.g. "005001202602189912"
+  invoiceDate: string;
+  supplierName: string; // e.g. "RIVATEX EAST AFRICA LIMITED"
+  supplierPin: string; // e.g. "P051187654M"
+  supplierCity: string; // e.g. "Eldoret / Nairobi"
+  destinationLocationId: LocationId;
+  paymentTerms: 'Immediate Cash/M-Pesa' | '30 Days Credit' | '60 Days Credit' | 'Advance EFT';
+  withholdingVatEnabled: boolean; // 2% WHVAT
+  localFreightKES: number; // Local trucking/delivery
+  localHandlingKES: number; // Offloading labour / forklift
+  inspectionTestingKES: number; // Lab/quality check
+  targetMarkupPct: number; // e.g., 30%
+  status: 'draft' | 'received' | 'capitalized';
+  capitalizedAt?: string;
+  capitalizedBy?: string;
+  journalVoucherRef?: string;
+  lineItems: LocalPurchaseLineItem[];
+  notes?: string;
+}
+
+export interface ComputedLocalPurchaseSummary {
+  totalNetPurchaseKES: number;
+  totalVat16KES: number;
+  totalWithholdingVat2KES: number;
+  totalGrossSupplierPayableKES: number;
+  totalLogisticsAddOnsKES: number; // Freight + Handling + Inspection
+  totalCapitalizedInventoryCostKES: number; // Net Purchase + Logistics Addons
+  totalUnits: number;
+  effectiveAverageCapitalizedCostPerUnit: number;
+  items: Array<LocalPurchaseLineItem & {
+    lineNetKES: number;
+    lineVatKES: number;
+    allocatedLogisticsKES: number;
+    totalCapitalizedKES: number;
+    unitLandedCostKES: number;
+    grossMarginPct: number;
+  }>;
+}
+
