@@ -653,19 +653,13 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                   ERP
                 </span>
               </div>
-              
-              <div className="flex items-center gap-1.5 opacity-80">
-                <div className="h-[2px] w-14 lg:w-20 bg-gradient-to-r from-white via-white/70 to-transparent rounded-full" />
-                <div className="h-1.5 w-1.5 bg-white rounded-full animate-ping" />
-                <div className="h-[2px] w-4 bg-white/40 rounded-full" />
-              </div>
 
               <div className="hidden lg:flex items-center gap-2">
                 <a
                   href="https://urbantechdev.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-pink-100 hover:text-white font-medium font-sans max-w-xl truncate transition-colors inline-flex items-center gap-1"
+                  className="text-xs text-pink-100 hover:text-white font-medium font-sans max-w-xl truncate transition-colors inline-flex items-center gap-1 no-underline"
                   title="Visit urbantechdev.com"
                 >
                   <span>Powered by <strong className="font-bold text-white">urbantechdev</strong></span>

@@ -28,8 +28,18 @@ import {
   Info,
   Camera,
   Pipette,
-  Palette
+  Palette,
+  Lock,
+  FileText,
+  ShieldAlert
 } from 'lucide-react';
+import {
+  PRESET_INVOICE_26PA222,
+  PRESET_SAD_26EMKIM400968589,
+  PRESET_SAD_UDEY_UDYOG,
+  PRESET_FLEECE_CONTAINER
+} from '../../utils/importCostingEngine';
+import { PRESET_LPS_RIVATEX } from '../../utils/localPurchaseCostingEngine';
 import { playAddToCartSound, playAlertSound, playClickSound, playSuccessSound, playBarcodeScanBeep, playScannerErrorBeep } from '../../utils/audio';
 import { OpticalShadeScannerModal, OpticalScanOutput } from './OpticalShadeScannerModal';
 import { MILL_SHADE_CATALOG, parseMillLabelPayload } from '../../utils/textileShadeEngine';
@@ -135,12 +145,64 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     locations,
     activeLocation,
     commitCategoryIntakeSession,
-    getTotalAssetValuation
+    getTotalAssetValuation,
+    deliveries = []
   } = useERP();
 
   // Workflow State
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>(initialCategory);
   const [targetLocation, setTargetLocation] = useState<LocationId>(activeLocation || 'main_store');
+
+  // Inward Invoice Selection & Store Lock Governance
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('none');
+  const [isStoreLockedByInvoice, setIsStoreLockedByInvoice] = useState<boolean>(false);
+  const [lockedInvoiceRef, setLockedInvoiceRef] = useState<string>('');
+
+  const handleSelectInvoiceForIntake = (invoiceKey: string) => {
+    setSelectedInvoiceId(invoiceKey);
+    playClickSound();
+
+    if (invoiceKey === 'none') {
+      setIsStoreLockedByInvoice(false);
+      setLockedInvoiceRef('');
+      return;
+    }
+
+    if (invoiceKey === 'IMP-2026-PA222') {
+      const store = (PRESET_INVOICE_26PA222.destinationLocationId as LocationId) || 'main_store';
+      setTargetLocation(store);
+      setIsStoreLockedByInvoice(true);
+      setLockedInvoiceRef(PRESET_INVOICE_26PA222.invoiceNumber);
+    } else if (invoiceKey === 'SAD-26EMKIM400968589') {
+      const store = (PRESET_SAD_26EMKIM400968589.destinationLocationId as LocationId) || 'main_store';
+      setTargetLocation(store);
+      setIsStoreLockedByInvoice(true);
+      setLockedInvoiceRef('SAD 26EMKIM400968589');
+    } else if (invoiceKey === 'IMP-2026-UDEY-028') {
+      const store = (PRESET_SAD_UDEY_UDYOG.destinationLocationId as LocationId) || 'main_store';
+      setTargetLocation(store);
+      setIsStoreLockedByInvoice(true);
+      setLockedInvoiceRef(PRESET_SAD_UDEY_UDYOG.invoiceNumber);
+    } else if (invoiceKey === 'IMP-2026-FLC-774') {
+      const store = (PRESET_FLEECE_CONTAINER.destinationLocationId as LocationId) || 'main_store';
+      setTargetLocation(store);
+      setIsStoreLockedByInvoice(true);
+      setLockedInvoiceRef(PRESET_FLEECE_CONTAINER.invoiceNumber);
+    } else if (invoiceKey === 'LPS-REC-2026-001') {
+      const store = (PRESET_LPS_RIVATEX.destinationLocationId as LocationId) || 'main_store';
+      setTargetLocation(store);
+      setIsStoreLockedByInvoice(true);
+      setLockedInvoiceRef(PRESET_LPS_RIVATEX.invoiceNumber);
+    } else if (invoiceKey.startsWith('DEL-')) {
+      const delId = invoiceKey.replace('DEL-', '');
+      const del = (deliveries || []).find((d: any) => d.id === delId);
+      if (del) {
+        setTargetLocation(del.destinationLocation);
+        setIsStoreLockedByInvoice(true);
+        setLockedInvoiceRef(del.consignmentNo || del.id);
+      }
+    }
+  };
   
   // Category Preset Price Overrides for this session
   const [wholesalePrice, setWholesalePrice] = useState<number>(CATEGORY_PRESETS[initialCategory].defaultWholesalePrice);
@@ -523,7 +585,9 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
         yarnType: item.yarnType
       })),
       targetLocation,
-      `Batch Barcode Intake for ${currentPreset.label}`
+      lockedInvoiceRef
+        ? `Batch Barcode Intake for ${currentPreset.label} (Linked to Invoice #${lockedInvoiceRef} - Store Locked: ${targetLocation})`
+        : `Batch Barcode Intake for ${currentPreset.label}`
     );
 
     if (res.success) {
@@ -745,22 +809,89 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                   })}
                 </div>
 
+                {/* Inward Commercial Invoice Linker & Store Lock Governance */}
+                <div className="p-3.5 bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white rounded-2xl border border-rose-800/40 shadow-xs space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center justify-center shrink-0">
+                        <FileText className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-white block">
+                          Link Inward Commercial Invoice / Waybill
+                        </span>
+                        <span className="text-[10px] text-rose-200/80 block">
+                          Selecting an invoice locks inventory intake directly to the store specified on the documentation.
+                        </span>
+                      </div>
+                    </div>
+
+                    {isStoreLockedByInvoice && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/30 text-[10.5px] font-bold self-start sm:self-auto">
+                        <Lock className="w-3 h-3 text-amber-300" />
+                        <span>Locked to: {locations.find(l => l.id === targetLocation)?.name || targetLocation}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <select
+                    id="select-category-intake-invoice"
+                    value={selectedInvoiceId}
+                    onChange={e => handleSelectInvoiceForIntake(e.target.value)}
+                    className="w-full bg-slate-800/90 border border-slate-600 rounded-xl px-3 py-1.5 text-xs text-white font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
+                  >
+                    <option value="none">Direct / Ad-hoc Intake (Select Any Destination Store Manually)</option>
+                    <optgroup label="Overseas Import Commercial Invoices & SAD Declarations">
+                      <option value="IMP-2026-PA222">📄 Commercial Invoice 26PA222 — Zhejiang Puan (Locked: Main Store / Industrial Area)</option>
+                      <option value="SAD-26EMKIM400968589">📄 SAD Entry 26EMKIM400968589 — ICMS Reconciled (Locked: Main Store / Industrial Area)</option>
+                      <option value="IMP-2026-UDEY-028">📄 Yarn Invoice UU/OI-EX-028/26-27 — Udey Udyog (Locked: Main Store / Industrial Area)</option>
+                      <option value="IMP-2026-FLC-774">📄 Fleece Invoice 26FLC-882 — Shaoxing Shengli (Locked: Main Store / Industrial Area)</option>
+                    </optgroup>
+                    <optgroup label="Kenyan Domestic Supplier Invoices (LPS)">
+                      <option value="LPS-REC-2026-001">📄 Local Invoice INV-RIV-2026-9812 — Rivatex East Africa (Locked: Main Store / Industrial Area)</option>
+                    </optgroup>
+                    {deliveries && deliveries.length > 0 && (
+                      <optgroup label="Active Inward Delivery Manifests & Waybills">
+                        {deliveries.map(del => {
+                          const loc = locations.find(l => l.id === del.destinationLocation);
+                          return (
+                            <option key={del.id} value={`DEL-${del.id}`}>
+                              🚚 Manifest {del.id} ({del.consignmentNo}) — {del.supplierName} (Locked: {loc?.name || del.destinationLocation})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+
                 {/* Target Warehouse Location & Price Customization Accordion */}
                 <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Store className="w-4 h-4 text-slate-600 shrink-0" />
                     <span className="font-bold text-slate-700">Intake Target Location:</span>
-                    <select
-                      value={targetLocation}
-                      onChange={e => setTargetLocation(e.target.value as LocationId)}
-                      className="px-2.5 py-1 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                    >
-                      {locations.map(loc => (
-                        <option key={loc.id} value={loc.id}>
-                          {loc.name} ({loc.type})
-                        </option>
-                      ))}
-                    </select>
+                    
+                    {isStoreLockedByInvoice ? (
+                      <div className="flex items-center gap-2 bg-amber-50 border border-amber-300 rounded-xl px-3 py-1 text-amber-950 font-bold">
+                        <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>{locations.find(l => l.id === targetLocation)?.name || targetLocation}</span>
+                        <span className="text-[9.5px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                          Locked to Inv #{lockedInvoiceRef}
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        value={targetLocation}
+                        onChange={e => setTargetLocation(e.target.value as LocationId)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      >
+                        {locations.map(loc => (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.name} ({loc.type})
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-end">

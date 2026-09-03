@@ -317,7 +317,25 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         category: 'Tax Settlement'
       });
 
-      // 4. Update Product Batch Cost Prices in Catalog for linked items
+      // 4. Post detailed unit landed cost entries to the Inventory Valuation Ledger
+      costingSummary.items.forEach((item, index) => {
+        const itemLandedExclVat = item.totalLandedCostKES - item.vat1202KES;
+        const unitCostDisplay = item.fabricLengthMetres && item.fabricLengthMetres > 0
+          ? `KSh ${item.landedCostPerUnitExclVat.toFixed(2)}/m (${Math.round(item.fabricLengthMetres).toLocaleString()} m)`
+          : `KSh ${item.landedCostPerUnitExclVat.toFixed(2)}/kg (${item.netWeightKg} kg)`;
+
+        addLedgerEntry({
+          transactionRef: `${journalRef}-VAL-${index + 1}`,
+          description: `Inventory Valuation: ${item.description} (HS: ${item.hsCode}) @ ${unitCostDisplay} [Customs: KSh ${Math.round(item.customsValueKES).toLocaleString()} | Duty: KSh ${Math.round(item.dutyAppliedKES).toLocaleString()}]`,
+          debitAccount: '1200 - Inventory Asset (Imported Stock Valuation)',
+          creditAccount: '1290 - Landed Cost Absorption Clearing',
+          amount: itemLandedExclVat,
+          locationId: activeShipment.destinationLocationId || 'main_store',
+          category: 'Inventory Valuation Ledger'
+        });
+      });
+
+      // 5. Update Product Batch Cost Prices in Catalog for linked items
       let updatedCount = 0;
       for (const item of costingSummary.items) {
         if (item.matchedProductId) {
@@ -969,6 +987,89 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
             </div>
           )}
 
+          {/* Proforma Invoice Mode vs. Actual Custom Entry Mode Segmented Controller */}
+          <div className="p-3.5 sm:p-4 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3 text-white">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl shadow-md shrink-0 ${selectedPresetKey === '26pa222' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                {selectedPresetKey === '26pa222' ? <FileSpreadsheet className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black text-slate-300 uppercase tracking-wider">Accounting Workflow Mode:</span>
+                  <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                    selectedPresetKey === '26pa222'
+                      ? 'bg-blue-500/20 text-blue-300 border-blue-400/50'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50'
+                  }`}>
+                    {selectedPresetKey === '26pa222' ? 'PROFORMA INVOICE MODE' : 'ACTUAL CUSTOM ENTRY MODE'}
+                  </span>
+                  {selectedPresetKey === 'sad_400968589' && (
+                    <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+                      SAD: 26EMKIM400968589
+                    </span>
+                  )}
+                  {selectedPresetKey === '26pa222' && (
+                    <span className="text-[10px] font-mono font-bold text-blue-300 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800">
+                      INV: 26PA222
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {selectedPresetKey === '26pa222'
+                    ? 'Simulating import duties & landed cost from Commercial Invoice Proforma 26PA222. Switch to Actual SAD mode to reconcile before capitalization.'
+                    : 'Reconciled against official KRA ICMS Single Administrative Document (SAD 26EMKIM400968589). Approved for inventory capitalization.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
+              <div className="inline-flex p-1 bg-slate-950 rounded-xl border border-slate-800 shadow-inner">
+                <button
+                  type="button"
+                  id="btn-mode-proforma-invoice"
+                  onClick={() => handleSelectPreset('26pa222')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    selectedPresetKey === '26pa222'
+                      ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-400'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Proforma Mode</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-mode-actual-custom-entry"
+                  onClick={() => handleSelectPreset('sad_400968589')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    selectedPresetKey === 'sad_400968589'
+                      ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Actual Custom Entry Mode</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                id="btn-reconcile-toggle-banner"
+                onClick={() => setShowSideBySideComparison(prev => !prev)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                  showSideBySideComparison
+                    ? 'bg-rose-600 text-white border-rose-500 shadow-sm'
+                    : 'bg-slate-800 text-rose-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                }`}
+                title="Open side-by-side reconciliation table comparing Proforma 26PA222 vs SAD 26EMKIM400968589"
+              >
+                <Layers className="w-3.5 h-3.5 text-rose-400" />
+                <span>{showSideBySideComparison ? 'Hide Variance' : '⚖️ Reconcile Variance'}</span>
+              </button>
+            </div>
+          </div>
+
       {/* KPI Cards: Customs Value, Total Taxes, Total Landed Capital, Units */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1 relative overflow-hidden">
@@ -1552,17 +1653,19 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
 
         {/* Data Grid Table */}
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-xs text-left border-collapse min-w-[1000px]">
+          <table className="w-full text-xs text-left border-collapse min-w-[1250px]">
             <thead>
               <tr className="bg-slate-100 text-slate-700 uppercase text-[10px] font-bold border-b border-slate-200">
                 <th className="py-2.5 px-3">Description / HS Code</th>
                 <th className="py-2.5 px-2">Category</th>
                 <th className="py-2.5 px-2 text-right">FOB (USD)</th>
-                <th className="py-2.5 px-2 text-right">Net Wt (kg)</th>
+                <th className="py-2.5 px-2 text-right">Freight ($)</th>
+                <th className="py-2.5 px-2 text-right">Insurance ($)</th>
+                <th className="py-2.5 px-2 text-right">Net / Gross Wt</th>
                 <th className="py-2.5 px-2 text-right">GSM / Width</th>
-                <th className="py-2.5 px-2 text-right">Fabric Metres</th>
-                <th className="py-2.5 px-2 text-right">Customs (KES)</th>
-                <th className="py-2.5 px-2 text-right">KRA Duty Head</th>
+                <th className="py-2.5 px-2 text-right">Fabric Length</th>
+                <th className="py-2.5 px-2 text-right">Customs CIF (KES)</th>
+                <th className="py-2.5 px-2 text-right">1002 Duty Head</th>
                 <th className="py-2.5 px-2 text-right">Total Landed (KES)</th>
                 <th className="py-2.5 px-3 text-right bg-rose-50/70 text-rose-900 font-black">Landed Cost / m (Incl)</th>
                 <th className="py-2.5 px-3 text-right bg-emerald-50/70 text-emerald-950 font-black">Landed Cost / m (Excl VAT)</th>
@@ -1578,7 +1681,7 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                     {/* Description & HS Code */}
-                    <td className="py-3 px-3 max-w-[220px]">
+                    <td className="py-3 px-3 max-w-[200px]">
                       <input
                         type="text"
                         value={item.description}
@@ -1618,26 +1721,82 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                           step="0.01"
                           value={item.fobUSD}
                           onChange={e => handleUpdateLineItem(item.id, { fobUSD: parseFloat(e.target.value) || 0 })}
-                          className="w-24 font-mono font-bold text-right text-xs px-2 py-1 pl-4 rounded-lg border border-slate-200"
+                          className="w-22 font-mono font-bold text-right text-xs px-2 py-1 pl-4 rounded-lg border border-slate-200"
                         />
                       </div>
-                      <span className="text-[9.5px] text-slate-400 block mt-0.5">
+                      <span className="text-[9.5px] text-slate-400 block mt-0.5 font-mono">
                         Ratio: {(item.fobRatio * 100).toFixed(1)}%
                       </span>
                     </td>
 
-                    {/* Net Wt kg */}
+                    {/* Freight USD */}
                     <td className="py-3 px-2 text-right">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={item.netWeightKg}
-                        onChange={e => handleUpdateLineItem(item.id, { netWeightKg: parseFloat(e.target.value) || 0 })}
-                        className="w-20 font-mono font-medium text-right text-xs px-2 py-1 rounded-lg border border-slate-200"
-                      />
-                      <span className="text-[9.5px] text-slate-400 block mt-0.5">
-                        Gross: {item.grossWeightKg}kg
+                      <div className="relative">
+                        <span className="absolute left-1.5 top-1 text-[10px] text-slate-400">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder={item.apportionedFreightUSD.toFixed(1)}
+                          value={item.freightUSD !== undefined ? item.freightUSD : ''}
+                          onChange={e => handleUpdateLineItem(item.id, {
+                            freightUSD: e.target.value === '' ? undefined : parseFloat(e.target.value) || 0
+                          })}
+                          className="w-20 font-mono text-right text-xs px-2 py-1 pl-3.5 rounded-lg border border-slate-200"
+                          title="Item freight override (leave blank to apportion automatically)"
+                        />
+                      </div>
+                      <span className="text-[9px] text-slate-400 block mt-0.5 font-mono">
+                        Apport: ${item.apportionedFreightUSD.toFixed(1)}
                       </span>
+                    </td>
+
+                    {/* Insurance USD */}
+                    <td className="py-3 px-2 text-right">
+                      <div className="relative">
+                        <span className="absolute left-1.5 top-1 text-[10px] text-slate-400">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder={item.apportionedInsuranceUSD.toFixed(1)}
+                          value={item.insuranceUSD !== undefined ? item.insuranceUSD : ''}
+                          onChange={e => handleUpdateLineItem(item.id, {
+                            insuranceUSD: e.target.value === '' ? undefined : parseFloat(e.target.value) || 0
+                          })}
+                          className="w-18 font-mono text-right text-xs px-2 py-1 pl-3.5 rounded-lg border border-slate-200"
+                          title="Item insurance override (leave blank to apportion automatically)"
+                        />
+                      </div>
+                      <span className="text-[9px] text-slate-400 block mt-0.5 font-mono">
+                        Apport: ${item.apportionedInsuranceUSD.toFixed(1)}
+                      </span>
+                    </td>
+
+                    {/* Net & Gross Wt kg */}
+                    <td className="py-3 px-2 text-right">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 justify-end">
+                          <span className="text-[9.5px] text-slate-400 font-mono">Net:</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={item.netWeightKg}
+                            onChange={e => handleUpdateLineItem(item.id, { netWeightKg: parseFloat(e.target.value) || 0 })}
+                            className="w-20 font-mono font-medium text-right text-xs px-1.5 py-0.5 rounded border border-slate-200"
+                            title="Net weight in kilograms (used for specific duty)"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1 justify-end">
+                          <span className="text-[9.5px] text-slate-400 font-mono">Gross:</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={item.grossWeightKg !== undefined ? item.grossWeightKg : item.netWeightKg}
+                            onChange={e => handleUpdateLineItem(item.id, { grossWeightKg: parseFloat(e.target.value) || 0 })}
+                            className="w-20 font-mono text-[11px] text-right px-1.5 py-0.5 rounded border border-slate-200 text-slate-600"
+                            title="Gross weight in kilograms (used for MSS levy)"
+                          />
+                        </div>
+                      </div>
                     </td>
 
                     {/* GSM & Width */}
@@ -1648,7 +1807,7 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                           placeholder="GSM"
                           value={item.gsm || ''}
                           onChange={e => handleUpdateLineItem(item.id, { gsm: parseFloat(e.target.value) || undefined })}
-                          className="w-14 text-right text-[11px] px-1.5 py-1 rounded border border-slate-200"
+                          className="w-14 text-right text-[11px] px-1.5 py-1 rounded border border-slate-200 font-mono"
                           title="Grams per square metre"
                         />
                         <span className="text-slate-400">/</span>
@@ -1657,7 +1816,7 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                           placeholder="cm"
                           value={item.widthCm || ''}
                           onChange={e => handleUpdateLineItem(item.id, { widthCm: parseFloat(e.target.value) || undefined })}
-                          className="w-12 text-right text-[11px] px-1.5 py-1 rounded border border-slate-200"
+                          className="w-12 text-right text-[11px] px-1.5 py-1 rounded border border-slate-200 font-mono"
                           title="Width in cm"
                         />
                       </div>
@@ -1680,23 +1839,33 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                       )}
                     </td>
 
-                    {/* Customs Value (KES) */}
-                    <td className="py-3 px-2 text-right font-mono text-slate-700">
-                      {item.customsValueKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    {/* Customs CIF (KES) */}
+                    <td className="py-3 px-2 text-right">
+                      <span className="font-mono text-xs font-bold text-slate-800 block">
+                        KSh {item.customsValueKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500 block">
+                        CIF: ${item.cifUSD.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                      </span>
                     </td>
 
                     {/* Duty Applied Rule Flag */}
                     <td className="py-3 px-2 text-right">
-                      <span className={`inline-block px-1.5 py-0.5 rounded text-[9.5px] font-bold ${
-                        item.dutyRuleApplied === 'ad_valorem'
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {item.dutyRuleApplied === 'ad_valorem' ? 'Ad-Valorem' : 'Specific Duty'}
-                      </span>
-                      <span className="font-mono text-[10.5px] block font-bold text-slate-900 mt-0.5">
-                        KSh {item.dutyAppliedKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                          item.dutyRuleApplied === 'ad_valorem'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                            : 'bg-amber-100 text-amber-900 border border-amber-200'
+                        }`}>
+                          {item.dutyRuleApplied === 'ad_valorem' ? 'Ad-Valorem (25%)' : 'Specific ($750/t)'}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-slate-900 mt-0.5">
+                          KSh {item.dutyAppliedKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">
+                          Adv: {Math.round(item.adValoremDutyKES).toLocaleString()} | Spec: {Math.round(item.specificDutyKES).toLocaleString()}
+                        </span>
+                      </div>
                     </td>
 
                     {/* Total Landed Cost (KES) */}

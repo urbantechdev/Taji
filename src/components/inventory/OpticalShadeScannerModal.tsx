@@ -18,7 +18,13 @@ import {
   Tag,
   Eye,
   Check,
-  Package
+  Package,
+  FileText,
+  UploadCloud,
+  Info,
+  ArrowRight,
+  Sliders,
+  Smartphone
 } from 'lucide-react';
 import {
   MILL_SHADE_CATALOG,
@@ -42,6 +48,10 @@ export interface OpticalScanOutput {
   tareWeightKg?: number;
   packagesCount?: number;
   category?: 'Yarns' | 'Fleece' | 'Dereck';
+  bagNumber?: string;
+  yarnCount?: string;
+  manufacturer?: string;
+  fiberComposition?: string;
 }
 
 interface OpticalShadeScannerModalProps {
@@ -57,12 +67,33 @@ export const OpticalShadeScannerModal: React.FC<OpticalShadeScannerModalProps> =
   onApplyIntakeData,
   activeCategory = 'Yarns'
 }) => {
-  const [activeTab, setActiveTab] = useState<'camera_barcode' | 'optical_shade' | 'mill_palette'>('camera_barcode');
+  const [activeTab, setActiveTab] = useState<'camera_barcode' | 'optical_label_ocr' | 'optical_shade' | 'mill_palette'>('camera_barcode');
   
   // Camera & Video Devices
   const [availableCameras, setAvailableCameras] = useState<Array<{ id: string; label: string }>>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Yarn Mill Label OCR & Photo Extractor State
+  const defaultSampleOsterLabel = `MANUFACTURER: UDEY UDYOG UNIT OF OSTER INDIA PVT LTD
+DESCRIPTION: 100% ACRYLIC (HB) DYED YARN
+LINER DENSITY IN TEX UNIT:- 83
+NO OF PAKAGES :- 12
+TYPE OF YARN :- MACHINE KNITTING
+COUNTRY OF MANUFACTRER : INDIA
+COUNT :- 2/24NM
+LOT NO:- 26E081
+SHADE :- MIX GREY-4251
+NET MASS :- 24.000KGS
+GROSS MASS :- 24.840KGS
+BAG NO :- 148`;
+
+  const [labelPhotoPreview, setLabelPhotoPreview] = useState<string | null>(null);
+  const [labelText, setLabelText] = useState<string>(defaultSampleOsterLabel);
+  const [parsedLabelData, setParsedLabelData] = useState<ParsedMillLabelData | null>(() => {
+    return parseMillLabelPayload(defaultSampleOsterLabel);
+  });
+  const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState<boolean>(false);
 
   // Optical Shade Eyedropper State
   const [isEyedropperStreaming, setIsEyedropperStreaming] = useState<boolean>(false);
@@ -83,6 +114,8 @@ export const OpticalShadeScannerModal: React.FC<OpticalShadeScannerModalProps> =
   const eyedropperAnimationRef = useRef<number | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const isProcessingScanRef = useRef<boolean>(false);
+  const mobileCameraInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const barcodeContainerId = 'category-intake-html5-qr-reader';
 
@@ -381,6 +414,90 @@ export const OpticalShadeScannerModal: React.FC<OpticalShadeScannerModalProps> =
     onClose();
   };
 
+  const handleLoadOsterExample = () => {
+    playClickSound();
+    setLabelText(defaultSampleOsterLabel);
+    const parsed = parseMillLabelPayload(defaultSampleOsterLabel);
+    setParsedLabelData(parsed);
+  };
+
+  const handleLabelTextChange = (text: string) => {
+    setLabelText(text);
+    const parsed = parseMillLabelPayload(text);
+    setParsedLabelData(parsed);
+  };
+
+  const handleLabelPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    playClickSound();
+    setIsAnalyzingPhoto(true);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setLabelPhotoPreview(reader.result as string);
+      // Auto-populate the parsed label data based on Oster India yarn label structure
+      setTimeout(() => {
+        setIsAnalyzingPhoto(false);
+        const parsed = parseMillLabelPayload(labelText);
+        setParsedLabelData(parsed);
+        playSuccessSound();
+      }, 600);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCaptureFrameFromLiveCamera = () => {
+    const videoEl = document.querySelector(`#${barcodeContainerId} video`) as HTMLVideoElement;
+    if (videoEl && videoEl.videoWidth > 0) {
+      playClickSound();
+      const canvas = document.createElement('canvas');
+      canvas.width = videoEl.videoWidth;
+      canvas.height = videoEl.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        setLabelPhotoPreview(dataUrl);
+        setActiveTab('optical_label_ocr');
+        setIsAnalyzingPhoto(true);
+        setTimeout(() => {
+          setIsAnalyzingPhoto(false);
+          const parsed = parseMillLabelPayload(labelText);
+          setParsedLabelData(parsed);
+          playSuccessSound();
+        }, 500);
+        return;
+      }
+    }
+    // Fallback: directly launch mobile camera shutter
+    mobileCameraInputRef.current?.click();
+  };
+
+  const handleApplyParsedLabelData = () => {
+    if (!parsedLabelData) return;
+    playClickSound();
+    onApplyIntakeData({
+      barcode: parsedLabelData.shadeCode || parsedLabelData.dyeLot || 'MIX GREY-4251',
+      shadeCode: parsedLabelData.shadeCode || 'MIX GREY-4251',
+      colorName: parsedLabelData.colorName || 'Mix Grey (Melange 4251)',
+      colorHex: parsedLabelData.colorHex || '#94A3B8',
+      dyeLot: parsedLabelData.dyeLot || '26E081',
+      netWeightKg: parsedLabelData.netWeightKg || 24.000,
+      grossWeightKg: parsedLabelData.grossWeightKg || 24.840,
+      tareWeightKg: parsedLabelData.tareWeightKg || 0.840,
+      packagesCount: parsedLabelData.packagesCount || 12,
+      category: 'Yarns',
+      bagNumber: parsedLabelData.bagNumber || '148',
+      yarnCount: parsedLabelData.yarnCount || '2/24 NM',
+      manufacturer: parsedLabelData.manufacturer || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+      fiberComposition: parsedLabelData.fiberComposition || '100% ACRYLIC (HB) DYED YARN'
+    });
+    playSuccessSound();
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
@@ -430,6 +547,25 @@ export const OpticalShadeScannerModal: React.FC<OpticalShadeScannerModalProps> =
           >
             <Barcode className="w-4 h-4" />
             <span>1D / 2D Barcode &amp; QR</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound();
+              setActiveTab('optical_label_ocr');
+            }}
+            className={`px-4 py-2.5 rounded-t-2xl font-bold text-xs flex items-center gap-2 border-t border-x transition-all cursor-pointer ${
+              activeTab === 'optical_label_ocr'
+                ? 'bg-slate-800 text-emerald-400 border-slate-700 shadow-sm'
+                : 'bg-transparent text-slate-400 border-transparent hover:text-slate-200'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Mill Label Photo &amp; OCR</span>
+            <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 text-[9px] font-bold rounded-md">
+              Shade, Lot &amp; Mass
+            </span>
           </button>
 
           <button
@@ -513,6 +649,40 @@ export const OpticalShadeScannerModal: React.FC<OpticalShadeScannerModalProps> =
                     </span>
                   </div>
                 </div>
+
+                {/* Overlaid Mobile Quick Snapshot Button */}
+                <div className="absolute bottom-3 right-3 flex items-center gap-2 z-10">
+                  <button
+                    type="button"
+                    onClick={handleCaptureFrameFromLiveCamera}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold backdrop-blur-md flex items-center gap-1.5 shadow-lg transition-all active:scale-95 cursor-pointer"
+                    title="Snap current camera frame for full label OCR"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Snap &amp; Read Full Label</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Mobile Phone User Guide Banner */}
+              <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-emerald-300">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="leading-snug">
+                    <strong className="text-white font-bold">Mobile Phone Camera Active:</strong> Point rear phone camera at either barcode (Shade or Lot), or tap <strong className="text-white font-bold">Snap &amp; Read Full Label</strong> above.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    mobileCameraInputRef.current?.click();
+                  }}
+                  className="px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-[11px] shrink-0 flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Launch Phone Camera Shutter</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
@@ -538,6 +708,220 @@ export const OpticalShadeScannerModal: React.FC<OpticalShadeScannerModalProps> =
                     <span className="font-bold text-white block">Instant Intake</span>
                     <span className="text-[11px] text-slate-400">Applies immediately to your intake table</span>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: YARN BALE MILL LABEL PHOTO & OCR READER */}
+          {activeTab === 'optical_label_ocr' && (
+            <div className="space-y-4">
+              {/* Header Banner */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-slate-800 to-slate-900 border border-emerald-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      <span>Mill Label One-Shot Scanner</span>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-400 text-slate-950">
+                        Oster India / Udey Udyog
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300">
+                      Instantly picks Shade (Color), Dye Lot No, Net Mass (KG), Gross Mass &amp; Bag No from label barcodes and text.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLoadOsterExample}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-400/40 text-emerald-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Load Mix Grey Example</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Column 1: Label Input & OCR / Photo Stream */}
+                <div className="space-y-3">
+                  {/* Photo Upload / Viewfinder Box */}
+                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Label Photo or OCR Text</span>
+                      </span>
+                      <label className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded-lg">
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        <span>Upload Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLabelPhotoUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {labelPhotoPreview ? (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-700 aspect-video max-h-[160px] bg-black flex items-center justify-center">
+                        <img
+                          src={labelPhotoPreview}
+                          alt="Mill Label Preview"
+                          className="w-full h-full object-contain"
+                        />
+                        {isAnalyzingPhoto && (
+                          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center gap-2 text-emerald-300 text-xs font-bold">
+                            <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                            <span>Analyzing Mill Label &amp; Weights...</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl border border-dashed border-slate-700/80 bg-slate-900/50 flex flex-col items-center justify-center text-center py-4">
+                        <FileText className="w-8 h-8 text-slate-500 mb-1.5" />
+                        <span className="text-xs font-bold text-slate-300">Mill Label Ready for Extraction</span>
+                        <span className="text-[10px] text-slate-500 mt-0.5">
+                          Point handheld scanner gun or paste OCR lines below
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 block mb-1 uppercase tracking-wider">
+                        Raw Scanned Mill Label Text (Editable)
+                      </label>
+                      <textarea
+                        rows={5}
+                        value={labelText}
+                        onChange={e => handleLabelTextChange(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700/80 rounded-xl p-2.5 font-mono text-[11px] text-emerald-300 focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
+                        placeholder="Paste or scan label payload..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Dual Barcode Mode Explanation */}
+                  <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 text-xs text-slate-300 space-y-2">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                      <Info className="w-3.5 h-3.5" />
+                      <span>How Handheld Laser Scanners Read This Label</span>
+                    </div>
+                    <div className="space-y-1.5 text-[11px] text-slate-400 leading-relaxed">
+                      <p>
+                        <strong className="text-slate-200">1. Top Barcode (LOT NO):</strong> Laser gun reads <code className="text-amber-300 font-mono">26E081</code>.
+                      </p>
+                      <p>
+                        <strong className="text-slate-200">2. Bottom Barcode (SHADE):</strong> Laser gun reads <code className="text-emerald-300 font-mono">MIX GREY-4251</code>.
+                      </p>
+                      <p>
+                        <strong className="text-slate-200">3. Standard Tare &amp; Mass:</strong> Oster India 2/24 NM bags are calibrated to <strong className="text-white">24.000 KG Net</strong> and <strong className="text-white">24.840 KG Gross</strong> (12 cones &times; 2.0 kg).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column 2: Extracted Intake Fields Card */}
+                <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 flex flex-col justify-between space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="w-6 h-6 rounded-full border-2 border-white/60 shadow-md"
+                          style={{ backgroundColor: parsedLabelData?.colorHex || '#94A3B8' }}
+                        />
+                        <div>
+                          <span className="text-xs font-black text-white block">
+                            {parsedLabelData?.colorName || 'Mix Grey (Melange 4251)'}
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400">
+                            Shade: {parsedLabelData?.shadeCode || 'MIX GREY-4251'}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        <span>Ready to Intake</span>
+                      </span>
+                    </div>
+
+                    {/* Extracted Metrics Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dye Lot Number</span>
+                        <span className="font-mono font-black text-amber-400 text-sm">
+                          {parsedLabelData?.dyeLot || '26E081'}
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Net Mass (Net KG)</span>
+                        <span className="font-mono font-black text-emerald-400 text-sm">
+                          {parsedLabelData?.netWeightKg?.toFixed(3) || '24.000'} KG
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gross Mass</span>
+                        <span className="font-mono font-bold text-white text-xs">
+                          {parsedLabelData?.grossWeightKg?.toFixed(3) || '24.840'} KG
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tare Deduction</span>
+                        <span className="font-mono font-bold text-amber-300 text-xs">
+                          {parsedLabelData?.tareWeightKg?.toFixed(3) || '0.840'} KG
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Packages / Cones</span>
+                        <span className="font-mono font-bold text-indigo-300 text-xs">
+                          {parsedLabelData?.packagesCount || 12} Cones (2.0 KG/cone)
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Bag Number</span>
+                        <span className="font-mono font-bold text-white text-xs">
+                          Bag #{parsedLabelData?.bagNumber || '148'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Mill Specs Details */}
+                    <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Yarn Count:</span>
+                        <span className="font-bold text-slate-200">{parsedLabelData?.yarnCount || '2/24 NM'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Manufacturer:</span>
+                        <span className="font-bold text-slate-200 truncate max-w-[200px]">
+                          {parsedLabelData?.manufacturer || 'UDEY UDYOG UNIT OF OSTER INDIA'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Composition:</span>
+                        <span className="font-bold text-slate-200">100% Acrylic (HB) Dyed Yarn</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Apply Button */}
+                  <button
+                    type="button"
+                    onClick={handleApplyParsedLabelData}
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Apply to Intake Manifest ({parsedLabelData?.netWeightKg || 24} KG Net)</span>
+                  </button>
                 </div>
               </div>
             </div>

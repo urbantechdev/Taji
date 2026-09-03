@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useERP } from '../../context/ERPContext';
 import {
   Supplier,
@@ -9,10 +9,20 @@ import {
   ImportShipmentLineItem,
   LocalPurchaseRecord,
   LocalPurchaseLineItem,
-  ProductBatch
+  ProductBatch,
+  DeliveryRecord
 } from '../../types';
-import { calculateImportShipmentCosting } from '../../utils/importCostingEngine';
-import { calculateLocalPurchaseCosting } from '../../utils/localPurchaseCostingEngine';
+import {
+  calculateImportShipmentCosting,
+  PRESET_INVOICE_26PA222,
+  PRESET_SAD_26EMKIM400968589,
+  PRESET_SAD_UDEY_UDYOG,
+  PRESET_FLEECE_CONTAINER
+} from '../../utils/importCostingEngine';
+import {
+  calculateLocalPurchaseCosting,
+  PRESET_LPS_RIVATEX
+} from '../../utils/localPurchaseCostingEngine';
 import {
   FileText,
   Building2,
@@ -34,7 +44,11 @@ import {
   RefreshCw,
   ExternalLink,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Lock,
+  Unlock,
+  ShieldAlert,
+  FileCheck
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
 
@@ -42,6 +56,7 @@ interface InwardInvoiceIntakeModalProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedSupplier?: Supplier;
+  preselectedInvoice?: ImportShipmentRecord | LocalPurchaseRecord | DeliveryRecord;
   onOpenCostingSuite?: (record: ImportShipmentRecord | LocalPurchaseRecord, type: 'import' | 'local') => void;
 }
 
@@ -69,6 +84,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
   isOpen,
   onClose,
   preselectedSupplier,
+  preselectedInvoice,
   onOpenCostingSuite
 }) => {
   const {
@@ -79,10 +95,16 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
     currentUser,
     addProductBatch,
     updateProductBatch,
-    addLedgerEntry
+    addLedgerEntry,
+    deliveries = []
   } = useERP();
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+
+  // Inward Invoice Selection & Store Lock Governance
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('custom');
+  const [isStoreLockedByInvoice, setIsStoreLockedByInvoice] = useState<boolean>(false);
+  const [storeLockOverridden, setStoreLockOverridden] = useState<boolean>(false);
 
   // Step 1: Invoice Header
   const [supplyType, setSupplyType] = useState<'import' | 'local'>('import');
@@ -123,6 +145,143 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
       rollsCount: 100
     }
   ]);
+
+  // Load preselectedInvoice prop if provided upon opening
+  useEffect(() => {
+    if (preselectedInvoice && isOpen) {
+      applyInvoiceRecord(preselectedInvoice);
+    }
+  }, [preselectedInvoice, isOpen]);
+
+  // Helper to load an invoice / shipment / delivery record and enforce store lock
+  const applyInvoiceRecord = (record: ImportShipmentRecord | LocalPurchaseRecord | DeliveryRecord) => {
+    if ('customsEntryNo' in record) {
+      // ImportShipmentRecord
+      setSupplyType('import');
+      setSelectedInvoiceId(record.id || record.invoiceNumber);
+      setInvoiceNumber(record.invoiceNumber);
+      setInvoiceDate(record.invoiceDate);
+      setCustomsOrEtimsRef(record.customsEntryNo);
+      setKraEslipRef(record.kraEslipRef);
+      setExchangeRate(record.exchangeRate);
+      setTotalFreightUSD(record.totalFreightUSD);
+      setTotalInsuranceUSD(record.totalInsuranceUSD);
+      setCocFeesUSD(record.cocFeesUSD || 0);
+      setPortClearingFeesKES(record.portClearingFeesKES);
+      setTargetMarkupPct(record.targetMarkupPct);
+
+      // Lock store to the invoice's destination store
+      const targetStore = (record.destinationLocationId as LocationId) || 'main_store';
+      setDestinationLocation(targetStore);
+      setIsStoreLockedByInvoice(true);
+      setStoreLockOverridden(false);
+
+      // Match supplier if found
+      const sup = suppliers.find(s => s.name.toLowerCase().includes(record.supplierName.toLowerCase().slice(0, 8)));
+      if (sup) setSelectedSupplierId(sup.id);
+
+      // Line items
+      if (record.lineItems && record.lineItems.length > 0) {
+        setDraftItems(record.lineItems.map((li, idx) => ({
+          id: li.id || `draft-${idx + 1}`,
+          isExistingCatalogProduct: !!li.matchedProductId,
+          matchedProductId: li.matchedProductId,
+          name: li.description,
+          sku: `SKU-${li.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`,
+          category: li.category,
+          subCategory: 'Imported Grade',
+          fiberComposition: '100% Synthetic',
+          colorName: 'Standard',
+          colorHex: '#3B82F6',
+          unit: li.category === 'Yarns' ? 'kg' : 'meter',
+          quantity: (li as any).fabricLengthMetres || li.netWeightKg,
+          grossWeightKg: li.grossWeightKg,
+          unitPriceUSD: (li.fobUSD / (li.netWeightKg || 1)) || 2.10,
+          unitPriceKES: Math.round((li.fobUSD / (li.netWeightKg || 1)) * record.exchangeRate),
+          hsCode: li.hsCode,
+          rollsCount: (li as any).rollsCount || 50
+        })));
+      }
+    } else if ('purchaseOrderNo' in record) {
+      // LocalPurchaseRecord
+      setSupplyType('local');
+      setSelectedInvoiceId(record.id || record.invoiceNumber);
+      setInvoiceNumber(record.invoiceNumber);
+      setInvoiceDate(record.invoiceDate);
+      setCustomsOrEtimsRef(record.etimsControlNo);
+      setLocalFreightKES(record.localFreightKES || 0);
+      setTargetMarkupPct(record.targetMarkupPct);
+
+      // Lock store to the local purchase destination store
+      const targetStore = (record.destinationLocationId as LocationId) || 'main_store';
+      setDestinationLocation(targetStore);
+      setIsStoreLockedByInvoice(true);
+      setStoreLockOverridden(false);
+
+      const sup = suppliers.find(s => s.name.toLowerCase().includes(record.supplierName.toLowerCase().slice(0, 8)));
+      if (sup) setSelectedSupplierId(sup.id);
+
+      if (record.lineItems && record.lineItems.length > 0) {
+        setDraftItems(record.lineItems.map((li, idx) => ({
+          id: li.id || `draft-lps-${idx + 1}`,
+          isExistingCatalogProduct: !!li.matchedProductId,
+          matchedProductId: li.matchedProductId,
+          name: li.description,
+          sku: `SKU-LPS-${Date.now().toString().slice(-4)}`,
+          category: li.category as CategoryType,
+          subCategory: 'Domestic Grade',
+          fiberComposition: '100% Cotton / Blend',
+          colorName: li.colorName || 'White',
+          colorHex: '#FFFFFF',
+          unit: li.unit,
+          quantity: li.quantity,
+          grossWeightKg: li.unit === 'kg' ? li.quantity : li.quantity * 0.3,
+          unitPriceUSD: Math.round((li.netUnitPriceKES / exchangeRate) * 100) / 100,
+          unitPriceKES: li.netUnitPriceKES,
+          hsCode: '6006.22.00',
+          rollsCount: li.rollsCount || 20
+        })));
+      }
+    } else if ('consignmentNo' in record) {
+      // DeliveryRecord
+      setSelectedInvoiceId(`DEL-${record.id}`);
+      setInvoiceNumber(record.consignmentNo);
+      setInvoiceDate(new Date().toISOString().split('T')[0]);
+      setDestinationLocation(record.destinationLocation);
+      setIsStoreLockedByInvoice(true);
+      setStoreLockOverridden(false);
+      const sup = suppliers.find(s => s.name.toLowerCase().includes(record.supplierName.toLowerCase().slice(0, 8)));
+      if (sup) setSelectedSupplierId(sup.id);
+    }
+  };
+
+  const handleSelectInvoice = (id: string) => {
+    setSelectedInvoiceId(id);
+    playClickSound();
+
+    if (id === 'custom') {
+      setIsStoreLockedByInvoice(false);
+      setStoreLockOverridden(false);
+      setInvoiceNumber(`INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+      return;
+    }
+
+    if (id === 'IMP-2026-PA222') {
+      applyInvoiceRecord(PRESET_INVOICE_26PA222);
+    } else if (id === 'SAD-26EMKIM400968589') {
+      applyInvoiceRecord(PRESET_SAD_26EMKIM400968589);
+    } else if (id === 'IMP-2026-UDEY-028') {
+      applyInvoiceRecord(PRESET_SAD_UDEY_UDYOG);
+    } else if (id === 'IMP-2026-FLC-774') {
+      applyInvoiceRecord(PRESET_FLEECE_CONTAINER);
+    } else if (id === 'LPS-REC-2026-001') {
+      applyInvoiceRecord(PRESET_LPS_RIVATEX);
+    } else if (id.startsWith('DEL-')) {
+      const delId = id.replace('DEL-', '');
+      const del = deliveries.find(d => d.id === delId);
+      if (del) applyInvoiceRecord(del);
+    }
+  };
 
   // Step 3: Submission & Status
   const [isCapitalizing, setIsCapitalizing] = useState(false);
@@ -553,6 +712,77 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
           {/* STEP 1: Invoice Header */}
           {currentStep === 1 && (
             <div className="space-y-5">
+              {/* Inward Commercial Invoice & Consignment Selector with Store Locking */}
+              <div className="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-4 sm:p-5 rounded-2xl border border-rose-800/40 shadow-md space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-rose-300" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-white flex items-center gap-2">
+                        <span>Select Inward Commercial Invoice / Consignment</span>
+                        {isStoreLockedByInvoice && !storeLockOverridden && (
+                          <span className="inline-flex items-center gap-1 text-[9.5px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded-full">
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>Store Lock Enforced</span>
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-[10.5px] text-rose-200/80">
+                        Selecting an invoice automatically binds and locks intake inventory to the store that invoice was cleared/created for.
+                      </p>
+                    </div>
+                  </div>
+
+                  {isStoreLockedByInvoice && (
+                    <div className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1 bg-amber-400/15 border border-amber-400/30 rounded-xl text-amber-200 text-xs font-bold">
+                      <Lock className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                      <span>Locked Store: {locations.find(l => l.id === destinationLocation)?.name || destinationLocation}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <select
+                    id="select-inward-invoice-source"
+                    value={selectedInvoiceId}
+                    onChange={e => handleSelectInvoice(e.target.value)}
+                    className="w-full bg-slate-800/90 hover:bg-slate-800 border border-slate-600 rounded-xl px-3.5 py-2.5 text-xs text-white font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer transition-colors shadow-inner"
+                  >
+                    <option value="custom">✍️ Enter New / Custom Inward Invoice Header (Manual Store Allocation)</option>
+                    <optgroup label="Overseas Import Invoices & KRA Customs Declarations">
+                      <option value="IMP-2026-PA222">📄 Commercial Invoice 26PA222 — Zhejiang Puan Textile (Locked: Main Store / Industrial Area)</option>
+                      <option value="SAD-26EMKIM400968589">📄 SAD Entry 26EMKIM400968589 — ICMS Reconciled (Locked: Main Store / Industrial Area)</option>
+                      <option value="IMP-2026-UDEY-028">📄 Invoice UU/OI-EX-028/26-27 — Udey Udyog Yarn (Locked: Main Store / Industrial Area)</option>
+                      <option value="IMP-2026-FLC-774">📄 Invoice 26FLC-882 — Shaoxing Shengli Fleece (Locked: Main Store / Industrial Area)</option>
+                    </optgroup>
+                    <optgroup label="Kenyan Domestic Supplier Invoices (LPS)">
+                      <option value="LPS-REC-2026-001">📄 Local Invoice INV-RIV-2026-9812 — Rivatex East Africa (Locked: Main Store / Industrial Area)</option>
+                    </optgroup>
+                    {deliveries && deliveries.length > 0 && (
+                      <optgroup label="Active Inward Delivery Manifests & Waybills">
+                        {deliveries.map(del => {
+                          const loc = locations.find(l => l.id === del.destinationLocation);
+                          return (
+                            <option key={del.id} value={`DEL-${del.id}`}>
+                              🚚 Manifest {del.id} ({del.consignmentNo}) — {del.supplierName} (Locked: {loc?.name || del.destinationLocation})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+                  </select>
+
+                  {isStoreLockedByInvoice && !storeLockOverridden && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-amber-300/90 font-medium">
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Security Guard Active: Warehouse intake destination is locked to {locations.find(l => l.id === destinationLocation)?.name} as per documentation.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Type selector */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
                 <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
@@ -682,20 +912,87 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   )}
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Destination Store / Warehouse *
-                    </label>
-                    <select
-                      value={destinationLocation}
-                      onChange={e => setDestinationLocation(e.target.value as LocationId)}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
-                    >
-                      {locations.map(loc => (
-                        <option key={loc.id} value={loc.id}>
-                          {loc.name} ({loc.type})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                        Destination Store / Warehouse *
+                      </label>
+                      {isStoreLockedByInvoice && !storeLockOverridden ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                          <Lock className="w-3 h-3 text-amber-700" />
+                          <span>Locked by Invoice</span>
+                        </span>
+                      ) : storeLockOverridden ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-rose-800 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-300">
+                          <Unlock className="w-3 h-3 text-rose-700" />
+                          <span>Override Active</span>
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {isStoreLockedByInvoice && !storeLockOverridden ? (
+                      <div className="space-y-1.5">
+                        <div className="w-full bg-amber-50/90 border-2 border-amber-300 rounded-xl px-3.5 py-2 text-xs text-amber-950 font-bold flex items-center justify-between shadow-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-6 h-6 rounded-lg bg-amber-200/80 text-amber-900 flex items-center justify-center shrink-0">
+                              <Lock className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="truncate">
+                              <span className="block font-extrabold text-slate-900">
+                                {locations.find(l => l.id === destinationLocation)?.name || destinationLocation}
+                              </span>
+                              <span className="text-[10px] font-normal text-amber-800 block">
+                                Bound strictly to Invoice #{invoiceNumber}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Administrative Warning: Invoice #${invoiceNumber} is designated for ${locations.find(l => l.id === destinationLocation)?.name || destinationLocation}. Re-routing may cause audit variance against supplier shipping documents. Do you wish to override the store lock?`)) {
+                                setStoreLockOverridden(true);
+                              }
+                            }}
+                            className="text-[10.5px] font-bold text-amber-800 hover:text-amber-950 underline px-2 py-1 rounded hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
+                            title="Authorized supervisor override"
+                          >
+                            Unlock Override
+                          </button>
+                        </div>
+                        <p className="text-[10.5px] text-amber-800 font-medium flex items-center gap-1">
+                          <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Intake destination is locked to this store as designated in invoice #{invoiceNumber}. Cross-location intake is restricted.</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <select
+                          id="select-destination-location"
+                          value={destinationLocation}
+                          onChange={e => setDestinationLocation(e.target.value as LocationId)}
+                          className={`w-full bg-white border rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500 ${
+                            storeLockOverridden ? 'border-amber-400 ring-1 ring-amber-300' : 'border-slate-300'
+                          }`}
+                        >
+                          {locations.map(loc => (
+                            <option key={loc.id} value={loc.id}>
+                              {loc.name} ({loc.type})
+                            </option>
+                          ))}
+                        </select>
+                        {storeLockOverridden && (
+                          <div className="flex items-center justify-between text-[10.5px] text-amber-700 bg-amber-50 p-1.5 rounded-lg border border-amber-200">
+                            <span>⚠️ Supervisor override active. Receiving stock into custom facility.</span>
+                            <button
+                              type="button"
+                              onClick={() => setStoreLockOverridden(false)}
+                              className="font-bold underline text-amber-900 cursor-pointer ml-2"
+                            >
+                              Re-lock to Invoice
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1070,6 +1367,40 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                 </div>
               ) : (
                 <div className="space-y-4">
+                  {/* Destination Facility Lock Audit Verification */}
+                  <div className="p-3.5 bg-amber-50/90 border border-amber-300/90 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-200/80 text-amber-900 flex items-center justify-center shrink-0">
+                        <Lock className="w-4 h-4 text-amber-800" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                            Intake Target Store: {locations.find(l => l.id === destinationLocation)?.name || destinationLocation}
+                          </span>
+                          {isStoreLockedByInvoice && !storeLockOverridden ? (
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md">
+                              🔒 Locked to Invoice #{invoiceNumber}
+                            </span>
+                          ) : storeLockOverridden ? (
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-rose-200 text-rose-900 px-2 py-0.5 rounded-md">
+                              ⚠️ Re-route Override Active
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="text-[11px] text-amber-800 font-medium mt-0.5">
+                          {draftItems.length} line items and capitalized asset entries will be credited strictly to {locations.find(l => l.id === destinationLocation)?.name || destinationLocation}.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-[10.5px] font-mono font-bold text-amber-900 bg-amber-200/60 px-2.5 py-1 rounded-lg">
+                        Depot ID: {destinationLocation}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Financial Summary Box */}
                   <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
                     <h3 className="text-xs font-black uppercase tracking-wider text-rose-600 flex items-center justify-between">
