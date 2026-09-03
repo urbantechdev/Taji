@@ -81,9 +81,27 @@
         "currency": { "type": "string" }
       },
       "required": ["id", "name", "type", "currency"]
+    },
+    "ClearingAgent": {
+      "title": "ClearingAgent",
+      "description": "Registered KRA licensed customs clearing agent and CFS logistics declarant",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "kraPin": { "type": "string" },
+        "declarantCode": { "type": "string" },
+        "operatingPorts": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "kraPin"]
     }
   },
   "firestore": {
+    "/clearing_agents/{agentId}": {
+      "schema": "ClearingAgent",
+      "description": "Master registry of KRA licensed clearing and forwarding agents and CFS declarants"
+    },
     "/suppliers/{supplierId}": {
       "schema": "Supplier",
       "description": "Master registry of domestic and international suppliers"

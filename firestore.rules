@@ -124,6 +124,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Clearing Agents & Forwarding Declarants Collection
+    match /clearing_agents/{agentId} {
+      allow read, write: if true;
+    }
+
     // User Profiles
     match /users/{userId} {
       allow read, write: if true;
