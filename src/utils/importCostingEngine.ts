@@ -12,7 +12,8 @@ import {
 export function calculateImportShipmentCosting(
   params: {
     exchangeRate: number;
-    specificDutyRatePerTonne: number; // KES 97,500
+    specificDutyUSDPerTonne?: number; // e.g. USD 750 / net tonne
+    specificDutyRatePerTonne?: number; // fallback or legacy KES 97,500
     adValoremRatePct: number; // e.g. 25%
     idfRatePct: number; // 2.5%
     rdlRatePct: number; // 2.0%
@@ -31,7 +32,12 @@ export function calculateImportShipmentCosting(
   const totalGrossWeightKg = items.reduce((sum, item) => sum + (Number(item.grossWeightKg) || Number(item.netWeightKg) || 0), 0);
 
   const exchangeRate = Number(params.exchangeRate) || 129.38999;
-  const specificDutyRatePerTonne = Number(params.specificDutyRatePerTonne) || 97500;
+  // Specific duty rate floats dynamically with KRA exchange rate: USD 750 * Exchange Rate (e.g. $750 * 129.47 = KES 97,102.50 / tonne)
+  const specificDutyUSDPerTonne = params.specificDutyUSDPerTonne !== undefined ? Number(params.specificDutyUSDPerTonne) : 750;
+  const specificDutyRatePerTonne = specificDutyUSDPerTonne > 0 
+    ? specificDutyUSDPerTonne * exchangeRate 
+    : (Number(params.specificDutyRatePerTonne) || 97500);
+
   const adValoremRatePct = Number(params.adValoremRatePct) || 25;
   const idfRatePct = Number(params.idfRatePct) || 2.5;
   const rdlRatePct = Number(params.rdlRatePct) || 2.0;
@@ -215,8 +221,9 @@ export const PRESET_INVOICE_26PA222: ImportShipmentRecord = {
   kraEslipRef: '1020260001007429',
   portOfEntry: 'ICD EMBAKASI',
   destinationLocationId: 'main_store',
-  exchangeRate: 129.38999,
-  specificDutyRatePerTonne: 97500,
+  exchangeRate: 129.47,
+  specificDutyUSDPerTonne: 750,
+  specificDutyRatePerTonne: 97102.50,
   adValoremRatePct: 25.0,
   idfRatePct: 2.5,
   rdlRatePct: 2.0,
@@ -228,7 +235,7 @@ export const PRESET_INVOICE_26PA222: ImportShipmentRecord = {
   portClearingFeesKES: 180000.0,
   targetMarkupPct: 35.0,
   status: 'draft',
-  notes: 'Commercial Invoice 26PA222 from Zhejiang Puan Textile. CNF Mombasa container carrying Derek & Interlock fabrics.',
+  notes: 'Proforma Commercial Invoice 26PA222 from Zhejiang Puan Textile. CNF Mombasa container carrying Derek & Interlock fabrics (FOB USD 46,974.49, Net Wt 22,312.3 kg).',
   lineItems: [
     {
       id: 'LI-001',
@@ -250,6 +257,64 @@ export const PRESET_INVOICE_26PA222: ImportShipmentRecord = {
       fobUSD: 1364.59, // 593.3 kg @ $2.30/kg
       netWeightKg: 593.3,
       grossWeightKg: 600.0,
+      gsm: 120,
+      widthCm: 150,
+      matchedProductId: 'BATCH-DRK-102'
+    }
+  ]
+};
+
+export const PRESET_SAD_26EMKIM400968589: ImportShipmentRecord = {
+  id: 'SAD-26EMKIM400968589',
+  shipmentNumber: 'SAD-2026-400968589',
+  invoiceNumber: '26PA222 (SAD ICMS Entry 26EMKIM400968589)',
+  invoiceDate: '2026-06-15',
+  supplierName: 'ZHEJIANG PUAN TEXTILE TECHNOLOGY CO.,LTD.',
+  supplierCountry: 'CHINA',
+  consigneeName: 'TAJI KNITTERS LIMITED',
+  consigneePin: 'P051656758Y',
+  declarantName: 'Blue Pearl Logistics Limited',
+  declarantPin: 'P051506858S',
+  customsEntryNo: '26EMKIM400968589',
+  kraEslipRef: '1020260001009685',
+  portOfEntry: 'ICD EMBAKASI',
+  destinationLocationId: 'main_store',
+  exchangeRate: 129.47,
+  specificDutyUSDPerTonne: 750, // USD 750 / net tonne dynamically converted via 129.47 = KES 97,102.50 / tonne
+  specificDutyRatePerTonne: 97102.50,
+  adValoremRatePct: 25.0,
+  idfRatePct: 2.5,
+  rdlRatePct: 2.0,
+  vatRatePct: 16.0,
+  mssLevyUSDRatePerTonne: 1.75,
+  cocFeesUSD: 0.0, // CoC set to 0 in customs valuation base as per KRA rules (secondary handling cost)
+  totalFreightUSD: 5500.0,
+  totalInsuranceUSD: 14.38,
+  portClearingFeesKES: 180000.0,
+  targetMarkupPct: 35.0,
+  status: 'assessed',
+  notes: 'Actual Customs Declaration Entry 26EMKIM400968589 (Reconciled from Proforma 26PA222). Declared FOB USD 36,900.00 and Total Net Weight 22,600.0 kg.',
+  lineItems: [
+    {
+      id: 'LI-SAD-001',
+      description: '100% Poly Special Derek 150CM Cutable 260GSM',
+      category: 'Dereck',
+      hsCode: '6006.32.00',
+      fobUSD: 35800.00, // 22,000 kg declared
+      netWeightKg: 22000.0,
+      grossWeightKg: 22240.0,
+      gsm: 260,
+      widthCm: 150,
+      matchedProductId: 'BATCH-DRK-101'
+    },
+    {
+      id: 'LI-SAD-002',
+      description: '100% Poly Interlock 150CM Cutable 120GSM',
+      category: 'Dereck',
+      hsCode: '6006.32.00',
+      fobUSD: 1100.00, // 600 kg declared
+      netWeightKg: 600.0,
+      grossWeightKg: 610.0,
       gsm: 120,
       widthCm: 150,
       matchedProductId: 'BATCH-DRK-102'

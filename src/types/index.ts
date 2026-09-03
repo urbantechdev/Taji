@@ -1504,6 +1504,32 @@ export interface Supplier {
 }
 
 // -----------------------------------------------------------------------------
+// Clearing & Forwarding Agent Registry Types (KRA Licensed Declarants & CFS Logistics)
+// -----------------------------------------------------------------------------
+export interface ClearingAgent {
+  id: string; // e.g. "CLR-KE-001"
+  name: string; // e.g. "Blue Pearl Logistics Limited"
+  kraPin: string; // e.g. "P051506858S"
+  declarantCode?: string; // KRA Customs Clearing Agent License / CB No e.g. "KRA-CB-8841"
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  address?: string; // e.g. "Cannon Towers II, Moi Avenue, Mombasa"
+  operatingPorts?: string; // e.g. "Mombasa Port (Kilindini CFS) & ICD Embakasi Nairobi"
+  bankName?: string; // e.g. "Equity Bank Kenya Ltd"
+  bankAccountNo?: string;
+  bankBranch?: string;
+  mpesaPaybill?: string; // e.g. "400222" or Till Number
+  paymentTermsDays?: number; // e.g. 14
+  standardAgencyFeeKES?: number; // Estimated standard agency fee e.g. 35,000 KES
+  cfsPortWharfageKES?: number; // Standard CFS wharfage baseline
+  demurrageAllowanceDays?: number; // Free days before shipping line demurrage starts
+  notes?: string;
+  createdAt: string;
+  status: 'active' | 'inactive';
+}
+
+// -----------------------------------------------------------------------------
 // Import Tax & Landed Costing Module Types (KRA SAD ICMS / Landed Capitalization)
 // -----------------------------------------------------------------------------
 export interface ImportShipmentLineItem {
@@ -1666,7 +1692,8 @@ export interface ImportShipmentRecord {
   portOfEntry: string;
   destinationLocationId: LocationId;
   exchangeRate: number; // KES per USD (default 129.38999)
-  specificDutyRatePerTonne: number; // 97,500 KES
+  specificDutyUSDPerTonne?: number; // USD 750 / net tonne (dynamically converted to KES via exchange rate)
+  specificDutyRatePerTonne: number; // 97,500 KES (or specificDutyUSDPerTonne * exchangeRate)
   adValoremRatePct: number; // 25% (or 10% for yarns)
   idfRatePct: number; // 2.5%
   rdlRatePct: number; // 2.0%

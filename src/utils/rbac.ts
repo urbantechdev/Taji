@@ -96,7 +96,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     role: 'hr_manager',
     title: 'Human Resources & People Operations Manager',
     shortLabel: 'HR Manager',
-    description: 'Autonomous employee onboarding, personnel records, KRA statutory compliance (PAYE, NSSF, SHIF, Housing Levy), and monthly staff payroll.',
+    description: 'Autonomous employee onboarding, personnel records, KRA statutory compliance (PAYE, NSSF, SHA, Housing Levy), and monthly staff payroll.',
     badgeClass: 'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/40',
     dotColor: 'bg-fuchsia-400',
     defaultLocation: 'main_store',

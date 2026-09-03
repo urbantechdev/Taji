@@ -15,7 +15,7 @@ import {
 /**
  * 2026 Kenya Statutory Payroll Calculator
  * - Monthly Personal Relief: KSh 2,400
- * - Insurance Relief: 15% of SHIF contribution (Max KSh 5,000/month) - Income Tax Act Section 31
+ * - Insurance Relief: 15% of SHA contribution (Max KSh 5,000/month) - Income Tax Act Section 31
  * - Affordable Housing Relief: 15% of Employee Housing Levy (Max KSh 9,000/month) - Income Tax Act Section 30A
  * - PAYE Tax Bands (Monthly):
  *    First KSh 24,000 @ 10%
@@ -27,7 +27,7 @@ import {
  *    Tier I (up to KSh 8,000 @ 6% = max KSh 480)
  *    Tier II (KSh 8,001 to KSh 72,000 @ 6% = max KSh 3,840)
  *    Total NSSF Employee max: KSh 4,320 (matched 100% by Employer)
- * - SHIF (Social Health Insurance Fund): 2.75% of Gross Salary (Minimum KSh 300)
+ * - SHA (Social Health Authority): 2.75% of Gross Salary (Minimum KSh 300)
  * - Affordable Housing Levy: 1.5% of Gross Salary (matched 1.5% by Employer)
  */
 export function calculateKenyaStatutoryDeductions(grossSalary: number) {
@@ -44,7 +44,7 @@ export function calculateKenyaStatutoryDeductions(grossSalary: number) {
   const totalNssfEmployee = Math.round(nssfTier1 + nssfTier2);
   const totalNssfEmployer = totalNssfEmployee; // 100% matching
 
-  // 2. SHIF Calculation (2.75% mandatory, minimum KSh 300)
+  // 2. SHA Calculation (2.75% mandatory, minimum KSh 300)
   const shifDeduction = Math.max(300, Math.round(grossSalary * 0.0275));
 
   // 3. Affordable Housing Levy (1.5% employee + 1.5% employer)
@@ -70,7 +70,7 @@ export function calculateKenyaStatutoryDeductions(grossSalary: number) {
 
   // 6. Statutory Tax Reliefs (Personal + Insurance + Housing)
   const personalRelief = 2400; // Monthly statutory personal relief
-  const insuranceRelief = Math.min(5000, Math.round(shifDeduction * 0.15)); // 15% of SHIF (Cap: KSh 5,000/mo)
+  const insuranceRelief = Math.min(5000, Math.round(shifDeduction * 0.15)); // 15% of SHA (Cap: KSh 5,000/mo)
   const housingRelief = Math.min(9000, Math.round(housingLevyEmployee * 0.15)); // 15% of Housing Levy (Cap: KSh 9,000/mo)
   const totalReliefs = personalRelief + insuranceRelief + housingRelief;
 
@@ -540,7 +540,7 @@ export function generateKRAPayeCSV(payroll: PayrollRecord[]) {
     'Allowances (KSh)',
     'Gross Pay (KSh)',
     'NSSF Defined Deduction',
-    'SHIF Deduction',
+    'SHA Deduction',
     'Housing Levy (1.5%)',
     'Taxable Pay (KSh)',
     'Tax Payable (PAYE)',

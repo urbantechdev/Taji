@@ -339,7 +339,7 @@ export function exportBalanceSheetCSV(bs: BalanceSheetData) {
     ['LIABILITIES & EQUITY', 'Amount (KSh)'],
     ['Current Liabilities:', ''],
     ['  VAT Liability Payable (KRA Output VAT)', bs.currentLiabilities.vatLiabilityPayable.toFixed(2)],
-    ['  Payroll Statutory Taxes Payable (PAYE, NSSF, SHIF, Housing)', bs.currentLiabilities.payrollTaxPayable.toFixed(2)],
+    ['  Payroll Statutory Taxes Payable (PAYE, NSSF, SHA, Housing)', bs.currentLiabilities.payrollTaxPayable.toFixed(2)],
     ['  Supplier Accounts Payable (Inward Goods Credit)', bs.currentLiabilities.supplierAccountsPayable.toFixed(2)],
     ['Total Current Liabilities', bs.currentLiabilities.totalCurrentLiabilities.toFixed(2)],
     [''],
@@ -435,7 +435,7 @@ export function exportBalanceSheetPDF(bs: BalanceSheetData, brandSettings?: Bran
   const liabEquityRows = [
     ['Current Liabilities', ''],
     ['  KRA Output VAT Payable', formatCurrency(bs.currentLiabilities.vatLiabilityPayable)],
-    ['  Payroll Statutory Taxes Payable (PAYE, NSSF, SHIF)', formatCurrency(bs.currentLiabilities.payrollTaxPayable)],
+    ['  Payroll Statutory Taxes Payable (PAYE, NSSF, SHA)', formatCurrency(bs.currentLiabilities.payrollTaxPayable)],
     ['  Supplier Accounts Payable (Credit Lines)', formatCurrency(bs.currentLiabilities.supplierAccountsPayable)],
     ['Total Current Liabilities', formatCurrency(bs.currentLiabilities.totalCurrentLiabilities)],
     ['Long-Term Liabilities', ''],
@@ -1528,7 +1528,7 @@ export function exportCorporateIncomeTaxComputationPDF(
 }
 
 // --------------------------------------------------------------------------
-// 13. UNIFIED STATUTORY PAYROLL RETURN (PAYE, NSSF, SHIF, HOUSING LEVY)
+// 13. UNIFIED STATUTORY PAYROLL RETURN (PAYE, NSSF, SHA, HOUSING LEVY)
 // --------------------------------------------------------------------------
 
 export function exportUnifiedPayrollTaxPDF(payroll: PayrollRecord[], etrConfig: ETRConfig) {
@@ -1544,12 +1544,12 @@ export function exportUnifiedPayrollTaxPDF(payroll: PayrollRecord[], etrConfig: 
 
   doc.setFontSize(8.5);
   doc.setTextColor(244, 63, 94);
-  doc.text(`Employer: ${etrConfig.companyName} | Employer PIN: ${etrConfig.taxPin} | Due Date: 9th of Month (KRA / NSSF / SHIF)`, 40, 48);
+  doc.text(`Employer: ${etrConfig.companyName} | Employer PIN: ${etrConfig.taxPin} | Due Date: 9th of Month (KRA / NSSF / SHA)`, 40, 48);
 
   const totalGross = payroll.reduce((acc, p) => acc + p.grossPay, 0);
   const totalPaye = payroll.reduce((acc, p) => acc + p.payeTax, 0);
   const totalNssf = payroll.reduce((acc, p) => acc + p.nssfDeduction, 0);
-  const totalShif = payroll.reduce((acc, p) => acc + p.nhifDeduction, 0);
+  const totalSha = payroll.reduce((acc, p) => acc + p.nhifDeduction, 0);
   const totalHousing = payroll.reduce((acc, p) => acc + p.housingLevy, 0);
   const totalNet = payroll.reduce((acc, p) => acc + p.netPay, 0);
 
@@ -1567,9 +1567,9 @@ export function exportUnifiedPayrollTaxPDF(payroll: PayrollRecord[], etrConfig: 
 
   autoTable(doc, {
     startY: 80,
-    head: [['#', 'Emp #', 'Employee Full Name', 'Gross Pay (KSh)', 'KRA PAYE (KSh)', 'NSSF Tier I/II', 'SHIF (2.75%)', 'Housing (1.5%)', 'Net Salary (KSh)']],
+    head: [['#', 'Emp #', 'Employee Full Name', 'Gross Pay (KSh)', 'KRA PAYE (KSh)', 'NSSF Tier I/II', 'SHA (2.75%)', 'Housing (1.5%)', 'Net Salary (KSh)']],
     body: tableData,
-    foot: [['TOTAL', `${payroll.length} Staff`, '', totalGross.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalPaye.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalNssf.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalShif.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalHousing.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalNet.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })]],
+    foot: [['TOTAL', `${payroll.length} Staff`, '', totalGross.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalPaye.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalNssf.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalSha.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalHousing.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), totalNet.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })]],
     theme: 'grid',
     headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
     footStyles: { fillColor: [180, 83, 9], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
@@ -1652,14 +1652,14 @@ export function exportIndividualPayslipPDF(
   doc.text('KRA Tax PIN:', centerColX, currentY + 30);
   doc.text('National ID / Passport:', centerColX, currentY + 43);
   doc.text('NSSF Pension No:', centerColX, currentY + 56);
-  doc.text('SHIF / NHIF Code:', centerColX, currentY + 69);
+  doc.text('SHA Member No:', centerColX, currentY + 69);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
   doc.text(staffMember?.kraPin || 'P051189234R', centerColX + 90, currentY + 30);
   doc.text(staffMember?.idNumber || 'ID-29184021', centerColX + 90, currentY + 43);
   doc.text(staffMember?.nssfNo || 'NSF-892104', centerColX + 90, currentY + 56);
-  doc.text(staffMember?.nhifNo || 'SHIF-940182', centerColX + 90, currentY + 69);
+  doc.text(staffMember?.nhifNo || 'SHA-940182', centerColX + 90, currentY + 69);
 
   // Right Column: Disbursal / Period
   const rightColX = 430;
@@ -1701,7 +1701,7 @@ export function exportIndividualPayslipPDF(
     ['KRA PAYE Income Tax', payroll.payeTax.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
     ['Affordable Housing Levy (1.5%)', payroll.housingLevy.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
     ['NSSF Pension (Tier I & Tier II)', payroll.nssfDeduction.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
-    ['SHIF Health Insurance (2.75%)', payroll.nhifDeduction.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['SHA Health Contribution (2.75%)', payroll.nhifDeduction.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
     ['TOTAL STATUTORY DEDUCTIONS', payroll.totalDeductions.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })]
   ];
 
@@ -1803,7 +1803,7 @@ export function exportIndividualPayslipPDF(
   doc.setFontSize(6.5);
   doc.setTextColor(148, 163, 184);
   doc.text('Signature & Acceptance Date', 40, currentY + 54);
-  doc.text(`For ${companyName} - ETR/TIMS Verified`, width - 230, currentY + 54);
+  doc.text(`For ${companyName} - Authorized Payroll Disbursement`, width - 230, currentY + 54);
 
   // Bottom Notice
   doc.setFontSize(6.5);
