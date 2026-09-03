@@ -239,10 +239,14 @@ export const MobileBarcodeScannerModal: React.FC = () => {
               chosenId,
               {
                 fps: 20,
-                qrbox: (viewfinderWidth, viewfinderHeight) => ({
-                  width: Math.min(viewfinderWidth * 0.85, 340),
-                  height: Math.min(viewfinderHeight * 0.65, 220)
-                }),
+                qrbox: (viewfinderWidth, viewfinderHeight) => {
+                  const safeW = viewfinderWidth && viewfinderWidth > 0 ? viewfinderWidth : 320;
+                  const safeH = viewfinderHeight && viewfinderHeight > 0 ? viewfinderHeight : 240;
+                  return {
+                    width: Math.max(50, Math.floor(Math.min(safeW * 0.85, 340))),
+                    height: Math.max(50, Math.floor(Math.min(safeH * 0.65, 220)))
+                  };
+                },
                 aspectRatio: 1.333333
               },
               onBarcodeDecoded,
@@ -299,10 +303,14 @@ export const MobileBarcodeScannerModal: React.FC = () => {
         deviceId,
         {
           fps: 20,
-          qrbox: (viewfinderWidth, viewfinderHeight) => ({
-            width: Math.min(viewfinderWidth * 0.85, 340),
-            height: Math.min(viewfinderHeight * 0.65, 220)
-          }),
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const safeW = viewfinderWidth && viewfinderWidth > 0 ? viewfinderWidth : 320;
+            const safeH = viewfinderHeight && viewfinderHeight > 0 ? viewfinderHeight : 240;
+            return {
+              width: Math.max(50, Math.floor(Math.min(safeW * 0.85, 340))),
+              height: Math.max(50, Math.floor(Math.min(safeH * 0.65, 220)))
+            };
+          },
           aspectRatio: 1.333333
         },
         onBarcodeDecoded,

@@ -9,6 +9,7 @@ import {
 import {
   calculateImportShipmentCosting,
   PRESET_INVOICE_26PA222,
+  PRESET_SAD_26EMKIM400968589,
   PRESET_SAD_UDEY_UDYOG,
   PRESET_FLEECE_CONTAINER
 } from '../../utils/importCostingEngine';
@@ -82,7 +83,8 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
 
   // Active Shipment Record State (Initialized with Zhejiang Puan 26PA222 Preset)
   const [activeShipment, setActiveShipment] = useState<ImportShipmentRecord>(PRESET_INVOICE_26PA222);
-  const [selectedPresetKey, setSelectedPresetKey] = useState<'26pa222' | 'udey' | 'fleece' | 'custom'>('26pa222');
+  const [selectedPresetKey, setSelectedPresetKey] = useState<'26pa222' | 'sad_400968589' | 'udey' | 'fleece' | 'custom'>('26pa222');
+  const [showSideBySideComparison, setShowSideBySideComparison] = useState(false);
 
   // Interactive FX Sensitivity Simulator State
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(true);
@@ -107,6 +109,7 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
     return calculateImportShipmentCosting(
       {
         exchangeRate: effectiveExchangeRate,
+        specificDutyUSDPerTonne: activeShipment.specificDutyUSDPerTonne ?? 750,
         specificDutyRatePerTonne: activeShipment.specificDutyRatePerTonne,
         adValoremRatePct: activeShipment.adValoremRatePct,
         idfRatePct: activeShipment.idfRatePct,
@@ -123,13 +126,59 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
     );
   }, [activeShipment, effectiveExchangeRate]);
 
+  // Dual computations for Proforma (26PA222) vs Actual Customs Entry (26EMKIM400968589) comparison
+  const proformaSummary = useMemo(() => {
+    return calculateImportShipmentCosting(
+      {
+        exchangeRate: PRESET_INVOICE_26PA222.exchangeRate,
+        specificDutyUSDPerTonne: PRESET_INVOICE_26PA222.specificDutyUSDPerTonne ?? 750,
+        specificDutyRatePerTonne: PRESET_INVOICE_26PA222.specificDutyRatePerTonne,
+        adValoremRatePct: PRESET_INVOICE_26PA222.adValoremRatePct,
+        idfRatePct: PRESET_INVOICE_26PA222.idfRatePct,
+        rdlRatePct: PRESET_INVOICE_26PA222.rdlRatePct,
+        vatRatePct: PRESET_INVOICE_26PA222.vatRatePct,
+        mssLevyUSDRatePerTonne: PRESET_INVOICE_26PA222.mssLevyUSDRatePerTonne,
+        cocFeesUSD: PRESET_INVOICE_26PA222.cocFeesUSD,
+        totalFreightUSD: PRESET_INVOICE_26PA222.totalFreightUSD,
+        totalInsuranceUSD: PRESET_INVOICE_26PA222.totalInsuranceUSD,
+        portClearingFeesKES: PRESET_INVOICE_26PA222.portClearingFeesKES,
+        targetMarkupPct: PRESET_INVOICE_26PA222.targetMarkupPct
+      },
+      PRESET_INVOICE_26PA222.lineItems
+    );
+  }, []);
+
+  const actualSADSummary = useMemo(() => {
+    return calculateImportShipmentCosting(
+      {
+        exchangeRate: PRESET_SAD_26EMKIM400968589.exchangeRate,
+        specificDutyUSDPerTonne: PRESET_SAD_26EMKIM400968589.specificDutyUSDPerTonne ?? 750,
+        specificDutyRatePerTonne: PRESET_SAD_26EMKIM400968589.specificDutyRatePerTonne,
+        adValoremRatePct: PRESET_SAD_26EMKIM400968589.adValoremRatePct,
+        idfRatePct: PRESET_SAD_26EMKIM400968589.idfRatePct,
+        rdlRatePct: PRESET_SAD_26EMKIM400968589.rdlRatePct,
+        vatRatePct: PRESET_SAD_26EMKIM400968589.vatRatePct,
+        mssLevyUSDRatePerTonne: PRESET_SAD_26EMKIM400968589.mssLevyUSDRatePerTonne,
+        cocFeesUSD: PRESET_SAD_26EMKIM400968589.cocFeesUSD,
+        totalFreightUSD: PRESET_SAD_26EMKIM400968589.totalFreightUSD,
+        totalInsuranceUSD: PRESET_SAD_26EMKIM400968589.totalInsuranceUSD,
+        portClearingFeesKES: PRESET_SAD_26EMKIM400968589.portClearingFeesKES,
+        targetMarkupPct: PRESET_SAD_26EMKIM400968589.targetMarkupPct
+      },
+      PRESET_SAD_26EMKIM400968589.lineItems
+    );
+  }, []);
+
   // Handle Preset Switching
-  const handleSelectPreset = (key: '26pa222' | 'udey' | 'fleece' | 'custom') => {
+  const handleSelectPreset = (key: '26pa222' | 'sad_400968589' | 'udey' | 'fleece' | 'custom') => {
     setSelectedPresetKey(key);
     setCapitalizationSuccess(null);
     if (key === '26pa222') {
       setActiveShipment({ ...PRESET_INVOICE_26PA222 });
       setSimulatedFXRate(PRESET_INVOICE_26PA222.exchangeRate);
+    } else if (key === 'sad_400968589') {
+      setActiveShipment({ ...PRESET_SAD_26EMKIM400968589 });
+      setSimulatedFXRate(PRESET_SAD_26EMKIM400968589.exchangeRate);
     } else if (key === 'udey') {
       setActiveShipment({ ...PRESET_SAD_UDEY_UDYOG });
       setSimulatedFXRate(PRESET_SAD_UDEY_UDYOG.exchangeRate);
@@ -528,16 +577,31 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
           {/* Preset Profiles Selector (Shown when on calculator or 3-way matcher) */}
           {(activeAccountantTab === 'calculator' || activeAccountantTab === 'three_way_matcher') && (
           <div className="space-y-1.5 border-t border-slate-700/70 pt-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                Active Commercial Invoice / Customs SAD Preset:
-              </span>
-              <span className="text-[10px] text-slate-400">
-                Verified with Kenya Revenue Authority SAD-ICMS Entries
-              </span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                  Active Commercial Invoice / Customs SAD Declaration:
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Switch between Proforma estimates and final KRA customs entry declarations (SAD-ICMS)
+                </span>
+              </div>
+
+              {/* Side-by-side comparison quick toggle */}
+              <button
+                onClick={() => setShowSideBySideComparison(prev => !prev)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                  showSideBySideComparison
+                    ? 'bg-rose-600 text-white border-rose-500 shadow-md ring-2 ring-rose-400/50'
+                    : 'bg-slate-800 text-rose-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-rose-400" />
+                <span>{showSideBySideComparison ? 'Hide Side-by-Side Reconciliation' : '⚖️ Reconcile Proforma vs. Actual Entry'}</span>
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
               <button
                 onClick={() => handleSelectPreset('26pa222')}
                 className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
@@ -547,11 +611,27 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-rose-300">Invoice 26PA222</span>
-                  <span className="text-[9px] bg-rose-500/30 px-1.5 py-0.5 rounded text-rose-200 font-mono">Dereck Fabric</span>
+                  <span className="font-bold text-xs text-rose-300">Proforma 26PA222</span>
+                  <span className="text-[9px] bg-blue-500/30 px-1.5 py-0.5 rounded text-blue-200 font-mono">Proforma Est.</span>
                 </div>
                 <p className="text-[11px] text-slate-300 font-medium mt-1 truncate">Zhejiang Puan Textile</p>
-                <p className="text-[10px] text-slate-400">21,719 kg Derek + 593 kg Interlock</p>
+                <p className="text-[10px] text-slate-400">FOB $46,974 | 22,312 kg</p>
+              </button>
+
+              <button
+                onClick={() => handleSelectPreset('sad_400968589')}
+                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  selectedPresetKey === 'sad_400968589'
+                    ? 'bg-emerald-500/20 border-emerald-500 text-white ring-1 ring-emerald-500 shadow-md'
+                    : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-emerald-300">SAD 26EMKIM400968589</span>
+                  <span className="text-[9px] bg-emerald-500/30 px-1.5 py-0.5 rounded text-emerald-200 font-mono">Actual Entry</span>
+                </div>
+                <p className="text-[11px] text-slate-300 font-medium mt-1 truncate">Zhejiang Puan (Customs)</p>
+                <p className="text-[10px] text-emerald-400 font-mono">FOB $36,900 | 22,600 kg</p>
               </button>
 
               <button
@@ -599,9 +679,226 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                   <span className="text-[9px] bg-purple-500/30 px-1.5 py-0.5 rounded text-purple-200 font-mono">Blank Form</span>
                 </div>
                 <p className="text-[11px] text-slate-300 font-medium mt-1">Manual Commercial Invoice</p>
-                <p className="text-[10px] text-slate-400">Add arbitrary line items &amp; taxes</p>
+                <p className="text-[10px] text-slate-400">User Defined Parameters</p>
               </button>
             </div>
+
+            {/* SIDE-BY-SIDE PROFORMA VS. ACTUAL CUSTOMS ENTRY (26EMKIM400968589) RECONCILIATION */}
+            {showSideBySideComparison && (
+              <div className="mt-4 p-4 sm:p-5 bg-slate-950/90 rounded-2xl border border-rose-500/40 shadow-xl text-slate-100 space-y-4 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 font-bold text-xs">
+                      VS
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-white flex items-center gap-2">
+                        <span>Commercial Invoice Proforma vs. Actual Customs Declaration (SAD 26EMKIM400968589)</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          Reconciliation Engine
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Detailed variance analysis between initial supplier proforma (26PA222) and final ICMS customs declaration
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSelectPreset('26pa222')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
+                        selectedPresetKey === '26pa222'
+                          ? 'bg-blue-600 text-white border-blue-500'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      Use Proforma
+                    </button>
+                    <button
+                      onClick={() => handleSelectPreset('sad_400968589')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
+                        selectedPresetKey === 'sad_400968589'
+                          ? 'bg-emerald-600 text-white border-emerald-500'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      Use Actual SAD
+                    </button>
+                  </div>
+                </div>
+
+                {/* Variance Metrics Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="bg-slate-900/80 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
+                        <th className="py-2 px-3">Accounting Valuation Field</th>
+                        <th className="py-2 px-3 text-right">Proforma (26PA222)</th>
+                        <th className="py-2 px-3 text-right text-emerald-400">Actual SAD (26EMKIM400968589)</th>
+                        <th className="py-2 px-3 text-right text-rose-400">Variance ($\Delta$)</th>
+                        <th className="py-2 px-3 text-left">Compliance &amp; Accounting Treatment</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 font-mono text-[11.5px]">
+                      {/* FOB USD */}
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="py-2 px-3 font-sans font-bold text-slate-200">Commercial FOB (USD)</td>
+                        <td className="py-2 px-3 text-right text-slate-300">
+                          ${proformaSummary.totalFOB_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2 px-3 text-right text-emerald-300 font-bold">
+                          ${actualSADSummary.totalFOB_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-rose-300">
+                          ${(actualSADSummary.totalFOB_USD - proformaSummary.totalFOB_USD).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className="text-[9.5px] ml-1 opacity-70">
+                            ({(((actualSADSummary.totalFOB_USD - proformaSummary.totalFOB_USD) / (proformaSummary.totalFOB_USD || 1)) * 100).toFixed(1)}%)
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 font-sans text-slate-400 text-[10.5px]">
+                          Declared customs value reflects agreed final supplier settlement invoice
+                        </td>
+                      </tr>
+
+                      {/* Net Weight */}
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="py-2 px-3 font-sans font-bold text-slate-200">Total Net Weight (kg)</td>
+                        <td className="py-2 px-3 text-right text-slate-300">
+                          {proformaSummary.totalNetWeightKg.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg
+                        </td>
+                        <td className="py-2 px-3 text-right text-emerald-300 font-bold">
+                          {actualSADSummary.totalNetWeightKg.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-emerald-300">
+                          +{(actualSADSummary.totalNetWeightKg - proformaSummary.totalNetWeightKg).toLocaleString(undefined, { minimumFractionDigits: 1 })} kg
+                          <span className="text-[9.5px] ml-1 opacity-70">
+                            (+{(((actualSADSummary.totalNetWeightKg - proformaSummary.totalNetWeightKg) / (proformaSummary.totalNetWeightKg || 1)) * 100).toFixed(1)}%)
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 font-sans text-slate-400 text-[10.5px]">
+                          Net certified scale weight on ICMS bill of lading / weighing certificate
+                        </td>
+                      </tr>
+
+                      {/* Specific Duty Benchmark */}
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="py-2 px-3 font-sans font-bold text-slate-200">Specific Duty Rate</td>
+                        <td className="py-2 px-3 text-right text-slate-300">USD 750 / Tonne</td>
+                        <td className="py-2 px-3 text-right text-emerald-300 font-bold">USD 750 / Tonne</td>
+                        <td className="py-2 px-3 text-right text-slate-400">Floating FX</td>
+                        <td className="py-2 px-3 font-sans text-slate-400 text-[10.5px]">
+                          KES {(750 * 129.47).toLocaleString()} / Tonne (KES 97.10 / kg) via prevailing exchange rate
+                        </td>
+                      </tr>
+
+                      {/* Customs Value KES */}
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="py-2 px-3 font-sans font-bold text-slate-200">Customs CIF Value (KES)</td>
+                        <td className="py-2 px-3 text-right text-slate-300">
+                          KSh {proformaSummary.totalCustomsValueKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 text-right text-emerald-300 font-bold">
+                          KSh {actualSADSummary.totalCustomsValueKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-rose-300">
+                          KSh {(actualSADSummary.totalCustomsValueKES - proformaSummary.totalCustomsValueKES).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 font-sans text-slate-400 text-[10.5px]">
+                          (FOB + Freight + Insurance) × 129.47 KES/USD
+                        </td>
+                      </tr>
+
+                      {/* KRA Tax Head 1002 (Duty) */}
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="py-2 px-3 font-sans font-bold text-slate-200">1002 Import Duty (KES)</td>
+                        <td className="py-2 px-3 text-right text-slate-300">
+                          KSh {proformaSummary.totalImportDuty1002KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 text-right text-emerald-300 font-bold">
+                          KSh {actualSADSummary.totalImportDuty1002KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-amber-300">
+                          +KSh {(actualSADSummary.totalImportDuty1002KES - proformaSummary.totalImportDuty1002KES).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 font-sans text-slate-400 text-[10.5px]">
+                          Specific duty benchmark applied (higher than 25% ad-valorem)
+                        </td>
+                      </tr>
+
+                      {/* KRA Tax Head 1202 (VAT) */}
+                      <tr className="hover:bg-slate-900/50">
+                        <td className="py-2 px-3 font-sans font-bold text-slate-200">1202 Import VAT (16%)</td>
+                        <td className="py-2 px-3 text-right text-slate-300">
+                          KSh {proformaSummary.totalVAT1202KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 text-right text-emerald-300 font-bold">
+                          KSh {actualSADSummary.totalVAT1202KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-emerald-300">
+                          KSh {(actualSADSummary.totalVAT1202KES - proformaSummary.totalVAT1202KES).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2 px-3 font-sans text-slate-400 text-[10.5px]">
+                          Input VAT offset against output tax on VAT-3 return
+                        </td>
+                      </tr>
+
+                      {/* Total KRA Taxes */}
+                      <tr className="hover:bg-slate-900/50 bg-slate-900/60 font-black">
+                        <td className="py-2.5 px-3 font-sans font-extrabold text-white">Total KRA Customs Taxes</td>
+                        <td className="py-2.5 px-3 text-right text-slate-200">
+                          KSh {proformaSummary.totalKRATaxesKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-emerald-400">
+                          KSh {actualSADSummary.totalKRATaxesKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-rose-300">
+                          KSh {(actualSADSummary.totalKRATaxesKES - proformaSummary.totalKRATaxesKES).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="py-2.5 px-3 font-sans text-emerald-400 text-[10.5px]">
+                          Payable to National Bank of Kenya / CBK via KRA e-Slip
+                        </td>
+                      </tr>
+
+                      {/* Unit Landed Costing Comparison */}
+                      <tr className="hover:bg-slate-900/50 bg-emerald-950/30">
+                        <td className="py-2 px-3 font-sans font-bold text-emerald-200">Derek Fabric Cost / Metre (Excl VAT)</td>
+                        <td className="py-2 px-3 text-right text-slate-300">
+                          KSh {(proformaSummary.items[0]?.landedCostPerUnitExclVat || 0).toFixed(2)} / m
+                        </td>
+                        <td className="py-2 px-3 text-right text-emerald-300 font-bold">
+                          KSh {(actualSADSummary.items[0]?.landedCostPerUnitExclVat || 0).toFixed(2)} / m
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-emerald-400">
+                          {((actualSADSummary.items[0]?.landedCostPerUnitExclVat || 0) - (proformaSummary.items[0]?.landedCostPerUnitExclVat || 0)).toFixed(2)} KES/m
+                        </td>
+                        <td className="py-2 px-3 font-sans text-emerald-300 text-[10.5px]">
+                          Capitalized into Inventory Asset GL #1300 upon Customs sign-off
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>
+                      <strong>Reconciliation Sign-Off:</strong> CoC fees are excluded from the customs valuation base (0% customs tax), but factored into the final capitalized inventory landed cost.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleSelectPreset('sad_400968589');
+                      setShowSideBySideComparison(false);
+                    }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-colors shrink-0 cursor-pointer"
+                  >
+                    Adopt Actual SAD Entry (26EMKIM400968589)
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           )}
         </div>
@@ -951,34 +1248,118 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
               </div>
             </div>
 
-            {/* Tax Tariff Rates Header */}
-            <div className="pt-2 border-t border-slate-100 space-y-2">
-              <h5 className="font-extrabold text-[11px] text-slate-600 uppercase tracking-wider">
-                Statutory KRA Tax Rates
-              </h5>
+            {/* Tax Tariff Rates Header & Dynamic USD Specific Duty Benchmark */}
+            <div className="pt-2 border-t border-slate-100 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h5 className="font-extrabold text-[11px] text-slate-600 uppercase tracking-wider">
+                  Statutory KRA Tax Rates (Editable)
+                </h5>
+                <span className="text-[10px] text-slate-400">
+                  Per EAC Customs Management Act
+                </span>
+              </div>
 
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="block text-[10px] text-slate-500 font-bold">Ad-Valorem</span>
-                  <span className="font-black text-xs text-slate-900">{activeShipment.adValoremRatePct}%</span>
+                  <span className="block text-[10px] text-slate-500 font-bold mb-1">Ad-Valorem %</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={activeShipment.adValoremRatePct}
+                    onChange={e => setActiveShipment(prev => ({ ...prev, adValoremRatePct: parseFloat(e.target.value) || 0 }))}
+                    className="w-full text-center font-black text-xs text-slate-900 bg-white border border-slate-200 rounded px-1 py-0.5"
+                  />
                 </div>
                 <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="block text-[10px] text-slate-500 font-bold">1801 IDF</span>
-                  <span className="font-black text-xs text-slate-900">{activeShipment.idfRatePct}%</span>
+                  <span className="block text-[10px] text-slate-500 font-bold mb-1">1801 IDF %</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={activeShipment.idfRatePct}
+                    onChange={e => setActiveShipment(prev => ({ ...prev, idfRatePct: parseFloat(e.target.value) || 0 }))}
+                    className="w-full text-center font-black text-xs text-slate-900 bg-white border border-slate-200 rounded px-1 py-0.5"
+                  />
                 </div>
                 <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="block text-[10px] text-slate-500 font-bold">6001 RDL</span>
-                  <span className="font-black text-xs text-slate-900">{activeShipment.rdlRatePct}%</span>
+                  <span className="block text-[10px] text-slate-500 font-bold mb-1">6001 RDL %</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={activeShipment.rdlRatePct}
+                    onChange={e => setActiveShipment(prev => ({ ...prev, rdlRatePct: parseFloat(e.target.value) || 0 }))}
+                    className="w-full text-center font-black text-xs text-slate-900 bg-white border border-slate-200 rounded px-1 py-0.5"
+                  />
                 </div>
                 <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="block text-[10px] text-slate-500 font-bold">1202 VAT</span>
-                  <span className="font-black text-xs text-slate-900">{activeShipment.vatRatePct}%</span>
+                  <span className="block text-[10px] text-slate-500 font-bold mb-1">1202 VAT %</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={activeShipment.vatRatePct}
+                    onChange={e => setActiveShipment(prev => ({ ...prev, vatRatePct: parseFloat(e.target.value) || 0 }))}
+                    className="w-full text-center font-black text-xs text-slate-900 bg-white border border-slate-200 rounded px-1 py-0.5"
+                  />
                 </div>
               </div>
 
-              <div className="p-2.5 bg-rose-50/70 rounded-xl border border-rose-100 text-[11px] text-rose-900 flex items-center justify-between">
-                <span>Specific Duty Benchmark:</span>
-                <span className="font-mono font-bold">KES 97,500 / Tonne (KES 97.50 / kg)</span>
+              {/* Specific Duty USD per Tonne & MSS Levy */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2.5 bg-rose-50/70 rounded-xl border border-rose-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-rose-800">Specific Duty USD/Tonne</span>
+                    <span className="text-[9px] text-rose-600 font-mono">Net Tonne</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-rose-700">$</span>
+                    <input
+                      type="number"
+                      step="10"
+                      value={activeShipment.specificDutyUSDPerTonne ?? 750}
+                      onChange={e => {
+                        const usdVal = parseFloat(e.target.value) || 0;
+                        setActiveShipment(prev => ({
+                          ...prev,
+                          specificDutyUSDPerTonne: usdVal,
+                          specificDutyRatePerTonne: usdVal * effectiveExchangeRate
+                        }));
+                      }}
+                      className="w-full font-mono font-bold text-xs text-rose-900 bg-white border border-rose-200 rounded px-2 py-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-slate-700">6401 MSS Levy USD/Tonne</span>
+                    <span className="text-[9px] text-slate-500 font-mono">Gross Tonne</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-700">$</span>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={activeShipment.mssLevyUSDRatePerTonne ?? 1.75}
+                      onChange={e => setActiveShipment(prev => ({ ...prev, mssLevyUSDRatePerTonne: parseFloat(e.target.value) || 0 }))}
+                      className="w-full font-mono font-bold text-xs text-slate-900 bg-white border border-slate-200 rounded px-2 py-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Floating Specific Duty Benchmark in KES */}
+              <div className="p-2.5 bg-rose-100/60 rounded-xl border border-rose-200 text-[11px] text-rose-900 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold">Dynamic Specific Duty Benchmark:</span>
+                  <span className="font-mono font-black">
+                    KES {((activeShipment.specificDutyUSDPerTonne ?? 750) * effectiveExchangeRate).toLocaleString(undefined, { maximumFractionDigits: 2 })} / Tonne
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-rose-700 font-medium">
+                  <span>Equivalent per Kilogram:</span>
+                  <span className="font-mono font-bold">
+                    KES {(((activeShipment.specificDutyUSDPerTonne ?? 750) * effectiveExchangeRate) / 1000).toFixed(2)} / kg
+                  </span>
+                </div>
               </div>
             </div>
           </div>

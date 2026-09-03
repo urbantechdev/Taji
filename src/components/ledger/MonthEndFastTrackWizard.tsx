@@ -53,7 +53,7 @@ export const MonthEndFastTrackWizard: React.FC = () => {
       id: 'step_3',
       title: '3. Statutory Payroll & Tax Deductions',
       category: 'payroll',
-      description: 'Verify statutory remittance schedules for KRA PAYE, NSSF Act 2013, SHIF 2.75%, and Affordable Housing Levy 1.5%.',
+      description: 'Verify statutory remittance schedules for KRA PAYE, NSSF Act 2013, SHA 2.75%, and Affordable Housing Levy 1.5%.',
       status: 'pending',
       actionLabel: 'Post Statutory Accruals'
     },

@@ -43,13 +43,16 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   canSellDirectly,
   isAdmin = false
 }) => {
-  if (!product) return null;
+  const [quantity, setQuantity] = useState<number>(1);
 
   useEffect(() => {
-    playPopupSound();
-  }, []);
+    if (product) {
+      playPopupSound();
+      setQuantity(1);
+    }
+  }, [product]);
 
-  const [quantity, setQuantity] = useState<number>(1);
+  if (!product) return null;
   const currentLocStock = product.locationStock[activeLocation] || 0;
   const totalEnterpriseStock = (Object.values(product.locationStock) as number[]).reduce((a, b) => a + b, 0);
   const otherLocationsWithStock = LOCATIONS.filter(l => l.id !== activeLocation && (product.locationStock[l.id] || 0) > 0);

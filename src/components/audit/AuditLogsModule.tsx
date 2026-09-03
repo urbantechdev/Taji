@@ -63,7 +63,7 @@ export const AuditLogsModule: React.FC = () => {
         { control: 'Segregation of Duties', status: 'VERIFIED', note: 'Role-based access enforces separation between POS operators and accounting ledger.' },
         { control: 'ETR Fiscal Signature Verification', status: 'VERIFIED', note: '100% of sales transactions generated valid fiscal receipt numbers.' },
         { control: 'Inter-Store Transfer Tracking', status: 'VERIFIED', note: 'Dual-confirmation protocol prevents inventory leakage in transit.' },
-        { control: 'Statutory Payroll Deductions', status: 'VERIFIED', note: 'PAYE, NSSF Tier I/II, SHIF 2.75%, and Housing Levy 1.5% match 2026 Kenyan tax tables.' }
+        { control: 'Statutory Payroll Deductions', status: 'VERIFIED', note: 'PAYE, NSSF Tier I/II, SHA 2.75%, and Housing Levy 1.5% match 2026 Kenyan tax tables.' }
       ],
       overallVerdict: 'The internal controls and financial records demonstrate high operational integrity. The automated audit trail confirms zero unaccounted leakages and complete readiness for statutory compliance filings.'
     };

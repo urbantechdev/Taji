@@ -133,8 +133,6 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
     vatClaimedKES: number;
   } | null>(null);
 
-  if (!isOpen) return null;
-
   const currentSupplier = suppliers.find(s => s.id === selectedSupplierId) || suppliers[0];
 
   // Auto-switch supply type if supplier classification differs
@@ -478,23 +476,25 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 text-slate-100 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-white border border-slate-200 text-slate-800 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Top Header */}
-        <div className="p-5 border-b border-slate-800 bg-slate-900/90 flex items-center justify-between shrink-0">
+        <div className="p-5 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600">
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-white flex items-center gap-2">
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
                 Inward Consignment &amp; Invoice Intake Wizard
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-emerald-400">
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-emerald-700 font-bold">
                   Step {currentStep} of 3
                 </span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Create invoice header, onboard inventory items, and blend directly with double-entry accounting.
               </p>
             </div>
@@ -502,60 +502,60 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Step Progress Bar */}
-        <div className="grid grid-cols-3 border-b border-slate-800 bg-slate-950 text-xs font-bold shrink-0">
+        <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50 text-xs font-bold shrink-0">
           <div
-            className={`p-3 text-center border-r border-slate-800 flex items-center justify-center gap-2 ${
+            className={`p-3 text-center border-r border-slate-200 flex items-center justify-center gap-2 ${
               currentStep === 1
-                ? 'bg-rose-500/10 text-rose-400 border-b-2 border-b-rose-500'
+                ? 'bg-rose-50 text-rose-600 border-b-2 border-b-rose-600'
                 : currentStep > 1
-                ? 'text-emerald-400'
-                : 'text-slate-500'
+                ? 'text-emerald-700'
+                : 'text-slate-400'
             }`}
           >
-            <span className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-black">1</span>
+            <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-700">1</span>
             <span>1. Invoice &amp; Supplier Header</span>
           </div>
 
           <div
-            className={`p-3 text-center border-r border-slate-800 flex items-center justify-center gap-2 ${
+            className={`p-3 text-center border-r border-slate-200 flex items-center justify-center gap-2 ${
               currentStep === 2
-                ? 'bg-rose-500/10 text-rose-400 border-b-2 border-b-rose-500'
+                ? 'bg-rose-50 text-rose-600 border-b-2 border-b-rose-600'
                 : currentStep > 2
-                ? 'text-emerald-400'
-                : 'text-slate-500'
+                ? 'text-emerald-700'
+                : 'text-slate-400'
             }`}
           >
-            <span className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-black">2</span>
+            <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-700">2</span>
             <span>2. Onboard Line Items &amp; Landed Cost</span>
           </div>
 
           <div
             className={`p-3 text-center flex items-center justify-center gap-2 ${
               currentStep === 3
-                ? 'bg-rose-500/10 text-rose-400 border-b-2 border-b-rose-500'
-                : 'text-slate-500'
+                ? 'bg-rose-50 text-rose-600 border-b-2 border-b-rose-600'
+                : 'text-slate-400'
             }`}
           >
-            <span className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-black">3</span>
+            <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-700">3</span>
             <span>3. Capitalize &amp; Push to Ledger</span>
           </div>
         </div>
 
         {/* Wizard Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+        <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-white">
           {/* STEP 1: Invoice Header */}
           {currentStep === 1 && (
             <div className="space-y-5">
               {/* Type selector */}
-              <div className="bg-slate-850 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
                   Select Consignment Channel:
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -567,15 +567,15 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                     }}
                     className={`p-4 rounded-xl border text-left transition cursor-pointer ${
                       supplyType === 'import'
-                        ? 'bg-sky-500/10 border-sky-500 text-white ring-1 ring-sky-500'
-                        : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                        ? 'bg-sky-50 border-sky-500 text-slate-900 ring-1 ring-sky-500'
+                        : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-sky-400 font-bold text-sm">
+                    <div className="flex items-center gap-2 text-sky-700 font-bold text-sm">
                       <Globe2 className="w-4 h-4" />
                       <span>Overseas Import Consignment (IPS)</span>
                     </div>
-                    <p className="text-xs text-slate-300 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       Commercial Invoice in USD, Customs SAD Entry, Mombasa Port CFS &amp; KRA EAC CET import duties.
                     </p>
                   </button>
@@ -588,36 +588,36 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                     }}
                     className={`p-4 rounded-xl border text-left transition cursor-pointer ${
                       supplyType === 'local'
-                        ? 'bg-emerald-500/10 border-emerald-500 text-white ring-1 ring-emerald-500'
-                        : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                        ? 'bg-emerald-50 border-emerald-500 text-slate-900 ring-1 ring-emerald-500'
+                        : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                    <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
                       <ShieldCheck className="w-4 h-4" />
                       <span>Kenyan Domestic Supply (LPS)</span>
                     </div>
-                    <p className="text-xs text-slate-300 mt-1">
-                      KRA eTIMS Tax Invoices in KES, 16% Input VAT claim, and domestic factory transport.
+                    <p className="text-xs text-slate-500 mt-1">
+                      Domestic Tax Invoices in KES, 16% Input VAT claim, and domestic factory transport.
                     </p>
                   </button>
                 </div>
               </div>
 
               {/* Header Fields */}
-              <div className="bg-slate-850 p-5 rounded-2xl border border-slate-800 space-y-4">
-                <h3 className="text-xs font-black uppercase tracking-wider text-rose-400">
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                <h3 className="text-xs font-black uppercase tracking-wider text-rose-600">
                   Invoice &amp; Declarant Metadata
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Supplier Organization *
                     </label>
                     <select
                       value={selectedSupplierId}
                       onChange={e => handleSupplierChange(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                     >
                       {suppliers.map(sup => (
                         <option key={sup.id} value={sup.id}>
@@ -628,7 +628,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Commercial Invoice Number *
                     </label>
                     <input
@@ -636,12 +636,12 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                       required
                       value={invoiceNumber}
                       onChange={e => setInvoiceNumber(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Invoice Date *
                     </label>
                     <input
@@ -649,46 +649,46 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                       required
                       value={invoiceDate}
                       onChange={e => setInvoiceDate(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
-                      {supplyType === 'import' ? 'Customs Entry / SAD No.' : 'eTIMS CU Invoice Number'}
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      {supplyType === 'import' ? 'Customs Entry / SAD No.' : 'Tax / Domestic Invoice Number'}
                     </label>
                     <input
                       type="text"
                       value={customsOrEtimsRef}
                       onChange={e => setCustomsOrEtimsRef(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                     />
                   </div>
 
                   {supplyType === 'import' && (
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         KRA E-Slip / PRN Ref No.
                       </label>
                       <input
                         type="text"
                         value={kraEslipRef}
                         onChange={e => setKraEslipRef(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Destination Store / Warehouse *
                     </label>
                     <select
                       value={destinationLocation}
                       onChange={e => setDestinationLocation(e.target.value as LocationId)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                     >
                       {locations.map(loc => (
                         <option key={loc.id} value={loc.id}>
@@ -701,15 +701,15 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               </div>
 
               {/* Logistics & Cost Parameters */}
-              <div className="bg-slate-850 p-5 rounded-2xl border border-slate-800 space-y-4">
-                <h3 className="text-xs font-black uppercase tracking-wider text-rose-400">
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                <h3 className="text-xs font-black uppercase tracking-wider text-rose-600">
                   Landed Cost Allocation Parameters
                 </h3>
 
                 {supplyType === 'import' ? (
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Exchange Rate (USD/KES)
                       </label>
                       <input
@@ -717,92 +717,92 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                         step="0.0001"
                         value={exchangeRate}
                         onChange={e => setExchangeRate(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Freight (USD)
                       </label>
                       <input
                         type="number"
                         value={totalFreightUSD}
                         onChange={e => setTotalFreightUSD(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         CoC Fees (USD)
                       </label>
                       <input
                         type="number"
                         value={cocFeesUSD}
                         onChange={e => setCocFeesUSD(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Port Clearing (KES)
                       </label>
                       <input
                         type="number"
                         value={portClearingFeesKES}
                         onChange={e => setPortClearingFeesKES(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Target Markup %
                       </label>
                       <input
                         type="number"
                         value={targetMarkupPct}
                         onChange={e => setTargetMarkupPct(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Local Trucking Freight (KES)
                       </label>
                       <input
                         type="number"
                         value={localFreightKES}
                         onChange={e => setLocalFreightKES(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Offloading &amp; Handling (KES)
                       </label>
                       <input
                         type="number"
                         defaultValue={15000}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Target Markup %
                       </label>
                       <input
                         type="number"
                         value={targetMarkupPct}
                         onChange={e => setTargetMarkupPct(Number(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
                   </div>
@@ -816,17 +816,17 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-white">
+                  <h3 className="text-sm font-bold text-slate-900">
                     Inventory Items Invoiced under {invoiceNumber}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     Add batches to be received. You can link existing catalog items or define brand new SKUs.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddDraftItem}
-                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-rose-950"
+                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   <Plus className="w-4 h-4" />
                   <span>+ Add Item to Invoice</span>
@@ -836,20 +836,20 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               {draftItems.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="bg-slate-850 p-4 rounded-2xl border border-slate-800 space-y-3"
+                  className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-400 text-xs font-black flex items-center justify-center">
+                      <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 text-xs font-black flex items-center justify-center">
                         {idx + 1}
                       </span>
-                      <span className="font-bold text-xs text-white">
+                      <span className="font-bold text-xs text-slate-900">
                         {item.name || 'Untitled Line Item'}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer">
+                      <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={item.isExistingCatalogProduct}
@@ -866,7 +866,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                       <button
                         type="button"
                         onClick={() => handleRemoveDraftItem(item.id)}
-                        className="text-slate-500 hover:text-rose-400 p-1 rounded transition cursor-pointer"
+                        className="text-slate-400 hover:text-rose-600 p-1 rounded transition cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -875,13 +875,13 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
 
                   {item.isExistingCatalogProduct ? (
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Select Existing Product from Catalog
                       </label>
                       <select
                         value={item.matchedProductId || ''}
                         onChange={e => handleUpdateDraft(item.id, { matchedProductId: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                       >
                         <option value="">-- Choose Product --</option>
                         {products.map(p => (
@@ -894,37 +894,37 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                           Product Name *
                         </label>
                         <input
                           type="text"
                           value={item.name}
                           onChange={e => handleUpdateDraft(item.id, { name: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                           New SKU / Barcode *
                         </label>
                         <input
                           type="text"
                           value={item.sku}
                           onChange={e => handleUpdateDraft(item.id, { sku: e.target.value.toUpperCase() })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                           Category *
                         </label>
                         <select
                           value={item.category}
                           onChange={e => handleUpdateDraft(item.id, { category: e.target.value as CategoryType })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                         >
                           <option value="Dereck">Dereck</option>
                           <option value="Fleece">Fleece</option>
@@ -939,9 +939,9 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   )}
 
                   {/* Quantity & Unit Cost */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-slate-800/80">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-slate-200">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Invoiced Qty ({item.unit}) *
                       </label>
                       <input
@@ -949,18 +949,18 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                         min="1"
                         value={item.quantity}
                         onChange={e => handleUpdateDraft(item.id, { quantity: Number(e.target.value) })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Unit
                       </label>
                       <select
                         value={item.unit}
                         onChange={e => handleUpdateDraft(item.id, { unit: e.target.value as UnitType })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                       >
                         <option value="meter">Meters (m)</option>
                         <option value="kg">Kilograms (kg)</option>
@@ -971,7 +971,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
 
                     {supplyType === 'import' ? (
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                           FOB Unit Price ($ USD) *
                         </label>
                         <input
@@ -979,44 +979,44 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                           step="0.01"
                           value={item.unitPriceUSD}
                           onChange={e => handleUpdateDraft(item.id, { unitPriceUSD: Number(e.target.value) })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                         />
                       </div>
                     ) : (
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                           Net Unit Price (KSh KES) *
                         </label>
                         <input
                           type="number"
                           value={item.unitPriceKES}
                           onChange={e => handleUpdateDraft(item.id, { unitPriceKES: Number(e.target.value) })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                         />
                       </div>
                     )}
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Color / Shade
                       </label>
                       <input
                         type="text"
                         value={item.colorName}
                         onChange={e => handleUpdateDraft(item.id, { colorName: e.target.value })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Gross Weight (kg)
                       </label>
                       <input
                         type="number"
                         value={item.grossWeightKg || item.quantity}
                         onChange={e => handleUpdateDraft(item.id, { grossWeightKg: Number(e.target.value) })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                       />
                     </div>
                   </div>
@@ -1029,40 +1029,40 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
           {currentStep === 3 && (
             <div className="space-y-5">
               {capitalizationResult ? (
-                <div className="bg-emerald-950/40 border border-emerald-500/50 p-6 rounded-2xl text-center space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
+                <div className="bg-emerald-50 border border-emerald-200 p-6 rounded-2xl text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
                     <CheckCircle2 className="w-7 h-7" />
                   </div>
-                  <h3 className="text-lg font-black text-white">
+                  <h3 className="text-lg font-black text-slate-900">
                     Consignment Successfully Capitalized &amp; Onboarded!
                   </h3>
-                  <p className="text-xs text-emerald-300 max-w-lg mx-auto">
-                    Stock has been loaded into <span className="font-bold text-white">{destinationLocation}</span> at its true calculated landed cost basis, and double-entry General Ledger vouchers have posted.
+                  <p className="text-xs text-emerald-800 max-w-lg mx-auto">
+                    Stock has been loaded into <span className="font-bold text-slate-900">{destinationLocation}</span> at its true calculated landed cost basis, and double-entry General Ledger vouchers have posted.
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto pt-2">
-                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                      <div className="text-[10px] text-slate-400 uppercase">Journal Ref</div>
-                      <div className="text-xs font-mono font-bold text-emerald-300 mt-1">{capitalizationResult.journalRef}</div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200">
+                      <div className="text-[10px] text-slate-500 uppercase">Journal Ref</div>
+                      <div className="text-xs font-mono font-bold text-emerald-700 mt-1">{capitalizationResult.journalRef}</div>
                     </div>
-                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                      <div className="text-[10px] text-slate-400 uppercase">Items Onboarded</div>
-                      <div className="text-xs font-mono font-bold text-white mt-1">{capitalizationResult.itemsOnboarded} Batches</div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200">
+                      <div className="text-[10px] text-slate-500 uppercase">Items Onboarded</div>
+                      <div className="text-xs font-mono font-bold text-slate-900 mt-1">{capitalizationResult.itemsOnboarded} Batches</div>
                     </div>
-                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                      <div className="text-[10px] text-slate-400 uppercase">Capitalized Asset</div>
-                      <div className="text-xs font-mono font-bold text-white mt-1">KSh {Math.round(capitalizationResult.totalLandedCostKES).toLocaleString()}</div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200">
+                      <div className="text-[10px] text-slate-500 uppercase">Capitalized Asset</div>
+                      <div className="text-xs font-mono font-bold text-slate-900 mt-1">KSh {Math.round(capitalizationResult.totalLandedCostKES).toLocaleString()}</div>
                     </div>
-                    <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                      <div className="text-[10px] text-slate-400 uppercase">Input VAT Claimed</div>
-                      <div className="text-xs font-mono font-bold text-emerald-400 mt-1">KSh {Math.round(capitalizationResult.vatClaimedKES).toLocaleString()}</div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200">
+                      <div className="text-[10px] text-slate-500 uppercase">Input VAT Claimed</div>
+                      <div className="text-xs font-mono font-bold text-emerald-700 mt-1">KSh {Math.round(capitalizationResult.vatClaimedKES).toLocaleString()}</div>
                     </div>
                   </div>
 
                   <div className="pt-4 flex items-center justify-center gap-3">
                     <button
                       onClick={onClose}
-                      className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition cursor-pointer"
+                      className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
                     >
                       Close &amp; View Catalog
                     </button>
@@ -1071,17 +1071,17 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               ) : (
                 <div className="space-y-4">
                   {/* Financial Summary Box */}
-                  <div className="bg-slate-850 p-5 rounded-2xl border border-slate-800 space-y-4">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-rose-400 flex items-center justify-between">
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-rose-600 flex items-center justify-between">
                       <span>Accounting Balance Sheet &amp; Landed Costing Impact</span>
-                      <span className="text-slate-400 font-mono normal-case">Invoice: {invoiceNumber}</span>
+                      <span className="text-slate-500 font-mono normal-case">Invoice: {invoiceNumber}</span>
                     </h3>
 
                     {supplyType === 'import' && calculatedImportSummary && (
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                          <div className="text-[10px] text-slate-400 uppercase">Total FOB Value</div>
-                          <div className="text-sm font-mono font-bold text-sky-300 mt-1">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-500 uppercase">Total FOB Value</div>
+                          <div className="text-sm font-mono font-bold text-sky-700 mt-1">
                             ${calculatedImportSummary.totalFOB_USD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </div>
                           <div className="text-[10px] text-slate-500 mt-0.5">
@@ -1089,9 +1089,9 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                           </div>
                         </div>
 
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                          <div className="text-[10px] text-slate-400 uppercase">Total KRA Taxes</div>
-                          <div className="text-sm font-mono font-bold text-amber-300 mt-1">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-500 uppercase">Total KRA Taxes</div>
+                          <div className="text-sm font-mono font-bold text-amber-700 mt-1">
                             KSh {Math.round(calculatedImportSummary.totalKRATaxesKES).toLocaleString()}
                           </div>
                           <div className="text-[10px] text-slate-500 mt-0.5">
@@ -1099,9 +1099,9 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                           </div>
                         </div>
 
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                          <div className="text-[10px] text-slate-400 uppercase">KRA Input VAT (16%)</div>
-                          <div className="text-sm font-mono font-bold text-emerald-400 mt-1">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-500 uppercase">KRA Input VAT (16%)</div>
+                          <div className="text-sm font-mono font-bold text-emerald-700 mt-1">
                             KSh {Math.round(calculatedImportSummary.totalVAT1202KES).toLocaleString()}
                           </div>
                           <div className="text-[10px] text-slate-500 mt-0.5">
@@ -1109,9 +1109,9 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                           </div>
                         </div>
 
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                          <div className="text-[10px] text-slate-400 uppercase">Total Landed Inventory</div>
-                          <div className="text-sm font-mono font-bold text-white mt-1">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-500 uppercase">Total Landed Inventory</div>
+                          <div className="text-sm font-mono font-bold text-slate-900 mt-1">
                             KSh {Math.round(calculatedImportSummary.totalLandedInventoryKES - calculatedImportSummary.totalVAT1202KES).toLocaleString()}
                           </div>
                           <div className="text-[10px] text-slate-500 mt-0.5">
@@ -1123,33 +1123,33 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
 
                     {supplyType === 'local' && calculatedLocalSummary && (
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                          <div className="text-[10px] text-slate-400 uppercase">Net Purchases</div>
-                          <div className="text-sm font-mono font-bold text-sky-300 mt-1">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-500 uppercase">Net Purchases</div>
+                          <div className="text-sm font-mono font-bold text-sky-700 mt-1">
                             KSh {Math.round(calculatedLocalSummary.totalNetPurchaseKES).toLocaleString()}
                           </div>
                           <div className="text-[10px] text-slate-500 mt-0.5">Excl. 16% VAT</div>
                         </div>
 
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                          <div className="text-[10px] text-slate-400 uppercase">16% Input VAT</div>
-                          <div className="text-sm font-mono font-bold text-emerald-400 mt-1">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-500 uppercase">16% Input VAT</div>
+                          <div className="text-sm font-mono font-bold text-emerald-700 mt-1">
                             KSh {Math.round(calculatedLocalSummary.totalVat16KES).toLocaleString()}
                           </div>
-                          <div className="text-[10px] text-slate-500 mt-0.5">eTIMS claimable</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">VAT claimable</div>
                         </div>
 
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                          <div className="text-[10px] text-slate-400 uppercase">Logistics Add-ons</div>
-                          <div className="text-sm font-mono font-bold text-amber-300 mt-1">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-500 uppercase">Logistics Add-ons</div>
+                          <div className="text-sm font-mono font-bold text-amber-700 mt-1">
                             KSh {Math.round(calculatedLocalSummary.totalLogisticsAddOnsKES).toLocaleString()}
                           </div>
                           <div className="text-[10px] text-slate-500 mt-0.5">Trucking &amp; Handling</div>
                         </div>
 
-                        <div className="bg-slate-900 p-3 rounded-xl border border-slate-800">
-                          <div className="text-[10px] text-slate-400 uppercase">Capitalized Asset</div>
-                          <div className="text-sm font-mono font-bold text-white mt-1">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <div className="text-[10px] text-slate-500 uppercase">Capitalized Asset</div>
+                          <div className="text-sm font-mono font-bold text-slate-900 mt-1">
                             KSh {Math.round(calculatedLocalSummary.totalCapitalizedInventoryCostKES).toLocaleString()}
                           </div>
                           <div className="text-[10px] text-slate-500 mt-0.5">Debited to Asset 1200</div>
@@ -1159,12 +1159,12 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   </div>
 
                   {/* Onboarding preview */}
-                  <div className="bg-slate-850 p-5 rounded-2xl border border-slate-800 space-y-3">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-rose-400">
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-rose-600">
                       Line Item Landed Unit Costs &amp; Stock Routing
                     </h3>
 
-                    <div className="divide-y divide-slate-800">
+                    <div className="divide-y divide-slate-200">
                       {draftItems.map((item, idx) => {
                         const compImport = calculatedImportSummary?.items[idx];
                         const compLocal = calculatedLocalSummary?.items[idx];
@@ -1182,19 +1182,19 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                         return (
                           <div key={item.id} className="py-2.5 flex items-center justify-between text-xs">
                             <div>
-                              <span className="font-bold text-white">{item.name}</span>
-                              <div className="text-[11px] text-slate-400 mt-0.5">
-                                SKU: <span className="font-mono text-slate-300">{item.sku}</span> • Onboarding{' '}
-                                <span className="text-white font-bold">{item.quantity.toLocaleString()} {item.unit}</span> into{' '}
-                                <span className="text-rose-400 font-bold">{destinationLocation}</span>
+                              <span className="font-bold text-slate-900">{item.name}</span>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                SKU: <span className="font-mono text-slate-700">{item.sku}</span> • Onboarding{' '}
+                                <span className="text-slate-900 font-bold">{item.quantity.toLocaleString()} {item.unit}</span> into{' '}
+                                <span className="text-rose-600 font-bold">{destinationLocation}</span>
                               </div>
                             </div>
 
                             <div className="text-right">
-                              <div className="font-mono font-bold text-emerald-400">
+                              <div className="font-mono font-bold text-emerald-700">
                                 Landed Cost: KSh {landedUnitCost.toLocaleString()}/{item.unit}
                               </div>
-                              <div className="text-[10px] text-slate-400 font-mono">
+                              <div className="text-[10px] text-slate-500 font-mono">
                                 Suggested Retail: KSh {suggestedRetail.toLocaleString()}
                               </div>
                             </div>
@@ -1210,13 +1210,13 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
         </div>
 
         {/* Wizard Footer Controls */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between shrink-0">
+        <div className="p-4 border-t border-slate-200 bg-white flex items-center justify-between shrink-0">
           <div>
             {currentStep > 1 && !capitalizationResult && (
               <button
                 type="button"
                 onClick={() => setCurrentStep((currentStep - 1) as any)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>Back</span>
@@ -1228,7 +1228,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
             >
               Cancel
             </button>
@@ -1240,7 +1240,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   playClickSound();
                   setCurrentStep((currentStep + 1) as any);
                 }}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-rose-950"
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <span>Continue</span>
                 <ChevronRight className="w-4 h-4" />
@@ -1252,7 +1252,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                 type="button"
                 disabled={isCapitalizing}
                 onClick={handleApproveAndCapitalize}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-950 disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{isCapitalizing ? 'Posting & Capitalizing...' : 'Approve & Capitalize to Catalog + GL'}</span>

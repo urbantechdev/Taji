@@ -127,7 +127,7 @@ const ALL_TABS_META: Record<
     label: 'HR & Payroll',
     shortLabel: 'Payroll',
     icon: <Users className="w-5 h-5 text-purple-500" />,
-    desc: 'PAYE, NSSF, NHIF payslips'
+    desc: 'PAYE, NSSF, SHA payslips'
   },
   operators: {
     label: 'POS Users & PINs',

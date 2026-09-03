@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Printer,
@@ -141,7 +142,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200 payslip-modal-backdrop"
       id="modal-payslip-viewer-wrapper"
@@ -170,7 +171,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                {layoutMode === 'slip' ? 'Kenya ETR 80mm POS Receipt Slip' : 'KRA eTIMS & Statutory Audit Statement'}
+                {layoutMode === 'slip' ? 'Kenya 80mm Thermal Slip' : 'Executive Statutory Payroll Statement'}
               </p>
             </div>
           </div>
@@ -277,32 +278,30 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
             >
               {/* 1.1 Brand Logo & Header */}
               <div className="text-center space-y-1 pb-3 border-b border-dashed border-slate-400">
-                {/* Company Logo Frame */}
-                <div className="flex justify-center mb-1.5">
-                  <div className="w-14 h-14 rounded-full border-2 border-slate-300 p-0.5 shadow-xs bg-white overflow-hidden flex items-center justify-center">
-                    {logoUrl ? (
-                      <img
-                        src={logoUrl}
-                        alt={companyName}
-                        className="w-full h-full object-contain rounded-full"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full rounded-full bg-rose-600 text-white font-black text-lg flex items-center justify-center font-sans">
-                        {companyName.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
+                {/* Company Logo Frame - Fitted nicely without clipping */}
+                <div className="flex justify-center mb-2">
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt={companyName}
+                      className="max-h-12 max-w-[150px] w-auto h-auto object-contain mx-auto"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-slate-900 text-white font-black text-lg flex items-center justify-center font-sans shadow-xs mx-auto">
+                      {companyName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                 </div>
 
                 <h2 className="font-extrabold text-sm text-slate-900 uppercase tracking-tight font-sans">
                   {companyName}
                 </h2>
                 <p className="text-[10px] text-rose-700 font-bold font-sans uppercase">
-                  KENYA eTIMS PAYROLL &amp; STATUTORY DISBURSAL
+                  KENYA STATUTORY PAYROLL &amp; REMITTANCE VOUCHER
                 </p>
                 <p className="text-[9.5px] text-slate-500 font-sans">
                   {companyAddress}
@@ -311,9 +310,9 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                   Tel: {companyPhone} • {companyEmail}
                 </p>
 
-                {/* Fiscal PIN & CU Serial Box */}
+                {/* Employer Tax PIN Box */}
                 <div className="mt-2 py-1 px-2 bg-slate-100 rounded text-center border border-slate-300 text-[10px] font-bold text-slate-800">
-                  KRA PIN: {taxPin} | CU: {cuSerial}
+                  EMPLOYER KRA PIN: {taxPin}
                 </div>
               </div>
 
@@ -367,8 +366,8 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                   <span className="text-slate-800">{staffMember?.nssfNo || 'NSF-892104'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">SHIF / NHIF No:</span>
-                  <span className="text-slate-800">{staffMember?.nhifNo || 'SHIF-940182'}</span>
+                  <span className="text-slate-500">SHA Member No:</span>
+                  <span className="text-slate-800">{staffMember?.nhifNo || 'SHA-940182'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-sans">Disbursed To:</span>
@@ -443,8 +442,8 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <div>
-                    <span className="text-slate-700">SHIF Health (2.75%)</span>
-                    <span className="text-[9px] text-slate-400 block font-sans">Social Health Insurance</span>
+                    <span className="text-slate-700">SHA Contribution (2.75%)</span>
+                    <span className="text-[9px] text-slate-400 block font-sans">Social Health Authority (SHA)</span>
                   </div>
                   <span className="font-semibold text-slate-800">-{payslip.nhifDeduction.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span>
                 </div>
@@ -455,15 +454,15 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
               </div>
 
               {/* 1.6 Net Salary Disbursed (Prominent ETR Take-Home Box) */}
-              <div className="my-1.5 bg-slate-900 text-white p-3 rounded-xl text-center space-y-1">
-                <span className="text-[9.5px] font-bold uppercase tracking-widest text-rose-300 font-sans block">
-                  NET SALARY DISBURSED (TAKE HOME)
+              <div className="my-2 border-2 border-slate-900 p-2.5 rounded-xl text-center space-y-0.5 bg-slate-50 print:bg-white text-slate-900">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-700 font-mono block">
+                  *** NET SALARY PAYABLE ***
                 </span>
-                <p className="text-xl font-black tracking-tight text-emerald-400 font-mono">
+                <p className="text-xl font-black tracking-tight text-slate-950 font-mono">
                   KSh {payslip.netPay.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-[9px] text-slate-300 italic font-sans leading-tight pt-0.5">
-                  Amount in words: <strong className="text-white not-italic">{amountToWords(payslip.netPay)}</strong>
+                <p className="text-[8.5px] text-slate-600 italic font-sans leading-tight pt-0.5">
+                  Amount in words: <strong className="text-slate-900 not-italic font-medium">{amountToWords(payslip.netPay)}</strong>
                 </p>
               </div>
 
@@ -490,16 +489,16 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                 </div>
               </div>
 
-              {/* 1.8 KRA eTIMS QR Verification Seal */}
+              {/* 1.8 Disbursal Verification Seal */}
               <div className="py-2 flex flex-col items-center justify-center space-y-1 border-b border-dashed border-slate-400 text-center">
-                <div className="p-1.5 border-2 border-slate-800 rounded-lg bg-white">
-                  <QrCode className="w-14 h-14 text-slate-900" />
+                <div className="p-1.5 border border-slate-300 rounded-lg bg-white">
+                  <QrCode className="w-12 h-12 text-slate-800" />
                 </div>
-                <span className="text-[8px] font-bold text-slate-700 uppercase">
-                  KRA eTIMS &amp; NSSF FISCAL VALIDATION
+                <span className="text-[8px] font-bold text-slate-700 uppercase tracking-wider">
+                  PAYROLL DISBURSAL VERIFICATION
                 </span>
-                <span className="text-[7.5px] text-slate-500">
-                  SIG: {docNumber}-{payslip.id.slice(0, 8).toUpperCase()}
+                <span className="text-[7.5px] text-slate-500 font-mono">
+                  REF: {docNumber}
                 </span>
               </div>
 
@@ -518,7 +517,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                   STRICTLY PRIVATE &amp; CONFIDENTIAL • For {payslip.staffName}
                 </p>
                 <p className="text-center text-[8px] text-slate-400 font-mono font-bold">
-                  *** END OF ETR PAYSLIP ***
+                  *** END OF PAYSLIP VOUCHER ***
                 </p>
               </div>
             </div>
@@ -567,9 +566,9 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                     <div className="text-[10px] text-slate-500 leading-tight pt-1">
                       <p>{companyAddress}</p>
                       <p className="font-mono">
-                        KRA PIN: <strong className="text-slate-800">{taxPin}</strong> | CU Serial: <strong className="text-slate-800">{cuSerial}</strong> | Tel: {companyPhone}
+                        EMPLOYER KRA PIN: <strong className="text-slate-800">{taxPin}</strong> | Tel: {companyPhone}
                       </p>
-                      <p>Statutory Remittance Center: NSSF Ref NSF-0092184 | SHIF Code SHIF-EMP-847291</p>
+                      <p>Statutory Remittance: NSSF Ref NSF-0092184 | SHA Employer Ref: SHA-EMP-847291</p>
                     </div>
                   </div>
 
@@ -645,9 +644,9 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">SHIF / NHIF:</span>
+                      <span className="text-slate-500">SHA Member No:</span>
                       <span className="font-mono text-slate-800">
-                        {staffMember?.nhifNo || 'SHIF-940182'}
+                        {staffMember?.nhifNo || 'SHA-940182'}
                       </span>
                     </div>
                   </div>
@@ -768,8 +767,8 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                       </div>
                       <div className="flex justify-between py-1">
                         <div>
-                          <span className="text-slate-700 font-medium">SHIF Health Insurance</span>
-                          <p className="text-[10px] text-slate-400">2.75% Social Health Insurance</p>
+                          <span className="text-slate-700 font-medium">SHA Health Contribution</span>
+                          <p className="text-[10px] text-slate-400">2.75% Social Health Authority (SHA)</p>
                         </div>
                         <span className="font-mono font-semibold text-slate-800">
                           - {payslip.nhifDeduction.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
@@ -865,10 +864,10 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
                   <div className="flex flex-col items-center justify-center p-2 text-center bg-slate-50 rounded-xl border border-slate-200">
                     <QrCode className="w-10 h-10 text-slate-800 mb-1" />
                     <span className="text-[9px] font-mono text-slate-600 font-bold">
-                      KRA &amp; NSSF VERIFIED
+                      PAYROLL DISBURSAL VERIFIED
                     </span>
                     <span className="text-[8px] font-mono text-slate-400">
-                      eTIMS Ref: {payslip.id.slice(0, 16)}
+                      Voucher: {docNumber}
                     </span>
                   </div>
 
@@ -929,7 +928,8 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

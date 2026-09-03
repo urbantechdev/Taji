@@ -329,7 +329,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
       label: (currentUser.role === 'admin' || currentUser.role === 'hr_manager') ? 'HR & Payroll' : 'My Payslips & Records',
       icon: (currentUser.role === 'admin' || currentUser.role === 'hr_manager') ? Users : FileText,
       desc: (currentUser.role === 'admin' || currentUser.role === 'hr_manager')
-        ? 'Staff salary computation, PAYE, NSSF & NHIF'
+        ? 'Staff salary computation, PAYE, NSSF & SHA'
         : 'View my personal payslips, statutory deductions & records'
     },
     {

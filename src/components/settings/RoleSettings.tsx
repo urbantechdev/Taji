@@ -101,7 +101,7 @@ export const RoleSettings: React.FC = () => {
         { key: 'canConfigureETR', label: 'Configure KRA ETR Fiscal Device', description: 'Modify Tax PIN, CU Serial numbers, and VAT rates', isDangerous: true },
         { key: 'canManageBranchExpenses', label: 'Approve Branch Expense Vouchers', description: 'Record petty cash expenses and deductions from store revenue' },
         { key: 'canAdjustCashFloat', label: 'Adjust Cash Float & Till Drawers', description: 'Reconcile morning cash floats and cashier till adjustments' },
-        { key: 'canDisbursePayroll', label: 'Disburse HR Payroll', description: 'Generate monthly payslips with PAYE, NSSF, and SHIF deductions' },
+        { key: 'canDisbursePayroll', label: 'Disburse HR Payroll', description: 'Generate monthly payslips with PAYE, NSSF, and SHA deductions' },
       ]
     },
     {

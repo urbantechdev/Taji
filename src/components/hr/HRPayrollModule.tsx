@@ -197,7 +197,7 @@ export const HRPayrollModule: React.FC<HRPayrollModuleProps> = ({ initialSubTab 
       idNumber: '32984102',
       kraPin: currentUser.kraPin || 'P051982341Z',
       nssfNo: 'NSSF-778210',
-      nhifNo: 'SHIF-991204',
+      nhifNo: 'SHA-991204',
       basicSalary: defaultSalary,
       allowances: 3000,
       joinedDate: '2026-01-15',
@@ -318,7 +318,7 @@ Role Designation:    ${record.role}
 Station Location:    ${locations.find(l => l.id === record.locationId)?.name || record.locationId}
 KRA Tax PIN:         ${myStaffRecord.kraPin}
 NSSF Member No:      ${myStaffRecord.nssfNo}
-SHIF/NHIF No:        ${myStaffRecord.nhifNo}
+SHA Member No:       ${myStaffRecord.nhifNo}
 National ID:         ${myStaffRecord.idNumber}
 Disbursal Status:    ${record.paymentStatus} via ${myStaffRecord.bankAccountNumber ? 'Bank Transfer' : 'M-Pesa Direct'}
 --------------------------------------------------
@@ -331,7 +331,7 @@ STATUTORY TAX DEDUCTIONS
 KRA PAYE Tax:                -KSh ${record.payeTax.toLocaleString()}
 Affordable Housing (1.5%):   -KSh ${record.housingLevy.toLocaleString()}
 NSSF Pension (Tier I + II):  -KSh ${record.nssfDeduction.toLocaleString()}
-SHIF Health Scheme (2.75%):  -KSh ${record.nhifDeduction.toLocaleString()}
+SHA Contribution (2.75%):    -KSh ${record.nhifDeduction.toLocaleString()}
 TOTAL STATUTORY DEDUCTIONS:  -KSh ${record.totalDeductions.toLocaleString()}
 ==================================================
 NET TAKE-HOME SALARY:         KSh ${record.netPay.toLocaleString()}
@@ -388,7 +388,7 @@ STATUTORY DEDUCTIONS (KSh)
 PAYE Income Tax: - KSh ${payslip.payeTax.toLocaleString()}
 Affordable Housing Levy (1.5%): - KSh ${payslip.housingLevy.toLocaleString()}
 NSSF Pension: - KSh ${payslip.nssfDeduction.toLocaleString()}
-SHIF Health (2.75%): - KSh ${payslip.nhifDeduction.toLocaleString()}
+SHA Contribution (2.75%): - KSh ${payslip.nhifDeduction.toLocaleString()}
 TOTAL STATUTORY DEDUCTIONS: - KSh ${payslip.totalDeductions.toLocaleString()}
 
 --------------------------------------------------
@@ -949,11 +949,11 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
               </div>
 
               <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SHIF (2.75%)</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SHA (2.75%)</span>
                 <p className="text-base font-black font-mono text-slate-800">
                   - KSh {currentPersonalPayslip.nhifDeduction.toLocaleString()}
                 </p>
-                <span className="text-[10px] text-slate-500">Healthcare Cover</span>
+                <span className="text-[10px] text-slate-500">Social Health Authority</span>
               </div>
 
               <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 shadow-xs space-y-1">
@@ -994,7 +994,7 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                     <th className="p-4 font-mono text-right">Gross Pay</th>
                     <th className="p-4 font-mono text-right">PAYE Tax</th>
                     <th className="p-4 font-mono text-right">Housing 1.5%</th>
-                    <th className="p-4 font-mono text-right">NSSF + SHIF</th>
+                    <th className="p-4 font-mono text-right">NSSF + SHA</th>
                     <th className="p-4 font-mono text-right">Net Payable</th>
                     <th className="p-4 text-center">Status</th>
                     <th className="p-4 text-right">Actions</th>
@@ -1139,7 +1139,7 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                     <span className="font-mono font-bold text-slate-800">{myStaffRecord.nssfNo || '—'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[11px] block">SHIF / NHIF Healthcare No</span>
+                    <span className="text-slate-400 text-[11px] block">SHA Member Number</span>
                     <span className="font-mono font-bold text-slate-800">{myStaffRecord.nhifNo || '—'}</span>
                   </div>
                 </div>
@@ -1441,7 +1441,7 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                               <span>NSSF: {member.nssfNo || '—'}</span>
                               <span>•</span>
-                              <span>SHIF: {member.nhifNo || '—'}</span>
+                              <span>SHA: {member.nhifNo || '—'}</span>
                             </div>
                           </td>
 
@@ -1572,9 +1572,9 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
             </div>
 
             <div className="bg-white p-3.5 rounded-2xl border border-rose-100 shadow-xs space-y-1 card-hover-effect">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SHIF (2.75%)</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SHA (2.75%)</span>
               <p className="text-base font-black font-mono text-slate-800">KSh {totalShifRemittance.toLocaleString()}</p>
-              <span className="text-[10px] text-slate-500">Health Scheme</span>
+              <span className="text-[10px] text-slate-500">Social Health Authority</span>
             </div>
 
             <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 shadow-xs space-y-1 card-hover-effect">
@@ -1616,7 +1616,7 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                       <th className="p-4 font-mono text-right">Gross Pay</th>
                       <th className="p-4 font-mono text-right">PAYE Tax</th>
                       <th className="p-4 font-mono text-right">Housing 1.5%</th>
-                      <th className="p-4 font-mono text-right">NSSF + SHIF</th>
+                      <th className="p-4 font-mono text-right">NSSF + SHA</th>
                       <th className="p-4 font-mono text-right">Net Pay</th>
                       <th className="p-4 text-right">Actions</th>
                     </tr>
@@ -1750,7 +1750,7 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                   >
                     <option value="Update Banking / M-Pesa Details">Update Banking / M-Pesa Disbursal Details</option>
-                    <option value="Update KRA PIN / Statutory Number">Update KRA PIN / NSSF / SHIF Number</option>
+                    <option value="Update KRA PIN / Statutory Number">Update KRA PIN / NSSF / SHA Number</option>
                     <option value="Update Contact Phone / Email">Update Contact Phone / Email Address</option>
                     <option value="Inquire on Monthly Deductions">Inquire / Discrepancy on Monthly Deductions</option>
                     <option value="Other HR Record Request">Other HR Record Request</option>
@@ -1939,7 +1939,7 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-slate-600 font-medium">SHIF / NHIF Number</label>
+                    <label className="text-[11px] text-slate-600 font-medium">SHA Member Number</label>
                     <input
                       type="text"
                       placeholder="e.g. 9812304"

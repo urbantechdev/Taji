@@ -600,7 +600,7 @@ export const AccountingLedger: React.FC = () => {
         'Utilize centralized bulk purchasing for core fabric rolls to secure volume rebates.'
       ],
       cashFlowProjection30Days: 'Fresh financial ledger initialized. Cash flow projections will calibrate dynamically as real transaction velocity is established.',
-      statutoryDeadlinesAdvice: 'Kenya statutory schedules: KRA VAT by the 20th; Staff PAYE, NSSF Tier I/II, SHIF (2.75%), and Housing Levy (1.5%) due by the 9th of each subsequent month.'
+      statutoryDeadlinesAdvice: 'Kenya statutory schedules: KRA VAT by the 20th; Staff PAYE, NSSF Tier I/II, SHA (2.75%), and Housing Levy (1.5%) due by the 9th of each subsequent month.'
     } : {
       executiveSummary: `Autonomous Treasury assessment: Operating at a net margin of ${payload.revenue > 0 ? ((payload.netProfit / payload.revenue) * 100).toFixed(1) : '0'}%. Working capital is adequate to sustain operations for ~${payload.cashRunwayDays || 60} days without external debt financing.`,
       financialHealthScore: payload.revenue > payload.expenses ? Math.min(96, Math.round(75 + ((payload.revenue - payload.expenses) / (payload.revenue || 1)) * 20)) : 68,
@@ -619,7 +619,7 @@ export const AccountingLedger: React.FC = () => {
         'Review store utility tariffs and implement automated closing procedures to cut branch electricity costs.'
       ],
       cashFlowProjection30Days: `Projected net cash flow of KSh ${Math.round(Math.max(payload.netProfit, payload.revenue * 0.15) * 1.05).toLocaleString()} over the next 30 days based on live transaction velocity and expense controls.`,
-      statutoryDeadlinesAdvice: 'Reserve 16% Output VAT and statutory payroll deductions (PAYE, NSSF Tier I/II, SHIF 2.75%, Housing Levy 1.5%) in a dedicated sub-ledger before month-end.'
+      statutoryDeadlinesAdvice: 'Reserve 16% Output VAT and statutory payroll deductions (PAYE, NSSF Tier I/II, SHA 2.75%, Housing Levy 1.5%) in a dedicated sub-ledger before month-end.'
     };
 
     try {
@@ -1648,7 +1648,7 @@ export const AccountingLedger: React.FC = () => {
                       <span className="font-mono font-bold text-amber-800">KSh {balanceSheet.currentLiabilities.vatLiabilityPayable.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between pt-1">
-                      <span className="text-slate-600">Statutory Payroll Deductions (PAYE, NSSF, SHIF, Housing)</span>
+                      <span className="text-slate-600">Statutory Payroll Deductions (PAYE, NSSF, SHA, Housing)</span>
                       <span className="font-mono font-bold text-rose-700">KSh {balanceSheet.currentLiabilities.payrollTaxPayable.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between pt-1">
@@ -1957,7 +1957,7 @@ export const AccountingLedger: React.FC = () => {
               { id: 'input_tax', label: '3. Section 23A Input VAT Claims', icon: ShieldCheck, count: inputVatClaims.length },
               { id: 'wht_ledger', label: '4. Withholding Tax (WHT & WHVAT)', icon: Percent, count: whtRecords.length },
               { id: 'cit_calendar', label: '5. Corporate Tax (CIT 30%)', icon: Calendar, badge: 'Quarterly' },
-              { id: 'payroll_tax', label: '6. Statutory Payroll (PAYE/SHIF/NSSF)', icon: Building2, count: payroll.length },
+              { id: 'payroll_tax', label: '6. Statutory Payroll (PAYE/SHA/NSSF)', icon: Building2, count: payroll.length },
               { id: 'pin_validator', label: '7. KRA PIN & Device Telemetry', icon: ShieldAlert }
             ].map(tab => {
               const Icon = tab.icon;
@@ -2668,14 +2668,14 @@ export const AccountingLedger: React.FC = () => {
           )}
 
           {/* ------------------------------------------------------------- */}
-          {/* SUB-VIEW 6: UNIFIED STATUTORY PAYROLL (PAYE/SHIF/NSSF/HOUSING) */}
+          {/* SUB-VIEW 6: UNIFIED STATUTORY PAYROLL (PAYE/SHA/NSSF/HOUSING)  */}
           {/* ------------------------------------------------------------- */}
           {kraTaxView === 'payroll_tax' && (
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                   <div>
-                    <h4 className="font-bold text-slate-900 text-sm">Unified Kenyan Statutory Payroll Returns (KRA PAYE, NSSF, SHIF, Housing Levy)</h4>
+                    <h4 className="font-bold text-slate-900 text-sm">Unified Kenyan Statutory Payroll Returns (KRA PAYE, NSSF, SHA, Housing Levy)</h4>
                     <p className="text-xs text-slate-500">Autonomous computation based on the Kenyan Tax Laws Amendment Act and Finance Acts.</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -2707,7 +2707,7 @@ export const AccountingLedger: React.FC = () => {
                         <th className="p-3">KRA PIN</th>
                         <th className="p-3 text-right">Gross Salary</th>
                         <th className="p-3 text-right">NSSF (Tier I+II)</th>
-                        <th className="p-3 text-right">SHIF (2.75%)</th>
+                        <th className="p-3 text-right">SHA (2.75%)</th>
                         <th className="p-3 text-right">Housing Levy (1.5%)</th>
                         <th className="p-3 text-right">PAYE (KRA)</th>
                         <th className="p-3 text-right">Net Pay</th>

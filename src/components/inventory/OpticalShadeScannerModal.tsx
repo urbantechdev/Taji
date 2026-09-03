@@ -167,7 +167,14 @@ export const OpticalShadeScannerModal: React.FC<OpticalShadeScannerModalProps> =
         cameraConfig,
         {
           fps: 15,
-          qrbox: { width: 280, height: 200 },
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const safeW = viewfinderWidth && viewfinderWidth > 0 ? viewfinderWidth : 320;
+            const safeH = viewfinderHeight && viewfinderHeight > 0 ? viewfinderHeight : 240;
+            return {
+              width: Math.max(50, Math.floor(Math.min(safeW * 0.85, 280))),
+              height: Math.max(50, Math.floor(Math.min(safeH * 0.65, 200)))
+            };
+          },
           aspectRatio: 1.3333
         },
         (decodedText) => {

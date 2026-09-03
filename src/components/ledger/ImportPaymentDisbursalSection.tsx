@@ -740,25 +740,25 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
 
       {/* MODAL 1: PAY OVERSEAS SUPPLIER IN USD */}
       {isSupplierModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-slate-900 text-white rounded-3xl max-w-2xl w-full p-6 space-y-5 shadow-2xl border border-slate-700 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white text-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30">
+                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200">
                   <DollarSign className="w-6 h-6 stroke-[2.5]" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-white">
+                  <h3 className="font-black text-base text-slate-900">
                     Execute Foreign Currency (USD) Swift Remittance
                   </h3>
-                  <p className="text-xs text-slate-400">
-                    Overseas Supplier Settlement &bull; Commercial Invoice Ref: <span className="font-mono text-amber-400 font-bold">{shipment.invoiceNumber}</span>
+                  <p className="text-xs text-slate-500">
+                    Overseas Supplier Settlement &bull; Commercial Invoice Ref: <span className="font-mono text-amber-700 font-bold">{shipment.invoiceNumber}</span>
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsSupplierModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-xl cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl cursor-pointer"
               >
                 ✕
               </button>
@@ -767,7 +767,7 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
             <div className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Amount to Remit (USD $):
                   </label>
                   <input
@@ -775,12 +775,12 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
                     step="0.01"
                     value={supplierForm.amountUSD}
                     onChange={e => setSupplierForm({ ...supplierForm, amountUSD: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Bank Actual FX Spot Rate (KES/USD):
                   </label>
                   <input
@@ -788,17 +788,17 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
                     step="0.01"
                     value={supplierForm.exchangeRateActual}
                     onChange={e => setSupplierForm({ ...supplierForm, exchangeRateActual: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
-                  <span className="text-[10px] text-slate-400 block mt-0.5">
-                    KES Debit Equivalent: <strong className="text-amber-400 font-mono">KSh {(supplierForm.amountUSD * supplierForm.exchangeRateActual).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    KES Debit Equivalent: <strong className="text-amber-700 font-mono">KSh {(supplierForm.amountUSD * supplierForm.exchangeRateActual).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Debit Source Bank / Nostro Account:
                   </label>
                   <select
@@ -816,7 +816,7 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
                         sourceAccountLabel: labels[e.target.value] || e.target.value
                       });
                     }}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   >
                     <option value="USD_NOSTRO_STANBIC">Stanbic Bank Kenya - USD Nostro A/C</option>
                     <option value="USD_NOSTRO_IM">I&M Bank Kenya - USD Corporate A/C</option>
@@ -826,75 +826,75 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Swift MT103 / TT Reference No:
                   </label>
                   <input
                     type="text"
                     value={supplierForm.swiftMt103Ref}
                     onChange={e => setSupplierForm({ ...supplierForm, swiftMt103Ref: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-bold text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Beneficiary Name:
                   </label>
                   <input
                     type="text"
                     value={supplierForm.beneficiaryName}
                     onChange={e => setSupplierForm({ ...supplierForm, beneficiaryName: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Beneficiary Bank &amp; IBAN / Account:
                   </label>
                   <input
                     type="text"
                     value={supplierForm.beneficiaryIbanOrAccount}
                     onChange={e => setSupplierForm({ ...supplierForm, beneficiaryIbanOrAccount: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Value / Payment Date:
                   </label>
                   <input
                     type="date"
                     value={supplierForm.paymentDate}
                     onChange={e => setSupplierForm({ ...supplierForm, paymentDate: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Bank Charges ($ USD):
                   </label>
                   <input
                     type="number"
                     value={supplierForm.bankChargesUSD}
                     onChange={e => setSupplierForm({ ...supplierForm, bankChargesUSD: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-400 font-bold mb-1">
+                  <label className="block text-slate-700 font-bold mb-1">
                     Charges Borne By:
                   </label>
                   <select
                     value={supplierForm.chargeBorneBy}
                     onChange={e => setSupplierForm({ ...supplierForm, chargeBorneBy: e.target.value as any })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   >
                     <option value="OUR">OUR (Importer pays all)</option>
                     <option value="BEN">BEN (Supplier pays)</option>
@@ -904,35 +904,35 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
               </div>
 
               {/* Live Double Entry Ledger Preview */}
-              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1 font-mono text-[11px]">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block font-sans">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1 font-mono text-[11px]">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block font-sans">
                   Double-Entry Ledger Posting Impact:
                 </span>
-                <div className="flex justify-between text-slate-300">
+                <div className="flex justify-between text-slate-700">
                   <span>Dr: 2010 - Accounts Payable (Overseas Suppliers)</span>
-                  <span className="text-emerald-400 font-bold">
+                  <span className="text-emerald-600 font-bold">
                     +KSh {(supplierForm.amountUSD * supplierForm.exchangeRateActual).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-300">
+                <div className="flex justify-between text-slate-700">
                   <span>Cr: 1020 - USD Forex Nostro Bank / Forex Spot</span>
-                  <span className="text-amber-400 font-bold">
+                  <span className="text-amber-700 font-bold">
                     (KSh {(supplierForm.amountUSD * supplierForm.exchangeRateActual).toLocaleString(undefined, { minimumFractionDigits: 2 })})
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
               <button
                 onClick={() => setIsSupplierModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmSupplierPayment}
-                className="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-2"
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-2"
               >
                 <Check className="w-4 h-4" />
                 <span>Confirm &amp; Commit Swift Disbursal</span>

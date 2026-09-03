@@ -142,8 +142,10 @@ export const QRScannerModal: React.FC = () => {
               {
                 fps: 15,
                 qrbox: (viewfinderWidth, viewfinderHeight) => {
-                  const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                  const qrboxSize = Math.floor(minEdge * 0.75);
+                  const safeW = viewfinderWidth && viewfinderWidth > 0 ? viewfinderWidth : 300;
+                  const safeH = viewfinderHeight && viewfinderHeight > 0 ? viewfinderHeight : 300;
+                  const minEdge = Math.min(safeW, safeH);
+                  const qrboxSize = Math.max(50, Math.floor(Math.min(minEdge * 0.75, 260)));
                   return { width: qrboxSize, height: qrboxSize };
                 },
                 aspectRatio: 1.0
@@ -195,7 +197,13 @@ export const QRScannerModal: React.FC = () => {
         { facingMode: 'environment' },
         {
           fps: 15,
-          qrbox: { width: 240, height: 240 },
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const safeW = viewfinderWidth && viewfinderWidth > 0 ? viewfinderWidth : 300;
+            const safeH = viewfinderHeight && viewfinderHeight > 0 ? viewfinderHeight : 300;
+            const minEdge = Math.min(safeW, safeH);
+            const qrboxSize = Math.max(50, Math.floor(Math.min(minEdge * 0.75, 240)));
+            return { width: qrboxSize, height: qrboxSize };
+          },
           aspectRatio: 1.0
         },
         onDecodedCallback,
@@ -237,7 +245,13 @@ export const QRScannerModal: React.FC = () => {
         deviceId,
         {
           fps: 15,
-          qrbox: { width: 240, height: 240 },
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const safeW = viewfinderWidth && viewfinderWidth > 0 ? viewfinderWidth : 300;
+            const safeH = viewfinderHeight && viewfinderHeight > 0 ? viewfinderHeight : 300;
+            const minEdge = Math.min(safeW, safeH);
+            const qrboxSize = Math.max(50, Math.floor(Math.min(minEdge * 0.75, 240)));
+            return { width: qrboxSize, height: qrboxSize };
+          },
           aspectRatio: 1.0
         },
         onDecodedCallback,

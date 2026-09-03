@@ -145,8 +145,6 @@ export const ReturnExchangeModal: React.FC = () => {
   // Credit note search state
   const [creditNoteSearch, setCreditNoteSearch] = useState<string>('');
 
-  if (!isReturnExchangeModalOpen) return null;
-
   // Selected returned product
   const returnedProduct = products.find(p => p.id === returnedBatchId);
   const replacementProduct = products.find(p => p.id === replacementBatchId) || returnedProduct;
@@ -391,6 +389,8 @@ export const ReturnExchangeModal: React.FC = () => {
   const totalQuarantinedMeters = quarantinedDefects.reduce((sum, r) => sum + (r.returnedItem.metersCount || 0), 0);
   const totalCostValuation = quarantinedDefects.reduce((sum, r) => sum + r.returnedItem.totalValuationCost, 0);
   const pendingClaimsCount = quarantinedDefects.filter(r => r.quarantineStatus === 'supplier_claim_filed').length;
+
+  if (!isReturnExchangeModalOpen) return null;
 
   return (
     <div
