@@ -21,7 +21,8 @@ import {
   FixedAsset,
   KRAInputVATClaim,
   StockAlertSettings,
-  Supplier
+  Supplier,
+  ClearingAgent
 } from '../types';
 
 export const INITIAL_POS_OPERATORS: POSOperator[] = [
@@ -681,6 +682,75 @@ export const INITIAL_SUPPLIERS: Supplier[] = [
     category: 'Local Spun Acrylic & Wool Blend Yarns',
     notes: 'Leading Nairobi yarn spinning and texturizing mill. Standard 16% VAT invoiced via eTIMS device.',
     createdAt: '2026-02-10T14:20:00.000Z',
+    status: 'active'
+  }
+];
+
+export const INITIAL_CLEARING_AGENTS: ClearingAgent[] = [
+  {
+    id: 'CLR-KE-001',
+    name: 'BLUE PEARL LOGISTICS LIMITED',
+    kraPin: 'P051506858S',
+    declarantCode: 'KRA-CB-8841',
+    contactPerson: 'Hassan Omar (Senior Declarant & CFS Liaison)',
+    email: 'operations@bluepearllogistics.co.ke',
+    phone: '+254 722 789 450',
+    address: 'Cannon Towers II, 5th Floor, Moi Avenue, P.O. Box 90210, Mombasa, Kenya',
+    operatingPorts: 'Mombasa Port (Kilindini CFS) & ICD Embakasi Nairobi',
+    bankName: 'EQUITY BANK KENYA, MOMBASA SUPREME BRANCH',
+    bankAccountNo: '0460 2938 1102 33',
+    bankBranch: 'Mombasa Supreme',
+    mpesaPaybill: '400222',
+    paymentTermsDays: 14,
+    standardAgencyFeeKES: 35000,
+    cfsPortWharfageKES: 65000,
+    demurrageAllowanceDays: 21,
+    notes: 'KRA licensed customs clearing agent for marine containerized textiles. Pre-clearing via Simba/ICMS with rapid CFS unbundling.',
+    createdAt: '2026-01-10T08:00:00.000Z',
+    status: 'active'
+  },
+  {
+    id: 'CLR-KE-002',
+    name: 'BOLLORE TRANSPORT & LOGISTICS KENYA LTD',
+    kraPin: 'P051122334A',
+    declarantCode: 'KRA-CB-1029',
+    contactPerson: 'Grace Mwende (Customs Affairs & ICD Operations)',
+    email: 'customs.kenya@bollore.com',
+    phone: '+254 733 910 200',
+    address: 'Bollore Complex, Airport North Road, Embakasi, Nairobi, Kenya',
+    operatingPorts: 'ICD Embakasi Nairobi, Kilindini Port & JKIA Air Cargo',
+    bankName: 'STANDARD CHARTERED KENYA, INDUSTRIAL AREA',
+    bankAccountNo: '0102 0489 2001 00',
+    bankBranch: 'Industrial Area Nairobi',
+    mpesaPaybill: '329329',
+    paymentTermsDays: 30,
+    standardAgencyFeeKES: 45000,
+    cfsPortWharfageKES: 70000,
+    demurrageAllowanceDays: 28,
+    notes: 'Tier-1 AEO (Authorized Economic Operator) licensed with expedited Green Channel customs clearance at Kilindini and Embakasi ICD.',
+    createdAt: '2026-01-15T10:00:00.000Z',
+    status: 'active'
+  },
+  {
+    id: 'CLR-KE-003',
+    name: 'SIGINON GLOBAL LOGISTICS LIMITED',
+    kraPin: 'P051139485F',
+    declarantCode: 'KRA-CB-3490',
+    contactPerson: 'Meshack Kiprono (Freight & Bonded CFS Lead)',
+    email: 'info@siginon.com',
+    phone: '+254 720 654 321',
+    address: 'Siginon Complex, Jomo Kenyatta International Airport, Nairobi, Kenya',
+    operatingPorts: 'Kilindini Port Mombasa, SGR Freight & Naivasha ICD',
+    bankName: 'KCB BANK KENYA, KILINDINI BRANCH MOMBASA',
+    bankAccountNo: '1189 0234 56',
+    bankBranch: 'Kilindini',
+    mpesaPaybill: '522522',
+    paymentTermsDays: 14,
+    standardAgencyFeeKES: 38000,
+    cfsPortWharfageKES: 62000,
+    demurrageAllowanceDays: 21,
+    notes: 'Specialized in bonded CFS warehouse transfers and multimodal SGR rail haulage to Nairobi ICD.',
+    createdAt: '2026-02-01T09:00:00.000Z',
     status: 'active'
   }
 ];

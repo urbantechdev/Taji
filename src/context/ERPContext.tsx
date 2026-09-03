@@ -55,7 +55,8 @@ import {
   StocktakeItem,
   StocktakeStatus,
   StocktakeDiscrepancyReason,
-  Supplier
+  Supplier,
+  ClearingAgent
 } from '../types';
 import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
 import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
@@ -86,6 +87,7 @@ import {
   INITIAL_FIXED_ASSETS,
   INITIAL_INPUT_VAT_CLAIMS,
   INITIAL_SUPPLIERS,
+  INITIAL_CLEARING_AGENTS,
   CURRENT_USER
 } from '../data/initialData';
 import { evaluateStockStatus, calculateStockThresholdSummary } from '../utils/stockThresholdEngine';
@@ -633,6 +635,12 @@ interface ERPContextType {
   addSupplier: (newSupplier: Omit<Supplier, 'id' | 'createdAt'>) => Promise<{ success: boolean; supplier: Supplier; message: string }>;
   updateSupplier: (supplierId: string, updates: Partial<Supplier>) => Promise<{ success: boolean; message: string }>;
   deleteSupplier: (supplierId: string) => Promise<{ success: boolean; message: string }>;
+
+  // Clearing & Forwarding Agents Master Registry
+  clearingAgents: ClearingAgent[];
+  addClearingAgent: (newAgent: Omit<ClearingAgent, 'id' | 'createdAt'>) => Promise<{ success: boolean; clearingAgent: ClearingAgent; message: string }>;
+  updateClearingAgent: (agentId: string, updates: Partial<ClearingAgent>) => Promise<{ success: boolean; message: string }>;
+  deleteClearingAgent: (agentId: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
@@ -2922,6 +2930,112 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {
       success: true,
       message: 'Supplier deleted successfully.'
+    };
+  };
+
+  // Clearing Agents Master Registry State & Realtime Cloud Firestore Sync
+  const [clearingAgents, setClearingAgents] = useState<ClearingAgent[]>(() => {
+    try {
+      const saved = localStorage.getItem('taji_clearing_agents');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading clearing agents from localStorage:', e);
+    }
+    return INITIAL_CLEARING_AGENTS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('taji_clearing_agents', JSON.stringify(clearingAgents));
+    } catch (e) {
+      console.warn('Error saving clearing agents to localStorage:', e);
+    }
+  }, [clearingAgents]);
+
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'clearing_agents'), (snapshot) => {
+        const loaded: ClearingAgent[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as ClearingAgent;
+          if (item && item.id) loaded.push(item);
+        });
+        if (loaded.length > 0) {
+          setClearingAgents(loaded);
+        }
+      }, (error) => {
+        console.warn('Firestore clearing_agents listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing clearing_agents listener:', e);
+    }
+  }, []);
+
+  const addClearingAgent = async (newAgentData: Omit<ClearingAgent, 'id' | 'createdAt'>) => {
+    const agentId = `CLR-KE-${String(clearingAgents.length + 1).padStart(3, '0')}-${Math.floor(100 + Math.random() * 900)}`;
+    const createdAgent: ClearingAgent = {
+      ...newAgentData,
+      id: agentId,
+      createdAt: new Date().toISOString()
+    };
+
+    setClearingAgents(prev => [createdAgent, ...prev.filter(a => a.id !== agentId)]);
+
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'clearing_agents', agentId), createdAgent);
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e) {
+      console.warn('Firestore clearing agent add sync warning:', e);
+    }
+
+    recordAuditLog('Clearing Agent Registered', `Added KRA clearing agent ${createdAgent.name} (PIN: ${createdAgent.kraPin} - License: ${createdAgent.declarantCode || 'N/A'})`);
+    playSuccessSound();
+    return {
+      success: true,
+      clearingAgent: createdAgent,
+      message: `Clearing agent "${createdAgent.name}" registered successfully!`
+    };
+  };
+
+  const updateClearingAgent = async (agentId: string, updates: Partial<ClearingAgent>) => {
+    setClearingAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updates } : a));
+
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'clearing_agents', agentId), updates, { merge: true });
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e) {
+      console.warn('Firestore clearing agent update sync warning:', e);
+    }
+
+    recordAuditLog('Clearing Agent Updated', `Updated clearing agent details for ${agentId}`);
+    return {
+      success: true,
+      message: 'Clearing agent updated successfully.'
+    };
+  };
+
+  const deleteClearingAgent = async (agentId: string) => {
+    const target = clearingAgents.find(a => a.id === agentId);
+    setClearingAgents(prev => prev.filter(a => a.id !== agentId));
+
+    try {
+      await deleteDoc(doc(db, 'clearing_agents', agentId));
+    } catch (e) {
+      console.warn('Firestore clearing agent delete sync warning:', e);
+    }
+
+    recordAuditLog('Clearing Agent Deleted', `Removed clearing agent ${target?.name || agentId}`);
+    return {
+      success: true,
+      message: 'Clearing agent deleted successfully.'
     };
   };
 
@@ -8282,6 +8396,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addSupplier,
         updateSupplier,
         deleteSupplier,
+        clearingAgents,
+        addClearingAgent,
+        updateClearingAgent,
+        deleteClearingAgent,
         viewMode,
         setViewMode: handleSetViewMode
       }}
