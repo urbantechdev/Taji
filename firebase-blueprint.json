@@ -67,9 +67,27 @@
         "phone": { "type": "string" }
       },
       "required": ["storeName"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Registered local or overseas vendor / supplier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "country": { "type": "string" },
+        "kraPin": { "type": "string" },
+        "currency": { "type": "string" }
+      },
+      "required": ["id", "name", "type", "currency"]
     }
   },
   "firestore": {
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Master registry of domestic and international suppliers"
+    },
     "/pos_operators/{operatorId}": {
       "schema": "POSOperator",
       "description": "List of authorized POS Cashiers and Operators with 6-digit PINs"

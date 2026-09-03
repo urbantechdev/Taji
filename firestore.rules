@@ -119,6 +119,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Suppliers Registry Collection
+    match /suppliers/{supplierId} {
+      allow read, write: if true;
+    }
+
     // User Profiles
     match /users/{userId} {
       allow read, write: if true;
