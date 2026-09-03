@@ -3,6 +3,7 @@ import { useERP } from '../../context/ERPContext';
 import { PayrollRecord, StaffMember, UserRole, LocationId } from '../../types';
 import { hasPermission } from '../../utils/rbac';
 import DocumentHeader from '../common/DocumentHeader';
+import { PayslipModal } from './PayslipModal';
 import { POSOperatorManager } from '../admin/POSOperatorManager';
 import {
   calculateKenyaStatutoryDeductions,
@@ -1690,128 +1691,21 @@ This is an official system-generated payslip compliant with KRA Section 53 of th
       )}
 
       {/* ========================================================================= */}
-      {/* PAYSLIP MODAL (Prints & Displays selected individual payslip)            */}
+      {/* PAYSLIP MODAL (Prints, Downloads & Displays organized employee payslip)   */}
       {/* ========================================================================= */}
       {selectedPayslip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-rose-100" id="modal-payslip-viewer">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">
-                  Official Employee Payslip ({selectedPayslip.monthYear})
-                </h3>
-                <p className="text-[10px] text-slate-400">KRA &amp; NSSF Statutory Tax Voucher</p>
-              </div>
-              <button
-                id="btn-close-payslip-modal"
-                onClick={() => setSelectedPayslip(null)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div
-              className="space-y-3 font-sans text-xs bg-slate-50 p-4 rounded-xl border border-slate-200"
-              id="printable-payslip"
-            >
-              <DocumentHeader
-                variant="thermal"
-                title={`PAYSLIP - ${selectedPayslip.monthYear}`}
-                docNumber={`PAY-${selectedPayslip.employeeNo}-${selectedPayslip.monthYear.replace(/\s+/g, '')}`}
-                docDate={new Date().toISOString()}
-                badgeText="OFFICIAL PAYSLIP"
-              />
-
-              <div className="space-y-1 pt-2 border-t border-slate-200">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Employee Name:</span>
-                  <span className="font-bold text-slate-900">{selectedPayslip.staffName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Employee No:</span>
-                  <span className="font-mono">{selectedPayslip.employeeNo}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Designation:</span>
-                  <span className="font-semibold">{selectedPayslip.role}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Station Node:</span>
-                  <span className="font-semibold">
-                    {locations.find(l => l.id === selectedPayslip.locationId)?.name || selectedPayslip.locationId}
-                  </span>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-200 pt-2 space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Basic Salary:</span>
-                  <span className="font-mono">KSh {selectedPayslip.basicSalary.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Allowances &amp; Bonuses:</span>
-                  <span className="font-mono">KSh {selectedPayslip.allowances.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between font-bold text-slate-900">
-                  <span className="text-slate-700">GROSS EARNINGS:</span>
-                  <span className="font-mono text-emerald-700">
-                    KSh {selectedPayslip.grossPay.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-200 pt-2 space-y-1 text-slate-600">
-                <div className="flex justify-between">
-                  <span>PAYE Income Tax:</span>
-                  <span className="font-mono text-rose-700">- KSh {selectedPayslip.payeTax.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Affordable Housing Levy (1.5%):</span>
-                  <span className="font-mono text-amber-800">
-                    - KSh {selectedPayslip.housingLevy.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>NSSF Pension (Tier I &amp; II):</span>
-                  <span className="font-mono">- KSh {selectedPayslip.nssfDeduction.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>SHIF Health Insurance (2.75%):</span>
-                  <span className="font-mono">- KSh {selectedPayslip.nhifDeduction.toLocaleString()}</span>
-                </div>
-              </div>
-
-              <div className="border-t-2 border-slate-900 pt-2 flex justify-between font-black text-sm text-slate-900">
-                <span>NET SALARY PAYABLE:</span>
-                <span className="font-mono text-emerald-800">
-                  KSh {selectedPayslip.netPay.toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                id="btn-modal-email-payslip"
-                onClick={() => handleEmailPayslip(selectedPayslip)}
-                disabled={isEmailingPayslip}
-                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <Mail className="w-4 h-4 text-emerald-400" />
-                {isEmailingPayslip ? 'Sending...' : 'Email Statement'}
-              </button>
-
-              <button
-                id="btn-modal-print-payslip"
-                onClick={() => window.print()}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                Print Payslip
-              </button>
-            </div>
-          </div>
-        </div>
+        <PayslipModal
+          payslip={selectedPayslip}
+          staffMember={
+            staff.find(
+              s => s.id === selectedPayslip.staffId || s.employeeNo === selectedPayslip.employeeNo
+            ) || myStaffRecord
+          }
+          locations={locations}
+          onClose={() => setSelectedPayslip(null)}
+          onEmailPayslip={handleEmailPayslip}
+          isEmailing={isEmailingPayslip}
+        />
       )}
 
       {/* ========================================================================= */}

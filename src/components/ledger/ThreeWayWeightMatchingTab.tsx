@@ -18,7 +18,12 @@ import {
   TrendingDown,
   FileSpreadsheet
 } from 'lucide-react';
-import { generateSupplierDebitNotePDF } from '../../utils/documentExport';
+import {
+  generateSupplierDebitNotePDF,
+  exportSupplierDebitNoteCSV,
+  exportWeightAuditSchedulePDF,
+  exportWeightAuditScheduleCSV
+} from '../../utils/documentExport';
 
 interface ThreeWayWeightMatchingTabProps {
   shipment: ImportShipmentRecord;
@@ -171,6 +176,11 @@ export const ThreeWayWeightMatchingTab: React.FC<ThreeWayWeightMatchingTabProps>
     });
   };
 
+  const handleExportCSV = () => {
+    if (!generatedDebitNote) return;
+    exportSupplierDebitNoteCSV(generatedDebitNote);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200 text-xs">
       
@@ -249,12 +259,29 @@ export const ThreeWayWeightMatchingTab: React.FC<ThreeWayWeightMatchingTabProps>
 
       {/* Audit Reconciliation Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-rose-600" />
             <h4 className="font-bold text-slate-900 text-sm">Line Item Weigh-In Discrepancy Schedule</h4>
           </div>
-          <span className="text-[11px] text-slate-500">Edit scale intake values below to recalculate variances</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportWeightAuditSchedulePDF(shipment, weightAuditRows, totalShortageKg, totalShortageUSD, totalShortageKES)}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Export Weigh-In Audit Schedule PDF"
+            >
+              <FileDown className="w-3.5 h-3.5 text-rose-600" />
+              <span>Audit (PDF)</span>
+            </button>
+            <button
+              onClick={() => exportWeightAuditScheduleCSV(shipment, weightAuditRows, totalShortageKg, totalShortageUSD, totalShortageKES)}
+              className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Export Weigh-In Audit Schedule CSV"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Audit (CSV)</span>
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -375,9 +402,19 @@ export const ThreeWayWeightMatchingTab: React.FC<ThreeWayWeightMatchingTabProps>
                   type="button"
                   onClick={handleDownloadPDF}
                   className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Download Supplier Debit Note PDF"
                 >
                   <FileDown className="w-4 h-4" />
-                  <span>Download Debit Note PDF</span>
+                  <span>Debit Note (PDF)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                  title="Export Supplier Debit Note CSV"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Debit Note (CSV)</span>
                 </button>
               </div>
             )}

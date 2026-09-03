@@ -254,23 +254,27 @@ export const LocalPurchaseCostingTab: React.FC = () => {
 
           {/* Action Buttons: Export & Capitalize */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <button
-              onClick={() => exportLocalPurchaseCostingPDF(activePurchase, summary, brandSettings, etrConfig)}
-              className="px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 shadow-xs flex items-center gap-1.5 cursor-pointer"
-            >
-              <FileDown className="w-4 h-4 text-emerald-400" />
-              <span>Export LPS PDF</span>
-            </button>
-            <button
-              onClick={() => exportLocalPurchaseCostingCSV(activePurchase, summary)}
-              className="px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 shadow-xs flex items-center gap-1.5 cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              <span>Export CSV</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => exportLocalPurchaseCostingPDF(activePurchase, summary, brandSettings, etrConfig)}
+                className="px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 shadow-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="Download Local Purchase Costing Schedule as PDF"
+              >
+                <FileDown className="w-4 h-4 text-emerald-400" />
+                <span>PDF</span>
+              </button>
+              <button
+                onClick={() => exportLocalPurchaseCostingCSV(activePurchase, summary)}
+                className="px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 shadow-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="Export Local Purchase Costing Schedule as CSV"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                <span>CSV</span>
+              </button>
+            </div>
             <button
               onClick={() => setIsCapitalizeModalOpen(true)}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>Capitalize LPS to GL</span>

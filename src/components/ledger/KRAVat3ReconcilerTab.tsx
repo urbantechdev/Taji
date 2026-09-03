@@ -191,21 +191,23 @@ export const KRAVat3ReconcilerTab: React.FC = () => {
           </div>
 
           {/* Export Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={handleExportITaxCSV}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              title="Download iTax-formatted CSV reconciliation file"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              <span>Download iTax CSV</span>
+              <span>CSV</span>
             </button>
 
             <button
               onClick={handleExportPDFPack}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              title="Download Complete KRA VAT-3 Return Pack PDF"
             >
               <FileDown className="w-4 h-4" />
-              <span>Export VAT-3 Return Pack PDF</span>
+              <span>PDF</span>
             </button>
           </div>
         </div>

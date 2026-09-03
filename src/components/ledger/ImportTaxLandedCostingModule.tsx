@@ -45,13 +45,18 @@ import {
   CalendarCheck,
   Sparkles,
   FileText,
-  Truck
+  Truck,
+  Building2
 } from 'lucide-react';
+import { Supplier } from '../../types';
+import { SupplierDirectoryModal } from '../suppliers/SupplierDirectoryModal';
+import { InwardInvoiceIntakeModal } from '../inventory/InwardInvoiceIntakeModal';
 import { DocumentOCRParserModal } from './DocumentOCRParserModal';
 import { ThreeWayWeightMatchingTab } from './ThreeWayWeightMatchingTab';
 import { KRAVat3ReconcilerTab } from './KRAVat3ReconcilerTab';
 import { MonthEndFastTrackWizard } from './MonthEndFastTrackWizard';
 import { LocalPurchaseCostingTab } from './LocalPurchaseCostingTab';
+import { ImportPaymentDisbursalSection } from './ImportPaymentDisbursalSection';
 
 export const ImportTaxLandedCostingModule: React.FC = () => {
   const {
@@ -69,6 +74,11 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
 
   // OCR Document Parser Modal State
   const [isOCRModalOpen, setIsOCRModalOpen] = useState(false);
+
+  // Supplier Registry & Inward Invoice Intake Modals
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [isInwardInvoiceModalOpen, setIsInwardInvoiceModalOpen] = useState(false);
+  const [selectedSupplierForInvoice, setSelectedSupplierForInvoice] = useState<Supplier | undefined>(undefined);
 
   // Active Shipment Record State (Initialized with Zhejiang Puan 26PA222 Preset)
   const [activeShipment, setActiveShipment] = useState<ImportShipmentRecord>(PRESET_INVOICE_26PA222);
@@ -331,116 +341,188 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
             </div>
 
             {/* Quick Export & Action Toolbar */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* OCR Import Action */}
               <button
                 type="button"
+                id="btn-tax-smart-ocr"
                 onClick={() => setIsOCRModalOpen(true)}
-                className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 title="Scan & Auto-Extract Customs SAD / Supplier Invoice via OCR"
               >
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>Smart OCR Import</span>
+                <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+                <span>Smart OCR</span>
               </button>
 
-              <button
-                onClick={() => exportImportLandedCostingPDF(activeShipment, costingSummary, brandSettings, etrConfig)}
-                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                title="Download Official Landed Costing Assessment Schedule as PDF"
-              >
-                <FileDown className="w-4 h-4" />
-                <span>Export PDF</span>
-              </button>
+              {/* Exports */}
+              <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 p-1 rounded-xl shadow-2xs">
+                <button
+                  type="button"
+                  id="btn-tax-export-pdf"
+                  onClick={() => exportImportLandedCostingPDF(activeShipment, costingSummary, brandSettings, etrConfig)}
+                  className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  title="Download Official Landed Costing Assessment Schedule as PDF"
+                >
+                  <FileDown className="w-3.5 h-3.5 shrink-0" />
+                  <span>PDF</span>
+                </button>
 
-              <button
-                onClick={() => exportImportLandedCostingCSV(activeShipment, costingSummary, etrConfig)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                title="Export Tax Breakdown Schedule as CSV"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Export CSV</span>
-              </button>
+                <button
+                  type="button"
+                  id="btn-tax-export-csv"
+                  onClick={() => exportImportLandedCostingCSV(activeShipment, costingSummary, etrConfig)}
+                  className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600/70 font-bold text-xs rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  title="Export Tax Breakdown Schedule as CSV"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                  <span>CSV</span>
+                </button>
+              </div>
 
+              {/* Supplier & Inward Intake */}
+              <div className="flex items-center gap-1.5 bg-slate-800/80 border border-slate-700 p-1 rounded-xl shadow-2xs">
+                <button
+                  type="button"
+                  id="btn-tax-suppliers"
+                  onClick={() => setIsSupplierModalOpen(true)}
+                  className="px-2.5 py-1.5 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  title="Open Supplier Directory"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Suppliers</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-tax-inward-invoice"
+                  onClick={() => {
+                    setSelectedSupplierForInvoice(undefined);
+                    setIsInwardInvoiceModalOpen(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
+                  title="Onboard New Inward Consignment or Commercial Invoice"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                  <span>+ Inward Invoice</span>
+                </button>
+              </div>
+
+              {/* Capitalize Button */}
               <button
+                type="button"
+                id="btn-tax-capitalize-ledger"
                 onClick={() => setIsCapitalizeModalOpen(true)}
                 disabled={activeShipment.status === 'approved_capitalized'}
-                className={`px-3.5 py-1.5 font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer ${
+                className={`px-3 py-1.5 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                   activeShipment.status === 'approved_capitalized'
                     ? 'bg-emerald-800/60 text-emerald-200 border border-emerald-700/60 cursor-not-allowed'
                     : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white hover:scale-102'
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{activeShipment.status === 'approved_capitalized' ? 'Capitalized' : 'Approve & Capitalize to GL'}</span>
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{activeShipment.status === 'approved_capitalized' ? 'Capitalized' : 'Approve & Capitalize'}</span>
               </button>
             </div>
           </div>
 
-          {/* Accountant Workflow Sub-Tabs */}
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-700/70 pt-3">
-            <button
-              type="button"
-              onClick={() => setActiveAccountantTab('local_purchase')}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-                activeAccountantTab === 'local_purchase'
-                  ? 'bg-emerald-600 text-white shadow-md'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Truck className="w-4 h-4" />
-              <span>1. LPS • Local Purchase Supply</span>
-            </button>
+          {/* Accountant Workflow Sub-Tabs - Organized responsive layout */}
+          <div className="border-t border-slate-700/70 pt-3">
+            <div className="flex flex-wrap lg:flex-nowrap gap-2 items-stretch">
+              <button
+                type="button"
+                id="tab-accountant-local-purchase"
+                onClick={() => setActiveAccountantTab('local_purchase')}
+                className={`flex-1 min-w-[155px] lg:min-w-0 p-2.5 rounded-xl font-bold text-xs flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                  activeAccountantTab === 'local_purchase'
+                    ? 'bg-emerald-600 text-white shadow-md ring-1 ring-emerald-400/50'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg shrink-0 ${activeAccountantTab === 'local_purchase' ? 'bg-emerald-700 text-white' : 'bg-slate-700/60 text-emerald-400'}`}>
+                  <Truck className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate font-black text-xs leading-tight">1. Local Supply (LPS)</div>
+                  <div className={`text-[10px] truncate mt-0.5 ${activeAccountantTab === 'local_purchase' ? 'text-emerald-100' : 'text-slate-400'}`}>Domestic Landed &amp; eTIMS</div>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveAccountantTab('calculator')}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-                activeAccountantTab === 'calculator'
-                  ? 'bg-rose-600 text-white shadow-md'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Calculator className="w-4 h-4" />
-              <span>2. IPS • Import Purchase Supply</span>
-            </button>
+              <button
+                type="button"
+                id="tab-accountant-calculator"
+                onClick={() => setActiveAccountantTab('calculator')}
+                className={`flex-1 min-w-[155px] lg:min-w-0 p-2.5 rounded-xl font-bold text-xs flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                  activeAccountantTab === 'calculator'
+                    ? 'bg-rose-600 text-white shadow-md ring-1 ring-rose-400/50'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg shrink-0 ${activeAccountantTab === 'calculator' ? 'bg-rose-700 text-white' : 'bg-slate-700/60 text-rose-400'}`}>
+                  <Calculator className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate font-black text-xs leading-tight">2. Import Costing (IPS)</div>
+                  <div className={`text-[10px] truncate mt-0.5 ${activeAccountantTab === 'calculator' ? 'text-rose-100' : 'text-slate-400'}`}>KRA SAD &amp; Tariff Duties</div>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveAccountantTab('three_way_matcher')}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-                activeAccountantTab === 'three_way_matcher'
-                  ? 'bg-rose-600 text-white shadow-md'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Scale className="w-4 h-4" />
-              <span>3. 3-Way Weight Matching &amp; Debit Notes</span>
-            </button>
+              <button
+                type="button"
+                id="tab-accountant-three-way"
+                onClick={() => setActiveAccountantTab('three_way_matcher')}
+                className={`flex-1 min-w-[155px] lg:min-w-0 p-2.5 rounded-xl font-bold text-xs flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                  activeAccountantTab === 'three_way_matcher'
+                    ? 'bg-rose-600 text-white shadow-md ring-1 ring-rose-400/50'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg shrink-0 ${activeAccountantTab === 'three_way_matcher' ? 'bg-rose-700 text-white' : 'bg-slate-700/60 text-amber-400'}`}>
+                  <Scale className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate font-black text-xs leading-tight">3. 3-Way Weight Match</div>
+                  <div className={`text-[10px] truncate mt-0.5 ${activeAccountantTab === 'three_way_matcher' ? 'text-rose-100' : 'text-slate-400'}`}>Scale Intake &amp; Claims</div>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveAccountantTab('kra_vat3')}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-                activeAccountantTab === 'kra_vat3'
-                  ? 'bg-emerald-600 text-white shadow-md'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Receipt className="w-4 h-4" />
-              <span>4. KRA VAT-3 Net Return (LPS &amp; IPS)</span>
-            </button>
+              <button
+                type="button"
+                id="tab-accountant-kra-vat3"
+                onClick={() => setActiveAccountantTab('kra_vat3')}
+                className={`flex-1 min-w-[155px] lg:min-w-0 p-2.5 rounded-xl font-bold text-xs flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                  activeAccountantTab === 'kra_vat3'
+                    ? 'bg-emerald-600 text-white shadow-md ring-1 ring-emerald-400/50'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg shrink-0 ${activeAccountantTab === 'kra_vat3' ? 'bg-emerald-700 text-white' : 'bg-slate-700/60 text-emerald-400'}`}>
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate font-black text-xs leading-tight">4. KRA VAT-3 Return</div>
+                  <div className={`text-[10px] truncate mt-0.5 ${activeAccountantTab === 'kra_vat3' ? 'text-emerald-100' : 'text-slate-400'}`}>LPS &amp; IPS Tax Offset</div>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveAccountantTab('month_end')}
-              className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-                activeAccountantTab === 'month_end'
-                  ? 'bg-rose-600 text-white shadow-md'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <CalendarCheck className="w-4 h-4" />
-              <span>5. Month-End "Close the Books" Fast-Track</span>
-            </button>
+              <button
+                type="button"
+                id="tab-accountant-month-end"
+                onClick={() => setActiveAccountantTab('month_end')}
+                className={`flex-1 min-w-[155px] lg:min-w-0 p-2.5 rounded-xl font-bold text-xs flex items-center gap-2.5 transition-all cursor-pointer text-left ${
+                  activeAccountantTab === 'month_end'
+                    ? 'bg-rose-600 text-white shadow-md ring-1 ring-rose-400/50'
+                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/60'
+                }`}
+              >
+                <div className={`p-1.5 rounded-lg shrink-0 ${activeAccountantTab === 'month_end' ? 'bg-rose-700 text-white' : 'bg-slate-700/60 text-purple-400'}`}>
+                  <CalendarCheck className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate font-black text-xs leading-tight">5. Month-End Close</div>
+                  <div className={`text-[10px] truncate mt-0.5 ${activeAccountantTab === 'month_end' ? 'text-rose-100' : 'text-slate-400'}`}>GL Rollup &amp; Archive</div>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Preset Profiles Selector (Shown when on calculator or 3-way matcher) */}
@@ -1037,6 +1119,21 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         </div>
       </div>
 
+      {/* 3-WAY IMPORT DISBURSAL & PAYMENT SECTION (USD SUPPLIER • KES KRA • KES CLEARING) */}
+      <ImportPaymentDisbursalSection
+        shipment={activeShipment}
+        totalCustomsTaxesKES={costingSummary.totalKRATaxesKES}
+        duty1002KES={costingSummary.totalImportDuty1002KES}
+        idf1801KES={costingSummary.totalIDF1801KES}
+        rdl6001KES={costingSummary.totalRDL6001KES}
+        vat1202KES={costingSummary.totalVAT1202KES}
+        mss6401KES={costingSummary.totalMSS6401KES}
+        totalFOB_USD={costingSummary.totalFOB_USD}
+        totalFreightUSD={costingSummary.totalFreightUSD}
+        effectiveExchangeRate={effectiveExchangeRate}
+        onUpdateShipment={(updated) => setActiveShipment(updated)}
+      />
+
       {/* Item-Level Data Grid & Unit Landed Costing Table */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -1415,6 +1512,26 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
           }}
         />
       )}
+
+      {/* Supplier Registry Management Modal */}
+      <SupplierDirectoryModal
+        isOpen={isSupplierModalOpen}
+        onClose={() => setIsSupplierModalOpen(false)}
+        onSelectSupplierForInvoice={(sup) => {
+          setSelectedSupplierForInvoice(sup);
+          setIsInwardInvoiceModalOpen(true);
+        }}
+      />
+
+      {/* Inward Consignment & Commercial Invoice Intake Wizard Modal */}
+      <InwardInvoiceIntakeModal
+        isOpen={isInwardInvoiceModalOpen}
+        onClose={() => {
+          setIsInwardInvoiceModalOpen(false);
+          setSelectedSupplierForInvoice(undefined);
+        }}
+        preselectedSupplier={selectedSupplierForInvoice}
+      />
     </div>
   );
 };

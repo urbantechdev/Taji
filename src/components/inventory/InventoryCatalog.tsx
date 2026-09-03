@@ -14,6 +14,9 @@ import { ProductImageManagerModal } from './ProductImageManagerModal';
 import { BulkBarcodeGeneratorModal } from './BulkBarcodeGeneratorModal';
 import { DuplicateAuditModal } from './DuplicateAuditModal';
 import { StocktakeDashboard } from './StocktakeDashboard';
+import { InwardInvoiceIntakeModal } from './InwardInvoiceIntakeModal';
+import { SupplierDirectoryModal } from '../suppliers/SupplierDirectoryModal';
+import { Supplier } from '../../types';
 import {
   Boxes,
   Layers,
@@ -46,7 +49,10 @@ import {
   Image as ImageIcon,
   Trash2,
   Undo2,
-  ClipboardCheck
+  ClipboardCheck,
+  Building2,
+  Receipt,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export const InventoryCatalog: React.FC = () => {
@@ -105,6 +111,11 @@ export const InventoryCatalog: React.FC = () => {
   const [categoryIntakeCategory, setCategoryIntakeCategory] = useState<CategoryType>('Dereck');
   const [isSyncingManual, setIsSyncingManual] = useState(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
+
+  // Supplier Registry & Inward Consignment Intake States
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [isInwardInvoiceModalOpen, setIsInwardInvoiceModalOpen] = useState(false);
+  const [selectedSupplierForInvoice, setSelectedSupplierForInvoice] = useState<Supplier | undefined>(undefined);
 
   // Price Markdown Modal State for Dead Stock Clearance
   const [discountModalBatch, setDiscountModalBatch] = useState<ProductBatch | null>(null);
@@ -568,6 +579,36 @@ export const InventoryCatalog: React.FC = () => {
                     <span>Purge All Inventory</span>
                   </button>
                 </>
+              )}
+            </div>
+
+            {/* Supplier Directory & Inward Invoice Intake Group */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 p-1 rounded-xl">
+              <button
+                type="button"
+                id="btn-open-suppliers-directory"
+                onClick={() => setIsSupplierModalOpen(true)}
+                className="px-2.5 py-1.5 hover:bg-rose-50 text-rose-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Open Suppliers & Vendors Directory"
+              >
+                <Building2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Suppliers</span>
+              </button>
+
+              {canAdd && (
+                <button
+                  type="button"
+                  id="btn-open-inward-invoice-wizard"
+                  onClick={() => {
+                    setSelectedSupplierForInvoice(undefined);
+                    setIsInwardInvoiceModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
+                  title="Create Commercial / eTIMS Invoice & Onboard Inventory Batches"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-emerald-100" />
+                  <span>+ Inward Invoice</span>
+                </button>
               )}
             </div>
           </div>
@@ -1788,6 +1829,26 @@ export const InventoryCatalog: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Suppliers Master Directory Modal */}
+      <SupplierDirectoryModal
+        isOpen={isSupplierModalOpen}
+        onClose={() => setIsSupplierModalOpen(false)}
+        onSelectSupplierForInvoice={(sup) => {
+          setSelectedSupplierForInvoice(sup);
+          setIsInwardInvoiceModalOpen(true);
+        }}
+      />
+
+      {/* Inward Consignment & Invoice Intake Wizard Modal */}
+      <InwardInvoiceIntakeModal
+        isOpen={isInwardInvoiceModalOpen}
+        onClose={() => {
+          setIsInwardInvoiceModalOpen(false);
+          setSelectedSupplierForInvoice(undefined);
+        }}
+        preselectedSupplier={selectedSupplierForInvoice}
+      />
 
     </div>
   );
