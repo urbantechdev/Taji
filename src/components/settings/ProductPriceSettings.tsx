@@ -39,11 +39,6 @@ export const ProductPriceSettings: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('Dereck');
   const [strategy, setStrategy] = useState<'set_exact' | 'increase_percent' | 'decrease_percent' | 'markup_from_cost'>('set_exact');
 
-  const isFabricRollCategory = selectedCategory === 'Fleece' || selectedCategory === 'Dereck';
-  const categoryUnitLabel = isFabricRollCategory ? 'meter' : 'kg';
-  const categoryUnitPlural = isFabricRollCategory ? 'Meters' : 'Kilograms (KGs)';
-  const categoryUnitShort = isFabricRollCategory ? 'm' : 'kg';
-
   // Config for chosen category
   const activeConfig = categoryPricingConfigs[selectedCategory] || {
     defaultRetailPrice: selectedCategory === 'Dereck' ? 230 : selectedCategory === 'Yarns' ? 950 : 470,
@@ -277,21 +272,21 @@ export const ProductPriceSettings: React.FC = () => {
             onClick={() => applyPreset('fleece_polar')}
             className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer border border-slate-200"
           >
-            Fleece (KSh 470/m)
+            Fleece (KSh 1,650)
           </button>
           <button
             type="button"
             onClick={() => applyPreset('dereck_heavy')}
             className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer border border-slate-200"
           >
-            Dereec (KSh 230/m)
+            Dereec (KSh 1,250)
           </button>
           <button
             type="button"
             onClick={() => applyPreset('yarns_cotton')}
             className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer border border-slate-200"
           >
-            Yarns (KSh 950/kg)
+            Yarns (KSh 850)
           </button>
         </div>
       </div>
@@ -315,10 +310,10 @@ export const ProductPriceSettings: React.FC = () => {
               <Boxes className="w-4 h-4" />
               <span>
                 {cat === 'Dereck'
-                  ? 'Dereec Fabric (Meters)'
+                  ? 'Dereec Fabric'
                   : cat === 'Fleece'
-                  ? 'Fleece Fabric (Meters • 70m Rolls)'
-                  : 'Yarns & Cones (Kilograms / KGs)'}
+                  ? 'Fleece Fabric (70m Rolls)'
+                  : 'Yarns & Cones'}
               </span>
               <span
                 className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
@@ -330,46 +325,6 @@ export const ProductPriceSettings: React.FC = () => {
             </button>
           );
         })}
-      </div>
-
-      {/* Measurement Unit Callout Banner */}
-      <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
-        isFabricRollCategory
-          ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 text-amber-950'
-          : 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 text-emerald-950'
-      }`}>
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-xs ${
-            isFabricRollCategory
-              ? 'bg-amber-600 text-white'
-              : 'bg-emerald-600 text-white'
-          }`}>
-            {isFabricRollCategory ? '✂️' : '⚖️'}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-wider">
-                {isFabricRollCategory ? 'Linear Fabric Measurement' : 'Weight Scale Measurement'}
-              </span>
-              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
-                isFabricRollCategory
-                  ? 'bg-amber-200/80 text-amber-900 border-amber-300'
-                  : 'bg-emerald-200/80 text-emerald-900 border-emerald-300'
-              }`}>
-                Pricing in {categoryUnitPlural} ({categoryUnitShort})
-              </span>
-            </div>
-            <p className="text-xs opacity-90 mt-0.5">
-              {selectedCategory === 'Fleece' && 'Fleece fabric is priced and billed in linear METERS (m), with standard 70m full rolls and precision cut meter lengths.'}
-              {selectedCategory === 'Dereck' && 'Dereec (Dereck) fabric is priced and billed in linear METERS (m), with standard 50m full rolls and custom cut lengths.'}
-              {selectedCategory === 'Yarns' && 'Yarn is weighed on precision digital scales and billed in KILOGRAMS (KGs) after automatic inner plastic cone tare deduction.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="shrink-0 font-mono text-xs font-black px-3 py-1.5 rounded-xl bg-white/80 border border-slate-200 shadow-2xs">
-          Active Unit: <span className="text-pink-700">{categoryUnitShort}</span> ({categoryUnitLabel})
-        </div>
       </div>
 
       {/* Feedback Banner */}
@@ -437,7 +392,7 @@ export const ProductPriceSettings: React.FC = () => {
             {/* Cost Price */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Cost Price (KSh / {categoryUnitShort})
+                Default Cost Price (KSh)
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">KSh</span>
@@ -449,13 +404,13 @@ export const ProductPriceSettings: React.FC = () => {
                   className="w-full pl-11 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-pink-600 outline-hidden"
                 />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Purchase cost per {categoryUnitLabel}</p>
+              <p className="text-[10px] text-slate-400 mt-1">Supplier purchase cost</p>
             </div>
 
             {/* Bulk / Wholesale Price */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Wholesale / Bulk (KSh / {categoryUnitShort})
+                Wholesale / Bulk (KSh)
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">KSh</span>
@@ -467,13 +422,13 @@ export const ProductPriceSettings: React.FC = () => {
                   className="w-full pl-11 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-pink-600 outline-hidden"
                 />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Bulk price per {categoryUnitLabel}</p>
+              <p className="text-[10px] text-slate-400 mt-1">For bulk &amp; b2b orders</p>
             </div>
 
             {/* Standard Retail Price */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                {strategy === 'set_exact' ? `Retail Price (KSh / ${categoryUnitShort})` : `Base Retail (KSh / ${categoryUnitShort})`}
+                {strategy === 'set_exact' ? 'Target Retail Price (KSh)' : 'Base Retail Price (KSh)'}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-xs font-bold text-pink-700">KSh</span>
@@ -485,7 +440,7 @@ export const ProductPriceSettings: React.FC = () => {
                   className="w-full pl-11 pr-3 py-2 bg-pink-50/50 border border-pink-300 rounded-xl text-xs font-black text-pink-900 focus:bg-white focus:border-pink-600 outline-hidden"
                 />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">POS counter rate per {categoryUnitLabel}</p>
+              <p className="text-[10px] text-slate-400 mt-1">Standard counter POS price</p>
             </div>
           </div>
 
@@ -506,7 +461,7 @@ export const ProductPriceSettings: React.FC = () => {
                 className="w-full accent-pink-600 cursor-pointer"
               />
               <p className="text-[11px] text-amber-800">
-                Formula: KSh {costPrice}/{categoryUnitShort} + {markupPercent}% = <strong>KSh {projectedRetail.toLocaleString()}/{categoryUnitShort}</strong> Retail Price
+                Formula: KSh {costPrice} + {markupPercent}% = <strong>KSh {projectedRetail.toLocaleString()}</strong> Retail Price
               </p>
             </div>
           )}
@@ -529,7 +484,7 @@ export const ProductPriceSettings: React.FC = () => {
                 className="w-full accent-blue-600 cursor-pointer"
               />
               <p className="text-[11px] text-blue-800">
-                Projected New Retail: <strong>KSh {projectedRetail.toLocaleString()}/{categoryUnitShort}</strong> (Diff: KSh {(projectedRetail - retailPrice).toLocaleString()}/{categoryUnitShort})
+                Projected New Retail: <strong>KSh {projectedRetail.toLocaleString()}</strong> (Difference: KSh {(projectedRetail - retailPrice).toLocaleString()})
               </p>
             </div>
           )}
@@ -538,15 +493,13 @@ export const ProductPriceSettings: React.FC = () => {
           <div className="pt-2 border-t border-slate-100 space-y-3">
             <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
               <Scale className="w-4 h-4 text-emerald-600" />
-              {selectedCategory === 'Yarns' 
-                ? '2. Yarn Tare Deduction & Rate-per-KG (KGs)' 
-                : `2. ${selectedCategory} Roll Core Tare & Meter Packaging Deductions`}
+              2. Variable Tare Deduction &amp; Rate-per-KG
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  {selectedCategory === 'Yarns' ? 'Rate Per KG (KSh/kg)' : `Rate Per Meter (KSh/m)`}
+                  Rate Per KG (KSh/KG)
                 </label>
                 <input
                   type="number"
@@ -555,14 +508,11 @@ export const ProductPriceSettings: React.FC = () => {
                   onChange={e => setPricePerKgRate(Number(e.target.value) || 0)}
                   className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white outline-hidden"
                 />
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  {selectedCategory === 'Yarns' ? 'Scale pricing rate' : 'Linear meter rate'}
-                </span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  {selectedCategory === 'Yarns' ? 'Plastic Cone Tare (KG)' : 'Cardboard Roll Tube (KG)'}
+                  Cone Tare Weight (KG)
                 </label>
                 <input
                   type="number"
@@ -572,14 +522,11 @@ export const ProductPriceSettings: React.FC = () => {
                   onChange={e => setConeTareWeightKg(Number(e.target.value) || 0)}
                   className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white outline-hidden"
                 />
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  {selectedCategory === 'Yarns' ? 'e.g. 0.070 kg (70g) per cone' : 'Core tube weight per roll'}
-                </span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Bale / Outer Cover Tare (KG)
+                  Bale/Bag Tare (KG)
                 </label>
                 <input
                   type="number"
@@ -589,9 +536,6 @@ export const ProductPriceSettings: React.FC = () => {
                   onChange={e => setBaleTareWeightKg(Number(e.target.value) || 0)}
                   className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white outline-hidden"
                 />
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  Outer poly wrapping deduction
-                </span>
               </div>
             </div>
 
@@ -604,7 +548,7 @@ export const ProductPriceSettings: React.FC = () => {
                 className="w-4 h-4 rounded text-pink-600 accent-pink-600 cursor-pointer"
               />
               <label htmlFor="autoDeductTare" className="text-xs font-bold text-slate-700 cursor-pointer">
-                Auto-deduct tare weight at POS terminal when weighing scales are connected ({selectedCategory === 'Yarns' ? 'Deducts cone weight' : 'Deducts roll tube weight'})
+                Auto-deduct tare weight at POS terminal when weighing scales are connected
               </label>
             </div>
           </div>
@@ -614,140 +558,126 @@ export const ProductPriceSettings: React.FC = () => {
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
                 <Boxes className="w-4 h-4 text-indigo-700" />
-                3. {isFabricRollCategory ? 'Option 1: Roll & Loose Meter Discounting (Meters)' : '3. Yarn Packaging & Cone Bulk Rules (KGs)'}
+                3. Option 1: Roll &amp; Loose Meter Discounting (Wholesale Rolls + Discounted Cut)
               </h4>
-              {isFabricRollCategory && (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    id="enableHybrid"
-                    checked={enableHybridRollPricing}
-                    onChange={e => setEnableHybridRollPricing(e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 accent-indigo-600 cursor-pointer"
-                  />
-                  <label htmlFor="enableHybrid" className="text-xs font-bold text-indigo-900 cursor-pointer">
-                    Enabled for {selectedCategory}
-                  </label>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  id="enableHybrid"
+                  checked={enableHybridRollPricing}
+                  onChange={e => setEnableHybridRollPricing(e.target.checked)}
+                  className="w-4 h-4 rounded text-indigo-600 accent-indigo-600 cursor-pointer"
+                />
+                <label htmlFor="enableHybrid" className="text-xs font-bold text-indigo-900 cursor-pointer">
+                  Enabled for {selectedCategory}
+                </label>
+              </div>
             </div>
 
-            {isFabricRollCategory ? (
-              <>
-                <p className="text-[11px] text-indigo-800 leading-tight">
-                  When a client buys more than 1 roll in meters (e.g. 100m when standard roll is {standardRollLengthMeters}m), the full roll is billed at <strong>Wholesale (KSh {bulkPrice.toLocaleString()}/m)</strong> and the remaining cut meters are taken from a retail roll and discounted by <strong>{looseMeterDiscountPct}%</strong>.
-                </p>
+            <p className="text-[11px] text-indigo-800 leading-tight">
+              When a client buys more than 1 roll (e.g. 100m when a roll is 70m), the full roll is billed at <strong>Wholesale (KSh {bulkPrice.toLocaleString()}/m)</strong> and the remaining cut meters (30m) are taken from a retail roll and discounted by <strong>{looseMeterDiscountPct}%</strong>.
+            </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Standard Roll Length (Meters per Roll)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={standardRollLengthMeters}
-                      onChange={e => setStandardRollLengthMeters(Math.max(1, parseInt(e.target.value) || 1))}
-                      placeholder="e.g. 70 for Fleece, 50 for Dereck"
-                      className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-hidden"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Standard: 70m for Fleece rolls, 50m for Dereck rolls
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Loose Meter Cut Discount % (Option 1)
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="50"
-                        value={looseMeterDiscountPct}
-                        onChange={e => setLooseMeterDiscountPct(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-hidden"
-                      />
-                      <span className="text-xs font-bold text-indigo-900">%</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Discount applied strictly to the cut/loose meter portion
-                    </span>
-                  </div>
-                </div>
-
-                {/* Interactive Live Calculator */}
-                <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-200 space-y-2 text-xs">
-                  <div className="flex items-center justify-between border-b border-indigo-100 pb-1.5">
-                    <span className="font-bold text-indigo-900 flex items-center gap-1">
-                      <Calculator className="w-3.5 h-3.5 text-indigo-600" />
-                      Live Option 1 Meterage Breakdown
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500">Sample Length:</span>
-                      {[70, 100, 140, 175].map(qty => (
-                        <button
-                          key={qty}
-                          type="button"
-                          onClick={() => setCalcMeters(qty)}
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors ${
-                            calcMeters === qty
-                              ? 'bg-indigo-600 text-white'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          }`}
-                        >
-                          {qty}m
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const rollLength = standardRollLengthMeters || (selectedCategory === 'Fleece' ? 70 : 50);
-                    const rolls = Math.floor(calcMeters / rollLength);
-                    const loose = calcMeters % rollLength;
-                    const rollMtrs = rolls * rollLength;
-                    const discountedLooseRate = Math.round(retailPrice * (1 - looseMeterDiscountPct / 100));
-                    const rollCost = rollMtrs * bulkPrice;
-                    const looseCost = loose * discountedLooseRate;
-                    const totalOption1 = rollCost + looseCost;
-                    const fullRetailCost = calcMeters * retailPrice;
-                    const totalSavings = Math.max(0, fullRetailCost - totalOption1);
-
-                    return (
-                      <div className="space-y-1.5 text-[11px] font-mono">
-                        <div className="flex justify-between text-slate-700">
-                          <span>• Full Rolls ({rolls}x {rollLength}m = {rollMtrs}m @ Wholesale KSh {bulkPrice.toLocaleString()}/m):</span>
-                          <strong className="text-slate-900">KSh {rollCost.toLocaleString()}</strong>
-                        </div>
-                        {loose > 0 && (
-                          <div className="flex justify-between text-indigo-900">
-                            <span>• Loose Cut ({loose}m @ Retail KSh {retailPrice.toLocaleString()}/m - {looseMeterDiscountPct}% Disc = KSh {discountedLooseRate.toLocaleString()}/m):</span>
-                            <strong className="text-indigo-800">KSh {looseCost.toLocaleString()}</strong>
-                          </div>
-                        )}
-                        <div className="pt-1 border-t border-indigo-100 flex justify-between items-center text-xs font-bold font-sans">
-                          <span className="text-slate-900">Option 1 Billed Total:</span>
-                          <span className="text-indigo-900 font-mono font-black text-sm">KSh {totalOption1.toLocaleString()}</span>
-                        </div>
-                        <div className="text-[10px] text-emerald-700 font-sans font-bold flex items-center justify-between">
-                          <span>Customer Savings vs Pure Retail Cut:</span>
-                          <span>Saved KSh {totalSavings.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </>
-            ) : (
-              <div className="p-3 bg-white rounded-xl border border-indigo-200 text-xs text-indigo-900 space-y-1">
-                <p className="font-bold">⚖️ Yarns are measured in Net Kilograms (KGs)</p>
-                <p className="text-[11px] text-slate-600">
-                  Option 1 Hybrid Roll pricing is tailored for fabric bolts (Fleece &amp; Dereck). For Yarn cones, pricing is calculated directly on gross scale weight minus cone tare ({coneTareWeightKg} kg) multiplied by the rate of <strong>KSh {retailPrice.toLocaleString()} / kg</strong>.
-                </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Standard Roll Length (Meters per Roll)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={standardRollLengthMeters}
+                  onChange={e => setStandardRollLengthMeters(Math.max(1, parseInt(e.target.value) || 1))}
+                  placeholder="e.g. 70 for Fleece, 50 for Dereck"
+                  className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-hidden"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  e.g. 70m for Fleece Roll, 50m for Dereck
+                </span>
               </div>
-            )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Loose Meter Cut Discount % (Option 1)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={looseMeterDiscountPct}
+                    onChange={e => setLooseMeterDiscountPct(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
+                    className="w-full px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-hidden"
+                  />
+                  <span className="text-xs font-bold text-indigo-900">%</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Discount applied strictly to the cut/loose portion
+                </span>
+              </div>
+            </div>
+
+            {/* Interactive Live Calculator */}
+            <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-200 space-y-2 text-xs">
+              <div className="flex items-center justify-between border-b border-indigo-100 pb-1.5">
+                <span className="font-bold text-indigo-900 flex items-center gap-1">
+                  <Calculator className="w-3.5 h-3.5 text-indigo-600" />
+                  Live Option 1 Price Breakdown
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-slate-500">Sample Quantity:</span>
+                  {[70, 100, 140, 175].map(qty => (
+                    <button
+                      key={qty}
+                      type="button"
+                      onClick={() => setCalcMeters(qty)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer transition-colors ${
+                        calcMeters === qty
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {qty}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {(() => {
+                const rolls = Math.floor(calcMeters / (standardRollLengthMeters || 70));
+                const loose = calcMeters % (standardRollLengthMeters || 70);
+                const rollMtrs = rolls * (standardRollLengthMeters || 70);
+                const discountedLooseRate = Math.round(retailPrice * (1 - looseMeterDiscountPct / 100));
+                const rollCost = rollMtrs * bulkPrice;
+                const looseCost = loose * discountedLooseRate;
+                const totalOption1 = rollCost + looseCost;
+                const fullRetailCost = calcMeters * retailPrice;
+                const totalSavings = Math.max(0, fullRetailCost - totalOption1);
+
+                return (
+                  <div className="space-y-1.5 text-[11px] font-mono">
+                    <div className="flex justify-between text-slate-700">
+                      <span>• Full Rolls ({rolls}x {standardRollLengthMeters || 70}m = {rollMtrs}m @ Wholesale KSh {bulkPrice.toLocaleString()}):</span>
+                      <strong className="text-slate-900">KSh {rollCost.toLocaleString()}</strong>
+                    </div>
+                    {loose > 0 && (
+                      <div className="flex justify-between text-indigo-900">
+                        <span>• Loose Cut ({loose}m @ Retail KSh {retailPrice.toLocaleString()} - {looseMeterDiscountPct}% Disc = KSh {discountedLooseRate.toLocaleString()}/m):</span>
+                        <strong className="text-indigo-800">KSh {looseCost.toLocaleString()}</strong>
+                      </div>
+                    )}
+                    <div className="pt-1 border-t border-indigo-100 flex justify-between items-center text-xs font-bold font-sans">
+                      <span className="text-slate-900">Option 1 Billed Total:</span>
+                      <span className="text-indigo-900 font-mono font-black text-sm">KSh {totalOption1.toLocaleString()}</span>
+                    </div>
+                    <div className="text-[10px] text-emerald-700 font-sans font-bold flex items-center justify-between">
+                      <span>Customer Savings vs Pure Retail Cut:</span>
+                      <span>Saved KSh {totalSavings.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
 
           {/* Action Save Button */}
@@ -798,25 +728,21 @@ export const ProductPriceSettings: React.FC = () => {
             <div className="space-y-2.5 pt-2">
               <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-800">
                 <span className="text-slate-400 font-medium">Projected Retail Price:</span>
-                <span className="font-black text-pink-400 text-sm">
-                  KSh {projectedRetail.toLocaleString()} / {categoryUnitShort}
-                </span>
+                <span className="font-black text-pink-400 text-sm">KSh {projectedRetail.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-800">
                 <span className="text-slate-400 font-medium">Cost Price (COGS):</span>
-                <span className="font-bold text-slate-300">
-                  KSh {costPrice.toLocaleString()} / {categoryUnitShort}
-                </span>
+                <span className="font-bold text-slate-300">KSh {costPrice.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-800">
                 <span className="text-slate-400 font-medium">Gross Profit Per Unit:</span>
                 <span className="font-black text-emerald-400 text-sm">
-                  +KSh {(projectedRetail - costPrice).toLocaleString()} / {categoryUnitShort}
+                  +KSh {(projectedRetail - costPrice).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between items-center text-xs py-1.5">
                 <span className="text-slate-400 font-medium">Active Stock Inventory:</span>
-                <span className="font-bold text-slate-300">{totalCategoryStock.toLocaleString()} {categoryUnitPlural}</span>
+                <span className="font-bold text-slate-300">{totalCategoryStock.toLocaleString()} Units</span>
               </div>
             </div>
 
@@ -853,13 +779,12 @@ export const ProductPriceSettings: React.FC = () => {
             <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-xs">
               {filteredProducts.slice(0, 10).map(p => {
                 const isEditing = editingBatchId === p.id;
-                const itemUnit = p.unit || (p.category === 'Yarns' ? 'kg' : 'm');
                 return (
                   <div key={p.id} className="py-2 flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-bold text-slate-900 truncate">{p.name}</p>
                       <p className="text-[10px] text-slate-500 truncate font-mono">
-                        {p.sku} • {p.colorName} • Measured in {itemUnit === 'kg' ? 'Kilograms (kgs)' : 'Meters (m)'}
+                        {p.sku} • {p.colorName} • {p.unit}
                       </p>
                     </div>
 
@@ -892,7 +817,7 @@ export const ProductPriceSettings: React.FC = () => {
                     ) : (
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="font-black text-slate-900 font-mono">
-                          KSh {p.unitPriceRetail.toLocaleString()} <span className="text-[10px] text-slate-500 font-normal">/{itemUnit}</span>
+                          KSh {p.unitPriceRetail.toLocaleString()}
                         </span>
                         <button
                           type="button"

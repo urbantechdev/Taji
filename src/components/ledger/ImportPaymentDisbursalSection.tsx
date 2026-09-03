@@ -6,6 +6,7 @@ import {
   KRATaxDisbursement,
   ClearingForwardingDisbursement
 } from '../../types';
+import { ClearingAgentDirectoryModal } from '../clearing/ClearingAgentDirectoryModal';
 import {
   DollarSign,
   Receipt,
@@ -65,12 +66,13 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
   effectiveExchangeRate,
   onUpdateShipment
 }) => {
-  const { addLedgerEntry, brandSettings, currentUser } = useERP();
+  const { addLedgerEntry, brandSettings, currentUser, clearingAgents } = useERP();
 
   // Active state for recording modals
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [isKRAModalOpen, setIsKRAModalOpen] = useState(false);
   const [isClearingModalOpen, setIsClearingModalOpen] = useState(false);
+  const [isClearingDirectoryOpen, setIsClearingDirectoryOpen] = useState(false);
 
   // Local state for payment records if not already in shipment
   const totalInvoicedUSD = (totalFOB_USD + totalFreightUSD + (shipment.cocFeesUSD || 0)) || 55600.64;
@@ -654,7 +656,17 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
             {/* Logistics Cost Breakdown */}
             <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-400">
-                <span>Declarant Agent:</span>
+                <span className="flex items-center gap-1.5">
+                  <span>Declarant Agent:</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsClearingDirectoryOpen(true)}
+                    className="text-[10px] text-blue-400 hover:text-blue-300 underline font-semibold cursor-pointer"
+                    title="Open Clearing Agents Directory"
+                  >
+                    (Directory)
+                  </button>
+                </span>
                 <span className="font-bold text-slate-200 truncate max-w-[170px]" title={shipment.declarantName}>
                   {shipment.declarantName}
                 </span>
@@ -1144,6 +1156,49 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
             </div>
 
             <div className="space-y-4 text-xs">
+              {/* Registered Declarant Quick Selector */}
+              <div className="p-3 bg-slate-800/90 rounded-2xl border border-slate-700/90 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-300">
+                    Select Registered KRA Customs Declarant:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsClearingDirectoryOpen(true)}
+                    className="text-[11px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>+ Register / Manage Directory</span>
+                  </button>
+                </div>
+                <select
+                  value={clearingAgents.find(a => a.name === clearingForm.declarantName)?.id || ''}
+                  onChange={(e) => {
+                    const selected = clearingAgents.find(a => a.id === e.target.value);
+                    if (selected) {
+                      const stdFee = selected.standardAgencyFeeKES || 35000;
+                      const wharfage = selected.cfsPortWharfageKES || 65000;
+                      setClearingForm(prev => ({
+                        ...prev,
+                        declarantName: selected.name,
+                        declarantPin: selected.kraPin,
+                        declarantAgencyFeeKES: stdFee,
+                        cfsPortWharfageKES: wharfage,
+                        amountKES: stdFee + wharfage + prev.shippingLineDemurrageKES + prev.inlandTransportSgrKES
+                      }));
+                    }
+                  }}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="">-- Select from Registered Clearing Agents ({clearingAgents.length}) --</option>
+                  {clearingAgents.map(agent => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} (PIN: {agent.kraPin} {agent.declarantCode ? `• ${agent.declarantCode}` : ''})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-slate-400 font-bold mb-1">
@@ -1297,6 +1352,24 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
           </div>
         </div>
       )}
+      {/* Clearing & Forwarding Agents Master Directory Modal */}
+      <ClearingAgentDirectoryModal
+        isOpen={isClearingDirectoryOpen}
+        onClose={() => setIsClearingDirectoryOpen(false)}
+        onSelectClearingAgent={(agent) => {
+          const stdFee = agent.standardAgencyFeeKES || 35000;
+          const wharfage = agent.cfsPortWharfageKES || 65000;
+          setClearingForm(prev => ({
+            ...prev,
+            declarantName: agent.name,
+            declarantPin: agent.kraPin,
+            declarantAgencyFeeKES: stdFee,
+            cfsPortWharfageKES: wharfage,
+            amountKES: stdFee + wharfage + prev.shippingLineDemurrageKES + prev.inlandTransportSgrKES
+          }));
+          setIsClearingDirectoryOpen(false);
+        }}
+      />
     </div>
   );
 };

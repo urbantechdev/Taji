@@ -15,11 +15,8 @@ import {
   Upload,
   Globe,
   Database,
-  Radio,
-  ShieldAlert,
-  AlertTriangle
+  Radio
 } from 'lucide-react';
-import { DataWipeConfirmationModal } from './DataWipeConfirmationModal';
 import {
   playClickSound,
   playSuccessSound,
@@ -62,7 +59,6 @@ export const GeneralPlatformSettings: React.FC = () => {
   // Feedback & sync state
   const [isSyncing, setIsSyncing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -436,47 +432,9 @@ export const GeneralPlatformSettings: React.FC = () => {
             </button>
           </div>
 
-          {/* 4. Enterprise Data Wipe & Reset */}
-          <div className="bg-rose-50/80 border-2 border-rose-200 rounded-2xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-rose-900">
-                <Trash2 className="w-5 h-5 text-rose-600" />
-                <h4 className="text-xs font-black uppercase tracking-wider">
-                  4. Enterprise Data Wipe
-                </h4>
-              </div>
-              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-200 text-rose-800 border border-rose-300">
-                Admin Only
-              </span>
-            </div>
-
-            <p className="text-xs text-rose-900/90 leading-relaxed font-medium">
-              Permanently wipe system data (orders, ledger, fabric rolls, products, and cloud caches). Requires answering a safety challenge prompt before execution.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                playClickSound();
-                setIsWipeModalOpen(true);
-              }}
-              className="w-full py-2.5 bg-rose-700 hover:bg-rose-800 text-white rounded-xl text-xs font-black transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <AlertTriangle className="w-4 h-4" />
-              <span>Initiate Data Wipe &amp; Safety Prompt</span>
-            </button>
-          </div>
-
         </div>
 
       </div>
-
-      {/* Interactive Data Wipe Confirmation Prompt Modal */}
-      <DataWipeConfirmationModal
-        isOpen={isWipeModalOpen}
-        onClose={() => setIsWipeModalOpen(false)}
-        onSuccess={(msg) => setStatusMessage({ type: 'success', text: msg })}
-      />
     </div>
   );
 };

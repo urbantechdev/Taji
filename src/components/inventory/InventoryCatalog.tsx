@@ -16,7 +16,8 @@ import { DuplicateAuditModal } from './DuplicateAuditModal';
 import { StocktakeDashboard } from './StocktakeDashboard';
 import { InwardInvoiceIntakeModal } from './InwardInvoiceIntakeModal';
 import { SupplierDirectoryModal } from '../suppliers/SupplierDirectoryModal';
-import { Supplier } from '../../types';
+import { ClearingAgentDirectoryModal } from '../clearing/ClearingAgentDirectoryModal';
+import { Supplier, ClearingAgent } from '../../types';
 import {
   Boxes,
   Layers,
@@ -114,6 +115,7 @@ export const InventoryCatalog: React.FC = () => {
 
   // Supplier Registry & Inward Consignment Intake States
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [isClearingAgentModalOpen, setIsClearingAgentModalOpen] = useState(false);
   const [isInwardInvoiceModalOpen, setIsInwardInvoiceModalOpen] = useState(false);
   const [selectedSupplierForInvoice, setSelectedSupplierForInvoice] = useState<Supplier | undefined>(undefined);
 
@@ -593,6 +595,17 @@ export const InventoryCatalog: React.FC = () => {
               >
                 <Building2 className="w-3.5 h-3.5 text-rose-600" />
                 <span>Suppliers</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-open-clearing-directory"
+                onClick={() => setIsClearingAgentModalOpen(true)}
+                className="px-2.5 py-1.5 hover:bg-blue-50 text-blue-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Open KRA Customs Clearing Agents & Declarants Directory"
+              >
+                <Truck className="w-3.5 h-3.5 text-blue-600" />
+                <span>Clearing Agents</span>
               </button>
 
               {canAdd && (
@@ -1838,6 +1851,12 @@ export const InventoryCatalog: React.FC = () => {
           setSelectedSupplierForInvoice(sup);
           setIsInwardInvoiceModalOpen(true);
         }}
+      />
+
+      {/* Clearing & Forwarding Agents Master Directory Modal */}
+      <ClearingAgentDirectoryModal
+        isOpen={isClearingAgentModalOpen}
+        onClose={() => setIsClearingAgentModalOpen(false)}
       />
 
       {/* Inward Consignment & Invoice Intake Wizard Modal */}

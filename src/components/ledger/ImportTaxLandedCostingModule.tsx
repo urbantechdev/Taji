@@ -49,8 +49,9 @@ import {
   Truck,
   Building2
 } from 'lucide-react';
-import { Supplier } from '../../types';
+import { Supplier, ClearingAgent } from '../../types';
 import { SupplierDirectoryModal } from '../suppliers/SupplierDirectoryModal';
+import { ClearingAgentDirectoryModal } from '../clearing/ClearingAgentDirectoryModal';
 import { InwardInvoiceIntakeModal } from '../inventory/InwardInvoiceIntakeModal';
 import { DocumentOCRParserModal } from './DocumentOCRParserModal';
 import { ThreeWayWeightMatchingTab } from './ThreeWayWeightMatchingTab';
@@ -78,6 +79,7 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
 
   // Supplier Registry & Inward Invoice Intake Modals
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [isClearingAgentModalOpen, setIsClearingAgentModalOpen] = useState(false);
   const [isInwardInvoiceModalOpen, setIsInwardInvoiceModalOpen] = useState(false);
   const [selectedSupplierForInvoice, setSelectedSupplierForInvoice] = useState<Supplier | undefined>(undefined);
 
@@ -439,6 +441,17 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                 >
                   <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span>Suppliers</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-tax-clearing-agents"
+                  onClick={() => setIsClearingAgentModalOpen(true)}
+                  className="px-2.5 py-1.5 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  title="Open Clearing & Forwarding Declarants Directory"
+                >
+                  <Truck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>Clearing Agents</span>
                 </button>
 
                 <button
@@ -1901,6 +1914,21 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         onSelectSupplierForInvoice={(sup) => {
           setSelectedSupplierForInvoice(sup);
           setIsInwardInvoiceModalOpen(true);
+        }}
+      />
+
+      {/* Clearing & Forwarding Agents Master Directory Modal */}
+      <ClearingAgentDirectoryModal
+        isOpen={isClearingAgentModalOpen}
+        onClose={() => setIsClearingAgentModalOpen(false)}
+        onSelectClearingAgent={(agent) => {
+          setActiveShipment(prev => ({
+            ...prev,
+            declarantName: agent.name,
+            declarantPin: agent.kraPin,
+            portClearingFeesKES: (agent.standardAgencyFeeKES || 35000) + (agent.cfsPortWharfageKES || 65000)
+          }));
+          setIsClearingAgentModalOpen(false);
         }}
       />
 
