@@ -31,7 +31,12 @@ import {
   ImportShipmentRecord,
   ImportShipmentSummary,
   LocalPurchaseRecord,
-  ComputedLocalPurchaseSummary
+  ComputedLocalPurchaseSummary,
+  SupplierUSDDisbursement,
+  KRATaxDisbursement,
+  ClearingForwardingDisbursement,
+  SupplierDebitNoteRecord,
+  StaffMember
 } from '../types';
 
 // Helper to trigger direct file download for CSV
@@ -1572,6 +1577,245 @@ export function exportUnifiedPayrollTaxPDF(payroll: PayrollRecord[], etrConfig: 
   });
 
   doc.save(`KRA_Unified_Payroll_Statutory_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+/**
+ * Export Individual Employee Payslip (Official A4 Portrait PDF)
+ * Complete with KRA PIN, Statutory Remittance Breakdown, Employer Matching, and Signature Blocks
+ */
+export function exportIndividualPayslipPDF(
+  payroll: PayrollRecord,
+  staffMember?: StaffMember,
+  etrConfig?: ETRConfig,
+  brandSettings?: BrandSettings,
+  locations?: LocationInfo[]
+) {
+  const doc = new jsPDF('portrait', 'pt', 'a4');
+  const width = 595;
+
+  const resolvedBranch = locations?.find(l => l.id === payroll.locationId)?.name || payroll.locationId || 'Head Office';
+  const companyName = brandSettings?.brandName || etrConfig?.companyName || 'TAJI TEXTILE & GARMENT SOLUTIONS LTD';
+  const taxPin = etrConfig?.taxPin || 'P051982341Z';
+
+  // 1. Header with corporate branding
+  const startY = renderDocumentHeaderWithBrand(doc, {
+    title: 'OFFICIAL EMPLOYEE PAYSLIP',
+    subtitle: 'Confidential Statutory Remittance & Tax Voucher',
+    docNumber: `PAY-${payroll.employeeNo}-${payroll.monthYear.replace(/\s+/g, '')}`,
+    docDate: payroll.generatedAt || new Date().toISOString(),
+    branchName: resolvedBranch,
+    themeColor: [225, 29, 72], // Rose 600
+    badgeText: 'CONFIDENTIAL PAYSLIP',
+    brandSettings,
+    etrConfig,
+    pageWidth: width
+  });
+
+  let currentY = startY + 12;
+
+  // 2. Employee & Statutory Particulars Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(40, currentY, width - 80, 80, 6, 6, 'FD');
+
+  // Left Column: Identity
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('EMPLOYEE PARTICULARS', 52, currentY + 16);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Employee Name:', 52, currentY + 30);
+  doc.text('Employee Number:', 52, currentY + 43);
+  doc.text('Designation / Role:', 52, currentY + 56);
+  doc.text('Station / Branch:', 52, currentY + 69);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(payroll.staffName || 'Staff Member', 135, currentY + 30);
+  doc.text(payroll.employeeNo || 'N/A', 135, currentY + 43);
+  doc.text(payroll.role || 'Staff', 135, currentY + 56);
+  doc.text(resolvedBranch, 135, currentY + 69);
+
+  // Center Column: Statutory Numbers
+  const centerColX = 295;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('STATUTORY REGISTRATIONS', centerColX, currentY + 16);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text('KRA Tax PIN:', centerColX, currentY + 30);
+  doc.text('National ID / Passport:', centerColX, currentY + 43);
+  doc.text('NSSF Pension No:', centerColX, currentY + 56);
+  doc.text('SHIF / NHIF Code:', centerColX, currentY + 69);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(staffMember?.kraPin || 'P051189234R', centerColX + 90, currentY + 30);
+  doc.text(staffMember?.idNumber || 'ID-29184021', centerColX + 90, currentY + 43);
+  doc.text(staffMember?.nssfNo || 'NSF-892104', centerColX + 90, currentY + 56);
+  doc.text(staffMember?.nhifNo || 'SHIF-940182', centerColX + 90, currentY + 69);
+
+  // Right Column: Disbursal / Period
+  const rightColX = 430;
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(rightColX, currentY + 10, 115, 60, 4, 4, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('PAYSLIP PERIOD', rightColX + 8, currentY + 23);
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text(payroll.monthYear, rightColX + 8, currentY + 37);
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('DISBURSAL STATUS', rightColX + 8, currentY + 50);
+  doc.setTextColor(16, 185, 129); // Emerald
+  doc.text('PAID (Direct Disbursal)', rightColX + 8, currentY + 62);
+
+  currentY += 92;
+
+  // 3. Side-by-Side Earnings and Deductions Tables
+  // Left: Earnings Table
+  const halfWidth = (width - 80 - 15) / 2; // ~250 pt each
+
+  const basicSalary = payroll.basicSalary || (payroll.grossPay - (payroll.allowances || 0));
+  const houseAllowance = Math.round((payroll.allowances || 0) * 0.6);
+  const commuterAllowance = (payroll.allowances || 0) - houseAllowance;
+
+  const earningsRows: [string, string][] = [
+    ['Basic Salary', basicSalary.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['Housing Allowance', houseAllowance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['Commuter / Transport Allowance', commuterAllowance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['Overtime / Duty Allowances', '0.00'],
+    ['TOTAL GROSS EARNINGS', payroll.grossPay.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })]
+  ];
+
+  const deductionsRows: [string, string][] = [
+    ['KRA PAYE Income Tax', payroll.payeTax.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['Affordable Housing Levy (1.5%)', payroll.housingLevy.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['NSSF Pension (Tier I & Tier II)', payroll.nssfDeduction.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['SHIF Health Insurance (2.75%)', payroll.nhifDeduction.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+    ['TOTAL STATUTORY DEDUCTIONS', payroll.totalDeductions.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })]
+  ];
+
+  // Render Earnings
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40 },
+    tableWidth: halfWidth,
+    head: [['EARNINGS & ALLOWANCES', 'AMOUNT (KSh)']],
+    body: earningsRows.slice(0, 4),
+    foot: [[earningsRows[4][0], earningsRows[4][1]]],
+    theme: 'grid',
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 4.5 },
+    columnStyles: { 0: { cellWidth: 160 }, 1: { halign: 'right', cellWidth: 90, fontStyle: 'bold' } }
+  });
+
+  // Render Deductions
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40 + halfWidth + 15 },
+    tableWidth: halfWidth,
+    head: [['STATUTORY DEDUCTIONS', 'AMOUNT (KSh)']],
+    body: deductionsRows.slice(0, 4),
+    foot: [[deductionsRows[4][0], deductionsRows[4][1]]],
+    theme: 'grid',
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 4.5 },
+    columnStyles: { 0: { cellWidth: 160 }, 1: { halign: 'right', cellWidth: 90, fontStyle: 'bold' } }
+  });
+
+  currentY += 135;
+
+  // 4. Prominent Net Pay Highlight Box
+  doc.setFillColor(15, 23, 42); // Deep Navy Slate
+  doc.roundedRect(40, currentY, width - 80, 48, 6, 6, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.text('NET SALARY PAYABLE (TAKE HOME PAY)', 55, currentY + 20);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  const paymentChannel = staffMember?.bankAccountName
+    ? `Disbursed via ${staffMember.bankAccountName} (A/C: ${staffMember.bankAccountNumber || 'Direct EFT'})`
+    : staffMember?.mpesaNumber
+    ? `Disbursed via M-Pesa B2C Bulk Payroll (${staffMember.mpesaNumber})`
+    : 'Direct Bank Electronic Funds Transfer (EFT)';
+  doc.text(paymentChannel, 55, currentY + 34);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(52, 211, 153); // Emerald 400
+  doc.text(`KSh ${payroll.netPay.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, width - 55, currentY + 30, { align: 'right' });
+
+  currentY += 60;
+
+  // 5. Statutory Compliance & Employer Remittances Box (Audit Memorandum)
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, currentY, width - 80, 52, 5, 5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 41, 59);
+  doc.text('KENYA STATUTORY AUDIT & EMPLOYER REMITTANCE MEMORANDUM', 52, currentY + 14);
+
+  const nssfEmployer = payroll.nssfEmployer || payroll.nssfDeduction;
+  const housingLevyEmployer = payroll.housingLevyEmployer || payroll.housingLevy;
+  const personalRelief = payroll.personalRelief || 2400;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`• Employer NSSF Matching (Tier I & II): KSh ${nssfEmployer.toLocaleString()}`, 52, currentY + 27);
+  doc.text(`• Employer Housing Levy (1.5% Match): KSh ${housingLevyEmployer.toLocaleString()}`, 52, currentY + 40);
+
+  doc.text(`• KRA Monthly Personal Relief: KSh ${personalRelief.toLocaleString()}`, 310, currentY + 27);
+  doc.text(`• Total Statutory Remittance to Govt: KSh ${(payroll.payeTax + payroll.housingLevy * 2 + payroll.nssfDeduction * 2 + payroll.nhifDeduction).toLocaleString()}`, 310, currentY + 40);
+
+  currentY += 64;
+
+  // 6. Bank Details & Employee Sign-off Footer
+  doc.setDrawColor(203, 213, 225);
+  doc.line(40, currentY + 35, 230, currentY + 35);
+  doc.line(width - 230, currentY + 35, width - 40, currentY + 35);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text('EMPLOYEE ACKNOWLEDGEMENT', 40, currentY + 45);
+  doc.text('AUTHORIZED HR & PAYROLL CONTROLLER', width - 230, currentY + 45);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text('Signature & Acceptance Date', 40, currentY + 54);
+  doc.text(`For ${companyName} - ETR/TIMS Verified`, width - 230, currentY + 54);
+
+  // Bottom Notice
+  doc.setFontSize(6.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    `CONFIDENTIAL DOCUMENT: Intended strictly for ${payroll.staffName} (${payroll.employeeNo}). Generated via Taji ERP on ${new Date().toLocaleDateString('en-GB')}.`,
+    width / 2,
+    810,
+    { align: 'center' }
+  );
+
+  doc.save(`Official_Payslip_${payroll.employeeNo}_${payroll.monthYear.replace(/\s+/g, '_')}.pdf`);
 }
 
 // --------------------------------------------------------------------------
@@ -5697,5 +5941,1002 @@ export function exportLocalPurchaseCostingCSV(
 
   downloadCSV(`LPS_Costing_${purchase.purchaseOrderNo}.csv`, csvContent);
 }
+
+/**
+ * Generates an official Bank Swift / Telegraphic Transfer (TT) Remittance Advice PDF (USD Overseas Supplier)
+ */
+export function exportSupplierUSDSwiftVoucherPDF(
+  shipment: ImportShipmentRecord,
+  payment: SupplierUSDDisbursement,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = 40;
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // Slate 900
+  doc.rect(40, currentY, pageWidth - 80, 52, 'F');
+
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('FOREIGN CURRENCY TELEGRAPHIC TRANSFER (TT) / SWIFT ADVICE', 55, currentY + 26);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Swift Ref: ${payment.swiftMt103Ref}`, pageWidth - 190, currentY + 20);
+  doc.text(`Value Date: ${payment.paymentDate}`, pageWidth - 190, currentY + 34);
+  doc.text(`Invoice: ${shipment.invoiceNumber}`, pageWidth - 190, currentY + 46);
+
+  currentY += 68;
+
+  // Beneficiary & Ordering Customer Grid
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    theme: 'plain',
+    styles: { fontSize: 8, cellPadding: 3 },
+    body: [
+      [
+        { content: 'ORDERING CUSTOMER (IMPORTER):', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } },
+        { content: 'BENEFICIARY (OVERSEAS SUPPLIER):', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } }
+      ],
+      [
+        `Company: ${shipment.consigneeName}\nPIN: ${shipment.consigneePin}\nDebit Source: ${payment.sourceAccountLabel}\nFX Spot Rate: KES ${payment.exchangeRateActual.toFixed(2)} / USD`,
+        `Beneficiary: ${payment.beneficiaryName}\nBank: ${payment.beneficiaryBank}\nIBAN/Account: ${payment.beneficiaryIbanOrAccount}\nInvoice Ref: ${shipment.invoiceNumber} (${shipment.supplierCountry})`
+      ]
+    ]
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 12;
+
+  // Payment Amount Summary Card
+  doc.setFillColor(240, 253, 244); // Emerald 50
+  doc.setDrawColor(187, 247, 208);
+  doc.rect(40, currentY, pageWidth - 80, 50, 'FD');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(22, 101, 52);
+  doc.text('REMITTED CURRENCY AMOUNT (USD)', 55, currentY + 18);
+  doc.text('KES EQUIVALENT DEBIT', 260, currentY + 18);
+  doc.text('CORRESPONDENT CHARGES', 430, currentY + 18);
+
+  doc.setFontSize(13);
+  doc.text(`$${payment.amountUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`, 55, currentY + 36);
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`KSh ${payment.amountKESEquivalent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 260, currentY + 36);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`$${payment.bankChargesUSD.toFixed(2)} (${payment.chargeBorneBy})`, 430, currentY + 36);
+
+  currentY += 65;
+
+  // General Ledger Double Entry Posting Box
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('DOUBLE-ENTRY GENERAL LEDGER DISBURSEMENT VOUCHER:', 40, currentY);
+  currentY += 8;
+
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    head: [['Account Code & Name', 'Debit (KES)', 'Credit (KES)', 'Classification & Currency Note']],
+    body: [
+      [
+        '2010 - Accounts Payable (Overseas Suppliers)',
+        `KSh ${payment.amountKESEquivalent.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        '-',
+        `Settlement of FOB Invoice ${shipment.invoiceNumber} ($${payment.amountUSD.toLocaleString()} USD)`
+      ],
+      [
+        '1020 - USD Forex Nostro Bank Account / Forex Spot',
+        '-',
+        `KSh ${payment.amountKESEquivalent.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        `Outflow from ${payment.sourceAccountLabel} @ ${payment.exchangeRateActual.toFixed(2)} FX`
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [15, 23, 42], fontSize: 7.5 },
+    styles: { fontSize: 7.5, cellPadding: 4 }
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 30;
+
+  // Signatures
+  doc.setDrawColor(203, 213, 225);
+  doc.line(40, currentY + 25, 200, currentY + 25);
+  doc.line(pageWidth - 200, currentY + 25, pageWidth - 40, currentY + 25);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Prepared By: Treasury & FX Officer', 40, currentY + 37);
+  doc.text('Authorized By: Managing Director / CFO', pageWidth - 200, currentY + 37);
+
+  doc.save(`Swift_Remittance_${shipment.invoiceNumber}_${payment.swiftMt103Ref}.pdf`);
+}
+
+/**
+ * Generates an official KRA Customs Tax Assessment & E-Slip Payment Voucher PDF (KES)
+ */
+export function exportKRATaxPaymentVoucherPDF(
+  shipment: ImportShipmentRecord,
+  payment: KRATaxDisbursement,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = 40;
+
+  // Header Banner
+  doc.setFillColor(159, 18, 57); // Rose 900
+  doc.rect(40, currentY, pageWidth - 80, 52, 'F');
+
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('KRA CUSTOMS DUTIES & TAXES PAYMENT RECEIPT / E-SLIP VOUCHER', 55, currentY + 26);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`E-Slip PRN: ${payment.kraEslipNumber}`, pageWidth - 190, currentY + 20);
+  doc.text(`Customs Entry: ${payment.customsEntryNo}`, pageWidth - 190, currentY + 34);
+  doc.text(`Date Paid: ${payment.paymentDate}`, pageWidth - 190, currentY + 46);
+
+  currentY += 68;
+
+  // Tax Assessment Breakdown Matrix
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    head: [['Tax Head Code', 'KRA Revenue Description', 'Statutory Rate', 'Amount Paid (KES)']],
+    body: [
+      ['1002', 'Customs Import Duty (EAC CET)', `${shipment.adValoremRatePct}% or specific`, `KSh ${payment.duty1002KES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      ['1801', 'Import Declaration Fee (IDF)', '2.5% on CIF', `KSh ${payment.idf1801KES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      ['6001', 'Railway Development Levy (RDL)', '2.0% on CIF', `KSh ${payment.rdl6001KES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      ['1202', 'Value Added Tax on Imports (VAT-3 Sec B Claimable)', '16.0% on (CIF+Duty+IDF+RDL)', `KSh ${payment.vat1202KES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      ['6401', 'Merchant Shipping Superintendent (MSS) Levy', 'USD 1.75 / Tonne', `KSh ${payment.mss6401KES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      [
+        { content: 'TOTAL KRA CUSTOMS TAXES DISBURSED:', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [254, 242, 242] } },
+        { content: `KSh ${payment.amountKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', textColor: [159, 18, 57], fillColor: [254, 242, 242] } }
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [159, 18, 57], fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 }
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 15;
+
+  // Payment Confirmation Box
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    theme: 'plain',
+    styles: { fontSize: 8, cellPadding: 3 },
+    body: [
+      [
+        { content: 'BANK & GATEWAY PAYMENT CONFIRMATION:', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } },
+        { content: 'IMPORTER & DECLARANT INFO:', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } }
+      ],
+      [
+        `Payment Portal: ${payment.bankPaymentPortalLabel}\nBank Reference: ${payment.bankTransactionRef}\nPayment Date: ${payment.paymentDate}\nStatus: Direct Settled via CBK G-Tax`,
+        `Importer: ${shipment.consigneeName} (PIN: ${shipment.consigneePin})\nDeclarant: ${shipment.declarantName} (PIN: ${shipment.declarantPin})\nPort of Entry: ${shipment.portOfEntry}\nCustoms SAD Ref: ${payment.customsEntryNo}`
+      ]
+    ]
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 25;
+
+  // Signatures
+  doc.setDrawColor(203, 213, 225);
+  doc.line(40, currentY + 25, 200, currentY + 25);
+  doc.line(pageWidth - 200, currentY + 25, pageWidth - 40, currentY + 25);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Cleared By: KRA Customs Authorized Officer', 40, currentY + 37);
+  doc.text('Confirmed By: Chief Financial Accountant', pageWidth - 200, currentY + 37);
+
+  doc.save(`KRA_Tax_Payment_${payment.customsEntryNo}_${payment.kraEslipNumber}.pdf`);
+}
+
+/**
+ * Generates an official Clearing & Forwarding Logistics Disbursal Voucher PDF (KES)
+ */
+export function exportClearingLogisticsVoucherPDF(
+  shipment: ImportShipmentRecord,
+  payment: ClearingForwardingDisbursement,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = 40;
+
+  // Header Banner
+  doc.setFillColor(30, 58, 138); // Blue 900
+  doc.rect(40, currentY, pageWidth - 80, 52, 'F');
+
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('CLEARING & FORWARDING LOGISTICS DISBURSEMENT VOUCHER', 55, currentY + 26);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Agent Inv: ${payment.agentInvoiceRef}`, pageWidth - 190, currentY + 20);
+  doc.text(`Payment Ref: ${payment.paymentRefNo}`, pageWidth - 190, currentY + 34);
+  doc.text(`Date: ${payment.paymentDate}`, pageWidth - 190, currentY + 46);
+
+  currentY += 68;
+
+  // Itemized Logistics Expenses Table
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    head: [['Line Item / Logistics Description', 'Service Provider / Entity', 'Amount (KES)']],
+    body: [
+      ['Declarant Agency & Documentation Fee', `${payment.declarantName} (PIN ${payment.declarantPin})`, `KSh ${payment.declarantAgencyFeeKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      ['KPA Port CFS Wharfage & Offloading Handling', 'Kenya Ports Authority / Inland Container Depot (ICD)', `KSh ${payment.cfsPortWharfageKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      ['Shipping Line Delivery Order (DO) & Container Demurrage', 'Ocean Carrier / Shipping Line Agency', `KSh ${payment.shippingLineDemurrageKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      ['Inland Transport & SGR Railage / Trucking (Mombasa - Nairobi)', 'SGR Rail Freight / Local Transporter', `KSh ${payment.inlandTransportSgrKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+      [
+        { content: 'TOTAL LOGISTICS & CLEARING DISBURSED:', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right', fillColor: [239, 246, 255] } },
+        { content: `KSh ${payment.amountKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', textColor: [30, 58, 138], fillColor: [239, 246, 255] } }
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [30, 58, 138], fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 4 }
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 15;
+
+  // Payment Confirmation Box
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    theme: 'plain',
+    styles: { fontSize: 8, cellPadding: 3 },
+    body: [
+      [
+        { content: 'PAYMENT DISBURSEMENT DETAILS:', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } },
+        { content: 'CLEARING AGENT PROFILE:', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } }
+      ],
+      [
+        `Payment Method: ${payment.paymentMethod}\nSource Bank: ${payment.sourceBankName}\nTransaction Ref: ${payment.paymentRefNo}\nPayment Date: ${payment.paymentDate}`,
+        `Declarant: ${payment.declarantName}\nAgent PIN: ${payment.declarantPin}\nAgent Invoice Ref: ${payment.agentInvoiceRef}\nShipment Ref: ${shipment.shipmentNumber}`
+      ]
+    ]
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 25;
+
+  // Signatures
+  doc.setDrawColor(203, 213, 225);
+  doc.line(40, currentY + 25, 200, currentY + 25);
+  doc.line(pageWidth - 200, currentY + 25, pageWidth - 40, currentY + 25);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Prepared By: Logistics Coordinator', 40, currentY + 37);
+  doc.text('Approved By: Finance Manager', pageWidth - 200, currentY + 37);
+
+  doc.save(`Clearing_Disbursement_${payment.agentInvoiceRef}_${payment.paymentRefNo}.pdf`);
+}
+
+/**
+ * Generates an official Bank Swift / Telegraphic Transfer (TT) Remittance Advice CSV (USD Overseas Supplier)
+ */
+export function exportSupplierUSDSwiftVoucherCSV(
+  shipment: ImportShipmentRecord,
+  payment: SupplierUSDDisbursement
+) {
+  const summaryHeader = [
+    ['SWIFT TELEGRAPHIC TRANSFER (TT) PAYMENT ADVICE - OVERSEAS SUPPLIER', ''],
+    ['Invoice Number', `"${shipment.invoiceNumber}"`],
+    ['Swift MT103 Ref', `"${payment.swiftMt103Ref}"`],
+    ['Payment Date', `"${payment.paymentDate}"`],
+    ['Beneficiary Name', `"${payment.beneficiaryName}"`],
+    ['Beneficiary Bank', `"${payment.beneficiaryBank}"`],
+    ['Beneficiary IBAN/Account', `"${payment.beneficiaryIbanOrAccount}"`],
+    ['Source Debit Account', `"${payment.sourceAccountLabel}"`],
+    ['Remitted Amount (USD)', payment.amountUSD.toFixed(2)],
+    ['Bank Spot Exchange Rate (KES/USD)', payment.exchangeRateActual.toFixed(4)],
+    ['Debit Amount Equivalent (KES)', payment.amountKESEquivalent.toFixed(2)],
+    ['Correspondent Bank Charges (USD)', payment.bankChargesUSD.toFixed(2)],
+    ['Charges Borne By', `"${payment.chargeBorneBy}"`],
+    ['Consignee / Importer', `"${shipment.consigneeName}"`],
+    ['Consignee PIN', `"${shipment.consigneePin}"`],
+    ['Country of Origin', `"${shipment.supplierCountry}"`],
+    ['GL Debit Account', '"2010 - Accounts Payable (Overseas Suppliers)"'],
+    ['GL Credit Account', '"1020 - USD Forex Nostro Bank Account"'],
+    ['Status', `"${payment.status.toUpperCase()}"`],
+    ['', '']
+  ];
+
+  const headers = [
+    'Field',
+    'Value',
+    'Currency',
+    'Notes'
+  ];
+
+  const rows = [
+    ['Principal Remittance', payment.amountUSD.toFixed(2), 'USD', `Invoice ${shipment.invoiceNumber}`],
+    ['Spot FX Rate', payment.exchangeRateActual.toFixed(4), 'KES/USD', 'Bank Spot Settled'],
+    ['KES Outflow Equivalent', payment.amountKESEquivalent.toFixed(2), 'KES', 'Domestic Bank Account Outflow'],
+    ['Correspondent Charges', payment.bankChargesUSD.toFixed(2), 'USD', `Swift Fee (${payment.chargeBorneBy})`],
+    ['Total USD Cost', (payment.amountUSD + (payment.chargeBorneBy === 'OUR' ? payment.bankChargesUSD : 0)).toFixed(2), 'USD', 'Total Capitalized / Settled Outflow']
+  ];
+
+  const csvContent = [
+    ...summaryHeader.map(r => r.join(',')),
+    headers.join(','),
+    ...rows.map(r => r.map(cell => typeof cell === 'string' && !cell.startsWith('"') ? `"${cell}"` : cell).join(','))
+  ].join('\n');
+
+  downloadCSV(`Swift_Remittance_${shipment.invoiceNumber}_${payment.swiftMt103Ref}.csv`, csvContent);
+}
+
+/**
+ * Generates an official KRA Customs Tax Assessment & E-Slip Payment Voucher CSV (KES)
+ */
+export function exportKRATaxPaymentVoucherCSV(
+  shipment: ImportShipmentRecord,
+  payment: KRATaxDisbursement
+) {
+  const summaryHeader = [
+    ['KENYA REVENUE AUTHORITY (KRA) CUSTOMS TAX DISBURSAL & E-SLIP VOUCHER', ''],
+    ['Shipment Ref', `"${shipment.shipmentNumber}"`],
+    ['Commercial Invoice', `"${shipment.invoiceNumber}"`],
+    ['Customs Entry (SAD)', `"${payment.customsEntryNo}"`],
+    ['KRA E-Slip PRN', `"${payment.kraEslipNumber}"`],
+    ['Payment Date', `"${payment.paymentDate}"`],
+    ['Payment Portal', `"${payment.bankPaymentPortalLabel}"`],
+    ['Bank Transaction Ref', `"${payment.bankTransactionRef}"`],
+    ['Importer Name', `"${shipment.consigneeName}"`],
+    ['Importer PIN', `"${shipment.consigneePin}"`],
+    ['Declarant Agent', `"${shipment.declarantName}"`],
+    ['Declarant PIN', `"${shipment.declarantPin}"`],
+    ['Port of Entry', `"${shipment.portOfEntry}"`],
+    ['Status', `"${payment.status.toUpperCase()}"`],
+    ['', '']
+  ];
+
+  const headers = [
+    'Tax Head Code',
+    'KRA Revenue Description',
+    'Statutory Rate / Rule',
+    'Amount Paid (KES)',
+    'Accounting Classification'
+  ];
+
+  const rows = [
+    ['1002', '"Customs Import Duty (EAC CET)"', `"${shipment.adValoremRatePct}% or specific"`, payment.duty1002KES.toFixed(2), '"Asset Capitalization (Inventory)"'],
+    ['1801', '"Import Declaration Fee (IDF)"', '"2.5% on CIF"', payment.idf1801KES.toFixed(2), '"Asset Capitalization (Inventory)"'],
+    ['6001', '"Railway Development Levy (RDL)"', '"2.0% on CIF"', payment.rdl6001KES.toFixed(2), '"Asset Capitalization (Inventory)"'],
+    ['1202', '"Value Added Tax on Imports (VAT-3 Sec B)"', '"16.0% on (CIF+Duty+IDF+RDL)"', payment.vat1202KES.toFixed(2), '"Current Asset (KRA VAT-3 Claimable)"'],
+    ['6401', '"Merchant Shipping Superintendent (MSS) Levy"', '"USD 1.75 / Tonne"', payment.mss6401KES.toFixed(2), '"Asset Capitalization (Inventory)"'],
+    ['TOTAL', '"TOTAL KRA CUSTOMS TAXES DISBURSED"', '"Statutory Sum"', payment.amountKES.toFixed(2), '"Direct Bank Settlement (KCB/CBK)"']
+  ];
+
+  const csvContent = [
+    ...summaryHeader.map(r => r.join(',')),
+    headers.join(','),
+    ...rows.map(r => r.join(','))
+  ].join('\n');
+
+  downloadCSV(`KRA_Tax_Payment_${payment.customsEntryNo}_${payment.kraEslipNumber}.csv`, csvContent);
+}
+
+/**
+ * Generates an official Clearing & Forwarding Logistics Disbursal Voucher CSV (KES)
+ */
+export function exportClearingLogisticsVoucherCSV(
+  shipment: ImportShipmentRecord,
+  payment: ClearingForwardingDisbursement
+) {
+  const summaryHeader = [
+    ['CLEARING & FORWARDING LOGISTICS DISBURSEMENT VOUCHER', ''],
+    ['Shipment Ref', `"${shipment.shipmentNumber}"`],
+    ['Commercial Invoice', `"${shipment.invoiceNumber}"`],
+    ['Declarant Agent', `"${payment.declarantName}"`],
+    ['Declarant PIN', `"${payment.declarantPin}"`],
+    ['Agent Invoice Ref', `"${payment.agentInvoiceRef}"`],
+    ['Payment Ref / Cheque No', `"${payment.paymentRefNo}"`],
+    ['Payment Date', `"${payment.paymentDate}"`],
+    ['Payment Method', `"${payment.paymentMethod}"`],
+    ['Source Bank Name', `"${payment.sourceBankName}"`],
+    ['Status', `"${payment.status.toUpperCase()}"`],
+    ['', '']
+  ];
+
+  const headers = [
+    'Line Item / Logistics Description',
+    'Service Provider / Entity',
+    'Amount (KES)',
+    'GL Accounting Treatment'
+  ];
+
+  const rows = [
+    ['"Declarant Agency & Documentation Fee"', `"${payment.declarantName} (PIN ${payment.declarantPin})"`, payment.declarantAgencyFeeKES.toFixed(2), '"Capitalized to Inventory (Asset 1200)"'],
+    ['"KPA Port CFS Wharfage & Offloading Handling"', '"Kenya Ports Authority / ICD"', payment.cfsPortWharfageKES.toFixed(2), '"Capitalized to Inventory (Asset 1200)"'],
+    ['"Shipping Line Delivery Order (DO) & Demurrage"', '"Ocean Carrier / Shipping Line"', payment.shippingLineDemurrageKES.toFixed(2), '"Capitalized to Inventory (Asset 1200)"'],
+    ['"Inland Transport & SGR Railage (Mombasa - Nairobi)"', '"SGR Rail Freight / Local Transporter"', payment.inlandTransportSgrKES.toFixed(2), '"Capitalized to Inventory (Asset 1200)"'],
+    ['"TOTAL LOGISTICS & CLEARING DISBURSED"', '"Consolidated Logistics"', payment.amountKES.toFixed(2), '"Debit AP 2020 / Credit Bank 1010"']
+  ];
+
+  const csvContent = [
+    ...summaryHeader.map(r => r.join(',')),
+    headers.join(','),
+    ...rows.map(r => r.join(','))
+  ].join('\n');
+
+  downloadCSV(`Clearing_Disbursement_${payment.agentInvoiceRef}_${payment.paymentRefNo}.csv`, csvContent);
+}
+
+/**
+ * Generates a comprehensive Consolidated 3-Way Import Payment & Disbursal Schedule PDF (USD + KES)
+ */
+export function exportThreeWayPaymentSchedulePDF(
+  shipment: ImportShipmentRecord,
+  brandSettings?: BrandSettings,
+  etrConfig?: ETRConfig
+) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = 40;
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // Slate 900
+  doc.rect(40, currentY, pageWidth - 80, 56, 'F');
+
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('CONSOLIDATED 3-WAY IMPORT PAYMENT & DISBURSAL SCHEDULE', 55, currentY + 24);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(226, 232, 240);
+  doc.text(`Commercial Invoice: ${shipment.invoiceNumber} | Entry: ${shipment.customsEntryNo} | PRN: ${shipment.kraEslipRef}`, 55, currentY + 42);
+  doc.text(`Generated: ${new Date().toISOString().slice(0, 10)}`, pageWidth - 160, currentY + 42);
+
+  currentY += 72;
+
+  // Importer & Supplier Metadata Box
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    theme: 'plain',
+    styles: { fontSize: 8, cellPadding: 3 },
+    body: [
+      [
+        { content: 'SHIPMENT & IMPORTER DETAILS:', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } },
+        { content: 'OVERSEAS SUPPLIER & DECLARANT:', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } }
+      ],
+      [
+        `Importer: ${shipment.consigneeName}\nPIN: ${shipment.consigneePin}\nShipment Ref: ${shipment.shipmentNumber}\nPort of Entry: ${shipment.portOfEntry}\nCustoms Entry: ${shipment.customsEntryNo}`,
+        `Supplier: ${shipment.supplierName} (${shipment.supplierCountry})\nCommercial Invoice: ${shipment.invoiceNumber} (${shipment.invoiceDate})\nDeclarant: ${shipment.declarantName} (PIN: ${shipment.declarantPin})\nKRA E-Slip PRN: ${shipment.kraEslipRef}`
+      ]
+    ]
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 12;
+
+  // Payment Schedules Consolidation
+  const supplierSchedule = shipment.paymentSchedule?.supplierUSD;
+  const kraSchedule = shipment.paymentSchedule?.kraTaxesKES;
+  const clearingSchedule = shipment.paymentSchedule?.clearingLogisticsKES;
+
+  const totalSupplierPaidUSD = (supplierSchedule?.payments || []).reduce((s, p) => s + p.amountUSD, 0);
+  const totalSupplierPaidKES = (supplierSchedule?.payments || []).reduce((s, p) => s + p.amountKESEquivalent, 0);
+  const totalKraPaidKES = (kraSchedule?.payments || []).reduce((s, p) => s + p.amountKES, 0);
+  const totalClearingPaidKES = (clearingSchedule?.payments || []).reduce((s, p) => s + p.amountKES, 0);
+
+  const supplierTotalUSD = supplierSchedule?.totalInvoicedUSD || 55600.64;
+  const kraTotalKES = kraSchedule?.totalAssessedKES || 3703554;
+  const clearingTotalKES = clearingSchedule?.totalEstimatedKES || 180000;
+
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    head: [['Disbursement Leg', 'Payee Entity', 'Currency', 'Total Assessed / Invoiced', 'Total Disbursed', 'Balance Due', 'Disbursal Status']],
+    body: [
+      [
+        '1. Overseas Supplier',
+        `${shipment.supplierName}`,
+        'USD ($)',
+        `$${supplierTotalUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        `$${totalSupplierPaidUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        `$${Math.max(0, supplierTotalUSD - totalSupplierPaidUSD).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        totalSupplierPaidUSD >= supplierTotalUSD ? 'Fully Settled' : 'Pending Remittance'
+      ],
+      [
+        '2. KRA Customs Taxes',
+        'Kenya Revenue Authority (Customs Dept)',
+        'KES (KSh)',
+        `KSh ${kraTotalKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        `KSh ${totalKraPaidKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        `KSh ${Math.max(0, kraTotalKES - totalKraPaidKES).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        totalKraPaidKES >= kraTotalKES ? 'Fully Settled (Cleared)' : 'Pending Tax Disbursal'
+      ],
+      [
+        '3. Clearing & Logistics',
+        `${shipment.declarantName}`,
+        'KES (KSh)',
+        `KSh ${clearingTotalKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        `KSh ${totalClearingPaidKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        `KSh ${Math.max(0, clearingTotalKES - totalClearingPaidKES).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        totalClearingPaidKES >= clearingTotalKES ? 'Fully Settled' : 'Pending Logistics Disbursal'
+      ],
+      [
+        { content: 'CONSOLIDATED TOTALS (KES EQUIVALENT):', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } },
+        { content: `KSh ${(supplierTotalUSD * shipment.exchangeRate + kraTotalKES + clearingTotalKES).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+        { content: `KSh ${(totalSupplierPaidKES + totalKraPaidKES + totalClearingPaidKES).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, styles: { fontStyle: 'bold', textColor: [5, 150, 105], fillColor: [241, 245, 249] } },
+        { content: `KSh ${(Math.max(0, supplierTotalUSD - totalSupplierPaidUSD) * shipment.exchangeRate + Math.max(0, kraTotalKES - totalKraPaidKES) + Math.max(0, clearingTotalKES - totalClearingPaidKES)).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, styles: { fontStyle: 'bold', textColor: [225, 29, 72], fillColor: [241, 245, 249] } },
+        { content: '-', styles: { fillColor: [241, 245, 249] } }
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [15, 23, 42], fontSize: 7.5 },
+    styles: { fontSize: 7, cellPadding: 3.5 }
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 15;
+
+  // Itemized Transactions Log Table
+  const allTransactions: Array<{ leg: string; date: string; ref: string; portal: string; amount: string; status: string }> = [];
+
+  (supplierSchedule?.payments || []).forEach(p => {
+    allTransactions.push({
+      leg: '1. Supplier USD',
+      date: p.paymentDate,
+      ref: p.swiftMt103Ref,
+      portal: p.sourceAccountLabel,
+      amount: `$${p.amountUSD.toLocaleString()} USD (KSh ${p.amountKESEquivalent.toLocaleString()})`,
+      status: p.status.toUpperCase()
+    });
+  });
+
+  (kraSchedule?.payments || []).forEach(p => {
+    allTransactions.push({
+      leg: '2. KRA Taxes KES',
+      date: p.paymentDate,
+      ref: `${p.customsEntryNo} / PRN: ${p.kraEslipNumber}`,
+      portal: p.bankPaymentPortalLabel,
+      amount: `KSh ${p.amountKES.toLocaleString()}`,
+      status: p.status.toUpperCase()
+    });
+  });
+
+  (clearingSchedule?.payments || []).forEach(p => {
+    allTransactions.push({
+      leg: '3. Clearing KES',
+      date: p.paymentDate,
+      ref: `${p.agentInvoiceRef} / ${p.paymentRefNo}`,
+      portal: `${p.sourceBankName} (${p.paymentMethod})`,
+      amount: `KSh ${p.amountKES.toLocaleString()}`,
+      status: p.status.toUpperCase()
+    });
+  });
+
+  if (allTransactions.length > 0) {
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('DETAILED AUDIT TRAIL OF EXECUTED DISBURSEMENTS:', 40, currentY);
+    currentY += 8;
+
+    autoTable(doc, {
+      startY: currentY,
+      margin: { left: 40, right: 40 },
+      head: [['Payment Leg', 'Date', 'Transaction Ref / Voucher', 'Bank / Payment Channel', 'Amount Paid', 'Status']],
+      body: allTransactions.map(t => [t.leg, t.date, t.ref, t.portal, t.amount, t.status]),
+      theme: 'striped',
+      headStyles: { fillColor: [51, 65, 85], fontSize: 7.5 },
+      styles: { fontSize: 7, cellPadding: 3 }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 20;
+  }
+
+  // Signatures
+  doc.setDrawColor(203, 213, 225);
+  doc.line(40, currentY + 30, 200, currentY + 30);
+  doc.line(pageWidth - 200, currentY + 30, pageWidth - 40, currentY + 30);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Prepared By: Treasury & FX Disbursal Officer', 40, currentY + 42);
+  doc.text('Certified By: Chief Financial Officer (CFO)', pageWidth - 200, currentY + 42);
+
+  doc.save(`3Way_Payment_Schedule_${shipment.invoiceNumber}.pdf`);
+}
+
+/**
+ * Generates a Consolidated 3-Way Import Payment & Disbursal Schedule CSV (USD + KES)
+ */
+export function exportThreeWayPaymentScheduleCSV(shipment: ImportShipmentRecord) {
+  const supplierSchedule = shipment.paymentSchedule?.supplierUSD;
+  const kraSchedule = shipment.paymentSchedule?.kraTaxesKES;
+  const clearingSchedule = shipment.paymentSchedule?.clearingLogisticsKES;
+
+  const totalSupplierPaidUSD = (supplierSchedule?.payments || []).reduce((s, p) => s + p.amountUSD, 0);
+  const totalSupplierPaidKES = (supplierSchedule?.payments || []).reduce((s, p) => s + p.amountKESEquivalent, 0);
+  const totalKraPaidKES = (kraSchedule?.payments || []).reduce((s, p) => s + p.amountKES, 0);
+  const totalClearingPaidKES = (clearingSchedule?.payments || []).reduce((s, p) => s + p.amountKES, 0);
+
+  const supplierTotalUSD = supplierSchedule?.totalInvoicedUSD || 55600.64;
+  const kraTotalKES = kraSchedule?.totalAssessedKES || 3703554;
+  const clearingTotalKES = clearingSchedule?.totalEstimatedKES || 180000;
+
+  const summaryHeader = [
+    ['CONSOLIDATED 3-WAY IMPORT PAYMENT & DISBURSAL SCHEDULE', ''],
+    ['Shipment Number', `"${shipment.shipmentNumber}"`],
+    ['Commercial Invoice', `"${shipment.invoiceNumber}"`],
+    ['Invoice Date', `"${shipment.invoiceDate}"`],
+    ['Supplier Name', `"${shipment.supplierName}"`],
+    ['Supplier Country', `"${shipment.supplierCountry}"`],
+    ['Importer / Consignee', `"${shipment.consigneeName}"`],
+    ['Importer PIN', `"${shipment.consigneePin}"`],
+    ['Customs Entry SAD', `"${shipment.customsEntryNo}"`],
+    ['KRA E-Slip PRN', `"${shipment.kraEslipRef}"`],
+    ['Port of Entry', `"${shipment.portOfEntry}"`],
+    ['Exchange Rate (KES/USD)', shipment.exchangeRate.toFixed(4)],
+    ['', ''],
+    ['CONSOLIDATED DISBURSAL SUMMARY', '', '', '', '', '', '']
+  ];
+
+  const summaryHeaders = [
+    'Disbursement Leg',
+    'Payee Entity',
+    'Currency',
+    'Assessed / Invoiced Amount',
+    'Total Disbursed Amount',
+    'Outstanding Balance',
+    'Status'
+  ];
+
+  const summaryRows = [
+    [
+      '"1. Overseas Supplier Settlement"',
+      `"${shipment.supplierName}"`,
+      'USD',
+      supplierTotalUSD.toFixed(2),
+      totalSupplierPaidUSD.toFixed(2),
+      Math.max(0, supplierTotalUSD - totalSupplierPaidUSD).toFixed(2),
+      totalSupplierPaidUSD >= supplierTotalUSD ? '"Fully Settled"' : '"Pending Remittance"'
+    ],
+    [
+      '"2. KRA Customs Duties & Taxes"',
+      '"Kenya Revenue Authority (Customs Dept)"',
+      'KES',
+      kraTotalKES.toFixed(2),
+      totalKraPaidKES.toFixed(2),
+      Math.max(0, kraTotalKES - totalKraPaidKES).toFixed(2),
+      totalKraPaidKES >= kraTotalKES ? '"Fully Cleared"' : '"Pending Tax Disbursal"'
+    ],
+    [
+      '"3. Clearing & Forwarding Logistics"',
+      `"${shipment.declarantName}"`,
+      'KES',
+      clearingTotalKES.toFixed(2),
+      totalClearingPaidKES.toFixed(2),
+      Math.max(0, clearingTotalKES - totalClearingPaidKES).toFixed(2),
+      totalClearingPaidKES >= clearingTotalKES ? '"Fully Settled"' : '"Pending Clearing Disbursal"'
+    ]
+  ];
+
+  const transHeaders = [
+    'Leg Type',
+    'Payment Date',
+    'Transaction Reference / PRN',
+    'Bank / Payment Channel',
+    'Currency',
+    'Original Amount',
+    'KES Equivalent Debit',
+    'Status'
+  ];
+
+  const transRows: Array<string[]> = [];
+
+  (supplierSchedule?.payments || []).forEach(p => {
+    transRows.push([
+      '"1. Overseas Supplier"',
+      `"${p.paymentDate}"`,
+      `"${p.swiftMt103Ref}"`,
+      `"${p.sourceAccountLabel}"`,
+      'USD',
+      p.amountUSD.toFixed(2),
+      p.amountKESEquivalent.toFixed(2),
+      `"${p.status.toUpperCase()}"`
+    ]);
+  });
+
+  (kraSchedule?.payments || []).forEach(p => {
+    transRows.push([
+      '"2. KRA Taxes"',
+      `"${p.paymentDate}"`,
+      `"Customs: ${p.customsEntryNo} | PRN: ${p.kraEslipNumber}"`,
+      `"${p.bankPaymentPortalLabel}"`,
+      'KES',
+      p.amountKES.toFixed(2),
+      p.amountKES.toFixed(2),
+      `"${p.status.toUpperCase()}"`
+    ]);
+  });
+
+  (clearingSchedule?.payments || []).forEach(p => {
+    transRows.push([
+      '"3. Clearing Logistics"',
+      `"${p.paymentDate}"`,
+      `"Inv: ${p.agentInvoiceRef} | Ref: ${p.paymentRefNo}"`,
+      `"${p.sourceBankName} (${p.paymentMethod})"`,
+      'KES',
+      p.amountKES.toFixed(2),
+      p.amountKES.toFixed(2),
+      `"${p.status.toUpperCase()}"`
+    ]);
+  });
+
+  const csvContent = [
+    ...summaryHeader.map(r => r.join(',')),
+    summaryHeaders.join(','),
+    ...summaryRows.map(r => r.join(',')),
+    ['', '', '', '', '', '', ''],
+    ['DETAILED DISBURSEMENT TRANSACTIONS LOG', '', '', '', '', '', ''],
+    transHeaders.join(','),
+    ...transRows.map(r => r.join(','))
+  ].join('\n');
+
+  downloadCSV(`3Way_Payment_Schedule_${shipment.invoiceNumber}.csv`, csvContent);
+}
+
+/**
+ * Generates an official Supplier Debit Note CSV
+ */
+export function exportSupplierDebitNoteCSV(debitNote: SupplierDebitNoteRecord) {
+  const summaryHeader = [
+    ['OFFICIAL SUPPLIER DEBIT NOTE', ''],
+    ['Debit Note Number', `"${debitNote.debitNoteNumber}"`],
+    ['Date', `"${debitNote.date}"`],
+    ['Supplier Name', `"${debitNote.supplierName}"`],
+    ['Supplier Country', `"${debitNote.supplierCountry}"`],
+    ['Original Commercial Invoice', `"${debitNote.originalInvoiceNo}"`],
+    ['Customs Entry SAD', `"${debitNote.customsEntryNo}"`],
+    ['KRA E-Slip Ref', `"${debitNote.kraEslipRef}"`],
+    ['Exchange Rate (KES/USD)', debitNote.exchangeRate.toFixed(4)],
+    ['Total Shortage Quantity (kg)', debitNote.totalShortageKg.toFixed(2)],
+    ['Total Goods Shortage Claim (USD)', debitNote.totalShortageUSD.toFixed(2)],
+    ['Total Goods Shortage Claim (KES)', debitNote.totalShortageKES.toFixed(2)],
+    ['Customs Duty Loss Incurred (KES)', debitNote.kraDutyImpactKES.toFixed(2)],
+    ['Total Claim Amount (USD)', debitNote.totalClaimAmountUSD.toFixed(2)],
+    ['Total Claim Amount (KES)', debitNote.totalClaimAmountKES.toFixed(2)],
+    ['Reason / Particulars', `"${debitNote.reason}"`],
+    ['Status', `"${debitNote.status.toUpperCase()}"`],
+    ['GL Journal Voucher Ref', `"${debitNote.glJournalRef || 'N/A'}"`],
+    ['', '']
+  ];
+
+  const headers = [
+    'Item #',
+    'Description',
+    'Invoiced Weight (kg)',
+    'Received Intake (kg)',
+    'Shortage Variance (kg)',
+    'Unit FOB (USD/kg)',
+    'Loss Amount (USD)',
+    'Loss Amount (KES)'
+  ];
+
+  const rows = debitNote.items.map((item, idx) => [
+    idx + 1,
+    `"${item.description}"`,
+    item.invoicedWeightKg.toFixed(2),
+    item.receivedWeightKg.toFixed(2),
+    (-item.shortageKg).toFixed(2),
+    item.unitFobUSD.toFixed(3),
+    item.shortageAmountUSD.toFixed(2),
+    item.shortageAmountKES.toFixed(2)
+  ]);
+
+  const csvContent = [
+    ...summaryHeader.map(r => r.join(',')),
+    headers.join(','),
+    ...rows.map(r => r.join(','))
+  ].join('\n');
+
+  downloadCSV(`Supplier_Debit_Note_${debitNote.debitNoteNumber}.csv`, csvContent);
+}
+
+/**
+ * Generates an official 3-Way Weight Intake Audit Schedule PDF
+ */
+export function exportWeightAuditSchedulePDF(
+  shipment: ImportShipmentRecord,
+  rows: any[],
+  totalShortageKg: number,
+  totalShortageUSD: number,
+  totalShortageKES: number,
+  brandSettings?: BrandSettings,
+  etrConfig?: ETRConfig
+) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = 40;
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // Slate 900
+  doc.rect(40, currentY, pageWidth - 80, 52, 'F');
+
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('3-WAY WEIGHT INTAKE & WEIGHBRIDGE AUDIT SCHEDULE', 55, currentY + 26);
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Invoice: ${shipment.invoiceNumber}`, pageWidth - 160, currentY + 22);
+  doc.text(`Date: ${new Date().toISOString().slice(0, 10)}`, pageWidth - 160, currentY + 36);
+
+  currentY += 68;
+
+  // Summary box
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    theme: 'plain',
+    styles: { fontSize: 8, cellPadding: 3 },
+    body: [
+      [
+        { content: 'SHIPMENT AUDIT METADATA:', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } },
+        { content: 'SCALE INTAKE AUDIT VARIANCE:', styles: { fontStyle: 'bold', textColor: [30, 41, 59] } }
+      ],
+      [
+        `Supplier: ${shipment.supplierName}\nInvoice Ref: ${shipment.invoiceNumber}\nCustoms SAD: ${shipment.customsEntryNo}\nPort: ${shipment.portOfEntry}`,
+        `Total Shortage (kg): -${totalShortageKg.toLocaleString()} kg\nFOB Value Loss: $${totalShortageUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD\nKES Equivalent Loss: KSh ${totalShortageKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+      ]
+    ]
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 12;
+
+  // Grid
+  autoTable(doc, {
+    startY: currentY,
+    margin: { left: 40, right: 40 },
+    head: [['Description', 'Invoiced (kg)', 'Received (kg)', 'Variance (kg)', 'Unit FOB ($)', 'Shortage ($)', 'Shortage (KES)', 'Status']],
+    body: [
+      ...rows.map(r => [
+        r.description,
+        `${r.invoicedKg.toLocaleString()} kg`,
+        `${r.receivedKg.toLocaleString()} kg`,
+        r.shortageKg > 0 ? `-${r.shortageKg.toLocaleString()} kg` : '0 kg',
+        `$${r.unitFobUSD.toFixed(3)}`,
+        r.shortageUSD > 0 ? `$${r.shortageUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00',
+        r.shortageKES > 0 ? `KSh ${r.shortageKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : 'KSh 0',
+        r.hasShortage ? 'Shortage Detected' : 'Verified'
+      ]),
+      [
+        { content: 'TOTAL AUDIT SUMMARY:', colSpan: 3, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } },
+        { content: `-${totalShortageKg.toLocaleString()} kg`, styles: { fontStyle: 'bold', textColor: [225, 29, 72], fillColor: [241, 245, 249] } },
+        { content: '-', styles: { fillColor: [241, 245, 249] } },
+        { content: `$${totalShortageUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', textColor: [225, 29, 72], fillColor: [241, 245, 249] } },
+        { content: `KSh ${totalShortageKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, styles: { fontStyle: 'bold', textColor: [225, 29, 72], fillColor: [241, 245, 249] } },
+        { content: '-', styles: { fillColor: [241, 245, 249] } }
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [15, 23, 42], fontSize: 7.5 },
+    styles: { fontSize: 7, cellPadding: 3 }
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 25;
+
+  // Signatures
+  doc.setDrawColor(203, 213, 225);
+  doc.line(40, currentY + 25, 200, currentY + 25);
+  doc.line(pageWidth - 200, currentY + 25, pageWidth - 40, currentY + 25);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Weighed By: ICD Warehouse Intake Clerk', 40, currentY + 37);
+  doc.text('Certified By: Internal Audit Manager', pageWidth - 200, currentY + 37);
+
+  doc.save(`Weight_Audit_Schedule_${shipment.invoiceNumber}.pdf`);
+}
+
+/**
+ * Generates an official 3-Way Weight Intake Audit Schedule CSV
+ */
+export function exportWeightAuditScheduleCSV(
+  shipment: ImportShipmentRecord,
+  rows: any[],
+  totalShortageKg: number,
+  totalShortageUSD: number,
+  totalShortageKES: number
+) {
+  const summaryHeader = [
+    ['3-WAY WEIGHT INTAKE & WEIGHBRIDGE AUDIT SCHEDULE', ''],
+    ['Shipment Number', `"${shipment.shipmentNumber}"`],
+    ['Commercial Invoice', `"${shipment.invoiceNumber}"`],
+    ['Supplier Name', `"${shipment.supplierName}"`],
+    ['Customs Entry SAD', `"${shipment.customsEntryNo}"`],
+    ['Audit Date', `"${new Date().toISOString().slice(0, 10)}"`],
+    ['Total Shortage (kg)', (-totalShortageKg).toFixed(2)],
+    ['Total FOB Value Shortage (USD)', totalShortageUSD.toFixed(2)],
+    ['Total Loss Equivalent (KES)', totalShortageKES.toFixed(2)],
+    ['', '']
+  ];
+
+  const headers = [
+    'Description',
+    'Category',
+    'Invoiced Weight (kg)',
+    'Scale Received Weight (kg)',
+    'Shortage Variance (kg)',
+    'Unit FOB (USD/kg)',
+    'FOB Loss (USD)',
+    'Loss Equivalent (KES)',
+    'Customs Duty Loss (KES)',
+    'Audit Status'
+  ];
+
+  const tableRows = rows.map(r => [
+    `"${r.description}"`,
+    `"${r.category}"`,
+    r.invoicedKg.toFixed(2),
+    r.receivedKg.toFixed(2),
+    (-r.shortageKg).toFixed(2),
+    r.unitFobUSD.toFixed(3),
+    r.shortageUSD.toFixed(2),
+    r.shortageKES.toFixed(2),
+    r.kraDutyLossKES.toFixed(2),
+    r.hasShortage ? '"Shortage"' : '"Verified"'
+  ]);
+
+  const csvContent = [
+    ...summaryHeader.map(r => r.join(',')),
+    headers.join(','),
+    ...tableRows.map(r => r.join(','))
+  ].join('\n');
+
+  downloadCSV(`Weight_Audit_Schedule_${shipment.invoiceNumber}.csv`, csvContent);
+}
+
 
 

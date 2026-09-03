@@ -20,7 +20,8 @@ import {
   FabricRollRecord,
   FixedAsset,
   KRAInputVATClaim,
-  StockAlertSettings
+  StockAlertSettings,
+  Supplier
 } from '../types';
 
 export const INITIAL_POS_OPERATORS: POSOperator[] = [
@@ -585,6 +586,105 @@ export const INITIAL_CREDIT_NOTES: ETIMSCreditNote[] = [];
 export const INITIAL_FIXED_ASSETS: FixedAsset[] = [];
 
 export const INITIAL_INPUT_VAT_CLAIMS: KRAInputVATClaim[] = [];
+
+export const INITIAL_SUPPLIERS: Supplier[] = [
+  {
+    id: 'SUP-CN-001',
+    name: 'ZHEJIANG PUAN TEXTILE TECHNOLOGY CO.,LTD.',
+    type: 'overseas_import',
+    country: 'China',
+    currency: 'USD',
+    contactPerson: 'Lin Xiaowei (Export Sales Director)',
+    email: 'export@puantextile.cn',
+    phone: '+86 575 8899 1234',
+    address: 'No. 88 Puan Road, Keqiao District, Shaoxing, Zhejiang, China',
+    bankName: 'BANK OF CHINA, SHAOXING BRANCH',
+    bankAccountNo: '3819 0291 0021 88',
+    swiftBic: 'BKCHCNBJ920',
+    paymentTermsDays: 45,
+    category: 'Fabrics & Textiles (Poly Derek / Fleece / Interlock)',
+    notes: 'Primary supplier for heavy knitted dereck fabrics and fleece rolls. Port of Loading: Ningbo / Shanghai.',
+    createdAt: '2026-01-10T08:00:00.000Z',
+    status: 'active'
+  },
+  {
+    id: 'SUP-IN-002',
+    name: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    type: 'overseas_import',
+    country: 'India',
+    currency: 'USD',
+    contactPerson: 'Rajesh Singhania (Head of International Trade)',
+    email: 'yarns.export@osterindia.com',
+    phone: '+91 161 503 9900',
+    address: 'G.T. Road, Oster Complex, Ludhiana, Punjab 141003, India',
+    bankName: 'STATE BANK OF INDIA, OVERSEAS BRANCH LUDHIANA',
+    bankAccountNo: '1092 8847 2910',
+    swiftBic: 'SBININBB450',
+    paymentTermsDays: 30,
+    category: 'Acrylic & Blended Yarns (2/24 NM Cones)',
+    notes: 'Premium supplier for machine knitting acrylic yarn cones (24.84kg bales). Port of Loading: Mundra / Nhava Sheva.',
+    createdAt: '2026-01-15T09:30:00.000Z',
+    status: 'active'
+  },
+  {
+    id: 'SUP-KE-003',
+    name: 'RIVATEX EAST AFRICA LIMITED',
+    type: 'domestic_local',
+    country: 'Kenya',
+    kraPin: 'P051187654M',
+    currency: 'KES',
+    contactPerson: 'David Kiptoo (Commercial Accounts Manager)',
+    email: 'sales@rivatex.co.ke',
+    phone: '+254 722 205 345',
+    address: 'Kipkaren Road, P.O. Box 2490-30100, Eldoret, Kenya',
+    bankName: 'KENYA COMMERCIAL BANK (KCB), ELDORET BRANCH',
+    bankAccountNo: '1109 4482 91',
+    paymentTermsDays: 30,
+    category: 'Kenyan Cotton Drill & Twill Weaves',
+    notes: 'Domestic supplier with certified KRA eTIMS invoices. Eligible for 2% Withholding VAT certificates.',
+    createdAt: '2026-02-01T10:00:00.000Z',
+    status: 'active'
+  },
+  {
+    id: 'SUP-KE-004',
+    name: 'THIKA CLOTH MILLS LIMITED',
+    type: 'domestic_local',
+    country: 'Kenya',
+    kraPin: 'P051112456A',
+    currency: 'KES',
+    contactPerson: 'Tejpal Patel (Managing Director Sales)',
+    email: 'accounts@thikaclothmills.com',
+    phone: '+254 733 600 812',
+    address: 'Garissa Road, Industrial Area, Thika, Kenya',
+    bankName: 'EQUITY BANK KENYA, THIKA SUPREME BRANCH',
+    bankAccountNo: '0080 2938 4710 22',
+    paymentTermsDays: 30,
+    category: 'Woven Cotton Fabrics & Uniform Fabrics',
+    notes: 'Kenyan manufacturer of high-tensile drill and bed-sheeting rolls. Registered for eTIMS online validation.',
+    createdAt: '2026-02-05T11:15:00.000Z',
+    status: 'active'
+  },
+  {
+    id: 'SUP-KE-005',
+    name: 'SPINNERS & SPINNERS KENYA LTD',
+    type: 'domestic_local',
+    country: 'Kenya',
+    kraPin: 'P051234891Q',
+    currency: 'KES',
+    contactPerson: 'Naresh Shah (Credit Control & Supply Manager)',
+    email: 'supply@spinnerskenya.com',
+    phone: '+254 720 445 678',
+    address: 'Ruaraka Industrial Area, Baba Dogo Road, Nairobi, Kenya',
+    bankName: 'I&M BANK KENYA, INDUSTRIAL AREA NAIROBI',
+    bankAccountNo: '0010 1198 3400',
+    paymentTermsDays: 14,
+    category: 'Local Spun Acrylic & Wool Blend Yarns',
+    notes: 'Leading Nairobi yarn spinning and texturizing mill. Standard 16% VAT invoiced via eTIMS device.',
+    createdAt: '2026-02-10T14:20:00.000Z',
+    status: 'active'
+  }
+];
+
 
 
 

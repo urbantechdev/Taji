@@ -54,7 +54,8 @@ import {
   StocktakeSession,
   StocktakeItem,
   StocktakeStatus,
-  StocktakeDiscrepancyReason
+  StocktakeDiscrepancyReason,
+  Supplier
 } from '../types';
 import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
 import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
@@ -84,6 +85,7 @@ import {
   INITIAL_FABRIC_ROLLS,
   INITIAL_FIXED_ASSETS,
   INITIAL_INPUT_VAT_CLAIMS,
+  INITIAL_SUPPLIERS,
   CURRENT_USER
 } from '../data/initialData';
 import { evaluateStockStatus, calculateStockThresholdSummary } from '../utils/stockThresholdEngine';
@@ -625,6 +627,12 @@ interface ERPContextType {
     autoPostJournal?: boolean
   ) => Promise<{ success: boolean; message: string; session?: StocktakeSession; journalRef?: string }>;
   deleteStocktakeSession: (sessionId: string) => void;
+
+  // Suppliers Master Registry
+  suppliers: Supplier[];
+  addSupplier: (newSupplier: Omit<Supplier, 'id' | 'createdAt'>) => Promise<{ success: boolean; supplier: Supplier; message: string }>;
+  updateSupplier: (supplierId: string, updates: Partial<Supplier>) => Promise<{ success: boolean; message: string }>;
+  deleteSupplier: (supplierId: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
@@ -2810,6 +2818,112 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Error establishing fabric_rolls listener:', e);
     }
   }, []);
+
+  // Suppliers Master Registry State & Realtime Cloud Firestore Sync
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
+    try {
+      const saved = localStorage.getItem('taji_suppliers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading suppliers from localStorage:', e);
+    }
+    return INITIAL_SUPPLIERS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('taji_suppliers', JSON.stringify(suppliers));
+    } catch (e) {
+      console.warn('Error saving suppliers to localStorage:', e);
+    }
+  }, [suppliers]);
+
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
+        const loaded: Supplier[] = [];
+        snapshot.forEach((docSnap) => {
+          const item = docSnap.data() as Supplier;
+          if (item && item.id) loaded.push(item);
+        });
+        if (loaded.length > 0) {
+          setSuppliers(loaded);
+        }
+      }, (error) => {
+        console.warn('Firestore suppliers listener:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing suppliers listener:', e);
+    }
+  }, []);
+
+  const addSupplier = async (newSupplierData: Omit<Supplier, 'id' | 'createdAt'>) => {
+    const supId = `SUP-${(newSupplierData.country?.slice(0, 2) || 'KE').toUpperCase()}-${String(suppliers.length + 1).padStart(3, '0')}-${Math.floor(100 + Math.random() * 900)}`;
+    const createdSupplier: Supplier = {
+      ...newSupplierData,
+      id: supId,
+      createdAt: new Date().toISOString()
+    };
+
+    setSuppliers(prev => [createdSupplier, ...prev.filter(s => s.id !== supId)]);
+
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'suppliers', supId), createdSupplier);
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e) {
+      console.warn('Firestore supplier add sync warning:', e);
+    }
+
+    recordAuditLog('Supplier Registered', `Added supplier ${createdSupplier.name} (${createdSupplier.country} - ${createdSupplier.currency})`);
+    playSuccessSound();
+    return {
+      success: true,
+      supplier: createdSupplier,
+      message: `Supplier "${createdSupplier.name}" registered successfully!`
+    };
+  };
+
+  const updateSupplier = async (supplierId: string, updates: Partial<Supplier>) => {
+    setSuppliers(prev => prev.map(s => s.id === supplierId ? { ...s, ...updates } : s));
+
+    try {
+      setCloudSyncStatus('syncing');
+      await setDoc(doc(db, 'suppliers', supplierId), updates, { merge: true });
+      setCloudSyncStatus('synced');
+      setLastCloudSync(new Date());
+    } catch (e) {
+      console.warn('Firestore supplier update sync warning:', e);
+    }
+
+    recordAuditLog('Supplier Updated', `Updated supplier details for ${supplierId}`);
+    return {
+      success: true,
+      message: 'Supplier updated successfully.'
+    };
+  };
+
+  const deleteSupplier = async (supplierId: string) => {
+    const target = suppliers.find(s => s.id === supplierId);
+    setSuppliers(prev => prev.filter(s => s.id !== supplierId));
+
+    try {
+      await deleteDoc(doc(db, 'suppliers', supplierId));
+    } catch (e) {
+      console.warn('Firestore supplier delete sync warning:', e);
+    }
+
+    recordAuditLog('Supplier Deleted', `Removed supplier ${target?.name || supplierId}`);
+    return {
+      success: true,
+      message: 'Supplier deleted successfully.'
+    };
+  };
 
   const [isReturnExchangeModalOpen, setIsReturnExchangeModalOpen] = useState(false);
   const [isFabricRollModalOpen, setIsFabricRollModalOpen] = useState(false);
@@ -8164,6 +8278,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         bulkUpdateStocktakeItems,
         finalizeAndReconcileStocktake,
         deleteStocktakeSession,
+        suppliers,
+        addSupplier,
+        updateSupplier,
+        deleteSupplier,
         viewMode,
         setViewMode: handleSetViewMode
       }}

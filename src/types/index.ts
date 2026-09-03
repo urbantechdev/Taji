@@ -645,6 +645,9 @@ export type LedgerCategory =
   | 'Withholding Tax 5%'
   | 'Inventory Revaluation' 
   | 'Import Landed Costing Capitalization'
+  | 'Foreign Overseas Supplier Settlement'
+  | 'KRA Customs Duties & Taxes'
+  | 'Clearing & Freight Logistics'
   | 'Expense'
   | 'Payroll'
   | 'Depreciation'
@@ -656,7 +659,8 @@ export type LedgerCategory =
   | 'Owner Distribution'
   | 'Tare Variance Adjustment'
   | 'Inventory Variance'
-  | 'Adjustment';
+  | 'Adjustment'
+  | string;
 
 export interface LedgerEntry {
   id: string;
@@ -1475,6 +1479,31 @@ export interface StocktakeSession {
 }
 
 // -----------------------------------------------------------------------------
+// Supplier Master & Accounts Payable Registry Types
+// -----------------------------------------------------------------------------
+export interface Supplier {
+  id: string; // e.g. "SUP-2026-001"
+  name: string; // e.g. "Zhejiang Puan Textile Technology Co., Ltd"
+  type: 'overseas_import' | 'domestic_local';
+  country: string; // e.g. "China", "India", "Kenya"
+  kraPin?: string; // e.g. "P051189234R"
+  currency: 'USD' | 'KES' | 'EUR' | 'GBP';
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  bankName?: string;
+  bankAccountNo?: string;
+  swiftBic?: string;
+  iban?: string;
+  paymentTermsDays?: number; // e.g. 30
+  category?: string; // e.g. "Fabrics & Textiles", "Acrylic Yarns", "Dyes & Auxiliaries"
+  notes?: string;
+  createdAt: string;
+  status: 'active' | 'inactive';
+}
+
+// -----------------------------------------------------------------------------
 // Import Tax & Landed Costing Module Types (KRA SAD ICMS / Landed Capitalization)
 // -----------------------------------------------------------------------------
 export interface ImportShipmentLineItem {
@@ -1488,6 +1517,11 @@ export interface ImportShipmentLineItem {
   gsm?: number; // Grams per square meter (for fabrics)
   widthCm?: number; // Fabric width in centimeters (for fabrics)
   matchedProductId?: string; // Link to existing catalog product to update cost price
+  sku?: string;
+  subCategory?: string;
+  colorName?: string;
+  colorHex?: string;
+  unit?: UnitType;
 }
 
 export interface ComputedImportLineItem extends ImportShipmentLineItem {
@@ -1542,6 +1576,80 @@ export interface ImportShipmentSummary {
   items: ComputedImportLineItem[];
 }
 
+export interface SupplierUSDDisbursement {
+  id: string;
+  paymentDate: string;
+  amountUSD: number;
+  exchangeRateActual: number; // Actual Bank Spot Rate (e.g. 129.50 KES/USD)
+  amountKESEquivalent: number;
+  sourceAccount: 'USD_NOSTRO_STANBIC' | 'USD_NOSTRO_IM' | 'USD_NOSTRO_EQUITY' | 'KES_SPOT_FOREX_BUY' | string;
+  sourceAccountLabel: string;
+  swiftMt103Ref: string; // e.g. "TT-2026-STB-09921"
+  beneficiaryName: string;
+  beneficiaryBank: string;
+  beneficiaryIbanOrAccount: string;
+  bankChargesUSD: number;
+  chargeBorneBy: 'OUR' | 'BEN' | 'SHA';
+  status: 'draft' | 'processed' | 'confirmed';
+  journalRef?: string;
+  notes?: string;
+}
+
+export interface KRATaxDisbursement {
+  id: string;
+  paymentDate: string;
+  amountKES: number;
+  customsEntryNo: string;
+  kraEslipNumber: string; // PRN / E-Slip No e.g. "1020260001007429"
+  bankPaymentPortal: 'KCB_ITAX' | 'EQUITY_ESLIP' | 'NCBA_DIRECT' | 'COOP_ITAX' | 'CBK_GTAX' | string;
+  bankPaymentPortalLabel: string;
+  bankTransactionRef: string;
+  duty1002KES: number;
+  idf1801KES: number;
+  rdl6001KES: number;
+  vat1202KES: number;
+  mss6401KES: number;
+  status: 'draft' | 'processed' | 'confirmed';
+  journalRef?: string;
+  notes?: string;
+}
+
+export interface ClearingForwardingDisbursement {
+  id: string;
+  paymentDate: string;
+  amountKES: number;
+  declarantName: string;
+  declarantPin: string;
+  agentInvoiceRef: string;
+  paymentMethod: 'RTGS' | 'EFT' | 'Corporate M-Pesa' | 'Cheque' | 'Bank Transfer';
+  sourceBankName: string;
+  paymentRefNo: string; // Cheque or Bank Ref No
+  declarantAgencyFeeKES: number;
+  cfsPortWharfageKES: number;
+  shippingLineDemurrageKES: number;
+  inlandTransportSgrKES: number;
+  status: 'draft' | 'processed' | 'confirmed';
+  journalRef?: string;
+  notes?: string;
+}
+
+export interface ImportPaymentSchedule {
+  shipmentId: string;
+  invoiceNumber: string;
+  supplierUSD: {
+    totalInvoicedUSD: number;
+    payments: SupplierUSDDisbursement[];
+  };
+  kraTaxesKES: {
+    totalAssessedKES: number;
+    payments: KRATaxDisbursement[];
+  };
+  clearingLogisticsKES: {
+    totalEstimatedKES: number;
+    payments: ClearingForwardingDisbursement[];
+  };
+}
+
 export interface ImportShipmentRecord {
   id: string;
   shipmentNumber: string; // e.g. "IMP-2026-PA222"
@@ -1573,6 +1681,7 @@ export interface ImportShipmentRecord {
   capitalizedAt?: string;
   capitalizedBy?: string;
   journalVoucherRef?: string;
+  paymentSchedule?: ImportPaymentSchedule;
   lineItems: ImportShipmentLineItem[];
   notes?: string;
 }
@@ -1653,6 +1762,10 @@ export interface LocalPurchaseLineItem {
   gsm?: number;
   widthCm?: number;
   colorName?: string;
+  colorHex?: string;
+  subCategory?: string;
+  matchedProductId?: string; // Link to existing catalog product to update cost price
+  sku?: string;
   allocatedFreightKES?: number;
   allocatedHandlingKES?: number;
   totalCapitalizedCostKES?: number;
