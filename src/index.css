@@ -258,126 +258,18 @@ html, body {
 
 /* Print Styles Auto-Adjustment */
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 8mm;
-  }
-
   body {
     background: white !important;
     color: black !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
   }
-
-  /* Hide app navigation, aside bars, and non-printable fixed banners */
-  header:not(.print-include),
-  aside,
-  nav,
-  .pointer-events-none:not(.print-include) {
+  header, aside, nav, .fixed, .pointer-events-none {
     display: none !important;
   }
-
-  /* When printing payslip, isolate document cleanly and hide screen chrome */
-  body.printing-payslip {
-    background: white !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  body.printing-payslip > #root {
-    display: none !important;
-  }
-
-  /* Compact ETR Thermal Roll formatting (80mm standard) */
-  body.printing-payslip-slip {
-    background: white !important;
-    width: 80mm !important;
-    margin: 0 auto !important;
-  }
-
-  body.printing-payslip-slip #printable-payslip-slip {
-    max-width: 76mm !important;
-    width: 76mm !important;
-    margin: 0 auto !important;
-    padding: 2mm 1mm !important;
-    border: none !important;
-    box-shadow: none !important;
-    page-break-inside: avoid !important;
-    font-size: 10px !important;
-    line-height: 1.25 !important;
-    color: #000 !important;
-    background: #fff !important;
-  }
-
-  body.printing-payslip-slip #printable-payslip-slip * {
-    color: #000 !important;
-  }
-
-  /* If printing while payslip modal is mounted */
-  .payslip-modal-backdrop {
-    position: static !important;
-    background: white !important;
-    padding: 0 !important;
-    margin: 0 auto !important;
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    inset: auto !important;
-    overflow: visible !important;
-  }
-
-  .payslip-modal-container {
-    box-shadow: none !important;
-    border: none !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    padding: 0 !important;
-    margin: 0 auto !important;
-    background: white !important;
-    overflow: visible !important;
-    border-radius: 0 !important;
-  }
-
-  #printable-payslip {
-    max-width: 190mm !important;
-    width: 100% !important;
-    margin: 0 auto !important;
-    padding: 4mm 6mm !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: white !important;
-  }
-
-  .payslip-screen-only,
-  .print-hide,
-  .print\:hidden {
-    display: none !important;
-  }
-
-  .print-only,
-  .print\:block {
-    display: block !important;
-  }
-
-  .print\:p-0 {
-    padding: 0 !important;
-  }
-
-  .print\:shadow-none {
-    box-shadow: none !important;
-  }
-
-  .print\:border-none {
-    border: none !important;
-  }
-
   main {
     padding: 0 !important;
     margin: 0 !important;
     max-width: 100% !important;
   }
 }
-
 
 

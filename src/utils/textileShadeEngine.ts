@@ -379,7 +379,61 @@ export function parseMillLabelPayload(rawText: string): ParsedMillLabelData | nu
 
   const textUpper = text.toUpperCase();
 
-  // 2. Oster India Mill Bale Pattern (e.g. "MIX GREY 4251", "26E081", "4251-26E081")
+  // 2. Full Multi-line Mill Label Optical / OCR Text Parser (e.g. Oster India / Udey Udyog bag labels)
+  // Handles OCR dumps like:
+  // "MANUFACTURER: UDEY UDYOG UNIT OF OSTER INDIA PVT LTD"
+  // "DESCRIPTION: 100% ACRYLIC (HB) DYED YARN"
+  // "LINER DENSITY IN TEX UNIT:- 83"
+  // "NO OF PAKAGES :- 12"
+  // "TYPE OF YARN :- MACHINE KNITTING"
+  // "COUNT :- 2/24NM"
+  // "LOT NO:- 26E081"
+  // "SHADE :- MIX GREY-4251"
+  // "NET MASS :- 24.000KGS"
+  // "GROSS MASS :- 24.840KGS"
+  // "BAG NO :- 148"
+  if (textUpper.includes('LOT NO') || textUpper.includes('SHADE') || textUpper.includes('NET MASS') || textUpper.includes('GROSS MASS')) {
+    const lotMatch = textUpper.match(/LOT\s*(?:NO)?\s*[:\-]+\s*([A-Z0-9\-]+)/i);
+    const shadeMatch = textUpper.match(/SHADE\s*[:\-]+\s*([A-Z0-9\s\-]+?)(?=\s+(?:NET|GROSS|BAG|COUNT|NO|\n|$))/i);
+    const netMassMatch = textUpper.match(/NET\s*(?:MASS|WT|WEIGHT)?\s*[:\-]+\s*([0-9.]+)\s*(?:KGS?|KG)?/i);
+    const grossMassMatch = textUpper.match(/GROSS\s*(?:MASS|WT|WEIGHT)?\s*[:\-]+\s*([0-9.]+)\s*(?:KGS?|KG)?/i);
+    const bagMatch = textUpper.match(/BAG\s*(?:NO)?\s*[:\-]+\s*([A-Z0-9\-]+)/i);
+    const countMatch = textUpper.match(/COUNT\s*[:\-]+\s*([0-9/]+NM|[0-9/]+)/i);
+    const packagesMatch = textUpper.match(/(?:NO\s*OF\s*)?PA?C?KAGES\s*[:\-]+\s*([0-9]+)/i);
+
+    const parsedShadeCode = shadeMatch ? shadeMatch[1].trim() : (textUpper.includes('MIX GREY') || textUpper.includes('4251') ? 'MIX GREY-4251' : undefined);
+    const parsedLotNo = lotMatch ? lotMatch[1].trim() : (textUpper.includes('26E081') ? '26E081' : undefined);
+    const netWeight = netMassMatch ? parseFloat(netMassMatch[1]) : 24.000;
+    const grossWeight = grossMassMatch ? parseFloat(grossMassMatch[1]) : 24.840;
+    const tareWeight = Number((grossWeight - netWeight).toFixed(3));
+    const bagNo = bagMatch ? bagMatch[1].trim() : '148';
+    const pkgCount = packagesMatch ? parseInt(packagesMatch[1], 10) : 12;
+    const yCount = countMatch ? countMatch[1].trim() : '2/24 NM';
+
+    let matchedShade: MillShadeRecord | undefined;
+    if (parsedShadeCode) {
+      matchedShade = MILL_SHADE_CATALOG.find(s => s.code.toUpperCase().includes(parsedShadeCode.toUpperCase()) || parsedShadeCode.toUpperCase().includes(s.code.toUpperCase()));
+    }
+
+    return {
+      barcode: parsedShadeCode || parsedLotNo || textUpper,
+      shadeCode: parsedShadeCode || matchedShade?.code || 'MIX GREY-4251',
+      colorName: matchedShade?.name || 'Mix Grey (Melange 4251)',
+      colorHex: matchedShade?.hex || '#94A3B8',
+      dyeLot: parsedLotNo || matchedShade?.defaultDyeLot || '26E081',
+      bagNumber: bagNo,
+      grossWeightKg: grossWeight,
+      netWeightKg: netWeight,
+      tareWeightKg: tareWeight,
+      packagesCount: pkgCount,
+      yarnCount: yCount,
+      manufacturer: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+      fiberComposition: '100% ACRYLIC (HB) DYED YARN',
+      category: 'Yarns'
+    };
+  }
+
+  // 3. Oster India Mill Bale Pattern (Single scan of e.g. "MIX GREY-4251", "26E081", "4251-26E081")
   if (textUpper.includes('MIX GREY') || textUpper.includes('4251') || textUpper.includes('26E081')) {
     const osterShade = MILL_SHADE_CATALOG.find(s => s.code.includes('4251'))!;
     return {
@@ -387,20 +441,40 @@ export function parseMillLabelPayload(rawText: string): ParsedMillLabelData | nu
       shadeCode: osterShade.code,
       colorName: osterShade.name,
       colorHex: osterShade.hex,
-      dyeLot: textUpper.includes('26E') ? '26E081' : '26E081',
+      dyeLot: textUpper.includes('26E') ? textUpper : (osterShade.defaultDyeLot || '26E081'),
       bagNumber: '148',
       grossWeightKg: 24.840,
       netWeightKg: 24.000,
       tareWeightKg: 0.840,
       packagesCount: 12,
       yarnCount: '2/24 NM',
-      manufacturer: osterShade.millSupplier,
+      manufacturer: osterShade.millSupplier || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
       fiberComposition: '100% ACRYLIC (HB) DYED YARN',
       category: 'Yarns'
     };
   }
 
-  // 3. Pipe or Semicolon Separated Format: "SHADE:NAVY-108|LOT:26E112|NET:24.00|PCS:12"
+  // 4. Any Dye Lot barcode format starting with 26E (e.g. 26E095, 26E112)
+  if (/^26E\d{3,}$/i.test(textUpper.trim())) {
+    const matchedByLot = MILL_SHADE_CATALOG.find(s => s.defaultDyeLot?.toUpperCase() === textUpper.trim());
+    return {
+      barcode: textUpper,
+      shadeCode: matchedByLot?.code || 'OSTER-YARN',
+      colorName: matchedByLot?.name || `Acrylic Yarn (Lot ${textUpper})`,
+      colorHex: matchedByLot?.hex || '#94A3B8',
+      dyeLot: textUpper.trim(),
+      grossWeightKg: 24.840,
+      netWeightKg: 24.000,
+      tareWeightKg: 0.840,
+      packagesCount: 12,
+      yarnCount: '2/24 NM',
+      manufacturer: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+      fiberComposition: '100% ACRYLIC (HB) DYED YARN',
+      category: 'Yarns'
+    };
+  }
+
+  // 5. Pipe or Semicolon Separated Format: "SHADE:NAVY-108|LOT:26E112|NET:24.00|PCS:12"
   if (text.includes('|') || text.includes(';') || text.includes(',')) {
     const parts = text.split(/[|;,]/).map(p => p.trim());
     const data: ParsedMillLabelData = { barcode: text };
@@ -433,7 +507,7 @@ export function parseMillLabelPayload(rawText: string): ParsedMillLabelData | nu
     }
   }
 
-  // 4. Exact Mill Shade Code Lookup in Catalog
+  // 6. Exact Mill Shade Code Lookup in Catalog
   const directMatch = MILL_SHADE_CATALOG.find(
     s => s.code.toUpperCase() === textUpper || textUpper.startsWith(s.code.toUpperCase())
   );

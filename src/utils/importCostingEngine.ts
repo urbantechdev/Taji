@@ -63,16 +63,21 @@ export function calculateImportShipmentCosting(
     const fobRatio = totalFOB_USD > 0 ? itemFob / totalFOB_USD : 0;
     const weightRatio = totalNetWeightKg > 0 ? itemNetKg / totalNetWeightKg : 0;
 
-    // Apportionment by Value (FOB ratio)
-    const apportionedFreightUSD = totalFreightUSD * fobRatio;
-    const apportionedInsuranceUSD = totalInsuranceUSD * fobRatio;
+    // Apportionment by Value (FOB ratio) - use explicit item freight/insurance if provided, otherwise apportion
+    const apportionedFreightUSD = item.freightUSD !== undefined && item.freightUSD > 0
+      ? Number(item.freightUSD)
+      : totalFreightUSD * fobRatio;
+    const apportionedInsuranceUSD = item.insuranceUSD !== undefined && item.insuranceUSD > 0
+      ? Number(item.insuranceUSD)
+      : totalInsuranceUSD * fobRatio;
     const apportionedCoCUSD = cocFeesUSD * fobRatio;
     const apportionedCoCKES = apportionedCoCUSD * exchangeRate;
     const apportionedPortClearingKES = portClearingFeesKES * fobRatio;
 
-    // Apportionment by Weight (Net Weight ratio)
-    const apportionedMssUSD = totalMSS_USD * weightRatio;
-    const apportionedMssKES = totalMSS_KES * weightRatio;
+    // MSS Levy (6401): Gross Weight (Tonnes) * USD 1.75 * Exchange Rate
+    const itemGrossTonnes = itemGrossKg / 1000;
+    const apportionedMssUSD = itemGrossTonnes * mssLevyUSDRatePerTonne;
+    const apportionedMssKES = apportionedMssUSD * exchangeRate;
 
     // CIF USD & Customs Value (KES)
     const cifUSD = itemFob + apportionedFreightUSD + apportionedInsuranceUSD;
@@ -90,7 +95,7 @@ export function calculateImportShipmentCosting(
     const importDuty1002KES = dutyAppliedKES;
     const idf1801KES = customsValueKES * (idfRatePct / 100);
     const rdl6001KES = customsValueKES * (rdlRatePct / 100);
-    // VAT Base = Customs Value + Import Duty + IDF + RDL (Excise is 0 for textiles)
+    // VAT Base = Customs Value + Import Duty + IDF + RDL (16%)
     const vatBaseKES = customsValueKES + importDuty1002KES + idf1801KES + rdl6001KES;
     const vat1202KES = vatBaseKES * (vatRatePct / 100);
     const mss6401KES = apportionedMssKES;
@@ -143,6 +148,7 @@ export function calculateImportShipmentCosting(
       customsValueKES,
       adValoremDutyKES,
       specificDutyKES,
+      specificRateKESPerTonne: specificDutyRatePerTonne,
       dutyAppliedKES,
       dutyRuleApplied,
       importDuty1002KES,
@@ -188,6 +194,7 @@ export function calculateImportShipmentCosting(
     totalInsuranceUSD,
     totalCIF_USD,
     totalCustomsValueKES,
+    specificRateKESPerTonne: specificDutyRatePerTonne,
     totalImportDuty1002KES,
     totalIDF1801KES,
     totalRDL6001KES,

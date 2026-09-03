@@ -1538,6 +1538,8 @@ export interface ImportShipmentLineItem {
   category: CategoryType;
   hsCode: string; // e.g. "6006.32.00"
   fobUSD: number;
+  freightUSD?: number; // per-item explicit freight or apportioned
+  insuranceUSD?: number; // per-item explicit insurance or apportioned
   netWeightKg: number;
   grossWeightKg: number;
   gsm?: number; // Grams per square meter (for fabrics)
@@ -1564,6 +1566,7 @@ export interface ComputedImportLineItem extends ImportShipmentLineItem {
   customsValueKES: number;
   adValoremDutyKES: number;
   specificDutyKES: number;
+  specificRateKESPerTonne?: number; // USD specific duty * exchange rate
   dutyAppliedKES: number;
   dutyRuleApplied: 'ad_valorem' | 'specific_duty';
   importDuty1002KES: number;
@@ -1588,6 +1591,7 @@ export interface ImportShipmentSummary {
   totalInsuranceUSD: number;
   totalCIF_USD: number;
   totalCustomsValueKES: number;
+  specificRateKESPerTonne?: number;
   totalImportDuty1002KES: number;
   totalIDF1801KES: number;
   totalRDL6001KES: number;
