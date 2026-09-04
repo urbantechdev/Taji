@@ -363,15 +363,19 @@ export interface ProductBatch {
   countryOfOrigin?: string; // e.g. "INDIA"
   yarnCount?: string; // e.g. "2/24 NM"
   linearDensityTex?: string; // e.g. "83"
-  dyeLot?: string; // e.g. "26E081"
-  shadeCode?: string; // e.g. "MIX GREY-4251"
-  bagNumber?: string; // e.g. "148"
-  packagesCount?: number; // e.g. 12 cones / packages
-  weightPerPackageKg?: number; // e.g. 2.000 kg per cone
-  grossWeightKg?: number; // e.g. 24.840 kg
-  netWeightKg?: number; // e.g. 24.000 kg
+  dyeLot?: string; // e.g. "26B020"
+  shadeCode?: string; // e.g. "BLACK 3061"
+  bagNumber?: string; // e.g. "01 TO 28"
+  packagesCount?: number; // e.g. 28 packages
+  packageDetails?: string; // e.g. "27 standard bags @ 24kg + 1 part bag @ 21.4kg"
+  weightPerPackageKg?: number; // e.g. 24.000 kg per bag
+  grossWeightKg?: number; // e.g. 694.060 kg
+  netWeightKg?: number; // e.g. 669.400 kg
   tareWeightKg?: number; // e.g. 0.840 kg
   yarnType?: string; // e.g. "MACHINE KNITTING"
+  containerNumber?: string; // e.g. "NYKU 4933087/40"
+  invoiceRef?: string; // e.g. "UU/OI-EX-036/25-26"
+  shippingLine?: string; // e.g. "ONE LINE"
 
   createdAt: string;
 }
@@ -1550,6 +1554,12 @@ export interface ImportShipmentLineItem {
   colorName?: string;
   colorHex?: string;
   unit?: UnitType;
+  dyeLot?: string;
+  shadeCode?: string;
+  bagsCount?: number;
+  packagesCount?: number;
+  packageDetails?: string;
+  bagNumberRange?: string;
 }
 
 export interface ComputedImportLineItem extends ImportShipmentLineItem {

@@ -101,6 +101,7 @@ import {
   playScannerErrorBeep
 } from '../utils/audio';
 import { calculateKenyaStatutoryDeductions, calculateAssetMonthlyDepreciation } from '../utils/financeEngine';
+import polarFleeceRollsImg from '../assets/images/polar_fleece_rolls_1788533080208.jpg';
 
 interface ERPContextType {
   // Public Storefront vs Admin ERP View
@@ -1351,7 +1352,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const existingIds = new Set(parsed.map((p: any) => p.id));
+          const missing = INITIAL_PRODUCTS.filter(p => !existingIds.has(p.id));
+          const merged = [...parsed, ...missing];
+          return merged.map((p: ProductBatch) => {
+            if (p.category === 'Fleece' && (!p.imageUrl || p.imageUrl.includes('unsplash.com'))) {
+              return { ...p, imageUrl: polarFleeceRollsImg };
+            }
+            return p;
+          });
         }
       }
     } catch (e) {
@@ -1406,7 +1415,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Master Product Category Images (Dereck, Fleece, Yarns)
   const DEFAULT_CATEGORY_IMAGES: Record<CategoryType, string> = {
     Dereck: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=800&q=80',
-    Fleece: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80',
+    Fleece: polarFleeceRollsImg,
     Yarns: 'https://images.unsplash.com/photo-1606760227091-3dd850d97f1d?auto=format&fit=crop&w=800&q=80'
   };
 
@@ -1414,7 +1423,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const saved = localStorage.getItem('urban_interior_category_images');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (!parsed.Fleece || parsed.Fleece.includes('unsplash.com')) {
+          parsed.Fleece = polarFleeceRollsImg;
+        }
+        return parsed;
       }
     } catch (e) {
       console.warn('Error reading category images from localStorage:', e);
@@ -1441,7 +1454,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             if (data.category && data.imageUrl) {
-              loadedImgs[data.category as CategoryType] = data.imageUrl;
+              if (data.category === 'Fleece' && data.imageUrl.includes('unsplash.com')) {
+                loadedImgs.Fleece = polarFleeceRollsImg;
+              } else {
+                loadedImgs[data.category as CategoryType] = data.imageUrl;
+              }
             }
           });
           setCategoryImages(loadedImgs);
@@ -1550,13 +1567,28 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const unsub = onSnapshot(collection(db, 'products'), (snapshot) => {
         const loaded: ProductBatch[] = [];
+        const existingIds = new Set<string>();
         snapshot.forEach((docSnap) => {
           const item = docSnap.data() as ProductBatch;
           if (item && item.id) {
+            if (item.category === 'Fleece' && (!item.imageUrl || item.imageUrl.includes('unsplash.com'))) {
+              item.imageUrl = polarFleeceRollsImg;
+            }
             loaded.push(item);
+            existingIds.add(item.id);
           }
         });
-        setProducts(loaded);
+
+        // Seed any new catalog products (such as Udey Udyog import batches) to Firestore if not yet present
+        const missingInitial = INITIAL_PRODUCTS.filter(p => !existingIds.has(p.id));
+        if (missingInitial.length > 0) {
+          for (const item of missingInitial) {
+            loaded.push(item);
+            saveFirestoreDoc('products', item.id, item);
+          }
+        }
+
+        setProducts(loaded.length > 0 ? loaded : INITIAL_PRODUCTS);
         setCloudSyncStatus('synced');
         setLastCloudSync(new Date());
       }, (error) => {

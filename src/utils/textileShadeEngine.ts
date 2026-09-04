@@ -16,6 +16,128 @@ export interface MillShadeRecord {
 }
 
 export const MILL_SHADE_CATALOG: MillShadeRecord[] = [
+  // Commercial Invoice UU/OI-EX-036/25-26 & Packing List (Udey Udyog Unit of Oster India)
+  {
+    code: 'BLACK 3061',
+    name: 'Black 3061',
+    hex: '#0a0a0a',
+    rgb: [10, 10, 10],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26B020 (28 Bags / 669.400 kg)',
+    defaultDyeLot: '26B020',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'MAROON-3059',
+    name: 'Maroon 3059',
+    hex: '#7f1d1d',
+    rgb: [127, 29, 29],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C002 (106 Bags / 2,532.200 kg)',
+    defaultDyeLot: '26C002',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'GREEN-4551',
+    name: 'Green 4551',
+    hex: '#14532d',
+    rgb: [20, 83, 45],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C007 (62 Bags / 1,483.300 kg)',
+    defaultDyeLot: '26C007',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'NEW NAVY-3075',
+    name: 'New Navy 3075',
+    hex: '#1e3a8a',
+    rgb: [30, 58, 138],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C001 (137 Bags / 3,284.800 kg)',
+    defaultDyeLot: '26C001',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'RED-3025',
+    name: 'Red 3025',
+    hex: '#dc2626',
+    rgb: [220, 38, 38],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C003 (62 Bags / 1,483.400 kg)',
+    defaultDyeLot: '26C003',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'NAVY KK',
+    name: 'Navy KK',
+    hex: '#0f172a',
+    rgb: [15, 23, 42],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C006 (45 Bags / 1,060.800 kg)',
+    defaultDyeLot: '26C006',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'BEIGE-4930',
+    name: 'Beige 4930',
+    hex: '#d4b996',
+    rgb: [212, 185, 150],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C004 (15 Bags / 354.200 kg)',
+    defaultDyeLot: '26C004',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'ASKARI OLIVE',
+    name: 'Askari Olive',
+    hex: '#4d5d36',
+    rgb: [77, 93, 54],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C010 (15 Bags / 347.600 kg)',
+    defaultDyeLot: '26C010',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'BROWN-4412',
+    name: 'Brown 4412',
+    hex: '#5c3a21',
+    rgb: [92, 58, 33],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C005 (14 Bags / 325.700 kg)',
+    defaultDyeLot: '26C005',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'NAVY-4515M',
+    name: 'Navy 4515M (Melange)',
+    hex: '#1d2d44',
+    rgb: [29, 45, 68],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C009 (45 Bags / 1,063.200 kg)',
+    defaultDyeLot: '26C009',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
+  {
+    code: 'BLACK (26C008)',
+    name: 'Black (26C008)',
+    hex: '#050505',
+    rgb: [5, 5, 5],
+    category: 'Yarns',
+    description: '2/24 NM Acrylic High Bulk Yarn • Lot 26C008 (14 Bags / 336.000 kg)',
+    defaultDyeLot: '26C008',
+    millSupplier: 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+    standardTareKg: 0.84
+  },
   // OSTER INDIA / ACRYLIC YARNS (Machine Knitting 2/24 NM)
   {
     code: 'MIX GREY-4251',

@@ -176,6 +176,26 @@ div[class*="rounded-xl"][class*="border"]:hover {
   animation: softPulse 3s ease-in-out infinite;
 }
 
+/* Brand Laser Scanner Sweep Animation for Viewfinder Windows */
+@keyframes scannerLaserSweep {
+  0% {
+    top: 6%;
+    opacity: 0.85;
+  }
+  50% {
+    top: 90%;
+    opacity: 1;
+  }
+  100% {
+    top: 6%;
+    opacity: 0.85;
+  }
+}
+
+.animate-scanner-laser {
+  animation: scannerLaserSweep 2.2s ease-in-out infinite;
+}
+
 /* ==========================================================================
    Universal Multi-Device Auto-Adjustment & Responsive Optimization
    ========================================================================== */
