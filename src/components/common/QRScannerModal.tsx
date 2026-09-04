@@ -3,6 +3,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useERP } from '../../context/ERPContext';
 import { ProductBatch, LocationId } from '../../types';
 import ReflectionOverlay from './ReflectionOverlay';
+import tajiLogo from '../../assets/images/taji_logo_1786034537873.jpg';
 import { playBarcodeScanBeep, playScannerErrorBeep, playSuccessSound, playAlertSound } from '../../utils/audio';
 import {
   X,
@@ -469,21 +470,28 @@ export const QRScannerModal: React.FC = () => {
   if (isMinimized) {
     return (
       <div className="fixed bottom-4 sm:bottom-6 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[620px] z-50 animate-in slide-in-from-bottom-6 duration-200">
-        <div className="bg-slate-950/95 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-rose-500/50 p-4 text-white space-y-3">
+        <div className="bg-slate-950/95 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-rose-500/50 p-4 text-white space-y-3 shadow-rose-950/40">
           
           {/* Header Row */}
           <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
-              </span>
-              <span className="text-xs font-black uppercase tracking-wider text-rose-400">
-                {brandSettings.brandName || 'TAJI'} QR Batch Vision • Ready
-              </span>
-              <span className="text-[11px] text-slate-400 hidden sm:inline">
-                ({activeLocation})
-              </span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src={tajiLogo}
+                alt="TAJI Brand Logo"
+                className="w-7 h-7 object-contain rounded-lg bg-white/10 p-0.5 border border-white/20 shadow-xs shrink-0"
+              />
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                </span>
+                <span className="text-xs font-black uppercase tracking-wider text-rose-400 truncate">
+                  {brandSettings.brandName || 'TAJI'} QR Batch Vision
+                </span>
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  ({activeLocation})
+                </span>
+              </div>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
@@ -588,12 +596,14 @@ export const QRScannerModal: React.FC = () => {
       <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-3xl w-full h-[100dvh] sm:h-auto sm:max-h-[95vh] flex flex-col border-0 sm:border border-rose-100 overflow-hidden">
         
         {/* MODAL HEADER */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between border-b border-rose-900/50 shrink-0">
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-rose-950 to-slate-950 text-white p-3.5 sm:p-4 flex items-center justify-between border-b border-rose-900/50 shrink-0">
           <ReflectionOverlay />
-          <div className="flex items-center gap-2.5 relative z-10 min-w-0">
-            <div className="p-1.5 sm:p-2 bg-rose-600/30 rounded-xl border border-rose-400/30 text-rose-300 shrink-0">
-              <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
+          <div className="flex items-center gap-3 relative z-10 min-w-0">
+            <img
+              src={tajiLogo}
+              alt="TAJI Brand Logo"
+              className="w-9 h-9 object-contain rounded-xl bg-white/10 p-1 border border-white/20 shadow-md shrink-0"
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <h3 className="font-black text-xs sm:text-base text-white tracking-wide truncate">
@@ -616,7 +626,7 @@ export const QRScannerModal: React.FC = () => {
                 setIsQRScannerOpen(false);
                 setIsMobileBarcodeScannerOpen(true);
               }}
-              className="px-2.5 py-1 bg-gradient-to-r from-indigo-600 to-rose-600 hover:from-indigo-500 hover:to-rose-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+              className="px-2.5 py-1 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
               title="Switch to 3-Step Barcode Scanner Wizard"
             >
               <Barcode className="w-3.5 h-3.5" />
@@ -742,7 +752,7 @@ export const QRScannerModal: React.FC = () => {
           {/* TAB 1: LIVE CAMERA SCANNER */}
           {activeScanMode === 'camera' && (
             <div className="space-y-3">
-              <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-video sm:aspect-[4/3] max-h-[300px] flex items-center justify-center border-2 border-dashed border-rose-500/40 shadow-inner">
+              <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-video sm:aspect-[4/3] max-h-[300px] flex items-center justify-center border-2 border-rose-500/40 shadow-inner shadow-rose-950/30">
                 
                 {/* HTML5 QR Code Video Target Element */}
                 <div id={scannerContainerId} className="w-full h-full object-cover" />
@@ -750,18 +760,18 @@ export const QRScannerModal: React.FC = () => {
                 {/* Laser Overlay & Target Box */}
                 {isScanning && (
                   <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                    <div className="w-48 h-48 sm:w-56 sm:h-56 border-2 border-rose-500/80 rounded-2xl relative shadow-[0_0_20px_rgba(244,63,94,0.3)]">
+                    <div className="w-48 h-48 sm:w-56 sm:h-56 border-2 border-rose-500/80 rounded-2xl relative shadow-[0_0_25px_rgba(244,63,94,0.4)]">
                       {/* Corner Accents */}
-                      <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-rose-400" />
-                      <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-rose-400" />
-                      <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-rose-400" />
-                      <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-rose-400" />
+                      <div className="absolute -top-1.5 -left-1.5 w-5 h-5 border-t-4 border-l-4 border-rose-400 rounded-tl-lg" />
+                      <div className="absolute -top-1.5 -right-1.5 w-5 h-5 border-t-4 border-r-4 border-rose-400 rounded-tr-lg" />
+                      <div className="absolute -bottom-1.5 -left-1.5 w-5 h-5 border-b-4 border-l-4 border-rose-400 rounded-bl-lg" />
+                      <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 border-b-4 border-r-4 border-rose-400 rounded-br-lg" />
                       
                       {/* Red Laser Sweep */}
-                      <div className="absolute w-full h-0.5 bg-gradient-to-r from-transparent via-rose-500 to-transparent top-1/2 -translate-y-1/2 animate-pulse shadow-[0_0_12px_#f43f5e]" />
+                      <div className="w-full h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_15px_#f43f5e] animate-scanner-laser absolute" />
                     </div>
 
-                    <p className="text-white text-[11px] font-bold mt-3 bg-slate-900/90 px-3 py-1 rounded-full border border-slate-700 shadow-md">
+                    <p className="text-rose-200 text-[11px] font-bold mt-3 bg-slate-950/90 px-3.5 py-1 rounded-full border border-rose-500/40 shadow-md">
                       Point camera at Batch QR Code or Barcode Tag
                     </p>
                   </div>

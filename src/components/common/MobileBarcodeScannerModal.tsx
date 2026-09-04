@@ -4,6 +4,7 @@ import { useERP } from '../../context/ERPContext';
 import { CategoryType, LocationId, UnitType, ProductBatch } from '../../types';
 import { playBarcodeScanBeep } from '../../utils/audio';
 import ReflectionOverlay from './ReflectionOverlay';
+import tajiLogo from '../../assets/images/taji_logo_1786034537873.jpg';
 import {
   X,
   Camera,
@@ -423,18 +424,18 @@ export const MobileBarcodeScannerModal: React.FC = () => {
   // MINIMIZED VIEW DOCK
   if (isMinimized) {
     return (
-      <div className="fixed bottom-4 sm:bottom-6 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[640px] z-50 animate-in slide-in-from-bottom-6 duration-200">
-        <div className="bg-slate-950/95 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-emerald-500/50 p-4 text-white space-y-3">
-          <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+      <div className="fixed bottom-4 sm:bottom-6 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[660px] z-50 animate-in slide-in-from-bottom-6 duration-200">
+        <div className="bg-slate-950/95 backdrop-blur-md rounded-2xl shadow-2xl border-2 border-rose-500/60 shadow-[0_0_35px_rgba(181,0,68,0.35)] ring-1 ring-pink-500/30 p-4 text-white space-y-3">
+          <div className="flex items-center justify-between gap-2 border-b border-rose-900/40 pb-2.5">
             <div className="flex items-center gap-2 min-w-0">
               <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600"></span>
               </span>
-              <span className="text-xs font-black uppercase tracking-wider text-emerald-400">
+              <span className="text-xs font-black uppercase tracking-wider text-rose-300">
                 {brandSettings.brandName || 'TAJI'} Barcode Wizard • Active
               </span>
-              <span className="text-[11px] text-slate-400 truncate">
+              <span className="text-[11px] text-slate-300 truncate">
                 • {currentItemTitle} ({retailPrice ? `KSh ${retailPrice}/${currentItemUnit}` : ''})
               </span>
             </div>
@@ -443,7 +444,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsMinimized(false)}
-                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                className="px-2.5 py-1 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white rounded-lg text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
                 <span>Expand</span>
@@ -462,8 +463,8 @@ export const MobileBarcodeScannerModal: React.FC = () => {
             <div
               className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
                 lastScanResult.type === 'success'
-                  ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-100'
-                  : 'bg-rose-950/80 border-rose-500/40 text-rose-100'
+                  ? 'bg-rose-950/70 border-rose-500/50 text-rose-100 shadow-md'
+                  : 'bg-rose-950/90 border-rose-600/70 text-rose-100'
               }`}
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -479,7 +480,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-black/40 border border-white/10 shrink-0">
+              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-black/50 border border-rose-500/30 text-rose-200 shrink-0">
                 {lastScanResult.type === 'success' ? 'Saved' : 'Alert'}
               </span>
             </div>
@@ -489,14 +490,14 @@ export const MobileBarcodeScannerModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsMinimized(false)}
-              className="flex-1 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer border border-emerald-400/40"
+              className="flex-1 py-2.5 px-4 bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 hover:from-rose-500 hover:to-pink-500 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-950/50 flex items-center justify-center gap-2 transition-all cursor-pointer border border-rose-400/40"
             >
               <Camera className="w-4 h-4 animate-pulse" />
               <span>Scan Next Roll with Full Camera</span>
             </button>
 
-            <form onSubmit={handleManualSubmit} className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 shrink-0">
-              <Barcode className="w-4 h-4 text-slate-400 ml-2 shrink-0" />
+            <form onSubmit={handleManualSubmit} className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-rose-900/40 shrink-0">
+              <Barcode className="w-4 h-4 text-rose-400 ml-2 shrink-0" />
               <input
                 type="text"
                 value={manualBarcode}
@@ -507,7 +508,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
               <button
                 type="submit"
                 disabled={!manualBarcode.trim()}
-                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
               >
                 Scan
               </button>
@@ -521,22 +522,29 @@ export const MobileBarcodeScannerModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center bg-slate-950 sm:bg-slate-950/85 backdrop-blur-md p-0 sm:p-4 overflow-hidden sm:overflow-y-auto animate-in fade-in duration-200">
       
-      <div className="bg-slate-900 border-0 sm:border border-slate-700/70 text-white rounded-none sm:rounded-3xl shadow-2xl max-w-5xl w-full h-[100dvh] sm:h-auto sm:max-h-[95vh] flex flex-col overflow-hidden relative">
+      <div className="bg-slate-900 border-0 sm:border border-rose-900/60 text-white rounded-none sm:rounded-3xl shadow-2xl shadow-rose-950/60 max-w-5xl w-full h-[100dvh] sm:h-auto sm:max-h-[95vh] flex flex-col overflow-hidden relative ring-1 ring-rose-500/20">
         
         {/* WIZARD TOP HEADER */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 px-3.5 sm:px-6 py-3 sm:py-3.5 border-b border-indigo-500/20 shrink-0 flex items-center justify-between">
+        <div className="relative overflow-hidden bg-gradient-to-r from-slate-950 via-rose-950/90 to-slate-950 px-3.5 sm:px-6 py-3 sm:py-3.5 border-b border-rose-500/30 shrink-0 flex items-center justify-between">
           <ReflectionOverlay />
           
           <div className="flex items-center gap-2.5 sm:gap-3 relative z-10 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-rose-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/30 shrink-0">
-              <Barcode className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-rose-600 via-pink-600 to-rose-700 p-0.5 flex items-center justify-center text-white shadow-md shadow-rose-950/50 shrink-0 border border-rose-400/40 overflow-hidden">
+              <img
+                src={tajiLogo}
+                alt={brandSettings.brandName || 'TAJI'}
+                className="w-full h-full object-cover rounded-[10px]"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <h3 className="text-sm sm:text-lg font-black tracking-tight text-white truncate">
-                  Barcode Scanner Wizard
+                  {brandSettings.brandName || 'TAJI'} Barcode Scanner Wizard
                 </h3>
-                <span className="text-[9px] sm:text-[10px] font-black uppercase px-1.5 sm:px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shrink-0">
+                <span className="text-[9px] sm:text-[10px] font-black uppercase px-1.5 sm:px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0">
                   Step {currentStep}/3
                 </span>
               </div>
@@ -553,7 +561,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
               className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors cursor-pointer"
               title="Test Scanner Audio"
             >
-              <Volume2 className="w-4 h-4 text-emerald-400" />
+              <Volume2 className="w-4 h-4 text-rose-400" />
             </button>
 
             {currentStep === 3 && (
@@ -588,17 +596,17 @@ export const MobileBarcodeScannerModal: React.FC = () => {
               onClick={() => setCurrentStep(1)}
               className={`flex items-center gap-2 p-2 rounded-xl text-left transition-all cursor-pointer ${
                 currentStep === 1
-                  ? 'bg-indigo-600/30 border border-indigo-400/60 text-white'
+                  ? 'bg-rose-950/70 border border-rose-400/70 text-white ring-1 ring-rose-500/40 shadow-[0_0_12px_rgba(181,0,68,0.2)]'
                   : currentStep > 1
-                  ? 'bg-slate-900 border border-emerald-500/40 text-emerald-300 hover:bg-slate-800'
+                  ? 'bg-slate-900 border border-rose-500/40 text-rose-300 hover:bg-slate-800'
                   : 'bg-slate-900 border border-slate-800 text-slate-400'
               }`}
             >
               <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
                 currentStep === 1
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white'
                   : currentStep > 1
-                  ? 'bg-emerald-500 text-slate-950'
+                  ? 'bg-rose-600 text-white'
                   : 'bg-slate-800 text-slate-400'
               }`}>
                 {currentStep > 1 ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : '1'}
@@ -615,17 +623,17 @@ export const MobileBarcodeScannerModal: React.FC = () => {
               onClick={() => setCurrentStep(2)}
               className={`flex items-center gap-2 p-2 rounded-xl text-left transition-all cursor-pointer ${
                 currentStep === 2
-                  ? 'bg-indigo-600/30 border border-indigo-400/60 text-white'
+                  ? 'bg-rose-950/70 border border-rose-400/70 text-white ring-1 ring-rose-500/40 shadow-[0_0_12px_rgba(181,0,68,0.2)]'
                   : currentStep > 2
-                  ? 'bg-slate-900 border border-emerald-500/40 text-emerald-300 hover:bg-slate-800'
+                  ? 'bg-slate-900 border border-rose-500/40 text-rose-300 hover:bg-slate-800'
                   : 'bg-slate-900 border border-slate-800 text-slate-400'
               }`}
             >
               <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
                 currentStep === 2
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white'
                   : currentStep > 2
-                  ? 'bg-emerald-500 text-slate-950'
+                  ? 'bg-rose-600 text-white'
                   : 'bg-slate-800 text-slate-400'
               }`}>
                 {currentStep > 2 ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : '2'}
@@ -644,13 +652,13 @@ export const MobileBarcodeScannerModal: React.FC = () => {
               }}
               className={`flex items-center gap-2 p-2 rounded-xl text-left transition-all cursor-pointer ${
                 currentStep === 3
-                  ? 'bg-emerald-600/30 border border-emerald-400/60 text-white ring-1 ring-emerald-500'
+                  ? 'bg-rose-950/70 border border-rose-400/70 text-white ring-1 ring-rose-500/50 shadow-[0_0_15px_rgba(181,0,68,0.25)]'
                   : 'bg-slate-900 border border-slate-800 text-slate-400'
               }`}
             >
               <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
                 currentStep === 3
-                  ? 'bg-emerald-500 text-slate-950 font-black'
+                  ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white font-black'
                   : 'bg-slate-800 text-slate-400'
               }`}>
                 3
@@ -674,9 +682,9 @@ export const MobileBarcodeScannerModal: React.FC = () => {
             <div className="space-y-6 animate-in fade-in duration-200">
               
               {/* Header explanation banner */}
-              <div className="bg-gradient-to-r from-indigo-950/80 via-slate-900 to-indigo-950/80 p-4 rounded-2xl border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="bg-gradient-to-r from-rose-950/60 via-slate-900 to-rose-950/60 p-4 rounded-2xl border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-indigo-600/30 text-indigo-300 rounded-xl border border-indigo-400/30">
+                  <div className="p-2.5 bg-rose-600/30 text-rose-300 rounded-xl border border-rose-400/30">
                     <PackageCheck className="w-5 h-5" />
                   </div>
                   <div>
@@ -694,7 +702,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                     onClick={() => setSelectionMode('inventory')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       selectionMode === 'inventory'
-                        ? 'bg-indigo-600 text-white shadow-sm'
+                        ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-sm'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -708,7 +716,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       selectionMode === 'custom'
-                        ? 'bg-indigo-600 text-white shadow-sm'
+                        ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-sm'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -730,7 +738,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                 <select
                   value={targetLocation}
                   onChange={(e) => setTargetLocation(e.target.value as LocationId)}
-                  className="px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
                 >
                   {locations.map((loc) => (
                     <option key={loc.id} value={loc.id}>
@@ -753,7 +761,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                         value={itemSearchQuery}
                         onChange={(e) => setItemSearchQuery(e.target.value)}
                         placeholder="Search product by name, color, SKU, or category..."
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:border-rose-500 focus:outline-none"
                       />
                       {itemSearchQuery && (
                         <button
@@ -774,7 +782,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                           onClick={() => setSelectedCategoryFilter(cat)}
                           className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all cursor-pointer ${
                             selectedCategoryFilter.toLowerCase() === cat.toLowerCase()
-                              ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm'
+                              ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white border-rose-400 shadow-sm'
                               : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
                           }`}
                         >
@@ -796,8 +804,8 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                           onClick={() => handleSelectInventoryProduct(prod)}
                           className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group ${
                             isSelected
-                              ? 'bg-indigo-950/70 border-indigo-400 shadow-lg shadow-indigo-950/50 ring-2 ring-indigo-500'
-                              : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700 hover:bg-slate-950'
+                              ? 'bg-rose-950/70 border-rose-400 shadow-lg shadow-rose-950/50 ring-2 ring-rose-500'
+                              : 'bg-slate-950/80 border-slate-800/80 hover:border-rose-500/40 hover:bg-slate-950'
                           }`}
                         >
                           <div className="flex items-start gap-3">
@@ -813,7 +821,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
 
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-black uppercase text-indigo-400 bg-indigo-950 px-1.5 py-0.5 rounded border border-indigo-500/30">
+                                <span className="text-[10px] font-black uppercase text-rose-300 bg-rose-950 px-1.5 py-0.5 rounded border border-rose-500/30">
                                   {prod.category}
                                 </span>
                                 {prod.colorName && (
@@ -822,7 +830,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              <h5 className="font-bold text-xs text-white truncate mt-1 group-hover:text-indigo-300 transition-colors">
+                              <h5 className="font-bold text-xs text-white truncate mt-1 group-hover:text-rose-300 transition-colors">
                                 {prod.name}
                               </h5>
                               <p className="text-[10px] text-slate-400 font-mono mt-0.5">
@@ -848,7 +856,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                           </div>
 
                           {isSelected && (
-                            <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-md">
+                            <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md">
                               <Check className="w-3.5 h-3.5 stroke-[3]" />
                             </div>
                           )}
@@ -868,7 +876,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                       <Sparkles className="w-4 h-4 text-amber-400" />
                       Configure New Roll / Product Line
                     </span>
-                    <span className="text-[10px] text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded-full border border-indigo-500/40">
+                    <span className="text-[10px] text-rose-300 bg-rose-950 px-2 py-0.5 rounded-full border border-rose-500/40">
                       Fast Intake
                     </span>
                   </div>
@@ -886,7 +894,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                           onClick={() => handleSelectCustomCategory(cat)}
                           className={`py-2.5 px-3 rounded-xl text-xs font-extrabold border transition-all cursor-pointer text-center ${
                             customCategory === cat
-                              ? 'bg-gradient-to-r from-indigo-600 to-rose-600 text-white border-indigo-400 shadow-md ring-2 ring-indigo-500/40'
+                              ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white border-rose-400 shadow-md ring-2 ring-rose-500/40'
                               : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
                           }`}
                         >
@@ -907,7 +915,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                         value={customName}
                         onChange={(e) => setCustomName(e.target.value)}
                         placeholder={`e.g. ${customCategory} Superfine Roll - ${customColorName}`}
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
                       />
                     </div>
 
@@ -920,7 +928,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                         value={customColorName}
                         onChange={(e) => setCustomColorName(e.target.value)}
                         placeholder="e.g. Royal Navy Blue Classic"
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -941,7 +949,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                           }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                             customColorName === color.name
-                              ? 'bg-slate-800 border-indigo-400 text-white ring-2 ring-indigo-500/40'
+                              ? 'bg-slate-800 border-rose-400 text-white ring-2 ring-rose-500/40'
                               : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800'
                           }`}
                         >
@@ -972,7 +980,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCurrentStep(2)}
-                  className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-indigo-600 to-rose-600 hover:from-indigo-500 hover:to-rose-500 text-white rounded-xl text-xs font-black transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 hover:from-rose-500 hover:to-pink-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-rose-950/40 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Next: Confirm Price (Step 2)</span>
                   <ArrowRight className="w-4 h-4" />
@@ -1073,8 +1081,8 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                 {/* 2. Bulk / Wholesale Price Card */}
                 <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-                      <Layers className="w-4 h-4" /> Wholesale / Bulk Price
+                    <span className="text-xs font-black uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-rose-400" /> Wholesale / Bulk Price
                     </span>
                     <span className="text-[10px] text-slate-400 font-bold">
                       Option 1 Roll
@@ -1082,13 +1090,13 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                   </div>
 
                   <div className="relative">
-                    <span className="absolute left-3.5 top-2.5 text-xs font-bold text-indigo-400">KSh</span>
+                    <span className="absolute left-3.5 top-2.5 text-xs font-bold text-rose-400">KSh</span>
                     <input
                       type="number"
                       min="0"
                       value={bulkPrice}
                       onChange={(e) => setBulkPrice(Math.max(0, Number(e.target.value) || 0))}
-                      className="w-full pl-12 pr-12 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-base font-black font-mono text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full pl-12 pr-12 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-base font-black font-mono text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
                     />
                     <span className="absolute right-3.5 top-3 text-xs font-bold text-slate-400">
                       /{currentItemUnit}
@@ -1170,7 +1178,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                     min="1"
                     value={quantity}
                     onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-48 px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-base font-black font-mono text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    className="w-48 px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-base font-black font-mono text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
                   />
                   <span className="text-xs font-bold text-slate-300">
                     {currentItemUnit.toUpperCase()} per Roll
@@ -1215,7 +1223,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                   type="checkbox"
                   checked={isPriceConfirmed}
                   onChange={(e) => setIsPriceConfirmed(e.target.checked)}
-                  className="w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-indigo-500"
+                  className="w-4 h-4 text-rose-600 bg-slate-900 border-slate-700 rounded focus:ring-rose-500"
                 />
                 <span className="text-xs font-bold text-slate-300">
                   I confirm that <strong className="text-emerald-400">KSh {retailPrice}/{currentItemUnit}</strong> is the verified selling price and specifications for this batch.
@@ -1237,7 +1245,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                   type="button"
                   onClick={() => setCurrentStep(3)}
                   disabled={!isPriceConfirmed || retailPrice <= 0}
-                  className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 hover:from-rose-500 hover:to-pink-500 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-rose-950/40 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Camera className="w-4 h-4 animate-pulse" />
                   <span>Next: Start Barcode Scanning (Step 3)</span>

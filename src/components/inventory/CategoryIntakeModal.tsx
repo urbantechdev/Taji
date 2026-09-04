@@ -178,7 +178,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
       setTargetLocation(store);
       setIsStoreLockedByInvoice(true);
       setLockedInvoiceRef('SAD 26EMKIM400968589');
-    } else if (invoiceKey === 'IMP-2026-UDEY-028') {
+    } else if (invoiceKey === 'IMP-2026-UDEY-036' || invoiceKey === 'IMP-2026-UDEY-028') {
       const store = (PRESET_SAD_UDEY_UDYOG.destinationLocationId as LocationId) || 'main_store';
       setTargetLocation(store);
       setIsStoreLockedByInvoice(true);
@@ -844,7 +844,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                     <optgroup label="Overseas Import Commercial Invoices & SAD Declarations">
                       <option value="IMP-2026-PA222">📄 Commercial Invoice 26PA222 — Zhejiang Puan (Locked: Main Store / Industrial Area)</option>
                       <option value="SAD-26EMKIM400968589">📄 SAD Entry 26EMKIM400968589 — ICMS Reconciled (Locked: Main Store / Industrial Area)</option>
-                      <option value="IMP-2026-UDEY-028">📄 Yarn Invoice UU/OI-EX-028/26-27 — Udey Udyog (Locked: Main Store / Industrial Area)</option>
+                      <option value="IMP-2026-UDEY-036">📄 Yarn Invoice UU/OI-EX-036/25-26 — Udey Udyog (Container NYKU 4933087/40 | 543 Bags | 12,940.6 kg)</option>
                       <option value="IMP-2026-FLC-774">📄 Fleece Invoice 26FLC-882 — Shaoxing Shengli (Locked: Main Store / Industrial Area)</option>
                     </optgroup>
                     <optgroup label="Kenyan Domestic Supplier Invoices (LPS)">

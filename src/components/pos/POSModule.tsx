@@ -276,10 +276,18 @@ export const POSModule: React.FC = () => {
   // Filtered product catalog (Restricted to active shop unless admin or explicitly searching for restock)
   const filteredProducts = products.filter(p => {
     const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.colorName.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      p.colorName.toLowerCase().includes(q) ||
+      (p.dyeLot && p.dyeLot.toLowerCase().includes(q)) ||
+      (p.shadeCode && p.shadeCode.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+      (p.invoiceRef && p.invoiceRef.toLowerCase().includes(q)) ||
+      (p.bagNumber && p.bagNumber.toLowerCase().includes(q)) ||
+      (p.packageDetails && p.packageDetails.toLowerCase().includes(q));
     
     if (!matchesCat || !matchesSearch) return false;
 
@@ -297,10 +305,17 @@ export const POSModule: React.FC = () => {
   // Autofill Search calculation matches (Cross-location item discovery & 1-tap request)
   const matchingAutofillProducts = searchQuery.trim() === '' ? [] : products.filter(p => {
     const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.colorName.toLowerCase().includes(searchQuery.toLowerCase());
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      p.colorName.toLowerCase().includes(q) ||
+      (p.dyeLot && p.dyeLot.toLowerCase().includes(q)) ||
+      (p.shadeCode && p.shadeCode.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+      (p.invoiceRef && p.invoiceRef.toLowerCase().includes(q)) ||
+      (p.bagNumber && p.bagNumber.toLowerCase().includes(q)) ||
+      (p.packageDetails && p.packageDetails.toLowerCase().includes(q));
     return matchesCat && matchesSearch;
   });
 
@@ -1050,7 +1065,7 @@ export const POSModule: React.FC = () => {
                           )}
                           {prod.packagesCount && (
                             <span className="text-[9px] font-medium px-1.5 py-0.5 bg-amber-50 text-amber-800 rounded border border-amber-200">
-                              {prod.packagesCount} Cones / {prod.netWeightKg || 24} KG Bale
+                              {prod.packagesCount} Bags/Pkgs {prod.bagNumber ? `(Bags ${prod.bagNumber})` : ''}
                             </span>
                           )}
                         </div>

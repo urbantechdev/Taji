@@ -17,6 +17,7 @@ import {
   Truck,
   ShieldCheck
 } from 'lucide-react';
+import polarFleeceRollsImg from '../../assets/images/polar_fleece_rolls_1788533080208.jpg';
 
 interface StorefrontProductCardProps {
   product: ProductBatch;
@@ -102,7 +103,11 @@ export const StorefrontProductCard: React.FC<StorefrontProductCardProps> = ({
         onClick={() => onOpenQuickView(product)}
       >
         <img
-          src={product.imageUrl || 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=800&q=80'}
+          src={
+            product.category === 'Fleece'
+              ? (product.imageUrl || polarFleeceRollsImg)
+              : (product.imageUrl || 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=800&q=80')
+          }
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
           referrerPolicy="no-referrer"

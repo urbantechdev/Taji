@@ -17,6 +17,7 @@ import {
   Store,
   Info
 } from 'lucide-react';
+import polarFleeceRollsImg from '../../assets/images/polar_fleece_rolls_1788533080208.jpg';
 
 interface PresetImage {
   name: string;
@@ -49,24 +50,24 @@ const CATEGORY_PRESETS: Record<CategoryType, PresetImage[]> = {
   ],
   Fleece: [
     {
-      name: 'Polar Anti-Pill Teal',
-      url: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80',
-      description: 'Soft thermal polar fleece with anti-pill texture'
+      name: 'Polar & Coral Fleece Rolls (Official Taji)',
+      url: polarFleeceRollsImg,
+      description: 'Official soft thermal polar fleece and coral fleece rolls'
     },
     {
-      name: 'Sherpa Warm Plush',
-      url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=800&q=80',
-      description: 'High-loft sherpa fleece fabric surface'
+      name: 'Sherpa Warm Plush Fleece Rolls',
+      url: polarFleeceRollsImg,
+      description: 'High-loft bonded sherpa fleece roll fabric'
     },
     {
-      name: 'Microfleece Magenta',
-      url: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80',
-      description: 'Ultra-soft lightweight fleece textile'
+      name: 'Coral Velvet Microfleece Rolls',
+      url: polarFleeceRollsImg,
+      description: 'Ultra-soft lightweight fleece textile rolls'
     },
     {
-      name: 'Thermal Heather Grey',
-      url: 'https://images.unsplash.com/photo-1606760227091-3dd850d97f1d?auto=format&fit=crop&w=800&q=80',
-      description: 'Dense insulating fleece textile weave'
+      name: 'Thermal Heavy Fleece Rolls',
+      url: polarFleeceRollsImg,
+      description: 'Dense insulating fleece textile weave in rolls'
     }
   ],
   Yarns: [

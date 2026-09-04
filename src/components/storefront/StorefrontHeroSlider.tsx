@@ -7,6 +7,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { playClickSound } from '../../utils/audio';
+import polarFleeceRollsImg from '../../assets/images/polar_fleece_rolls_1788533080208.jpg';
 
 interface StorefrontHeroSliderProps {
   onSelectCategory: (category: 'all' | CategoryType) => void;
@@ -30,18 +31,18 @@ export const StorefrontHeroSlider: React.FC<StorefrontHeroSliderProps> = ({
 
   const slides: ImageSlide[] = [
     {
+      id: 'Fleece',
+      category: 'Fleece',
+      alt: 'Polar & Coral Fleece Rolls',
+      imageUrl: categoryImages.Fleece || polarFleeceRollsImg,
+      fallbackImage: polarFleeceRollsImg
+    },
+    {
       id: 'Dereck',
       category: 'Dereck',
       alt: 'Dereck Suiting Fabrics',
       imageUrl: categoryImages.Dereck || 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=1600&q=85',
       fallbackImage: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=1600&q=85'
-    },
-    {
-      id: 'Fleece',
-      category: 'Fleece',
-      alt: 'Polar & Coral Fleece Rolls',
-      imageUrl: categoryImages.Fleece || 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=1600&q=85',
-      fallbackImage: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=1600&q=85'
     },
     {
       id: 'Yarns',

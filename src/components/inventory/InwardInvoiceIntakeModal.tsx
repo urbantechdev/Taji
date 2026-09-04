@@ -78,6 +78,11 @@ interface NewLineDraft {
   unitPriceKES: number; // For domestic (KES/m or unit)
   hsCode: string;
   rollsCount?: number;
+  dyeLot?: string;
+  shadeCode?: string;
+  packagesCount?: number;
+  packageDetails?: string;
+  bagNumberRange?: string;
 }
 
 export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> = ({
@@ -187,19 +192,24 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
           isExistingCatalogProduct: !!li.matchedProductId,
           matchedProductId: li.matchedProductId,
           name: li.description,
-          sku: `SKU-${li.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`,
+          sku: (li as any).sku || `SKU-${li.category.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`,
           category: li.category,
-          subCategory: 'Imported Grade',
-          fiberComposition: '100% Synthetic',
-          colorName: 'Standard',
-          colorHex: '#3B82F6',
-          unit: li.category === 'Yarns' ? 'kg' : 'meter',
+          subCategory: (li as any).subCategory || (li.category === 'Yarns' ? 'Machine Knitting Yarn 2/24 NM' : 'Imported Grade'),
+          fiberComposition: li.category === 'Yarns' ? '100% High Bulk Acrylic Dyed Yarn' : '100% Synthetic',
+          colorName: (li as any).colorName || 'Standard',
+          colorHex: (li as any).colorHex || '#3B82F6',
+          unit: (li as any).unit || (li.category === 'Yarns' ? 'kg' : 'meter'),
           quantity: (li as any).fabricLengthMetres || li.netWeightKg,
           grossWeightKg: li.grossWeightKg,
           unitPriceUSD: (li.fobUSD / (li.netWeightKg || 1)) || 2.10,
           unitPriceKES: Math.round((li.fobUSD / (li.netWeightKg || 1)) * record.exchangeRate),
           hsCode: li.hsCode,
-          rollsCount: (li as any).rollsCount || 50
+          rollsCount: (li as any).rollsCount || (li as any).bagsCount || 50,
+          dyeLot: (li as any).dyeLot,
+          shadeCode: (li as any).shadeCode,
+          packagesCount: (li as any).packagesCount || (li as any).bagsCount,
+          packageDetails: (li as any).packageDetails,
+          bagNumberRange: (li as any).bagNumberRange
         })));
       }
     } else if ('purchaseOrderNo' in record) {
@@ -270,7 +280,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
       applyInvoiceRecord(PRESET_INVOICE_26PA222);
     } else if (id === 'SAD-26EMKIM400968589') {
       applyInvoiceRecord(PRESET_SAD_26EMKIM400968589);
-    } else if (id === 'IMP-2026-UDEY-028') {
+    } else if (id === 'IMP-2026-UDEY-036' || id === 'IMP-2026-UDEY-028') {
       applyInvoiceRecord(PRESET_SAD_UDEY_UDYOG);
     } else if (id === 'IMP-2026-FLC-774') {
       applyInvoiceRecord(PRESET_FLEECE_CONTAINER);
@@ -511,6 +521,14 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               await updateProductBatch(existing.id, {
                 costPrice: unitLanded,
                 unitPriceRetail: unitRetail,
+                dyeLot: draft.dyeLot || existing.dyeLot,
+                shadeCode: draft.shadeCode || existing.shadeCode,
+                packagesCount: draft.packagesCount || existing.packagesCount,
+                packageDetails: draft.packageDetails || existing.packageDetails,
+                bagNumber: draft.bagNumberRange || existing.bagNumber,
+                invoiceRef: invoiceNumber,
+                grossWeightKg: comp.grossWeightKg || existing.grossWeightKg,
+                netWeightKg: comp.netWeightKg || existing.netWeightKg,
                 locationStock: {
                   ...existing.locationStock,
                   [destinationLocation]: currentStock + receivedQty
@@ -524,11 +542,11 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               sku: draft.sku || `SKU-${Date.now().toString().slice(-6)}`,
               name: draft.name,
               category: draft.category,
-              subCategory: draft.subCategory || 'Imported Grade',
-              fiberComposition: draft.fiberComposition || '100% Fabric',
+              subCategory: draft.subCategory || (draft.category === 'Yarns' ? 'Machine Knitting Yarn 2/24 NM' : 'Imported Grade'),
+              fiberComposition: draft.fiberComposition || (draft.category === 'Yarns' ? '100% High Bulk Acrylic Dyed Yarn' : '100% Fabric'),
               colorName: draft.colorName || 'Natural',
               colorHex: draft.colorHex || '#1E3A8A',
-              unit: draft.unit || 'meter',
+              unit: draft.unit || (draft.category === 'Yarns' ? 'kg' : 'meter'),
               unitPriceRetail: unitRetail,
               unitPriceBulk: Math.round(unitRetail * 0.95),
               costPrice: unitLanded,
@@ -536,10 +554,18 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                 [destinationLocation]: receivedQty
               },
               minReorderLevel: 50,
-              countryOfOrigin: currentSupplier?.country || 'China',
-              manufacturer: currentSupplier?.name || 'Overseas Mill',
-              grossWeightKg: comp.grossWeightKg,
-              netWeightKg: comp.netWeightKg
+              countryOfOrigin: currentSupplier?.country || 'India',
+              manufacturer: currentSupplier?.name || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+              grossWeightKg: comp.grossWeightKg || draft.grossWeightKg,
+              netWeightKg: comp.netWeightKg || draft.quantity,
+              dyeLot: draft.dyeLot || (comp as any).dyeLot,
+              shadeCode: draft.shadeCode || (comp as any).shadeCode,
+              packagesCount: draft.packagesCount || (comp as any).packagesCount,
+              packageDetails: draft.packageDetails || (comp as any).packageDetails,
+              bagNumber: draft.bagNumberRange || (comp as any).bagNumberRange,
+              yarnCount: draft.category === 'Yarns' ? '2/24 NM' : undefined,
+              containerNumber: 'NYKU 4933087/40',
+              invoiceRef: invoiceNumber
             });
             onboardedCount++;
           }
@@ -754,7 +780,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                     <optgroup label="Overseas Import Invoices & KRA Customs Declarations">
                       <option value="IMP-2026-PA222">📄 Commercial Invoice 26PA222 — Zhejiang Puan Textile (Locked: Main Store / Industrial Area)</option>
                       <option value="SAD-26EMKIM400968589">📄 SAD Entry 26EMKIM400968589 — ICMS Reconciled (Locked: Main Store / Industrial Area)</option>
-                      <option value="IMP-2026-UDEY-028">📄 Invoice UU/OI-EX-028/26-27 — Udey Udyog Yarn (Locked: Main Store / Industrial Area)</option>
+                      <option value="IMP-2026-UDEY-036">📄 Yarn Invoice UU/OI-EX-036/25-26 — Udey Udyog (Container NYKU 4933087/40 | 543 Bags | 12,940.6 kg)</option>
                       <option value="IMP-2026-FLC-774">📄 Invoice 26FLC-882 — Shaoxing Shengli Fleece (Locked: Main Store / Industrial Area)</option>
                     </optgroup>
                     <optgroup label="Kenyan Domestic Supplier Invoices (LPS)">
@@ -1314,6 +1340,61 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                         value={item.grossWeightKg || item.quantity}
                         onChange={e => handleUpdateDraft(item.id, { grossWeightKg: Number(e.target.value) })}
                         className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Lot, Shade, & Packaging breakdown */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Dye Lot #
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 26C002"
+                        value={item.dyeLot || ''}
+                        onChange={e => handleUpdateDraft(item.id, { dyeLot: e.target.value.toUpperCase() })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Shade / Color Code
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. MAROON-3059"
+                        value={item.shadeCode || item.colorName || ''}
+                        onChange={e => handleUpdateDraft(item.id, { shadeCode: e.target.value, colorName: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Packages / Bags Count
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 106"
+                        value={item.packagesCount || item.rollsCount || ''}
+                        onChange={e => handleUpdateDraft(item.id, { packagesCount: Number(e.target.value), rollsCount: Number(e.target.value) })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Package Breakdown / Bag Range
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 105 bags @ 24kg + 1 part (Bags 29 to 134)"
+                        value={item.packageDetails || item.bagNumberRange || ''}
+                        onChange={e => handleUpdateDraft(item.id, { packageDetails: e.target.value })}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
                       />
                     </div>
                   </div>

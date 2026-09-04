@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Receipt
 } from 'lucide-react';
+import polarFleeceRollsImg from '../../assets/images/polar_fleece_rolls_1788533080208.jpg';
 
 interface StorefrontProductDetailModalProps {
   product: ProductBatch | null;
@@ -126,7 +127,11 @@ export const StorefrontProductDetailModal: React.FC<StorefrontProductDetailModal
               <div className="md:col-span-5 space-y-4">
                 <div className="aspect-4/3 md:aspect-square rounded-2xl overflow-hidden bg-slate-100 border border-slate-200/80 relative shadow-sm">
                   <img
-                    src={product.imageUrl || 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=800&q=80'}
+                    src={
+                      product.category === 'Fleece'
+                        ? (product.imageUrl || polarFleeceRollsImg)
+                        : (product.imageUrl || 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=800&q=80')
+                    }
                     alt={product.name}
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
