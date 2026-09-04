@@ -26,7 +26,14 @@ import {
   FixedAsset,
   MpesaStatementItem,
   StocktakeSession,
-  StocktakeItem
+  StocktakeItem,
+  QuarantinedDefectRecord,
+  StaffMember,
+  ImportShipmentRecord,
+  ImportShipmentSummary,
+  LocalPurchaseRecord,
+  ComputedLocalPurchaseSummary,
+  SupplierDebitNoteRecord
 } from '../types';
 
 // Helper to trigger direct file download for CSV
@@ -3982,3 +3989,995 @@ export function exportStocktakeAuditReportCSV(
 
   downloadCSV(`Stocktake_Audit_${session.sessionNumber}_${session.period}.csv`, csvContent);
 }
+
+export function exportRmaReturnVoucherPDF(
+  record: QuarantinedDefectRecord,
+  locations: LocationInfo[],
+  etrConfig?: ETRConfig,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const loc = locations.find(l => l.id === record.locationId);
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'RMA DEFECT RETURN VOUCHER',
+    subtitle: 'Quarantined Inventory & Goods Return Inspection Slip',
+    docNumber: record.rmaNumber || record.id,
+    docDate: record.returnedAt,
+    refId: record.originalInvoiceNo,
+    brandSettings,
+    etrConfig,
+    themeColor: [225, 29, 72]
+  });
+
+  const qtyDisplay = record.returnedItem.unit === 'meter'
+    ? `${record.returnedItem.metersCount || 0} meters`
+    : `${record.returnedItem.netWeightKg || 0} kg (${record.returnedItem.conesCount || 0} cones)`;
+
+  const tableData = [
+    ['Product / SKU', `${record.returnedItem.productName} (${record.returnedItem.sku})`],
+    ['Category & Roll ID', `${record.returnedItem.category} | ${record.returnedItem.rollNumber || record.returnedItem.batchId || 'N/A'}`],
+    ['Defective Quantity', `${qtyDisplay} (Net Value: KSh ${(record.returnedItem.totalValuationCost || record.returnedItem.totalValuationRetail || 0).toLocaleString()})`],
+    ['Defect Reason', String(record.defectReason || '').toUpperCase()],
+    ['Defect Description', record.defectNotes || 'N/A'],
+    ['Resolution Type', String(record.resolutionType || '').toUpperCase()],
+    ['Branch / Location', loc?.name || record.locationId],
+    ['Logged By', record.operatorName],
+    ['Customer Name', record.customerName || 'Walk-In Customer'],
+    ['Customer Phone', record.customerPhone || 'N/A']
+  ];
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['Field Description', 'Inspection / Return Detail']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    styles: { fontSize: 8.5, cellPadding: 5 }
+  });
+
+  doc.save(`RMA_Voucher_${record.rmaNumber || record.id}.pdf`);
+}
+
+export function exportSupplierClaimNotePDF(
+  claimRef: string,
+  supplierName: string,
+  notes: string,
+  records: QuarantinedDefectRecord[],
+  etrConfig?: ETRConfig,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'SUPPLIER DEFECTIVE MERCHANDISE CLAIM NOTE',
+    subtitle: `Formal Defect Claim & Debit Recourse Notice for ${supplierName}`,
+    docNumber: claimRef,
+    docDate: new Date(),
+    orientation: 'landscape',
+    brandSettings,
+    etrConfig,
+    themeColor: [185, 28, 28]
+  });
+
+  const totalLoss = records.reduce((s, r) => s + (r.returnedItem.totalValuationCost || r.returnedItem.totalValuationRetail || 0), 0);
+
+  const tableData = records.map((r, idx) => {
+    const qty = r.returnedItem.unit === 'meter'
+      ? `${r.returnedItem.metersCount || 0} m`
+      : `${r.returnedItem.netWeightKg || 0} kg`;
+    return [
+      idx + 1,
+      r.rmaNumber || r.id,
+      r.originalInvoiceNo || 'N/A',
+      r.returnedItem.productName,
+      r.returnedItem.sku,
+      qty,
+      r.defectReason,
+      r.defectNotes || 'Defective Stock',
+      `KSh ${(r.returnedItem.totalValuationCost || r.returnedItem.totalValuationRetail || 0).toLocaleString()}`
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['#', 'RMA Ref', 'Invoice #', 'Product', 'SKU', 'Defective Qty', 'Defect Type', 'Description', 'Loss Amount (KES)']],
+    body: tableData,
+    foot: [['TOTAL', '', '', '', '', '', '', '', `KSh ${totalLoss.toLocaleString()}`]],
+    theme: 'grid',
+    headStyles: { fillColor: [185, 28, 28], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 7.5, cellPadding: 4 }
+  });
+
+  if (notes) {
+    const finalY = (doc as any).lastAutoTable?.finalY || 350;
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Claim Notes / Action Required: ${notes}`, 40, finalY + 25);
+  }
+
+  doc.save(`Supplier_Claim_${claimRef}.pdf`);
+}
+
+export function exportCreditNoteDirectPDF(
+  crn: ETIMSCreditNote,
+  etrConfig?: ETRConfig,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'KRA eTIMS FISCAL CREDIT NOTE',
+    subtitle: 'Electronic Tax Invoice Credit Adjustment Voucher',
+    docNumber: crn.id,
+    docDate: crn.timestamp,
+    refId: crn.originalInvoiceNo,
+    brandSettings,
+    etrConfig,
+    themeColor: [225, 29, 72]
+  });
+
+  const bodyData = [
+    ['Original Invoice Number', crn.originalInvoiceNo],
+    ['Original CU Serial Number', crn.originalCuSerial || 'N/A'],
+    ['Original Invoice Amount', `KSh ${crn.originalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['eTIMS Credit Note Ref', crn.id],
+    ['Customer Name', crn.customerName || 'Cash Customer'],
+    ['Customer Tax PIN', crn.customerKraPin || 'N/A'],
+    ['Adjustment Reason', crn.creditReason],
+    ['Amount Before Tax (Excl. VAT)', `KSh ${crn.netCredited.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+    ['16% VAT Tax Reversed', `KSh ${crn.vatCredited.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+    ['Total Refund / Credit Value', `KSh ${crn.creditAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+    ['Fiscal Signature / Hash', crn.fiscalSignature || 'KRA-eTIMS-VALIDATED']
+  ];
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['Specification', 'Fiscal Tax Detail']],
+    body: bodyData,
+    theme: 'grid',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    styles: { fontSize: 8.5, cellPadding: 5 }
+  });
+
+  doc.save(`eTIMS_Credit_Note_${crn.id}.pdf`);
+}
+
+export function exportRmaAuditScheduleCSV(
+  quarantinedDefects: QuarantinedDefectRecord[],
+  locations: LocationInfo[]
+) {
+  const headers = [
+    'RMA ID',
+    'Date Initiated',
+    'Original Invoice',
+    'Location',
+    'Product Name',
+    'SKU',
+    'Category',
+    'Defective Qty',
+    'Unit',
+    'Defect Type',
+    'Description',
+    'Loss Amount KES',
+    'Resolution',
+    'Customer Name',
+    'Logged By'
+  ];
+
+  const rows = quarantinedDefects.map(r => {
+    const loc = locations.find(l => l.id === r.locationId)?.name || r.locationId;
+    const qty = r.returnedItem.unit === 'meter' ? (r.returnedItem.metersCount || 0) : (r.returnedItem.netWeightKg || 0);
+    const loss = r.returnedItem.totalValuationCost || r.returnedItem.totalValuationRetail || 0;
+    return [
+      `"${r.rmaNumber || r.id}"`,
+      `"${r.returnedAt}"`,
+      `"${r.originalInvoiceNo || ''}"`,
+      `"${loc}"`,
+      `"${r.returnedItem.productName.replace(/"/g, '""')}"`,
+      `"${r.returnedItem.sku}"`,
+      `"${r.returnedItem.category}"`,
+      qty,
+      `"${r.returnedItem.unit}"`,
+      `"${r.defectReason}"`,
+      `"${(r.defectNotes || '').replace(/"/g, '""')}"`,
+      loss,
+      `"${r.resolutionType}"`,
+      `"${(r.customerName || '').replace(/"/g, '""')}"`,
+      `"${r.operatorName}"`
+    ];
+  });
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`RMA_Audit_Schedule_${new Date().toISOString().slice(0, 10)}.csv`, csvContent);
+}
+
+export function exportIndividualPayslipPDF(
+  payslip: PayrollRecord,
+  staffMember?: StaffMember,
+  etrConfig?: ETRConfig,
+  brandSettings?: BrandSettings,
+  locations?: LocationInfo[]
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'CONFIDENTIAL SALARY PAYSLIP',
+    subtitle: `Statutory Kenya Tax Deductions & Remittance Schedule - ${payslip.monthYear}`,
+    docNumber: `PAY-${payslip.monthYear}-${payslip.employeeNo || payslip.id}`,
+    docDate: payslip.generatedAt || new Date().toISOString().slice(0, 10),
+    brandSettings,
+    etrConfig,
+    themeColor: [15, 23, 42]
+  });
+
+  const staffLoc = locations?.find(l => l.id === (staffMember?.locationId || payslip.locationId))?.name || 'Main Enterprise';
+
+  const empDetails = [
+    ['Employee Name', staffMember?.name || payslip.staffName],
+    ['Employee ID / Role', `${payslip.employeeNo || payslip.staffId} | ${staffMember?.role || payslip.role || 'Staff'}`],
+    ['KRA Tax PIN', staffMember?.kraPin || 'A000000000X'],
+    ['NSSF / SHA Numbers', `NSSF: ${staffMember?.nssfNo || 'N/A'} | SHA: ${staffMember?.nhifNo || 'N/A'}`],
+    ['Bank / Account', `${staffMember?.bankAccountName || 'M-Pesa / Direct'} - ${staffMember?.bankAccountNumber || staffMember?.mpesaNumber || staffMember?.phone || 'N/A'}`],
+    ['Assigned Location', staffLoc],
+    ['Pay Period', payslip.monthYear]
+  ];
+
+  autoTable(doc, {
+    startY: 120,
+    head: [['Employee Identification Detail', 'Registry Information']],
+    body: empDetails,
+    theme: 'grid',
+    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 }
+  });
+
+  const salaryBreakdown = [
+    ['Basic Salary', `KSh ${payslip.basicSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Allowances', `KSh ${(payslip.allowances || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['GROSS TAXABLE EARNINGS', `KSh ${payslip.grossPay.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['NSSF Tier I & II Pension', `- KSh ${payslip.nssfDeduction.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['SHA (Social Health Authority 2.75%)', `- KSh ${payslip.nhifDeduction.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Affordable Housing Levy (1.5%)', `- KSh ${(payslip.housingLevy || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['PAYE Income Tax (Net after Relief)', `- KSh ${payslip.payeTax.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['TOTAL STATUTORY DEDUCTIONS', `KSh ${payslip.totalDeductions.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['NET TAKE-HOME PAY', `KSh ${payslip.netPay.toLocaleString(undefined, { minimumFractionDigits: 2 })}`]
+  ];
+
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 15,
+    head: [['Earnings & Statutory Deductions', 'Amount in Kenyan Shillings (KES)']],
+    body: salaryBreakdown,
+    theme: 'striped',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 4 }
+  });
+
+  doc.save(`Payslip_${(payslip.staffName || 'Staff').replace(/\s+/g, '_')}_${payslip.monthYear}.pdf`);
+}
+
+export function generateCustomerStatementPDF(params: {
+  customerName: string;
+  customerPhone?: string;
+  customerPin?: string;
+  statementDate: string;
+  periodRange: string;
+  currentBalance: number;
+  aging: { current: number; days30: number; days60: number; days90Plus: number };
+  transactions: Array<{
+    date: string;
+    ref?: string;
+    refNumber?: string;
+    description: string;
+    debit?: number;
+    debitAmount?: number;
+    credit?: number;
+    creditAmount?: number;
+    balance?: number;
+    runningBalance?: number;
+  }>;
+}) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 70, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('STATEMENT OF ACCOUNT / DEBTOR AGING', 40, 32);
+  doc.setFontSize(8.5);
+  doc.setTextColor(251, 113, 133);
+  doc.text(`Customer: ${params.customerName} | Phone: ${params.customerPhone || 'N/A'} | Period: ${params.periodRange}`, 40, 52);
+
+  const agingData = [
+    ['Current (0-30 Days)', `KSh ${params.aging.current.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['31-60 Days', `KSh ${params.aging.days30.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['61-90 Days', `KSh ${params.aging.days60.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['90+ Days Overdue', `KSh ${params.aging.days90Plus.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['TOTAL OUTSTANDING BALANCE', `KSh ${params.currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`]
+  ];
+
+  autoTable(doc, {
+    startY: 85,
+    head: [['Aging Bracket', 'Outstanding Balance (KES)']],
+    body: agingData,
+    theme: 'grid',
+    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 }
+  });
+
+  const txData = params.transactions.map(t => {
+    const refVal = t.ref || t.refNumber || '';
+    const debitVal = t.debit ?? t.debitAmount ?? 0;
+    const creditVal = t.credit ?? t.creditAmount ?? 0;
+    const balanceVal = t.balance ?? t.runningBalance ?? 0;
+    return [
+      t.date,
+      refVal,
+      t.description,
+      debitVal > 0 ? `KSh ${debitVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-',
+      creditVal > 0 ? `KSh ${creditVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-',
+      `KSh ${balanceVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+    ];
+  });
+
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 15,
+    head: [['Date', 'Reference #', 'Transaction Details', 'Debit (+)', 'Credit (-)', 'Running Balance']],
+    body: txData,
+    theme: 'striped',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 }
+  });
+
+  doc.save(`Statement_${params.customerName.replace(/\s+/g, '_')}_${params.statementDate}.pdf`);
+}
+
+export function exportSupplierUSDSwiftVoucherPDF(
+  shipment: ImportShipmentRecord,
+  pmt: any,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'USD SWIFT REMITTANCE ADVICE',
+    subtitle: `Overseas Commercial Supplier Disbursal - ${shipment.supplierName}`,
+    docNumber: pmt.swiftMt103Ref || `SWIFT-${shipment.invoiceNumber}`,
+    docDate: pmt.paymentDate,
+    refId: shipment.invoiceNumber,
+    brandSettings,
+    themeColor: [16, 185, 129]
+  });
+
+  const tableData = [
+    ['Supplier / Beneficiary', shipment.supplierName],
+    ['Beneficiary Country', shipment.supplierCountry],
+    ['Original Commercial Invoice', shipment.invoiceNumber],
+    ['SWIFT MT103 Ref', pmt.swiftMt103Ref || 'PENDING-DISPATCH'],
+    ['Bank / Remitting Branch', pmt.bankName || 'Standard Chartered / NCBA'],
+    ['Payment Date', pmt.paymentDate],
+    ['Remitted Amount (USD)', `$${(pmt.amountUSD || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Effective Exchange Rate', `${pmt.exchangeRate || shipment.exchangeRate} KES/USD`],
+    ['KES Equivalent Disbursed', `KSh ${((pmt.amountUSD || 0) * (pmt.exchangeRate || shipment.exchangeRate)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['GL Posting Reference', pmt.glJournalRef || 'N/A']
+  ];
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['Disbursal Parameter', 'Remittance Value']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    styles: { fontSize: 8.5, cellPadding: 5 }
+  });
+
+  doc.save(`SWIFT_Voucher_${shipment.invoiceNumber}.pdf`);
+}
+
+export function exportSupplierUSDSwiftVoucherCSV(
+  shipment: ImportShipmentRecord,
+  pmt: any
+) {
+  const headers = ['Invoice No', 'Supplier Name', 'Supplier Country', 'Payment Date', 'Amount USD', 'Exchange Rate', 'Equivalent KES', 'SWIFT Ref', 'Bank', 'GL Journal Ref'];
+  const row = [
+    `"${shipment.invoiceNumber}"`,
+    `"${shipment.supplierName}"`,
+    `"${shipment.supplierCountry}"`,
+    `"${pmt.paymentDate}"`,
+    pmt.amountUSD || 0,
+    pmt.exchangeRate || shipment.exchangeRate,
+    (pmt.amountUSD || 0) * (pmt.exchangeRate || shipment.exchangeRate),
+    `"${pmt.swiftMt103Ref || ''}"`,
+    `"${pmt.bankName || ''}"`,
+    `"${pmt.glJournalRef || ''}"`
+  ];
+  downloadCSV(`SWIFT_Remittance_${shipment.invoiceNumber}.csv`, [headers.join(','), row.join(',')].join('\n'));
+}
+
+export function exportKRATaxPaymentVoucherPDF(
+  shipment: ImportShipmentRecord,
+  pmt: any,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'KRA CUSTOMS TAX PAYMENT VOUCHER',
+    subtitle: `Import Duty, VAT 1202, IDF 1801, RDL 6001 e-Slip Settlement`,
+    docNumber: pmt.kraPaymentSlipNo || shipment.kraEslipRef,
+    docDate: pmt.paymentDate,
+    refId: shipment.customsEntryNo,
+    brandSettings,
+    themeColor: [225, 29, 72]
+  });
+
+  const tableData = [
+    ['Customs Entry Number', shipment.customsEntryNo],
+    ['KRA e-Slip Reference', shipment.kraEslipRef],
+    ['Consignee Name', shipment.consigneeName],
+    ['Consignee KRA PIN', shipment.consigneePin],
+    ['Port of Entry', shipment.portOfEntry],
+    ['Tax Assessment Type', pmt.taxType || 'Comprehensive Customs Package'],
+    ['Bank / Payment Mode', pmt.paymentMode || 'National Electronic Payment Gateway (KRA iTax)'],
+    ['Payment Date', pmt.paymentDate],
+    ['Amount Settled (KES)', `KSh ${(pmt.amountKES || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['KRA Bank Reference / PRN', pmt.bankRefNo || pmt.prn || 'N/A'],
+    ['GL Accounting Ref', pmt.glJournalRef || 'N/A']
+  ];
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['Customs Payment Parameter', 'Fiscal Tax Detail']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    styles: { fontSize: 8.5, cellPadding: 5 }
+  });
+
+  doc.save(`KRA_Customs_Tax_Voucher_${shipment.customsEntryNo}.pdf`);
+}
+
+export function exportKRATaxPaymentVoucherCSV(
+  shipment: ImportShipmentRecord,
+  pmt: any
+) {
+  const headers = ['Customs Entry', 'e-Slip Ref', 'Consignee PIN', 'Tax Type', 'Payment Date', 'Amount KES', 'Bank Ref', 'GL Journal Ref'];
+  const row = [
+    `"${shipment.customsEntryNo}"`,
+    `"${shipment.kraEslipRef}"`,
+    `"${shipment.consigneePin}"`,
+    `"${pmt.taxType || 'Customs Taxes'}"`,
+    `"${pmt.paymentDate}"`,
+    pmt.amountKES || 0,
+    `"${pmt.bankRefNo || ''}"`,
+    `"${pmt.glJournalRef || ''}"`
+  ];
+  downloadCSV(`KRA_Payment_${shipment.customsEntryNo}.csv`, [headers.join(','), row.join(',')].join('\n'));
+}
+
+export function exportClearingLogisticsVoucherPDF(
+  shipment: ImportShipmentRecord,
+  pmt: any,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'CLEARING & FORWARDING DISBURSAL VOUCHER',
+    subtitle: `Port Handling, CFS, Shipping Line Demurrage & Declarant Fees`,
+    docNumber: pmt.voucherNo || `CLR-${shipment.invoiceNumber}`,
+    docDate: pmt.paymentDate,
+    refId: shipment.customsEntryNo,
+    brandSettings,
+    themeColor: [59, 130, 246]
+  });
+
+  const tableData = [
+    ['Clearing Agent / Declarant', shipment.declarantName],
+    ['Declarant KRA PIN', shipment.declarantPin],
+    ['Customs Entry #', shipment.customsEntryNo],
+    ['Invoice / Shipment', shipment.invoiceNumber],
+    ['Fee Category', pmt.feeCategory || 'Port & CFS Handling Charges'],
+    ['Invoice Number / Claim Ref', pmt.agentInvoiceNo || 'N/A'],
+    ['Payment Date', pmt.paymentDate],
+    ['Amount Paid (KES)', `KSh ${(pmt.amountKES || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Payment Mode & Account', pmt.paymentMode || 'RTGS / Bank Transfer'],
+    ['GL Accounting Ref', pmt.glJournalRef || 'N/A']
+  ];
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['Logistics Parameter', 'Disbursal Information']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    styles: { fontSize: 8.5, cellPadding: 5 }
+  });
+
+  doc.save(`Clearing_Voucher_${shipment.invoiceNumber}.pdf`);
+}
+
+export function exportClearingLogisticsVoucherCSV(
+  shipment: ImportShipmentRecord,
+  pmt: any
+) {
+  const headers = ['Customs Entry', 'Invoice No', 'Clearing Agent', 'Agent PIN', 'Payment Date', 'Amount KES', 'Fee Category', 'Payment Mode', 'GL Ref'];
+  const row = [
+    `"${shipment.customsEntryNo}"`,
+    `"${shipment.invoiceNumber}"`,
+    `"${shipment.declarantName}"`,
+    `"${shipment.declarantPin}"`,
+    `"${pmt.paymentDate}"`,
+    pmt.amountKES || 0,
+    `"${pmt.feeCategory || ''}"`,
+    `"${pmt.paymentMode || ''}"`,
+    `"${pmt.glJournalRef || ''}"`
+  ];
+  downloadCSV(`Clearing_Logistics_${shipment.invoiceNumber}.csv`, [headers.join(','), row.join(',')].join('\n'));
+}
+
+export function exportThreeWayPaymentSchedulePDF(
+  shipment: ImportShipmentRecord,
+  brandSettings?: BrandSettings
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'THREE-WAY IMPORT DISBURSAL MASTER SCHEDULE',
+    subtitle: `Overseas Supplier, KRA Customs & Logistics CFS Settlement Protocol`,
+    docNumber: `3WAY-${shipment.invoiceNumber}`,
+    docDate: new Date(),
+    refId: shipment.customsEntryNo,
+    brandSettings,
+    themeColor: [15, 23, 42]
+  });
+
+  const scheduleData = [
+    ['Consignee Company', shipment.consigneeName],
+    ['Overseas Supplier', shipment.supplierName],
+    ['Customs Entry / e-Slip', `${shipment.customsEntryNo} / ${shipment.kraEslipRef}`],
+    ['Declared Exchange Rate', `${shipment.exchangeRate} KES/USD`],
+    ['Freight & Insurance (USD)', `$${(shipment.totalFreightUSD + (shipment.totalInsuranceUSD || 0)).toLocaleString()}`],
+    ['Specific Duty USD Rate / Tonne', `$${shipment.specificDutyUSDPerTonne || 750}`],
+    ['Capitalization Status', shipment.status.toUpperCase()]
+  ];
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['Import Shipment Metadata', 'Customs Parameter']],
+    body: scheduleData,
+    theme: 'grid',
+    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 4 }
+  });
+
+  doc.save(`ThreeWay_Schedule_${shipment.invoiceNumber}.pdf`);
+}
+
+export function exportThreeWayPaymentScheduleCSV(
+  shipment: ImportShipmentRecord
+) {
+  const headers = ['Shipment ID', 'Invoice No', 'Supplier', 'Customs Entry', 'e-Slip', 'Port', 'Exchange Rate', 'Freight USD', 'Status'];
+  const row = [
+    `"${shipment.id}"`,
+    `"${shipment.invoiceNumber}"`,
+    `"${shipment.supplierName}"`,
+    `"${shipment.customsEntryNo}"`,
+    `"${shipment.kraEslipRef}"`,
+    `"${shipment.portOfEntry}"`,
+    shipment.exchangeRate,
+    shipment.totalFreightUSD,
+    `"${shipment.status}"`
+  ];
+  downloadCSV(`ThreeWay_Disbursals_${shipment.invoiceNumber}.csv`, [headers.join(','), row.join(',')].join('\n'));
+}
+
+export function exportImportLandedCostingPDF(
+  shipment: ImportShipmentRecord,
+  summary: ImportShipmentSummary,
+  brandSettings?: BrandSettings,
+  etrConfig?: ETRConfig
+) {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'IMPORT SHIPMENT LANDED COSTING & KRA CUSTOMS RECONCILIATION',
+    subtitle: `Apportioned CIF, Specific Duty (USD 750/Tonne), VAT 1202 & True Landed Cost`,
+    docNumber: shipment.invoiceNumber,
+    docDate: shipment.invoiceDate,
+    refId: shipment.customsEntryNo,
+    orientation: 'landscape',
+    brandSettings,
+    etrConfig,
+    themeColor: [225, 29, 72]
+  });
+
+  const tableRows = summary.items.map((it, idx) => [
+    idx + 1,
+    it.sku,
+    it.description,
+    it.hsCode || 'N/A',
+    `${it.netWeightKg.toLocaleString()} kg`,
+    `$${it.fobUSD.toLocaleString()}`,
+    `KSh ${Math.round(it.customsValueKES).toLocaleString()}`,
+    `KSh ${Math.round(it.importDuty1002KES).toLocaleString()}`,
+    `KSh ${Math.round(it.vat1202KES).toLocaleString()}`,
+    `KSh ${it.landedCostPerUnit.toFixed(2)}`,
+    `KSh ${it.suggestedRetailPrice.toFixed(2)}`
+  ]);
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['#', 'SKU', 'Description', 'HS Code', 'Net Kg', 'FOB USD', 'CIF (KES)', 'Duty 1002', 'VAT 1202', 'Unit Landed', 'Rec. Price']],
+    body: tableRows,
+    foot: [
+      [
+        'TOTAL',
+        '',
+        '',
+        '',
+        `${summary.totalNetWeightKg.toLocaleString()} kg`,
+        `$${summary.totalFOB_USD.toLocaleString()}`,
+        `KSh ${Math.round(summary.totalCustomsValueKES).toLocaleString()}`,
+        `KSh ${Math.round(summary.totalImportDuty1002KES).toLocaleString()}`,
+        `KSh ${Math.round(summary.totalVAT1202KES).toLocaleString()}`,
+        '',
+        ''
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7, cellPadding: 3 }
+  });
+
+  doc.save(`Import_Costing_${shipment.invoiceNumber}.pdf`);
+}
+
+export function exportImportLandedCostingCSV(
+  shipment: ImportShipmentRecord,
+  summary: ImportShipmentSummary,
+  etrConfig?: ETRConfig
+) {
+  const headers = [
+    'SKU',
+    'Description',
+    'HS Code',
+    'Net Weight (Kg)',
+    'Gross Weight (Kg)',
+    'FOB (USD)',
+    'CIF Customs Value (KES)',
+    'Import Duty 1002 (KES)',
+    'IDF 1801 (KES)',
+    'RDL 6001 (KES)',
+    'MSS 6401 (KES)',
+    'VAT 1202 (KES)',
+    'Apportioned Logistics (KES)',
+    'True Unit Landed Cost (KES/Kg)',
+    'Recommended Wholesale Price (KES/Kg)'
+  ];
+
+  const rows = summary.items.map(it => [
+    `"${it.sku}"`,
+    `"${it.description.replace(/"/g, '""')}"`,
+    `"${it.hsCode || ''}"`,
+    it.netWeightKg,
+    it.grossWeightKg || it.netWeightKg,
+    it.fobUSD,
+    it.customsValueKES.toFixed(2),
+    it.importDuty1002KES.toFixed(2),
+    it.idf1801KES.toFixed(2),
+    it.rdl6001KES.toFixed(2),
+    it.mss6401KES.toFixed(2),
+    it.vat1202KES.toFixed(2),
+    it.apportionedPortClearingKES.toFixed(2),
+    it.landedCostPerUnit.toFixed(2),
+    it.suggestedRetailPrice.toFixed(2)
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadCSV(`Import_Landed_Costing_${shipment.invoiceNumber}.csv`, csvContent);
+}
+
+export function generateKRAVat3FilingPackPDF(params: {
+  taxPeriod: string;
+  companyPin: string;
+  companyName: string;
+  grossSalesExclVat: number;
+  outputVat16: number;
+  localPurchasesExclVat: number;
+  localInputVat16: number;
+  importCustomsValueExclVat: number;
+  importVat1202Claimable: number;
+  withholdingVat2Percent: number;
+  netVatPayable: number;
+  isCreditCarriedForward: boolean;
+  sections?: any;
+  generatedBy?: string;
+}) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 70, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('KENYA REVENUE AUTHORITY (KRA) VAT 3 RETURN PACK', 40, 32);
+  doc.setFontSize(8.5);
+  doc.setTextColor(251, 113, 133);
+  doc.text(`Entity: ${params.companyName} | PIN: ${params.companyPin} | Period: ${params.taxPeriod}${params.generatedBy ? ` | Prepared By: ${params.generatedBy}` : ''}`, 40, 52);
+
+  const vat3Summary = [
+    ['Gross Sales (Excl. VAT)', `KSh ${params.grossSalesExclVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Output VAT (16% Standard Rate)', `KSh ${params.outputVat16.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Local Purchases (Excl. VAT)', `KSh ${params.localPurchasesExclVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Local Input VAT (16% Claimable)', `- KSh ${params.localInputVat16.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Import Customs CIF Value (KES)', `KSh ${params.importCustomsValueExclVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Import VAT 1202 (Claimable on Entry)', `- KSh ${params.importVat1202Claimable.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Withholding VAT (WHVAT 2% Tax Credits)', `- KSh ${params.withholdingVat2Percent.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    [params.isCreditCarriedForward ? 'VAT CREDIT CARRIED FORWARD' : 'NET VAT PAYABLE TO KRA', `KSh ${Math.abs(params.netVatPayable).toLocaleString(undefined, { minimumFractionDigits: 2 })}`]
+  ];
+
+  autoTable(doc, {
+    startY: 85,
+    head: [['Section / Box Description', 'KRA iTax VAT 3 Computation']],
+    body: vat3Summary,
+    theme: 'grid',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 4.5 }
+  });
+
+  doc.save(`KRA_VAT3_Pack_${params.taxPeriod.replace(/\s+/g, '_')}.pdf`);
+}
+
+export function exportLocalPurchaseCostingPDF(
+  purchase: LocalPurchaseRecord,
+  summary: ComputedLocalPurchaseSummary,
+  brandSettings?: BrandSettings,
+  etrConfig?: ETRConfig
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  renderDocumentHeaderWithBrand(doc, {
+    title: 'LOCAL PURCHASE SUPPLY (LPS) COSTING SCHEDULE',
+    subtitle: `Domestic Vendor Intake, 16% Input VAT & Landed Valuation`,
+    docNumber: purchase.purchaseOrderNo || purchase.invoiceNumber,
+    docDate: purchase.invoiceDate,
+    refId: purchase.invoiceNumber,
+    brandSettings,
+    etrConfig,
+    themeColor: [225, 29, 72]
+  });
+
+  const tableData = summary.items.map((it, idx) => [
+    idx + 1,
+    it.sku || 'N/A',
+    it.description,
+    `${it.quantity} ${it.unit}`,
+    `KSh ${it.netUnitPriceKES.toLocaleString()}`,
+    `KSh ${Math.round(it.lineNetKES).toLocaleString()}`,
+    `KSh ${Math.round(it.lineVatKES).toLocaleString()}`,
+    `KSh ${it.unitLandedCostKES.toFixed(2)}`,
+    `KSh ${(it.suggestedRetailPriceKES || 0).toFixed(2)}`
+  ]);
+
+  autoTable(doc, {
+    startY: 130,
+    head: [['#', 'SKU', 'Description', 'Qty', 'Unit Net', 'Net Total', 'VAT 16%', 'Unit Landed', 'Rec. Price']],
+    body: tableData,
+    foot: [
+      [
+        'TOTAL',
+        '',
+        '',
+        '',
+        '',
+        `KSh ${Math.round(summary.totalNetPurchaseKES).toLocaleString()}`,
+        `KSh ${Math.round(summary.totalVat16KES).toLocaleString()}`,
+        '',
+        ''
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 }
+  });
+
+  doc.save(`Local_Purchase_Costing_${purchase.purchaseOrderNo || purchase.invoiceNumber}.pdf`);
+}
+
+export function exportLocalPurchaseCostingCSV(
+  purchase: LocalPurchaseRecord,
+  summary: ComputedLocalPurchaseSummary
+) {
+  const headers = ['SKU', 'Description', 'Quantity', 'Unit', 'Net Unit Price KES', 'Net Total KES', 'Input VAT 16% KES', 'Unit Landed Cost KES', 'Recommended Price KES'];
+  const rows = summary.items.map(it => [
+    `"${it.sku || ''}"`,
+    `"${it.description.replace(/"/g, '""')}"`,
+    it.quantity,
+    `"${it.unit}"`,
+    it.netUnitPriceKES,
+    it.lineNetKES.toFixed(2),
+    it.lineVatKES.toFixed(2),
+    it.unitLandedCostKES.toFixed(2),
+    (it.suggestedRetailPriceKES || 0).toFixed(2)
+  ]);
+  downloadCSV(`Local_Purchase_${purchase.purchaseOrderNo || purchase.invoiceNumber}.csv`, [headers.join(','), ...rows.map(r => r.join(','))].join('\n'));
+}
+
+export function generateSupplierDebitNotePDF(params: {
+  debitNoteNumber: string;
+  date: string;
+  supplierName: string;
+  supplierCountry: string;
+  originalInvoiceNo: string;
+  customsEntryNo: string;
+  kraEslipRef: string;
+  items: Array<{
+    lineItemId: string;
+    description: string;
+    invoicedWeightKg: number;
+    receivedWeightKg: number;
+    shortageKg: number;
+    unitFobUSD: number;
+    shortageAmountUSD: number;
+    shortageAmountKES: number;
+  }>;
+  exchangeRate: number;
+  totalShortageKg: number;
+  totalShortageUSD: number;
+  totalShortageKES: number;
+  kraDutyImpactKES: number;
+  totalClaimAmountUSD: number;
+  totalClaimAmountKES: number;
+  reason: string;
+  preparedBy: string;
+}) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 70, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('OFFICIAL SUPPLIER DEBIT NOTE', 40, 32);
+  doc.setFontSize(8.5);
+  doc.setTextColor(251, 113, 133);
+  doc.text(`Debit Note #: ${params.debitNoteNumber} | Supplier: ${params.supplierName} | Inv #: ${params.originalInvoiceNo}`, 40, 52);
+
+  const headerInfo = [
+    ['Supplier Name & Country', `${params.supplierName} (${params.supplierCountry})`],
+    ['Original Commercial Invoice', params.originalInvoiceNo],
+    ['Customs Entry # / e-Slip Ref', `${params.customsEntryNo} / ${params.kraEslipRef}`],
+    ['Declared Exchange Rate', `${params.exchangeRate} KES/USD`],
+    ['Total Shortage Net Weight', `${params.totalShortageKg.toLocaleString()} kg`],
+    ['Total FOB Shortage Claim (USD)', `$${params.totalShortageUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Recoverable Equivalent (KES)', `KSh ${params.totalShortageKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Customs Duty Loss Impact (KES)', `KSh ${params.kraDutyImpactKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Total Debit Claim (KES)', `KSh ${params.totalClaimAmountKES.toLocaleString(undefined, { minimumFractionDigits: 2 })}`],
+    ['Audit Discrepancy Reason', params.reason],
+    ['Prepared & Certified By', params.preparedBy]
+  ];
+
+  autoTable(doc, {
+    startY: 85,
+    head: [['Debit Note Certification Parameter', 'Specification Details']],
+    body: headerInfo,
+    theme: 'grid',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 4 }
+  });
+
+  const itemRows = params.items.map(it => [
+    it.description,
+    `${it.invoicedWeightKg.toLocaleString()} kg`,
+    `${it.receivedWeightKg.toLocaleString()} kg`,
+    `${it.shortageKg.toLocaleString()} kg`,
+    `$${it.unitFobUSD.toFixed(2)}`,
+    `$${it.shortageAmountUSD.toFixed(2)}`,
+    `KSh ${Math.round(it.shortageAmountKES).toLocaleString()}`
+  ]);
+
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 15,
+    head: [['Item Description', 'Invoiced Kg', 'Received Kg', 'Shortage Kg', 'Rate/Kg', 'Shortage USD', 'Shortage KES']],
+    body: itemRows,
+    theme: 'striped',
+    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7.5, cellPadding: 3.5 }
+  });
+
+  doc.save(`Supplier_Debit_Note_${params.debitNoteNumber}.pdf`);
+}
+
+export function exportSupplierDebitNoteCSV(record: SupplierDebitNoteRecord) {
+  const headers = ['Debit Note No', 'Date', 'Supplier', 'Invoice No', 'Entry No', 'Shortage Kg', 'Shortage USD', 'Shortage KES', 'Total Claim USD', 'Total Claim KES', 'Status'];
+  const row = [
+    `"${record.debitNoteNumber}"`,
+    `"${record.date}"`,
+    `"${record.supplierName}"`,
+    `"${record.originalInvoiceNo}"`,
+    `"${record.customsEntryNo}"`,
+    record.totalShortageKg,
+    record.totalShortageUSD,
+    record.totalShortageKES,
+    record.totalClaimAmountUSD,
+    record.totalClaimAmountKES,
+    `"${record.status}"`
+  ];
+  downloadCSV(`Debit_Note_${record.debitNoteNumber}.csv`, [headers.join(','), row.join(',')].join('\n'));
+}
+
+export function exportWeightAuditSchedulePDF(
+  shipment: ImportShipmentRecord,
+  rows: any[],
+  totalShortageKg: number,
+  totalShortageUSD: number,
+  totalShortageKES: number
+) {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 70, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('THREE-WAY WEIGHT VERIFICATION & AUDIT DISCREPANCY SCHEDULE', 40, 32);
+  doc.setFontSize(8.5);
+  doc.setTextColor(251, 113, 133);
+  doc.text(`Shipment: ${shipment.invoiceNumber} | Supplier: ${shipment.supplierName} | Customs Entry: ${shipment.customsEntryNo}`, 40, 52);
+
+  const tableData = rows.map((r, idx) => [
+    idx + 1,
+    r.description,
+    r.hscode || 'N/A',
+    `${(r.invoicedKg || 0).toLocaleString()} kg`,
+    `${(r.receivedKg || 0).toLocaleString()} kg`,
+    `${(r.shortageKg || 0).toLocaleString()} kg`,
+    `${((r.variancePct || 0)).toFixed(2)}%`,
+    `$${(r.fobUSDPerKg || 0).toFixed(2)}`,
+    `$${(r.shortageUSD || 0).toFixed(2)}`,
+    `KSh ${Math.round(r.shortageKES || 0).toLocaleString()}`
+  ]);
+
+  autoTable(doc, {
+    startY: 85,
+    head: [['#', 'Fabric / Yarn Description', 'HS Code', 'Invoiced Weight', 'Scale Weigh-In', 'Weight Shortage', 'Variance %', 'FOB/Kg', 'Shortage USD', 'Shortage KES']],
+    body: tableData,
+    foot: [
+      [
+        'TOTAL',
+        '',
+        '',
+        '',
+        '',
+        `${totalShortageKg.toLocaleString()} kg`,
+        '',
+        '',
+        `$${totalShortageUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        `KSh ${Math.round(totalShortageKES).toLocaleString()}`
+      ]
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+    footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    styles: { fontSize: 7, cellPadding: 3.5 }
+  });
+
+  doc.save(`Weight_Audit_Schedule_${shipment.invoiceNumber}.pdf`);
+}
+
+export function exportWeightAuditScheduleCSV(
+  shipment: ImportShipmentRecord,
+  rows: any[],
+  totalShortageKg: number,
+  totalShortageUSD: number,
+  totalShortageKES: number
+) {
+  const headers = ['Line ID', 'Description', 'HS Code', 'Invoiced Kg', 'Scale Weigh-In Kg', 'Shortage Kg', 'Variance %', 'FOB Rate/Kg', 'Shortage USD', 'Shortage KES'];
+  const bodyRows = rows.map(r => [
+    `"${r.id}"`,
+    `"${(r.description || '').replace(/"/g, '""')}"`,
+    `"${r.hscode || ''}"`,
+    r.invoicedKg || 0,
+    r.receivedKg || 0,
+    r.shortageKg || 0,
+    (r.variancePct || 0).toFixed(2),
+    r.fobUSDPerKg || 0,
+    (r.shortageUSD || 0).toFixed(2),
+    (r.shortageKES || 0).toFixed(2)
+  ]);
+  const summary = ['', 'TOTAL', '', '', '', totalShortageKg, '', '', totalShortageUSD.toFixed(2), totalShortageKES.toFixed(2)];
+  const csv = [headers.join(','), ...bodyRows.map(r => r.join(',')), summary.join(',')].join('\n');
+  downloadCSV(`Weight_Audit_${shipment.invoiceNumber}.csv`, csv);
+}
+

@@ -699,18 +699,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ];
 
   // POS Operators State & PIN Session with Local Storage Persistence
+  const isMockOrDummyOperator = (op: Partial<POSOperator>) => {
+    const dummyIds = ['op-sales-cashier', 'op-store1-attendant', 'op-store2-attendant', 'op-main-cashier', 'op-cashier', 'op-mock', 'op-dummy'];
+    const dummyNames = ['Sales Cashier', 'Store 1 Attendant', 'Store 2 Attendant', 'Main Store Cashier', 'Demo Cashier', 'Mock Operator', 'Dummy Operator'];
+    const nameLower = (op.name || '').toLowerCase();
+    return (
+      dummyIds.includes(op.id || '') ||
+      dummyNames.includes(op.name || '') ||
+      nameLower.includes('mock') ||
+      nameLower.includes('dummy')
+    );
+  };
+
   const [posOperators, setPosOperators] = useState<POSOperator[]>(() => {
     try {
       const saved = localStorage.getItem('urban_interior_pos_operators');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const filtered = parsed.filter(op => 
-            op.id !== 'op-sales-cashier' && 
-            op.id !== 'op-store1-attendant' && 
-            op.id !== 'op-store2-attendant' &&
-            op.id !== 'op-main-cashier'
-          );
+          const filtered = parsed.filter(op => !isMockOrDummyOperator(op));
           if (filtered.length > 0) {
             return filtered;
           }
@@ -724,7 +731,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     try {
-      localStorage.setItem('urban_interior_pos_operators', JSON.stringify(posOperators));
+      const cleaned = posOperators.filter(op => !isMockOrDummyOperator(op));
+      localStorage.setItem('urban_interior_pos_operators', JSON.stringify(cleaned));
     } catch (e) {
       console.warn('Error saving pos operators to localStorage:', e);
     }
@@ -919,8 +927,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const loadedOps: POSOperator[] = [];
           snapshot.forEach((doc) => {
             const op = doc.data() as POSOperator;
-            // Cleanse obsolete mock operators that are not the root admin
-            if (op.id !== 'op-main-cashier' && op.id !== 'op-sales-cashier') {
+            // Cleanse obsolete mock or dummy operators - only real accounts permitted
+            if (!isMockOrDummyOperator(op)) {
               loadedOps.push(op);
             }
           });
