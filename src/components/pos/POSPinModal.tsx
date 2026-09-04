@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Lock, Delete, Sparkles, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Store, Keyboard } from 'lucide-react';
+import { Lock, Delete, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Store, Keyboard } from 'lucide-react';
 import { LocationId } from '../../types';
 
 export const POSPinModal: React.FC = () => {
-  const { unlockPOSWithPin, posOperators, activeLocation, setActiveLocation, brandSettings } = useERP();
+  const { unlockPOSWithPin, activeLocation, setActiveLocation, brandSettings } = useERP();
   const [pin, setPin] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -129,18 +129,6 @@ export const POSPinModal: React.FC = () => {
           </select>
         </div>
 
-        {/* Default PIN Banner */}
-        <div className="p-2.5 sm:p-3 bg-amber-50 border border-amber-200 rounded-xl sm:rounded-2xl flex items-center justify-between text-xs text-amber-900">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-            <div>
-              <span className="font-extrabold">Default Access PIN: </span>
-              <span className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300 font-bold text-slate-900">123456</span>
-            </div>
-          </div>
-          <span className="text-[10px] text-amber-700 font-medium">Until updated</span>
-        </div>
-
         {/* Messages */}
         {errorMessage && (
           <div className="p-2.5 sm:p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl sm:rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake">
@@ -254,20 +242,6 @@ export const POSPinModal: React.FC = () => {
           <Lock className="w-4 h-4 text-rose-400" />
           <span>Unlock POS Register</span>
         </button>
-
-        {/* Operators list preview */}
-        {posOperators && posOperators.length > 0 && (
-          <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
-            <span className="font-bold text-slate-700">Configured Operators:</span>
-            <div className="flex flex-wrap gap-1">
-              {posOperators.map(op => (
-                <span key={op.id} className="px-2 py-0.5 bg-slate-100 rounded-md text-slate-700 font-medium">
-                  {op.name} ({op.pin})
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

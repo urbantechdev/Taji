@@ -53,7 +53,7 @@ const roles: { role: UserRole; label: string; location: LocationId }[] = [
 
 const ROLE_PRIMARY_PRIORITIES: Record<UserRole, NavTab[]> = {
   admin: ['dashboard', 'pos', 'catalog', 'transfers'],
-  accountant: ['ledger', 'sales_today', 'etr', 'payroll'],
+  accountant: ['ledger', 'catalog', 'sales_today', 'etr'],
   hr_manager: ['payroll', 'operators', 'dashboard', 'branches'],
   branch_manager: ['dashboard', 'pos', 'catalog', 'ledger'],
   sales_shop_cashier: ['pos', 'sales_today', 'catalog', 'etr'],

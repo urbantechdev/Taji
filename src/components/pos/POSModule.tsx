@@ -544,176 +544,208 @@ export const POSModule: React.FC = () => {
         </div>
       )}
 
+      {/* Top Cashier & Operational Action Toolbar (Moved outside above the catalog and cart block across full width to give Dereck, Fleece & Yarns dedicated space and avoid button overlaps) */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
+        {/* Left: Quick Operational Tools */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Digital Scale Weigher */}
+          <button
+            type="button"
+            onClick={() => handleOpenDigitalScale()}
+            className="px-3 py-1.5 bg-gradient-to-r from-indigo-700 to-indigo-900 hover:from-indigo-600 hover:to-indigo-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer border border-indigo-500/40 shrink-0 whitespace-nowrap active:scale-95"
+            title="Digital Cone Weigher Scale & Auto-Tare Price-per-KG Calculator"
+          >
+            <Scale className="w-4 h-4 text-amber-300 shrink-0" />
+            <span>Scale (KG)</span>
+          </button>
+
+          {/* RMA Returns & Replacement */}
+          <button
+            type="button"
+            onClick={() => setIsReturnExchangeModalOpen(true)}
+            className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer border border-amber-400/40 shrink-0 whitespace-nowrap active:scale-95"
+            title="Process Returned Spoilt Cones, 1:1 Replacement or Bank Refund & eTIMS Credit Notes"
+          >
+            <RotateCcw className="w-4 h-4 text-amber-200 shrink-0" />
+            <span>Returns</span>
+            {quarantinedDefects.length > 0 && (
+              <span className="bg-amber-300 text-slate-900 text-[10px] font-black px-1.5 py-0.2 rounded-full shrink-0">
+                {quarantinedDefects.length}
+              </span>
+            )}
+          </button>
+
+          {/* Advance Forward Bookings */}
+          <button
+            type="button"
+            onClick={() => setIsForwardReservationsModalOpen(true)}
+            className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer border border-amber-300/60 shrink-0 whitespace-nowrap active:scale-95"
+            title="View, Fulfill & Dispatch Forward-Dated Reservations & Advance Bookings"
+          >
+            <CalendarDays className="w-4 h-4 text-slate-950 shrink-0" />
+            <span>Bookings</span>
+            {activeForwardReservationsCount > 0 && (
+              <span className="bg-slate-950 text-amber-300 text-[10px] font-black px-1.5 py-0.2 rounded-full shrink-0 shadow-xs">
+                {activeForwardReservationsCount}
+              </span>
+            )}
+          </button>
+
+          {/* Inter-Store POS Transfer */}
+          {canDispatchTransfers && (
+            <button
+              type="button"
+              onClick={() => handleOpenTransferModalWithCart()}
+              className="px-3 py-1.5 bg-gradient-to-r from-indigo-900 to-rose-900 hover:from-indigo-800 hover:to-rose-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer border border-indigo-700/50 shrink-0 whitespace-nowrap active:scale-95"
+              title="Direct Inter-Store Stock Dispatch & Transfer from POS"
+            >
+              <ArrowRightLeft className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Transfer</span>
+            </button>
+          )}
+        </div>
+
+        {/* Right: Shift & Daily Sales Reports */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {canViewReports && (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsTodaySalesModalOpen(true)}
+                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
+                title="View Today's Real-time Sales, Cash at hand, Bank & M-Pesa"
+              >
+                <TrendingUp className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Today's Sales</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPeriodicStatementModalOpen(true)}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
+                title="Download Daily, Weekly, or Monthly Statements"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Reports</span>
+              </button>
+            </>
+          )}
+
+          {/* Store Mail Inbox */}
+          <button
+            type="button"
+            onClick={() => setIsMailDrawerOpen(true)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer border shrink-0 whitespace-nowrap active:scale-95 ${
+              unreadMails > 0
+                ? 'bg-amber-400 text-slate-950 border-amber-300 animate-pulse ring-2 ring-amber-300/80 shadow-md shadow-amber-400/40'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+            }`}
+            title="Store Mail & Transfer Inbox"
+          >
+            <Mail className={`w-4 h-4 shrink-0 ${unreadMails > 0 ? 'text-slate-950 font-bold' : 'text-rose-600'}`} />
+            <span>Inbox</span>
+            {unreadMails > 0 && (
+              <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shrink-0">
+                {unreadMails}
+              </span>
+            )}
+          </button>
+
+          {/* Close Shift */}
+          {canCloseShift && (
+            <button
+              type="button"
+              onClick={() => setIsShiftClosureModalOpen(true)}
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
+              title="Close Shift at End of Day - Reconcile Cash in Hand vs Bank & M-Pesa"
+            >
+              <Lock className="w-4 h-4 text-amber-200 shrink-0" />
+              <span>Close Shift</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* POS Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Left Column: Product Selection Catalog (8 Cols) */}
-        <div className="lg:col-span-7 xl:col-span-8 space-y-4">
-          
-          {/* Controls: Search & Category Tabs */}
-          <div className="bg-white p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-2 sm:space-y-3">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              
-              {/* Category Filter Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-                {(['All', 'Dereck', 'Fleece', 'Yarns'] as const).map(cat => (
+        <div className="lg:col-span-7 xl:col-span-8 space-y-3 sm:space-y-4">
+
+          {/* Controls: Category Filter Tabs & Search / Barcode Scanner */}
+          <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-rose-100 shadow-xs space-y-3 sm:space-y-3.5">
+            {/* Category Filter Pills: Generous dedicated space for All, Dereck, Fleece, Yarns */}
+            <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1 border-b border-rose-100/70 pb-3">
+              {(['All', 'Dereck', 'Fleece', 'Yarns'] as const).map(cat => {
+                const getCategoryIcon = () => {
+                  switch (cat) {
+                    case 'All': return <Boxes className="w-4 h-4 shrink-0" />;
+                    case 'Dereck': return <Scissors className="w-4 h-4 shrink-0" />;
+                    case 'Fleece': return <Package className="w-4 h-4 shrink-0" />;
+                    case 'Yarns': return <Sliders className="w-4 h-4 shrink-0" />;
+                  }
+                };
+
+                return (
                   <button
                     key={cat}
+                    type="button"
                     onClick={() => {
                       playClickSound();
                       setSelectedCategory(cat);
                     }}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                    className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer flex items-center gap-2 ${
                       selectedCategory === cat
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-700'
+                        ? 'bg-rose-600 text-white shadow-md shadow-rose-200 scale-[1.02]'
+                        : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/70'
                     }`}
                   >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Quick Action Buttons: Scale Weigher, Sales Today, Statements, Close Shift, Inbox, POS Transfer & QR Scanner */}
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => handleOpenDigitalScale()}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-700 via-indigo-800 to-indigo-900 hover:from-indigo-600 hover:to-indigo-800 text-white text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer hover:scale-105 active:scale-95 border border-indigo-500/50"
-                  title="Digital Cone Weigher Scale & Auto-Tare Price-per-KG Calculator"
-                >
-                  <Scale className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Scale Weigher (KG)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsReturnExchangeModalOpen(true)}
-                  className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95 border border-amber-400/40"
-                  title="Process Returned Spoilt Cones, 1:1 Replacement or Bank Refund & eTIMS Credit Notes"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-amber-200" />
-                  <span>RMA / Returns</span>
-                  {quarantinedDefects.length > 0 && (
-                    <span className="bg-amber-300 text-slate-900 text-[10px] font-black px-1.5 py-0.2 rounded-full">
-                      {quarantinedDefects.length}
+                    {getCategoryIcon()}
+                    <span>{cat}</span>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      selectedCategory === cat ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {cat === 'All' ? products.length : products.filter(p => p.category === cat).length}
                     </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsForwardReservationsModalOpen(true)}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95 border border-amber-300/60"
-                  title="View, Fulfill & Dispatch Forward-Dated Reservations & Advance Bookings"
-                >
-                  <CalendarDays className="w-3.5 h-3.5 text-slate-950" />
-                  <span>Advance Bookings</span>
-                  {activeForwardReservationsCount > 0 && (
-                    <span className="bg-slate-950 text-amber-300 text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
-                      {activeForwardReservationsCount}
-                    </span>
-                  )}
-                </button>
-
-                {canViewReports && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setIsTodaySalesModalOpen(true)}
-                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
-                      title="View Today's Real-time Sales, Cash at hand, Bank & M-Pesa"
-                    >
-                      <TrendingUp className="w-3.5 h-3.5 text-rose-600" />
-                      <span>Sales Today</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsPeriodicStatementModalOpen(true)}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
-                      title="Download Daily, Weekly, or Monthly Statements"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Statements</span>
-                    </button>
-                  </>
-                )}
-
-                {canCloseShift && (
-                  <button
-                    type="button"
-                    onClick={() => setIsShiftClosureModalOpen(true)}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
-                    title="Close Shift at End of Day - Reconcile Cash in Hand vs Bank & M-Pesa"
-                  >
-                    <Lock className="w-3.5 h-3.5 text-amber-200" />
-                    <span>Close Shift</span>
                   </button>
-                )}
-
-                <button
-                  onClick={() => setIsMailDrawerOpen(true)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer border hover:scale-105 active:scale-95 ${
-                    unreadMails > 0
-                      ? 'bg-amber-400 text-slate-950 border-amber-300 animate-pulse ring-2 ring-amber-300/80 shadow-md shadow-amber-400/40'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                  }`}
-                  title="Store Mail & Transfer Inbox"
-                >
-                  <Mail className={`w-4 h-4 ${unreadMails > 0 ? 'text-slate-950 font-bold' : 'text-rose-600'}`} />
-                  <span>Inbox</span>
-                  {unreadMails > 0 && (
-                    <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
-                      {unreadMails}
-                    </span>
-                  )}
-                </button>
-
-                {canDispatchTransfers && (
-                  <button
-                    onClick={() => handleOpenTransferModalWithCart()}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-900 to-rose-900 hover:from-indigo-800 hover:to-rose-800 text-white text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer border border-indigo-700/50 hover:scale-105 active:scale-95"
-                    title="Direct Inter-Store Stock Dispatch & Transfer from POS"
-                  >
-                    <ArrowRightLeft className="w-4 h-4 text-amber-400" />
-                    <span>Inter-Store POS Transfer</span>
-                  </button>
-                )}
-
-                <button
-                  onClick={() => setIsQRScannerOpen(true)}
-                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0"
-                >
-                  <QrCode className="w-4 h-4 text-rose-400" />
-                  <span>Scan QR</span>
-                </button>
-              </div>
+                );
+              })}
             </div>
 
             {/* Barcode Checkout Scanner & Search Controls */}
             <div className="space-y-2.5 pt-1">
               
               {/* Barcode Scanner Input Form for Real-time Checkout */}
-              <form onSubmit={handleBarcodeScanCheckout} className="flex gap-2">
-                <div className="relative flex-1">
-                  <Barcode className="w-4 h-4 text-rose-500 absolute left-3 top-2.5" />
+              <form onSubmit={handleBarcodeScanCheckout} className="flex items-center gap-2">
+                <div className="relative flex-1 min-w-0">
+                  <Barcode className="w-4 h-4 text-rose-500 absolute left-3 top-2.5 shrink-0" />
                   <input
                     type="text"
                     value={barcodeCheckoutInput}
                     onChange={e => setBarcodeCheckoutInput(e.target.value)}
                     placeholder="Scan product barcode (USB / Bluetooth / Camera) or enter SKU..."
-                    className="w-full pl-9 pr-4 py-2 bg-gradient-to-r from-rose-50/50 to-amber-50/30 border-2 border-rose-200 focus:border-rose-500 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400/20"
+                    className="w-full pl-9 pr-3 py-2 bg-gradient-to-r from-rose-50/50 to-amber-50/30 border-2 border-rose-200 focus:border-rose-500 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400/20"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0"
+                  className="px-3.5 py-2 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                   title="Scan item into active checkout cart"
                 >
-                  <Scan className="w-3.5 h-3.5" />
-                  <span>Scan Checkout</span>
+                  <Scan className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">Scan Checkout</span>
+                  <span className="sm:hidden">Scan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsQRScannerOpen(true)}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0 whitespace-nowrap cursor-pointer shadow-xs active:scale-95"
+                  title="Open phone or device camera to scan 1D barcodes and 2D QR codes"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="hidden sm:inline">Camera QR</span>
                 </button>
               </form>
 
@@ -1083,9 +1115,9 @@ export const POSModule: React.FC = () => {
                         <span>Request Item from Other Shop</span>
                       </button>
                     ) : (
-                      <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center justify-between gap-1.5 flex-wrap">
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap ${
                             isOut
                               ? 'bg-rose-100 text-rose-700'
                               : currentLocStock <= prod.minReorderLevel
@@ -1096,7 +1128,7 @@ export const POSModule: React.FC = () => {
                           {isAdminLevel ? `Active: ${currentLocStock} ${prod.unit}` : `${currentLocStock} ${prod.unit}`}
                         </span>
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1104,10 +1136,10 @@ export const POSModule: React.FC = () => {
                               handleOpenDigitalScale(prod);
                             }}
                             disabled={isOut && activeLocInfo?.canSellDirectly}
-                            className="px-2 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1 text-[11px] font-bold"
+                            className="px-2 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-all cursor-pointer hover:scale-105 active:scale-95 flex items-center gap-1 text-[11px] font-bold shrink-0 whitespace-nowrap"
                             title={`Weigh ${prod.name} on scale & auto-calculate price by net KG`}
                           >
-                            <Scale className="w-3.5 h-3.5 text-indigo-600" />
+                            <Scale className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                             <span className="hidden sm:inline">Weigh</span>
                           </button>
 
@@ -1118,7 +1150,7 @@ export const POSModule: React.FC = () => {
                               handleBarcodeScanCheckout(undefined, prod.barcode || prod.sku);
                             }}
                             disabled={isOut && activeLocInfo?.canSellDirectly}
-                            className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                            className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
                             title={`Scan Barcode (${prod.barcode || prod.sku}) directly to cart`}
                           >
                             <Barcode className="w-3.5 h-3.5" />
@@ -1130,7 +1162,7 @@ export const POSModule: React.FC = () => {
                               e.stopPropagation();
                               setSelectedViewProduct(prod);
                             }}
-                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-rose-700 transition-colors"
+                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-rose-700 transition-colors shrink-0"
                             title="View details"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -1143,14 +1175,14 @@ export const POSModule: React.FC = () => {
                               addToCart(prod, 1);
                             }}
                             disabled={isOut && activeLocInfo?.canSellDirectly}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
                               isOut
                                 ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
                                 : 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs hover:shadow-md'
                             }`}
                           >
-                            <Plus className="w-3.5 h-3.5" />
-                            Add
+                            <Plus className="w-3.5 h-3.5 shrink-0" />
+                            <span>Add</span>
                           </button>
                         </div>
                       </div>
@@ -1653,39 +1685,46 @@ export const POSModule: React.FC = () => {
               <div className="pt-2 space-y-2">
                 {activeLocInfo?.canSellDirectly ? (
                   <button
+                    type="button"
                     onClick={() => setIsCheckoutModalOpen(true)}
-                    className="w-full py-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs rounded-xl shadow-md btn-hover-lift flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    className="w-full py-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs rounded-xl shadow-md btn-hover-lift flex items-center justify-center gap-2 cursor-pointer transition-all whitespace-nowrap"
                   >
-                    <CreditCard className="w-4 h-4" />
-                    Process Payment &amp; Issue ETR Receipt
+                    <CreditCard className="w-4 h-4 shrink-0" />
+                    <span>Process Payment &amp; Issue ETR Receipt</span>
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => setIsRerouteModalOpen(true)}
-                    className="w-full py-3 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold text-xs rounded-xl shadow-md btn-hover-lift flex items-center justify-center gap-2 cursor-pointer transition-all"
+                    className="w-full py-3 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 text-white font-bold text-xs rounded-xl shadow-md btn-hover-lift flex items-center justify-center gap-2 cursor-pointer transition-all whitespace-nowrap"
                   >
-                    <ArrowRightLeft className="w-4 h-4" />
-                    Route Order Ticket to Main Store
+                    <ArrowRightLeft className="w-4 h-4 shrink-0" />
+                    <span>Route Order Ticket to Main Store</span>
                   </button>
                 )}
 
-                {/* Put On Hold Button */}
-                <button
-                  onClick={() => setIsHoldModalOpen(true)}
-                  className="w-full py-2 bg-slate-50 hover:bg-amber-50 text-amber-900 border border-amber-200 font-bold text-xs rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <PauseCircle className="w-4 h-4 text-amber-600" />
-                  Put Order On Hold
-                </button>
+                {/* Secondary Cart Actions: Hold Order & Transfer to Other Store */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsHoldModalOpen(true)}
+                    className="py-2.5 px-3 bg-slate-50 hover:bg-amber-50 text-amber-900 border border-amber-200 font-bold text-xs rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    title="Put active cart on temporary hold"
+                  >
+                    <PauseCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Hold Order</span>
+                  </button>
 
-                {/* Transfer Cart Items directly to Shop / Other Store */}
-                <button
-                  onClick={handleOpenTransferModalWithCart}
-                  className="w-full py-2 bg-gradient-to-r from-indigo-50 to-rose-50 hover:from-indigo-100 hover:to-rose-100 text-indigo-900 border border-indigo-200 font-extrabold text-xs rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ArrowRightLeft className="w-4 h-4 text-indigo-600" />
-                  <span>Transfer Cart Items to Shop / Store</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenTransferModalWithCart}
+                    className="py-2.5 px-3 bg-gradient-to-r from-indigo-50 to-rose-50 hover:from-indigo-100 hover:to-rose-100 text-indigo-900 border border-indigo-200 font-extrabold text-xs rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    title="Dispatch or transfer cart stock directly to another shop or warehouse"
+                  >
+                    <ArrowRightLeft className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span>Transfer Cart</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
