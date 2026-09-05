@@ -75,7 +75,9 @@ export const ImportPaymentDisbursalSection: React.FC<Props> = ({
   const [isClearingDirectoryOpen, setIsClearingDirectoryOpen] = useState(false);
 
   // Local state for payment records if not already in shipment
-  const totalInvoicedUSD = (totalFOB_USD + totalFreightUSD + (shipment.cocFeesUSD || 0)) || 55600.64;
+  // Always anchor supplier liability to the genuine Commercial Invoice FOB (e.g. USD 46,974.49)
+  const commercialFOB = shipment.commercialInvoiceFOB_USD || totalFOB_USD;
+  const totalInvoicedUSD = (commercialFOB + totalFreightUSD + (shipment.cocFeesUSD || 0)) || 55600.64;
   const estimatedClearingKES = shipment.portClearingFeesKES || 180000;
 
   // Initialize payment history from shipment or local state

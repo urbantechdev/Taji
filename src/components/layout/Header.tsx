@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { UserRole, LocationId } from '../../types';
 import { NavTab } from './Sidebar';
-import { isTabAllowedForRole } from '../../utils/rbac';
+import { isTabAllowedForRole, hasPermission } from '../../utils/rbac';
 import { evaluateStockStatus } from '../../utils/stockThresholdEngine';
 import { MailInboxDrawer } from '../notifications/MailInboxDrawer';
 import { BrandSettingsModal } from '../settings/BrandSettingsModal';
@@ -367,6 +367,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
 
   // Filter nav items by currentUser role
   const allowedNavItems = allNavItems.filter(item => isTabAllowedForRole(currentUser.role, item.id));
+  const canSwitchBranch = isAdmin || hasPermission(currentUser.role, 'canSwitchStoreLocation');
+  const canAccessInbox = isAdmin || hasPermission(currentUser.role, 'canAccessStoreInbox');
 
   const handleNavClick = (tab: NavTab) => {
     playClickSound();
@@ -762,7 +764,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
             )}
 
             {/* Location / Shop Selector */}
-            <div className="relative" ref={locationDropdownRef}>
+            {canSwitchBranch ? (
+              <div className="relative" ref={locationDropdownRef}>
               <CapabilityTooltip
                 title="Branch & Store Selector"
                 description="Switch active inventory depot, stock levels, and POS checkout shop."
@@ -901,6 +904,18 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                 )}
               </AnimatePresence>
             </div>
+            ) : (
+              <div
+                className="px-3 py-2 rounded-xl backdrop-blur-md bg-white/10 border border-white/20 text-white flex items-center gap-2 select-none shrink-0"
+                title={`Terminal Location: ${activeLocInfo?.name || 'Assigned Store'} (Fixed to your assigned cashier counter)`}
+              >
+                <Building className="w-4.5 h-4.5 text-white/80 shrink-0" />
+                <span className="text-xs font-bold max-w-[95px] lg:max-w-[125px] truncate">
+                  {getLocationShortLabel(activeLocation)}
+                </span>
+                <Lock className="w-3.5 h-3.5 text-white/50 shrink-0" />
+              </div>
+            )}
 
             {/* Staff Role Switcher (Admin Only) */}
             {isAdmin && (
@@ -1020,35 +1035,37 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               </div>
             )}
 
-            {/* Mail & Pending Transfers Inbox Button */}
-            <CapabilityTooltip
-              title="Store Messages & Waybills"
-              description="View internal branch communications, low stock alerts, and receive inter-store transfer waybills."
-              roleRequired="All Roles"
-              shortcut="Alt + I"
-              tip={`${pendingTransfersCount} pending transfers, ${unreadMails} unread notifications.`}
-              placement="bottom"
-              align="center"
-            >
-              <button
-                type="button"
-                onClick={() => setIsMailDrawerOpen(true)}
-                className={`relative px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 text-xs font-bold ${
-                  totalMessageAlerts > 0
-                    ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-black animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
-                    : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
-                }`}
-                title={`Store Messages & Transfers: ${pendingTransfersCount} pending, ${unreadMails} unread`}
+            {/* Mail & Pending Transfers Inbox Button (Manager & Admin only) */}
+            {canAccessInbox && (
+              <CapabilityTooltip
+                title="Store Messages & Waybills"
+                description="View internal branch communications, low stock alerts, and receive inter-store transfer waybills."
+                roleRequired="All Roles"
+                shortcut="Alt + I"
+                tip={`${pendingTransfersCount} pending transfers, ${unreadMails} unread notifications.`}
+                placement="bottom"
+                align="center"
               >
-                <Mail className={`w-5 h-5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
-                <span>Inbox</span>
-                {totalMessageAlerts > 0 && (
-                  <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
-                    {totalMessageAlerts}
-                  </span>
-                )}
-              </button>
-            </CapabilityTooltip>
+                <button
+                  type="button"
+                  onClick={() => setIsMailDrawerOpen(true)}
+                  className={`relative px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 text-xs font-bold ${
+                    totalMessageAlerts > 0
+                      ? 'bg-amber-400 text-slate-950 border-2 border-amber-200 font-black animate-pulse shadow-lg shadow-amber-400/60 ring-2 ring-amber-300/80 scale-105'
+                      : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
+                  }`}
+                  title={`Store Messages & Transfers: ${pendingTransfersCount} pending, ${unreadMails} unread`}
+                >
+                  <Mail className={`w-5 h-5 ${totalMessageAlerts > 0 ? 'animate-bounce text-slate-950' : ''}`} />
+                  <span>Inbox</span>
+                  {totalMessageAlerts > 0 && (
+                    <span className="bg-rose-600 text-white border border-amber-300 font-black text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-md">
+                      {totalMessageAlerts}
+                    </span>
+                  )}
+                </button>
+              </CapabilityTooltip>
+            )}
 
             {/* Fabric Rolls Button */}
             <CapabilityTooltip
@@ -1608,26 +1625,28 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                       )}
                     </button>
 
-                    {/* Inbox Messages */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playClickSound();
-                        setIsMailDrawerOpen(true);
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-rose-300 text-slate-800 hover:bg-rose-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs relative cursor-pointer"
-                    >
-                      <div className="p-2 rounded-xl bg-rose-100 text-rose-700 group-hover:scale-110 transition-transform">
-                        <Mail className="w-5 h-5" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-800">Inbox</span>
-                      {totalMessageAlerts > 0 && (
-                        <span className="absolute top-1.5 right-1.5 bg-rose-600 text-white font-black text-[8px] min-w-3.5 h-3.5 px-0.5 rounded-full flex items-center justify-center shadow-xs animate-bounce">
-                          {totalMessageAlerts}
-                        </span>
-                      )}
-                    </button>
+                    {/* Inbox Messages (Restricted for cashiers) */}
+                    {canAccessInbox && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playClickSound();
+                          setIsMailDrawerOpen(true);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-rose-300 text-slate-800 hover:bg-rose-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs relative cursor-pointer"
+                      >
+                        <div className="p-2 rounded-xl bg-rose-100 text-rose-700 group-hover:scale-110 transition-transform">
+                          <Mail className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-800">Inbox</span>
+                        {totalMessageAlerts > 0 && (
+                          <span className="absolute top-1.5 right-1.5 bg-rose-600 text-white font-black text-[8px] min-w-3.5 h-3.5 px-0.5 rounded-full flex items-center justify-center shadow-xs animate-bounce">
+                            {totalMessageAlerts}
+                          </span>
+                        )}
+                      </button>
+                    )}
 
                     {/* Audio Sound Toggle */}
                     <button

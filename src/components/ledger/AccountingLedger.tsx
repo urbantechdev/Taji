@@ -151,24 +151,66 @@ export const AccountingLedger: React.FC = () => {
     setIsReturnExchangeModalOpen,
     quarantinedDefects,
     currentUser,
-    isAdmin
+    isAdmin,
+    isAccountant,
+    accountantSubTab,
+    setAccountantSubTab,
+    isJournalModalOpen: contextIsJournalModalOpen,
+    setIsJournalModalOpen: contextSetIsJournalModalOpen,
+    isSupplierModalOpen: contextIsSupplierModalOpen,
+    setIsSupplierModalOpen: contextSetIsSupplierModalOpen,
+    isInwardInvoiceModalOpen: contextIsInwardInvoiceModalOpen,
+    setIsInwardInvoiceModalOpen: contextSetIsInwardInvoiceModalOpen
   } = useERP();
+
+  const isAccountantRole = Boolean(isAccountant || currentUser.role === 'accountant');
 
   const canManageJournal = isAdmin || hasPermission(currentUser.role, 'canManageGeneralLedger');
   const canReconcile = isAdmin || hasPermission(currentUser.role, 'canManageGeneralLedger') || hasPermission(currentUser.role, 'canExecuteForensicAudit');
   const canGenerateTax = isAdmin || hasPermission(currentUser.role, 'canConfigureETR') || hasPermission(currentUser.role, 'canManageGeneralLedger');
-  const [activeSubTab, setActiveSubTab] = useState<LedgerTab>('cfo_advisory');
+  
+  const [activeSubTab, setActiveSubTab] = useState<LedgerTab>(() => {
+    if (isAccountantRole && accountantSubTab) {
+      return accountantSubTab;
+    }
+    return 'cfo_advisory';
+  });
+
+  // Keep activeSubTab synchronized with sidebar accountantSubTab
+  useEffect(() => {
+    if (isAccountantRole && accountantSubTab && accountantSubTab !== activeSubTab) {
+      setActiveSubTab(accountantSubTab);
+    }
+  }, [accountantSubTab, isAccountantRole]);
+
   const [selectedLocation, setSelectedLocation] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // View mode for General Ledger (Journal Entries vs Trial Balance)
   const [ledgerViewMode, setLedgerViewMode] = useState<'journal' | 'trial_balance'>('journal');
-  const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+  const [localIsJournalModalOpen, setLocalIsJournalModalOpen] = useState(false);
+  const isJournalModalOpen = localIsJournalModalOpen || Boolean(contextIsJournalModalOpen);
+  const setIsJournalModalOpen = (open: boolean) => {
+    setLocalIsJournalModalOpen(open);
+    if (contextSetIsJournalModalOpen) contextSetIsJournalModalOpen(open);
+  };
 
   // Supplier Registry & Inward Invoice Intake Modals
-  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
-  const [isInwardInvoiceModalOpen, setIsInwardInvoiceModalOpen] = useState(false);
+  const [localIsSupplierModalOpen, setLocalIsSupplierModalOpen] = useState(false);
+  const isSupplierModalOpen = localIsSupplierModalOpen || Boolean(contextIsSupplierModalOpen);
+  const setIsSupplierModalOpen = (open: boolean) => {
+    setLocalIsSupplierModalOpen(open);
+    if (contextSetIsSupplierModalOpen) contextSetIsSupplierModalOpen(open);
+  };
+
+  const [localIsInwardInvoiceModalOpen, setLocalIsInwardInvoiceModalOpen] = useState(false);
+  const isInwardInvoiceModalOpen = localIsInwardInvoiceModalOpen || Boolean(contextIsInwardInvoiceModalOpen);
+  const setIsInwardInvoiceModalOpen = (open: boolean) => {
+    setLocalIsInwardInvoiceModalOpen(open);
+    if (contextSetIsInwardInvoiceModalOpen) contextSetIsInwardInvoiceModalOpen(open);
+  };
+
   const [selectedSupplierForInvoice, setSelectedSupplierForInvoice] = useState<Supplier | undefined>(undefined);
 
   // Bank Reconciliation interactive check & statement import states
@@ -785,143 +827,168 @@ export const AccountingLedger: React.FC = () => {
         </div>
 
         {/* Sub Navigation Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-slate-100 pb-1 scrollbar-thin">
-          <button
-            onClick={() => setActiveSubTab('cfo_advisory')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'cfo_advisory'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-            <span>Virtual CFO Intelligence</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('import_costing')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'import_costing'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200/60'
-            }`}
-          >
-            <Ship className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>Import Landed Costing &amp; Tax Suite</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('debtors_aging')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'debtors_aging'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <FileText className="w-4 h-4 shrink-0" />
-            <span>Debtors Aging &amp; Statements</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('financial_statements')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'financial_statements'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60'
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600 group-hover:text-emerald-700 shrink-0" />
-            <span>Financial Statements &amp; Channel Settlement</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('general_ledger')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'general_ledger'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <Scale className="w-4 h-4 shrink-0" />
-            <span>General Ledger &amp; Trial Balance</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('balance_sheet')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'balance_sheet'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <Building2 className="w-4 h-4 shrink-0" />
-            <span>Live Balance Sheet</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('income_statement')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'income_statement'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4 shrink-0" />
-            <span>Income Statement (P&amp;L)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('cash_flow')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'cash_flow'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <Wallet className="w-4 h-4 shrink-0" />
-            <span>Cash Flow Statement</span>
-          </button>
-
-          {canGenerateTax && (
+        {!isAccountantRole ? (
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-slate-100 pb-1 scrollbar-thin">
             <button
-              onClick={() => setActiveSubTab('tax_engine')}
+              onClick={() => setActiveSubTab('cfo_advisory')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                activeSubTab === 'tax_engine'
+                activeSubTab === 'cfo_advisory'
                   ? 'bg-rose-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
               }`}
             >
-              <Receipt className="w-4 h-4 shrink-0" />
-              <span>KRA Tax &amp; iTax Compliance</span>
+              <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+              <span>Virtual CFO Intelligence</span>
             </button>
-          )}
 
-          {canReconcile && (
             <button
-              onClick={() => setActiveSubTab('bank_reconciliation')}
+              onClick={() => setActiveSubTab('import_costing')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                activeSubTab === 'bank_reconciliation'
+                activeSubTab === 'import_costing'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200/60'
+              }`}
+            >
+              <Ship className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>Import Landed Costing &amp; Tax Suite</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('debtors_aging')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'debtors_aging'
                   ? 'bg-rose-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
               }`}
             >
-              <CreditCard className="w-4 h-4 shrink-0" />
-              <span>Bank &amp; M-Pesa Reconciliation</span>
+              <FileText className="w-4 h-4 shrink-0" />
+              <span>Debtors Aging &amp; Statements</span>
             </button>
-          )}
 
-          <button
-            onClick={() => setActiveSubTab('fixed_assets')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'fixed_assets'
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
-            }`}
-          >
-            <Building className="w-4 h-4 shrink-0" />
-            <span>Fixed Asset Register &amp; Depreciation</span>
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveSubTab('financial_statements')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'financial_statements'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60'
+              }`}
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 group-hover:text-emerald-700 shrink-0" />
+              <span>Financial Statements &amp; Channel Settlement</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('general_ledger')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'general_ledger'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+              }`}
+            >
+              <Scale className="w-4 h-4 shrink-0" />
+              <span>General Ledger &amp; Trial Balance</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('balance_sheet')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'balance_sheet'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+              }`}
+            >
+              <Building2 className="w-4 h-4 shrink-0" />
+              <span>Live Balance Sheet</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('income_statement')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'income_statement'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 shrink-0" />
+              <span>Income Statement (P&amp;L)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSubTab('cash_flow')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'cash_flow'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+              }`}
+            >
+              <Wallet className="w-4 h-4 shrink-0" />
+              <span>Cash Flow Statement</span>
+            </button>
+
+            {canGenerateTax && (
+              <button
+                onClick={() => setActiveSubTab('tax_engine')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  activeSubTab === 'tax_engine'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+                }`}
+              >
+                <Receipt className="w-4 h-4 shrink-0" />
+                <span>KRA Tax &amp; iTax Compliance</span>
+              </button>
+            )}
+
+            {canReconcile && (
+              <button
+                onClick={() => setActiveSubTab('bank_reconciliation')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  activeSubTab === 'bank_reconciliation'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span>Bank &amp; M-Pesa Reconciliation</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setActiveSubTab('fixed_assets')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'fixed_assets'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700'
+              }`}
+            >
+              <Building className="w-4 h-4 shrink-0" />
+              <span>Fixed Asset Register &amp; Depreciation</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Active Financial Module:</span>
+              <span className="font-extrabold text-rose-700 bg-rose-50 border border-rose-200/80 px-2.5 py-1 rounded-lg">
+                {activeSubTab === 'cfo_advisory' && '✨ Virtual CFO Intelligence'}
+                {activeSubTab === 'import_costing' && '🚢 Import Landed Costing & Tax Suite'}
+                {activeSubTab === 'debtors_aging' && '📑 Debtors Aging & Statements'}
+                {activeSubTab === 'financial_statements' && '📊 Financial Statements & Channels'}
+                {activeSubTab === 'general_ledger' && '⚖️ General Ledger & Trial Balance'}
+                {activeSubTab === 'balance_sheet' && '🏛️ Live Balance Sheet'}
+                {activeSubTab === 'income_statement' && '📈 Income Statement (P&L)'}
+                {activeSubTab === 'cash_flow' && '💳 Cash Flow Statement'}
+                {activeSubTab === 'tax_engine' && '🧾 KRA Tax & iTax Compliance'}
+                {activeSubTab === 'bank_reconciliation' && '🏦 Bank & M-Pesa Reconciliation'}
+                {activeSubTab === 'fixed_assets' && '🏢 Fixed Asset Register & Depreciation'}
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-400 font-medium hidden md:inline">
+              Selected via Left Sidebar • Desktop Bottom Nav handles global screens
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ------------------------------------------------------------- */}

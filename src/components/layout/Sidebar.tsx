@@ -2,6 +2,7 @@ import React from 'react';
 import { useERP } from '../../context/ERPContext';
 import { isTabAllowedForRole, getRoleMetadata } from '../../utils/rbac';
 import { evaluateStockStatus } from '../../utils/stockThresholdEngine';
+import { LedgerTab } from '../../types';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -24,7 +25,14 @@ import {
   Globe,
   ExternalLink,
   Lock,
-  LogOut
+  LogOut,
+  Sparkles,
+  Ship,
+  FileSpreadsheet,
+  Scale,
+  Wallet,
+  CreditCard,
+  Building
 } from 'lucide-react';
 
 export type NavTab =
@@ -49,12 +57,28 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
-  const { currentUser, setIsUserProfileModalOpen, locations, products, orders, stockAlertSettings, setViewMode, lockPlatform, setAppMode } = useERP();
+  const {
+    currentUser,
+    setIsUserProfileModalOpen,
+    locations,
+    products,
+    orders,
+    stockAlertSettings,
+    setViewMode,
+    lockPlatform,
+    setAppMode,
+    isAccountant,
+    accountantSubTab,
+    setAccountantSubTab
+  } = useERP();
+
+  const isAccountantRole = Boolean(isAccountant || currentUser.role === 'accountant');
 
   const lowStockCount = products.filter(
     p => evaluateStockStatus(p, orders, stockAlertSettings).isLowStock
   ).length;
 
+  // Standard platform items for non-accountant users
   const allNavItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     {
       id: 'dashboard',
@@ -136,6 +160,95 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     isTabAllowedForRole(currentUser.role, item.id)
   );
 
+  // Accounting Body Menu Items - dedicated for the Accountant Sidebar
+  const accountantMenuItems: {
+    id: LedgerTab;
+    label: string;
+    section: 'Intelligence' | 'Costing & Trade' | 'Financial Statements' | 'Tax & Reconciliation';
+    icon: React.ReactNode;
+    badge?: string;
+  }[] = [
+    {
+      id: 'cfo_advisory',
+      label: 'Virtual CFO Intelligence',
+      section: 'Intelligence',
+      icon: <Sparkles className="w-5 h-5 text-amber-300 stroke-[2.2]" />,
+      badge: 'AI CFO'
+    },
+    {
+      id: 'import_costing',
+      label: 'Import Landed Costing & Tax',
+      section: 'Costing & Trade',
+      icon: <Ship className="w-5 h-5 text-rose-400 stroke-[2.2]" />,
+      badge: 'KRA Suite'
+    },
+    {
+      id: 'debtors_aging',
+      label: 'Debtors Aging & Statements',
+      section: 'Costing & Trade',
+      icon: <FileText className="w-5 h-5 text-sky-400 stroke-[2.2]" />
+    },
+    {
+      id: 'financial_statements',
+      label: 'Financial Statements & Channels',
+      section: 'Financial Statements',
+      icon: <FileSpreadsheet className="w-5 h-5 text-emerald-400 stroke-[2.2]" />
+    },
+    {
+      id: 'general_ledger',
+      label: 'General Ledger & Trial Balance',
+      section: 'Financial Statements',
+      icon: <Scale className="w-5 h-5 text-indigo-400 stroke-[2.2]" />
+    },
+    {
+      id: 'balance_sheet',
+      label: 'Live Balance Sheet',
+      section: 'Financial Statements',
+      icon: <Building2 className="w-5 h-5 text-blue-400 stroke-[2.2]" />
+    },
+    {
+      id: 'income_statement',
+      label: 'Income Statement (P&L)',
+      section: 'Financial Statements',
+      icon: <TrendingUp className="w-5 h-5 text-emerald-400 stroke-[2.2]" />
+    },
+    {
+      id: 'cash_flow',
+      label: 'Cash Flow Statement',
+      section: 'Financial Statements',
+      icon: <Wallet className="w-5 h-5 text-teal-400 stroke-[2.2]" />
+    },
+    {
+      id: 'tax_engine',
+      label: 'KRA Tax & iTax Compliance',
+      section: 'Tax & Reconciliation',
+      icon: <Receipt className="w-5 h-5 text-rose-400 stroke-[2.2]" />,
+      badge: 'eTIMS'
+    },
+    {
+      id: 'bank_reconciliation',
+      label: 'Bank & M-Pesa Reconciliation',
+      section: 'Tax & Reconciliation',
+      icon: <CreditCard className="w-5 h-5 text-amber-400 stroke-[2.2]" />
+    },
+    {
+      id: 'fixed_assets',
+      label: 'Fixed Asset Depreciation',
+      section: 'Tax & Reconciliation',
+      icon: <Building className="w-5 h-5 text-purple-400 stroke-[2.2]" />
+    }
+  ];
+
+  const handleSelectAccountantSubTab = (subTab: LedgerTab) => {
+    if (setAccountantSubTab) {
+      setAccountantSubTab(subTab);
+    }
+    if (activeTab !== 'ledger') {
+      setAppMode('admin');
+      setActiveTab('ledger');
+    }
+  };
+
   const roleMeta = getRoleMetadata(currentUser.role);
   const userBranch = locations.find(l => l.id === currentUser.assignedLocation);
 
@@ -147,66 +260,129 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       <div className="absolute -top-24 -left-24 w-64 h-64 bg-rose-600/10 rounded-full blur-3xl pointer-events-none group-hover/sidebar:bg-rose-500/15 transition-all duration-700" />
       <div className="absolute top-1/2 -right-24 w-64 h-64 bg-pink-600/10 rounded-full blur-3xl pointer-events-none group-hover/sidebar:bg-pink-500/15 transition-all duration-700" />
 
-      <div className="p-3.5 space-y-1 relative z-10 flex-1">
-        <p className="px-2.5 text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2.5 flex items-center justify-between">
-          <span>Platform Operations</span>
-          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-        </p>
-        <nav className="space-y-1.5">
-          {permittedNavItems.map(item => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  if (item.id === 'pos') {
-                    setAppMode('pos');
-                  } else {
-                    setAppMode('admin');
-                  }
-                  setActiveTab(item.id);
-                }}
-                className={`group/btn relative w-full flex items-center justify-between px-3.5 py-3 rounded-2xl font-semibold text-xs leading-tight transition-all duration-200 cursor-pointer overflow-hidden ${
-                  isActive
-                    ? 'text-white bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 shadow-lg shadow-rose-950/60 border border-rose-400/40 font-bold scale-[1.02]'
-                    : 'text-slate-300 hover:bg-slate-700/60 hover:text-white hover:translate-x-1 hover:border-slate-600/60 border border-transparent hover:shadow-md'
-                }`}
-              >
-                {/* Active Light Reflection Sheen Beam Sweep */}
-                {isActive && (
-                  <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-reflection-sweep pointer-events-none" />
-                )}
-
-                {/* Active/Hover Left Glowing Bar Accent */}
-                <span
-                  className={`absolute left-0 top-2 bottom-2 w-1.5 rounded-r-full transition-all duration-300 ${
-                    isActive
-                      ? 'bg-white opacity-100 shadow-[0_0_10px_rgba(255,255,255,1)]'
-                      : 'bg-rose-400/0 group-hover/btn:bg-rose-400/80 group-hover/btn:opacity-100'
-                  }`}
-                />
-
-                <div className="flex items-center gap-3 pl-1 min-w-0 flex-1">
-                  <span
-                    className={`shrink-0 transition-all duration-200 group-hover/btn:scale-110 group-hover/btn:rotate-2 ${
-                      isActive ? 'text-white drop-shadow-xs' : 'text-slate-400 group-hover/btn:text-rose-400'
+      {/* ACCOUNTANT VIEW: Dedicated Accounting & Landed Costing Sub-Menu */}
+      {isAccountantRole ? (
+        <div className="p-3.5 space-y-1 relative z-10 flex-1">
+          {/* Sub-Menu Navigation List */}
+          <div className="space-y-1">
+            <p className="px-1 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+              Financial Modules
+            </p>
+            <nav className="space-y-1">
+              {accountantMenuItems.map(item => {
+                const isSelected = activeTab === 'ledger' && accountantSubTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectAccountantSubTab(item.id)}
+                    className={`group/btn relative w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold text-xs leading-tight transition-all duration-150 cursor-pointer overflow-hidden ${
+                      isSelected
+                        ? 'text-white bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 shadow-md shadow-rose-950/60 border border-rose-400/50 font-bold scale-[1.01]'
+                        : 'text-slate-300 hover:bg-slate-700/60 hover:text-white hover:translate-x-0.5 hover:border-slate-600/60 border border-transparent'
                     }`}
                   >
-                    {item.icon}
-                  </span>
-                  <span className="transition-colors truncate tracking-tight text-left font-bold text-[12.5px]">{item.label}</span>
-                </div>
+                    {/* Active Light Reflection Sheen Beam Sweep */}
+                    {isSelected && (
+                      <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-reflection-sweep pointer-events-none" />
+                    )}
 
-                {item.badge && (
-                  <span className="shrink-0 ml-1.5 bg-rose-950/80 text-rose-200 text-[10px] px-2 py-0.5 rounded-full font-bold border border-rose-700/50 group-hover/btn:border-rose-400">
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+                    {/* Active/Hover Left Glowing Bar Accent */}
+                    <span
+                      className={`absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full transition-all duration-300 ${
+                        isSelected
+                          ? 'bg-white opacity-100 shadow-[0_0_8px_rgba(255,255,255,1)]'
+                          : 'bg-rose-400/0 group-hover/btn:bg-rose-400/80 group-hover/btn:opacity-100'
+                      }`}
+                    />
+
+                    <div className="flex items-center gap-2.5 pl-1 min-w-0 flex-1">
+                      <span
+                        className={`shrink-0 transition-all duration-200 group-hover/btn:scale-110 ${
+                          isSelected ? 'text-white drop-shadow-xs' : 'text-slate-400 group-hover/btn:text-rose-400'
+                        }`}
+                      >
+                        {item.icon}
+                      </span>
+                      <span className="truncate tracking-tight text-left font-bold text-[12px]">
+                        {item.label}
+                      </span>
+                    </div>
+
+                    {item.badge && (
+                      <span className="shrink-0 ml-1 bg-rose-950/90 text-rose-200 text-[9px] px-1.5 py-0.5 rounded-md font-extrabold border border-rose-700/50 group-hover/btn:border-rose-400">
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+      ) : (
+        /* STANDARD VIEW: Platform Operations Navigation for Admins and Other Staff */
+        <div className="p-3.5 space-y-1 relative z-10 flex-1">
+          <p className="px-2.5 text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2.5 flex items-center justify-between">
+            <span>Platform Operations</span>
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+          </p>
+          <nav className="space-y-1.5">
+            {permittedNavItems.map(item => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.id === 'pos') {
+                      setAppMode('pos');
+                    } else {
+                      setAppMode('admin');
+                    }
+                    setActiveTab(item.id);
+                  }}
+                  className={`group/btn relative w-full flex items-center justify-between px-3.5 py-3 rounded-2xl font-semibold text-xs leading-tight transition-all duration-200 cursor-pointer overflow-hidden ${
+                    isActive
+                      ? 'text-white bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 shadow-lg shadow-rose-950/60 border border-rose-400/40 font-bold scale-[1.02]'
+                      : 'text-slate-300 hover:bg-slate-700/60 hover:text-white hover:translate-x-1 hover:border-slate-600/60 border border-transparent hover:shadow-md'
+                  }`}
+                >
+                  {/* Active Light Reflection Sheen Beam Sweep */}
+                  {isActive && (
+                    <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-reflection-sweep pointer-events-none" />
+                  )}
+
+                  {/* Active/Hover Left Glowing Bar Accent */}
+                  <span
+                    className={`absolute left-0 top-2 bottom-2 w-1.5 rounded-r-full transition-all duration-300 ${
+                      isActive
+                        ? 'bg-white opacity-100 shadow-[0_0_10px_rgba(255,255,255,1)]'
+                        : 'bg-rose-400/0 group-hover/btn:bg-rose-400/80 group-hover/btn:opacity-100'
+                    }`}
+                  />
+
+                  <div className="flex items-center gap-3 pl-1 min-w-0 flex-1">
+                    <span
+                      className={`shrink-0 transition-all duration-200 group-hover/btn:scale-110 group-hover/btn:rotate-2 ${
+                        isActive ? 'text-white drop-shadow-xs' : 'text-slate-400 group-hover/btn:text-rose-400'
+                      }`}
+                    >
+                      {item.icon}
+                    </span>
+                    <span className="transition-colors truncate tracking-tight text-left font-bold text-[12.5px]">{item.label}</span>
+                  </div>
+
+                  {item.badge && (
+                    <span className="shrink-0 ml-1.5 bg-rose-950/80 text-rose-200 text-[10px] px-2 py-0.5 rounded-full font-bold border border-rose-700/50 group-hover/btn:border-rose-400">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      )}
 
       {/* Switch to Online Storefront Website */}
       <div className="px-3 pb-1">
@@ -269,3 +445,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     </aside>
   );
 };
+

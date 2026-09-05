@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useERP } from '../../context/ERPContext';
 import {
   ImportShipmentRecord,
@@ -47,7 +47,8 @@ import {
   Sparkles,
   FileText,
   Truck,
-  Building2
+  Building2,
+  Boxes
 } from 'lucide-react';
 import { Supplier, ClearingAgent } from '../../types';
 import { SupplierDirectoryModal } from '../suppliers/SupplierDirectoryModal';
@@ -68,11 +69,16 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
     etrConfig,
     currentUser,
     addLedgerEntry,
-    updateProductBatch
+    updateProductBatch,
+    saveOrSyncInvoiceToInventory,
+    setActiveNavTab
   } = useERP();
 
   // Active Sub-Tab within the Accountant Landed Costing & Tax Suite
   const [activeAccountantTab, setActiveAccountantTab] = useState<'local_purchase' | 'calculator' | 'three_way_matcher' | 'kra_vat3' | 'month_end'>('local_purchase');
+
+  // Sync Feedback Toast
+  const [syncToast, setSyncToast] = useState<string | null>(null);
 
   // OCR Document Parser Modal State
   const [isOCRModalOpen, setIsOCRModalOpen] = useState(false);
@@ -102,6 +108,29 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
     totalCapitalizedCost: number;
     vatClaimed: number;
   } | null>(null);
+
+  // Capitalization and Change Tracking State (Blinks Approve & Capitalize button upon changes)
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>(() => JSON.stringify(PRESET_INVOICE_26PA222));
+  const [hasUncapitalizedChanges, setHasUncapitalizedChanges] = useState<boolean>(false);
+  const isPresetSwitchingRef = useRef(false);
+
+  // Detect whenever changes are made in the accountant section to trigger the blinking reminder
+  useEffect(() => {
+    if (isPresetSwitchingRef.current) {
+      isPresetSwitchingRef.current = false;
+      return;
+    }
+    const current = JSON.stringify(activeShipment);
+    if (current !== lastSavedSnapshot) {
+      setHasUncapitalizedChanges(true);
+      // If activeShipment was previously marked capitalized, an edit invalidates old capitalization
+      if (activeShipment.status === 'approved_capitalized') {
+        setActiveShipment(prev => ({ ...prev, status: 'draft' }));
+      }
+    } else {
+      setHasUncapitalizedChanges(false);
+    }
+  }, [activeShipment, lastSavedSnapshot]);
 
   // Active exchange rate used in calculation
   const effectiveExchangeRate = useSimulatedFX ? simulatedFXRate : activeShipment.exchangeRate;
@@ -175,21 +204,19 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
   const handleSelectPreset = (key: '26pa222' | 'sad_400968589' | 'udey' | 'fleece' | 'custom') => {
     setSelectedPresetKey(key);
     setCapitalizationSuccess(null);
+    isPresetSwitchingRef.current = true;
+    let selected: ImportShipmentRecord;
     if (key === '26pa222') {
-      setActiveShipment({ ...PRESET_INVOICE_26PA222 });
-      setSimulatedFXRate(PRESET_INVOICE_26PA222.exchangeRate);
+      selected = { ...PRESET_INVOICE_26PA222 };
     } else if (key === 'sad_400968589') {
-      setActiveShipment({ ...PRESET_SAD_26EMKIM400968589 });
-      setSimulatedFXRate(PRESET_SAD_26EMKIM400968589.exchangeRate);
+      selected = { ...PRESET_SAD_26EMKIM400968589 };
     } else if (key === 'udey') {
-      setActiveShipment({ ...PRESET_SAD_UDEY_UDYOG });
-      setSimulatedFXRate(PRESET_SAD_UDEY_UDYOG.exchangeRate);
+      selected = { ...PRESET_SAD_UDEY_UDYOG };
     } else if (key === 'fleece') {
-      setActiveShipment({ ...PRESET_FLEECE_CONTAINER });
-      setSimulatedFXRate(PRESET_FLEECE_CONTAINER.exchangeRate);
+      selected = { ...PRESET_FLEECE_CONTAINER };
     } else {
       // Blank custom shipment
-      setActiveShipment({
+      selected = {
         id: `IMP-CUSTOM-${Date.now().toString().slice(-4)}`,
         shipmentNumber: `IMP-2026-${Date.now().toString().slice(-4)}`,
         invoiceNumber: 'INV-CUSTOM-001',
@@ -230,9 +257,12 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
             widthCm: 150
           }
         ]
-      });
-      setSimulatedFXRate(129.38999);
+      };
     }
+    setActiveShipment(selected);
+    setSimulatedFXRate(selected.exchangeRate);
+    setLastSavedSnapshot(JSON.stringify(selected));
+    setHasUncapitalizedChanges(false);
   };
 
   // Line item manipulation
@@ -353,13 +383,23 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
       }
 
       // Mark record as capitalized
-      setActiveShipment(prev => ({
-        ...prev,
+      const capitalizedRecord: ImportShipmentRecord = {
+        ...activeShipment,
         status: 'approved_capitalized',
         capitalizedAt: new Date().toISOString(),
         capitalizedBy: currentUser.name,
         journalVoucherRef: journalRef
-      }));
+      };
+      setActiveShipment(capitalizedRecord);
+      setLastSavedSnapshot(JSON.stringify(capitalizedRecord));
+      setHasUncapitalizedChanges(false);
+
+      // Automatically register parent inventory batch in the Inventory module
+      try {
+        await saveOrSyncInvoiceToInventory(capitalizedRecord, 'Capitalized');
+      } catch (syncErr) {
+        console.warn('Auto-sync to inventory notice:', syncErr);
+      }
 
       setCapitalizationSuccess({
         journalRef,
@@ -485,25 +525,103 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                   <Receipt className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
                   <span>+ Inward Invoice</span>
                 </button>
+
+                <button
+                  type="button"
+                  id="btn-sync-to-inventory"
+                  onClick={async () => {
+                    try {
+                      const synced = await saveOrSyncInvoiceToInventory(activeShipment);
+                      setSyncToast(`Invoice ${synced.invoiceNumber} auto-synced to Inventory! (${synced.totalQuantity.toLocaleString()} ${synced.totalQuantityUnit})`);
+                      setTimeout(() => setSyncToast(null), 6000);
+                    } catch (err) {
+                      console.warn('Sync notice:', err);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 bg-rose-600/90 hover:bg-rose-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
+                  title="Auto-Sync parent invoice batch and line items directly to Inventory"
+                >
+                  <Boxes className="w-3.5 h-3.5 text-rose-200 shrink-0" />
+                  <span>⚡ Sync to Inventory</span>
+                </button>
               </div>
 
-              {/* Capitalize Button */}
+              {/* Capitalize Button (Blinks to notify accountant when changes occur) */}
               <button
                 type="button"
                 id="btn-tax-capitalize-ledger"
                 onClick={() => setIsCapitalizeModalOpen(true)}
-                disabled={activeShipment.status === 'approved_capitalized'}
-                className={`px-3 py-1.5 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                  activeShipment.status === 'approved_capitalized'
+                disabled={activeShipment.status === 'approved_capitalized' && !hasUncapitalizedChanges}
+                className={`relative px-3.5 py-1.5 font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  hasUncapitalizedChanges
+                    ? 'bg-gradient-to-r from-amber-500 via-rose-500 to-emerald-600 text-white ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-900 animate-pulse scale-105 shadow-amber-500/50 hover:scale-108'
+                    : activeShipment.status === 'approved_capitalized'
                     ? 'bg-emerald-800/60 text-emerald-200 border border-emerald-700/60 cursor-not-allowed'
                     : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white hover:scale-102'
                 }`}
+                title={hasUncapitalizedChanges ? "Costing changes detected! Click to approve, save, and capitalize to General Ledger." : "Capitalize Landed Inventory to General Ledger"}
               >
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{activeShipment.status === 'approved_capitalized' ? 'Capitalized' : 'Approve & Capitalize'}</span>
+                {hasUncapitalizedChanges && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-80"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500 text-[9px] font-black text-white items-center justify-center">
+                      !
+                    </span>
+                  </span>
+                )}
+                <CheckCircle2 className={`w-4 h-4 shrink-0 ${hasUncapitalizedChanges ? 'animate-bounce text-amber-200' : ''}`} />
+                <span>
+                  {hasUncapitalizedChanges
+                    ? '⚡ Approve & Capitalize (Save Changes)'
+                    : activeShipment.status === 'approved_capitalized'
+                    ? 'Capitalized to GL'
+                    : 'Approve & Capitalize'}
+                </span>
               </button>
             </div>
           </div>
+
+          {/* Real-time Inventory Auto-Sync Toast */}
+          {syncToast && (
+            <div className="mx-4 my-2 p-2.5 bg-emerald-500/20 border border-emerald-400 text-emerald-100 rounded-xl text-xs font-bold flex items-center justify-between shadow-xs animate-fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{syncToast}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveNavTab('catalog')}
+                className="underline hover:text-white cursor-pointer ml-3 font-extrabold text-xs"
+              >
+                Open in Inventory Batches →
+              </button>
+            </div>
+          )}
+
+          {/* Uncapitalized Changes Accountant Notification Alert Banner */}
+          {hasUncapitalizedChanges && (
+            <div className="mx-4 my-2.5 p-3 bg-amber-500/20 border-2 border-amber-400 text-amber-100 rounded-2xl text-xs font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-pulse">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 animate-bounce" />
+                <div className="min-w-0">
+                  <span className="font-black text-amber-200 block text-xs">
+                    Unsaved Costing Changes Detected!
+                  </span>
+                  <span className="text-[11px] text-amber-100/90 font-medium">
+                    Changes made in the accountant section require approval. Click <strong>Approve &amp; Capitalize</strong> to save and post to General Ledger.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCapitalizeModalOpen(true)}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-md whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Approve &amp; Capitalize Now →</span>
+              </button>
+            </div>
+          )}
 
           {/* Accountant Workflow Sub-Tabs - Organized responsive layout */}
           <div className="border-t border-slate-700/70 pt-3">
@@ -2110,6 +2228,34 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         }}
         preselectedSupplier={selectedSupplierForInvoice}
       />
+
+      {/* Sticky Bottom Capitalization Reminder when changes are detected */}
+      {hasUncapitalizedChanges && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-[94%] bg-slate-900/95 backdrop-blur-md border-2 border-amber-400 p-3 rounded-2xl shadow-2xl flex items-center justify-between gap-4 animate-fade-in">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="relative flex h-3 w-3 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-80"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-black text-amber-300 truncate">
+                Landed Costing Changes Pending Capitalization
+              </p>
+              <p className="text-[10.5px] text-slate-300 truncate">
+                Calculations updated. Click Approve &amp; Capitalize to commit to General Ledger and sync Inventory batches.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCapitalizeModalOpen(true)}
+            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-white font-black text-xs rounded-xl shadow-lg animate-pulse whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Approve &amp; Capitalize</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

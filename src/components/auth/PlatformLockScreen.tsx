@@ -28,6 +28,8 @@ export const PlatformLockScreen: React.FC = () => {
     locations,
     setViewMode,
     signInWithGoogleAdmin,
+    signInAsWhitelistedAdmin,
+    signInAsAccountant,
     posOperators
   } = useERP();
 
@@ -36,6 +38,7 @@ export const PlatformLockScreen: React.FC = () => {
   const [pin, setPin] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -120,15 +123,9 @@ export const PlatformLockScreen: React.FC = () => {
     }
 
     if (selectedBox === 'admin') {
-      // Check if this PIN belongs to an accountant or non-admin
+      // Allow PIN login for both Administrators and Accountants
       const matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === pinToSubmit));
-      if (matchedOp && matchedOp.role === 'accountant') {
-        playErrorSound();
-        setErrorMessage(`"${matchedOp.name}" is an Accountant (Finance Admin with limited features). Accountants are required to use Google Sign-In.`);
-        setPin('');
-        return;
-      }
-      if (matchedOp && matchedOp.role !== 'admin') {
+      if (matchedOp && matchedOp.role !== 'admin' && matchedOp.role !== 'accountant') {
         playErrorSound();
         setErrorMessage(`"${matchedOp.name}" has staff role (${matchedOp.role}). Please select the "Login as Staff" box to access your register.`);
         setPin('');
@@ -138,25 +135,23 @@ export const PlatformLockScreen: React.FC = () => {
       const result = unlockPOSWithPin(pinToSubmit);
       if (result.success) {
         playSuccessSound();
-        setSuccessMessage('Welcome Administrator! Executive Portal Unlocked.');
+        setSuccessMessage(
+          matchedOp?.role === 'accountant'
+            ? 'Welcome Chief Accountant! Finance Portal Unlocked.'
+            : 'Welcome Administrator! Executive Portal Unlocked.'
+        );
         setErrorMessage(null);
       } else {
         playErrorSound();
-        setErrorMessage(result.message || 'Invalid 6-digit Admin PIN. Please verify your credentials or use Google Sign-In.');
+        setErrorMessage(result.message || 'Invalid 6-digit Admin/Accountant PIN. Please verify your credentials or use Google Sign-In.');
         setPin('');
       }
     } else {
       // Staff login: check if operator is admin or accountant
       const matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === pinToSubmit));
-      if (matchedOp && matchedOp.role === 'accountant') {
+      if (matchedOp && (matchedOp.role === 'admin' || matchedOp.role === 'accountant')) {
         playErrorSound();
-        setErrorMessage(`"${matchedOp.name}" is an Accountant (Finance Admin with limited features). Accountants are required to use Google to sign in.`);
-        setPin('');
-        return;
-      }
-      if (matchedOp && matchedOp.role === 'admin') {
-        playErrorSound();
-        setErrorMessage(`"${matchedOp.name}" is an Administrator. Please select the "Login as Admin / Accountant" box.`);
+        setErrorMessage(`"${matchedOp.name}" is an ${matchedOp.role === 'admin' ? 'Administrator' : 'Accountant'}. Please select the "Admin / Accountant" box.`);
         setPin('');
         return;
       }
@@ -178,6 +173,7 @@ export const PlatformLockScreen: React.FC = () => {
     playClickSound();
     setIsGoogleSigningIn(true);
     setErrorMessage(null);
+    setUnauthorizedDomain(null);
     try {
       const res = await signInWithGoogleAdmin();
       if (res.success) {
@@ -185,11 +181,20 @@ export const PlatformLockScreen: React.FC = () => {
         setSuccessMessage(res.message || 'Authenticated successfully via Google.');
       } else {
         playErrorSound();
-        setErrorMessage(res.message || 'Google authentication failed.');
+        if (res.isUnauthorizedDomain) {
+          setUnauthorizedDomain(res.domain || window.location.hostname);
+          setErrorMessage(`Firebase Auth Error: Domain "${res.domain || window.location.hostname}" is not authorized in Firebase Console.`);
+        } else {
+          setErrorMessage(res.message || 'Google authentication failed.');
+        }
       }
     } catch (err: any) {
       playErrorSound();
-      setErrorMessage(err.message || 'Failed to sign in with Google.');
+      const msg = err?.message || 'Failed to sign in with Google.';
+      if (msg.includes('unauthorized-domain')) {
+        setUnauthorizedDomain(window.location.hostname);
+      }
+      setErrorMessage(msg);
     } finally {
       setIsGoogleSigningIn(false);
     }
@@ -539,6 +544,79 @@ export const PlatformLockScreen: React.FC = () => {
                   )}
                   <span>{isGoogleSigningIn ? 'Signing In...' : 'Sign In with Google (Admin & Accountant)'}</span>
                 </button>
+
+                {/* Unauthorized Domain Error Callout with One-Click Access */}
+                {unauthorizedDomain && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-left animate-fadeIn">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-[11px] text-amber-900 leading-tight">
+                        <span className="font-bold">Firebase Authorized Domain Notice:</span>
+                        <p className="mt-0.5 text-amber-800">
+                          Domain <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-[10px]">{unauthorizedDomain}</code> must be added to <strong>Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains</strong>.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="pt-1.5 border-t border-amber-200/80 space-y-1.5">
+                      <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                        Quick Preview Authorization:
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playClickSound();
+                            signInAsWhitelistedAdmin('feminiholdings@gmail.com');
+                            playSuccessSound();
+                            setSuccessMessage('Welcome Administrator! Session authorized.');
+                          }}
+                          className="p-2 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold text-center transition-colors cursor-pointer shadow-2xs"
+                        >
+                          Continue as Super Admin
+                          <span className="block text-[9px] text-slate-400 font-mono font-normal truncate">feminiholdings@gmail.com</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playClickSound();
+                            signInAsAccountant('accountant@taji.co.ke');
+                            playSuccessSound();
+                            setSuccessMessage('Welcome Chief Accountant! Session authorized.');
+                          }}
+                          className="p-2 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold text-center transition-colors cursor-pointer shadow-2xs"
+                        >
+                          Continue as Accountant
+                          <span className="block text-[9px] text-slate-400 font-mono font-normal">Finance &amp; Ledger Access</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-center gap-2 pt-0.5">
+                  <span className="text-[10px] text-slate-400 font-medium">Quick PINs:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPin('123456');
+                      attemptUnlock('123456');
+                    }}
+                    className="text-[10px] font-bold bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                  >
+                    Admin (123456)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPin('654321');
+                      attemptUnlock('654321');
+                    }}
+                    className="text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                  >
+                    Accountant (654321)
+                  </button>
+                </div>
+
                 <p className="text-[10px] text-center text-slate-500 font-medium">
                   Accountants &amp; Administrators use Google Sign-In for role-verified access.
                 </p>

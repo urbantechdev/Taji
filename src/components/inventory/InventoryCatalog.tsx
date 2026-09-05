@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useERP } from '../../context/ERPContext';
 import RightEdgeBlend from '../common/RightEdgeBlend';
 import { CategoryType, ProductBatch, UnitType } from '../../types';
-import { hasPermission } from '../../utils/rbac';
+import { hasPermission, isCashierRole } from '../../utils/rbac';
 import { evaluateStockStatus, calculateStockThresholdSummary } from '../../utils/stockThresholdEngine';
 import { ReceiveDeliveryModal } from './ReceiveDeliveryModal';
 import { CategoryIntakeModal } from './CategoryIntakeModal';
@@ -15,6 +15,7 @@ import { BulkBarcodeGeneratorModal } from './BulkBarcodeGeneratorModal';
 import { DuplicateAuditModal } from './DuplicateAuditModal';
 import { StocktakeDashboard } from './StocktakeDashboard';
 import { InwardInvoiceIntakeModal } from './InwardInvoiceIntakeModal';
+import { InvoiceBatchesDrillDownView } from './InvoiceBatchesDrillDownView';
 import { SupplierDirectoryModal } from '../suppliers/SupplierDirectoryModal';
 import { ClearingAgentDirectoryModal } from '../clearing/ClearingAgentDirectoryModal';
 import { Supplier, ClearingAgent } from '../../types';
@@ -85,7 +86,9 @@ export const InventoryCatalog: React.FC = () => {
     purgeAllInventoryData,
     stockAlertSettings,
     currentUser,
-    isAdmin
+    isAdmin,
+    invoiceBatches,
+    setActiveNavTab
   } = useERP();
 
   // Role-Based Feature Permission Gates
@@ -94,9 +97,11 @@ export const InventoryCatalog: React.FC = () => {
   const canEditPrices = isAdmin || hasPermission(currentUser.role, 'canEditMasterPricing');
   const canDelete = isAdmin || hasPermission(currentUser.role, 'canDeleteInventory');
   const canTareWeight = isAdmin || hasPermission(currentUser.role, 'canDispatchTransfers');
+  const canAccessVendors = isAdmin || hasPermission(currentUser.role, 'canAccessVendorDirectory');
+  const isCashier = isCashierRole(currentUser.role);
 
   const [isDuplicateAuditOpen, setIsDuplicateAuditOpen] = useState(false);
-  const [activeInventoryTab, setActiveInventoryTab] = useState<'catalog' | 'weight_reconciliation' | 'stocktake'>('catalog');
+  const [activeInventoryTab, setActiveInventoryTab] = useState<'catalog' | 'weight_reconciliation' | 'stocktake' | 'invoice_batches'>('catalog');
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>('All');
   const [stockFilter, setStockFilter] = useState<'All' | 'main_store_low' | 'sales_shop_low' | 'dead_stock'>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -405,18 +410,44 @@ export const InventoryCatalog: React.FC = () => {
                 <span>Catalog Stock</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveInventoryTab('stocktake')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeInventoryTab === 'stocktake'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-rose-600'
-                }`}
-              >
-                <ClipboardCheck className="w-3.5 h-3.5" />
-                <span>Monthly Stocktake</span>
-              </button>
+              {!isCashier && canViewCost && (
+                <button
+                  type="button"
+                  onClick={() => setActiveInventoryTab('invoice_batches')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeInventoryTab === 'invoice_batches'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-rose-600'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>Inward Invoice Batches</span>
+                  {invoiceBatches && invoiceBatches.length > 0 && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      activeInventoryTab === 'invoice_batches'
+                        ? 'bg-white text-rose-700'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {invoiceBatches.length}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {!isCashier && (
+                <button
+                  type="button"
+                  onClick={() => setActiveInventoryTab('stocktake')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeInventoryTab === 'stocktake'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-rose-600'
+                  }`}
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5" />
+                  <span>Monthly Stocktake</span>
+                </button>
+              )}
 
               {canTareWeight && (
                 <button
@@ -585,45 +616,51 @@ export const InventoryCatalog: React.FC = () => {
             </div>
 
             {/* Supplier Directory & Inward Invoice Intake Group */}
-            <div className="flex items-center gap-1.5 bg-white border border-slate-200 p-1 rounded-xl">
-              <button
-                type="button"
-                id="btn-open-suppliers-directory"
-                onClick={() => setIsSupplierModalOpen(true)}
-                className="px-2.5 py-1.5 hover:bg-rose-50 text-rose-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Open Suppliers & Vendors Directory"
-              >
-                <Building2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Suppliers</span>
-              </button>
+            {(canAccessVendors || canAdd) && (
+              <div className="flex items-center gap-1.5 bg-white border border-slate-200 p-1 rounded-xl">
+                {canAccessVendors && (
+                  <>
+                    <button
+                      type="button"
+                      id="btn-open-suppliers-directory"
+                      onClick={() => setIsSupplierModalOpen(true)}
+                      className="px-2.5 py-1.5 hover:bg-rose-50 text-rose-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                      title="Open Suppliers & Vendors Directory"
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Suppliers</span>
+                    </button>
 
-              <button
-                type="button"
-                id="btn-open-clearing-directory"
-                onClick={() => setIsClearingAgentModalOpen(true)}
-                className="px-2.5 py-1.5 hover:bg-blue-50 text-blue-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                title="Open KRA Customs Clearing Agents & Declarants Directory"
-              >
-                <Truck className="w-3.5 h-3.5 text-blue-600" />
-                <span>Clearing Agents</span>
-              </button>
+                    <button
+                      type="button"
+                      id="btn-open-clearing-directory"
+                      onClick={() => setIsClearingAgentModalOpen(true)}
+                      className="px-2.5 py-1.5 hover:bg-blue-50 text-blue-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                      title="Open KRA Customs Clearing Agents & Declarants Directory"
+                    >
+                      <Truck className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Clearing Agents</span>
+                    </button>
+                  </>
+                )}
 
-              {canAdd && (
-                <button
-                  type="button"
-                  id="btn-open-inward-invoice-wizard"
-                  onClick={() => {
-                    setSelectedSupplierForInvoice(undefined);
-                    setIsInwardInvoiceModalOpen(true);
-                  }}
-                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
-                  title="Create Commercial / eTIMS Invoice & Onboard Inventory Batches"
-                >
-                  <Receipt className="w-3.5 h-3.5 text-emerald-100" />
-                  <span>+ Inward Invoice</span>
-                </button>
-              )}
-            </div>
+                {canAdd && (
+                  <button
+                    type="button"
+                    id="btn-open-inward-invoice-wizard"
+                    onClick={() => {
+                      setSelectedSupplierForInvoice(undefined);
+                      setIsInwardInvoiceModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
+                    title="Create Commercial / eTIMS Invoice & Onboard Inventory Batches"
+                  >
+                    <Receipt className="w-3.5 h-3.5 text-emerald-100" />
+                    <span>+ Inward Invoice</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -721,13 +758,41 @@ export const InventoryCatalog: React.FC = () => {
         </div>
       </div>
 
-      {/* Conditional Rendering: Catalog vs Weight Reconciliation vs Stocktake Audit */}
-      {activeInventoryTab === 'stocktake' ? (
+      {/* Conditional Rendering: Invoice Batches vs Catalog vs Weight Reconciliation vs Stocktake Audit */}
+      {activeInventoryTab === 'invoice_batches' && !isCashier && canViewCost ? (
+        <InvoiceBatchesDrillDownView
+          onOpenCostingSuite={() => setActiveNavTab('ledger')}
+          onOpenInwardWizard={() => setIsInwardInvoiceModalOpen(true)}
+        />
+      ) : activeInventoryTab === 'stocktake' && !isCashier ? (
         <StocktakeDashboard />
       ) : activeInventoryTab === 'weight_reconciliation' ? (
         <WeightReconciliationModule />
       ) : (
         <>
+          {/* Invoice-to-Inventory Auto-Sync Quick Notification Banner */}
+          {!isCashier && canViewCost && invoiceBatches && invoiceBatches.length > 0 && (
+            <div className="p-3 bg-gradient-to-r from-rose-50 via-white to-amber-50 rounded-2xl border border-rose-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="font-extrabold text-slate-800">
+                  {invoiceBatches.length} Inward Commercial Invoices Auto-Synced to Inventory
+                </span>
+                <span className="hidden md:inline text-slate-500 font-medium">
+                  (e.g. Invoice {invoiceBatches[0].invoiceNumber} • {invoiceBatches[0].supplierName})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveInventoryTab('invoice_batches')}
+                className="text-xs font-black text-rose-700 hover:text-rose-900 flex items-center gap-1 cursor-pointer bg-white px-3 py-1 rounded-xl border border-rose-200 shadow-2xs hover:bg-rose-50 transition-colors shrink-0"
+              >
+                <span>View Invoice Batches &amp; Roll Drill-Down</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Dead Stock Alert Banner */}
           {stockFilter === 'dead_stock' && (
             <div className="p-4 bg-gradient-to-r from-purple-950 via-indigo-900 to-slate-900 text-white rounded-2xl shadow-lg border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
@@ -741,7 +806,10 @@ export const InventoryCatalog: React.FC = () => {
                     <span>Dead Stock &amp; Stagnant Capital Clearance Hub</span>
                   </h4>
                   <p className="text-xs text-purple-200">
-                    {deadStockCount} inventory batches stagnant (&gt;{stockAlertSettings.deadStockPeriodDays}d threshold) • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-bold">KSh {deadStockCapital.toLocaleString()}</strong>
+                    {deadStockCount} inventory batches stagnant (&gt;{stockAlertSettings.deadStockPeriodDays}d threshold)
+                    {canViewCost && (
+                      <> • Total Tied-Up Capital: <strong className="text-amber-300 font-mono font-bold">KSh {deadStockCapital.toLocaleString()}</strong></>
+                    )}
                   </p>
                 </div>
               </div>
@@ -1404,7 +1472,9 @@ export const InventoryCatalog: React.FC = () => {
                 <p className="text-[11px] text-purple-800">
                   Current Retail Price: <strong>KSh {discountModalBatch.unitPriceRetail.toLocaleString()}</strong>
                 </p>
-                <p className="text-[10px] text-purple-700">Cost Price Base: KSh {discountModalBatch.costPrice.toLocaleString()}</p>
+                {canViewCost && (
+                  <p className="text-[10px] text-purple-700">Cost Price Base: KSh {discountModalBatch.costPrice.toLocaleString()}</p>
+                )}
               </div>
 
               <div className="space-y-3 text-xs">

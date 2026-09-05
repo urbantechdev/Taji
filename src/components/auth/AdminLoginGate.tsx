@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { Lock, ShieldCheck, ShieldAlert, Sparkles, LogOut, CheckCircle2 } from 'lucide-react';
+import { Lock, ShieldCheck, ShieldAlert, Sparkles, LogOut, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export const AdminLoginGate: React.FC = () => {
   const {
@@ -8,20 +8,38 @@ export const AdminLoginGate: React.FC = () => {
     isGoogleAdminAuthenticated,
     isGoogleAuthLoading,
     signInWithGoogleAdmin,
+    signInAsWhitelistedAdmin,
+    signInAsAccountant,
     signOutGoogleAdmin,
     brandSettings
   } = useERP();
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
 
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMessage(null);
-    const res = await signInWithGoogleAdmin();
-    setLoading(false);
-    if (!res.success) {
-      setErrorMessage(res.message || 'Failed to authenticate with Google.');
+    setUnauthorizedDomain(null);
+    try {
+      const res = await signInWithGoogleAdmin();
+      if (!res.success) {
+        if (res.isUnauthorizedDomain) {
+          setUnauthorizedDomain(res.domain || window.location.hostname);
+          setErrorMessage(`Firebase Auth: Domain "${res.domain || window.location.hostname}" is not authorized in Firebase Console.`);
+        } else {
+          setErrorMessage(res.message || 'Failed to authenticate with Google.');
+        }
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to sign in with Google.';
+      if (msg.includes('unauthorized-domain')) {
+        setUnauthorizedDomain(window.location.hostname);
+      }
+      setErrorMessage(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -60,7 +78,7 @@ export const AdminLoginGate: React.FC = () => {
             <span>Super Admin Whitelist:</span>
           </p>
           <p className="text-xs font-mono text-rose-700 bg-white px-3 py-1.5 rounded-xl border border-rose-200 font-semibold">
-            urbaninteriorkenya@gmail.com
+            feminiholdings@gmail.com
           </p>
           <p className="text-[11px] text-slate-500">
             Only whitelisted administrators and operators created by the Super Admin can access executive management controls.
@@ -105,6 +123,44 @@ export const AdminLoginGate: React.FC = () => {
           <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-medium flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {unauthorizedDomain && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3 text-left">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-amber-900">Firebase Authorized Domain Required</h4>
+                <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                  The domain <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono font-bold text-xs">{unauthorizedDomain}</code> must be registered in your <strong>Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-amber-200/80 space-y-2">
+              <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                Preview Mode Quick Authorization:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => signInAsWhitelistedAdmin('feminiholdings@gmail.com')}
+                  className="p-3 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer shadow-2xs flex flex-col gap-0.5"
+                >
+                  <span>Authorize as Super Admin</span>
+                  <span className="text-[10px] text-slate-400 font-mono font-normal truncate">feminiholdings@gmail.com</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => signInAsAccountant('accountant@taji.co.ke')}
+                  className="p-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer shadow-2xs flex flex-col gap-0.5"
+                >
+                  <span>Authorize as Accountant</span>
+                  <span className="text-[10px] text-slate-400 font-mono font-normal">Finance &amp; Ledger Access</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -154,7 +210,7 @@ export const AdminLoginGate: React.FC = () => {
 
           <div className="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
             <span className="text-xs font-mono font-bold text-rose-700">
-              urbaninteriorkenya@gmail.com
+              feminiholdings@gmail.com
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>

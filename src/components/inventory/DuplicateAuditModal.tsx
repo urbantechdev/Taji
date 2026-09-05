@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext';
+import { hasPermission } from '../../utils/rbac';
 import { ProductDuplicateGroup, CatalogDuplicateAuditReport, ProductBatch } from '../../types';
 import {
   ShieldAlert,
@@ -23,10 +24,14 @@ interface DuplicateAuditModalProps {
 
 export const DuplicateAuditModal: React.FC<DuplicateAuditModalProps> = ({ isOpen, onClose }) => {
   const {
+    currentUser,
+    isAdmin,
     scanAllCatalogDuplicates,
     mergeDuplicateProducts,
     autoDeduplicateAllCatalog
   } = useERP();
+
+  const canViewCost = isAdmin || (currentUser ? hasPermission(currentUser.role, 'canViewCostPrice') : false);
 
   const [auditReport, setAuditReport] = useState<CatalogDuplicateAuditReport>(() => scanAllCatalogDuplicates());
   const [selectedGroup, setSelectedGroup] = useState<ProductDuplicateGroup | null>(null);
@@ -285,7 +290,7 @@ export const DuplicateAuditModal: React.FC<DuplicateAuditModalProps> = ({ isOpen
                                   <p className="text-xs font-bold text-slate-800 mt-1">{p.name}</p>
                                   <div className="text-[11px] text-slate-600 mt-1 flex justify-between">
                                     <span>Stock: {stock} {p.unit}s</span>
-                                    <span>Cost: KSh {p.costPrice.toLocaleString()}</span>
+                                    {canViewCost && <span>Cost: KSh {p.costPrice.toLocaleString()}</span>}
                                     <span>Retail: KSh {p.unitPriceRetail.toLocaleString()}</span>
                                   </div>
                                 </div>

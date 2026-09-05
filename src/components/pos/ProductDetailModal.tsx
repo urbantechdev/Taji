@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ProductBatch, LocationId } from '../../types';
 import { LOCATIONS } from '../../data/initialData';
+import { useERP } from '../../context/ERPContext';
+import { hasPermission } from '../../utils/rbac';
 import { playPopupSound, playClickSound, playAddToCartSound } from '../../utils/audio';
 import {
   X,
@@ -43,7 +45,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   canSellDirectly,
   isAdmin = false
 }) => {
+  const { currentUser } = useERP();
   if (!product) return null;
+
+  const canViewCost = isAdmin || (currentUser ? hasPermission(currentUser.role, 'canViewCostPrice') : false);
 
   useEffect(() => {
     playPopupSound();
@@ -57,7 +62,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const isLowStock = currentLocStock > 0 && currentLocStock <= product.minReorderLevel;
   
   const estimatedSubtotal = quantity * product.unitPriceRetail;
-  const marginPercentage = product.unitPriceRetail > 0 
+  const marginPercentage = (canViewCost && product.unitPriceRetail > 0)
     ? Math.round(((product.unitPriceRetail - product.costPrice) / product.unitPriceRetail) * 100)
     : 0;
 
@@ -187,15 +192,27 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </p>
                 </div>
 
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase">
-                    <TrendingUp className="w-3 h-3 text-emerald-600" />
-                    <span>Gross Profit Margin</span>
+                {canViewCost ? (
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase">
+                      <TrendingUp className="w-3 h-3 text-emerald-600" />
+                      <span>Gross Profit Margin</span>
+                    </div>
+                    <p className="font-mono font-bold text-emerald-700 mt-0.5 text-xs">
+                      ~{marginPercentage}% Est. Margin
+                    </p>
                   </div>
-                  <p className="font-mono font-bold text-emerald-700 mt-0.5 text-xs">
-                    ~{marginPercentage}% Est. Margin
-                  </p>
-                </div>
+                ) : (
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase">
+                      <CheckCircle2 className="w-3 h-3 text-indigo-600" />
+                      <span>Stock Status</span>
+                    </div>
+                    <p className="font-bold text-slate-700 mt-0.5 text-xs">
+                      {isOutOfStock ? 'Out of Stock' : isLowStock ? 'Low Stock' : 'In Stock'}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Price Tier Showcase */}

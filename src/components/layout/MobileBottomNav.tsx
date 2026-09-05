@@ -56,12 +56,12 @@ const ROLE_PRIMARY_PRIORITIES: Record<UserRole, NavTab[]> = {
   accountant: ['ledger', 'catalog', 'sales_today', 'etr'],
   hr_manager: ['payroll', 'operators', 'dashboard', 'branches'],
   branch_manager: ['dashboard', 'pos', 'catalog', 'ledger'],
-  sales_shop_cashier: ['pos', 'sales_today', 'catalog', 'etr'],
-  branch_cashier: ['pos', 'sales_today', 'catalog', 'etr'],
-  pos_cashier: ['pos', 'sales_today', 'catalog', 'etr'],
+  sales_shop_cashier: ['pos', 'catalog', 'guide'],
+  branch_cashier: ['pos', 'catalog', 'guide'],
+  pos_cashier: ['pos', 'catalog', 'guide'],
   main_store_operator: ['catalog', 'transfers', 'branches', 'audit'],
-  store_1_attendant: ['transfers', 'catalog', 'gmail', 'guide'],
-  store_2_attendant: ['transfers', 'catalog', 'gmail', 'guide']
+  store_1_attendant: ['transfers', 'catalog', 'guide'],
+  store_2_attendant: ['transfers', 'catalog', 'guide']
 };
 
 const ALL_TABS_META: Record<
@@ -272,6 +272,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const canSwitchMode = isTabAllowedForRole(effectiveRole, 'dashboard') && isTabAllowedForRole(effectiveRole, 'pos');
   const canUseBarcode = isTabAllowedForRole(effectiveRole, 'pos') || isTabAllowedForRole(effectiveRole, 'catalog') || isTabAllowedForRole(effectiveRole, 'transfers');
   const canAccessSettings = isTabAllowedForRole(effectiveRole, 'settings') || isAdmin;
+  const canAccessInbox = isTabAllowedForRole(effectiveRole, 'gmail');
 
   return (
     <>
@@ -420,22 +421,24 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   </button>
                 )}
 
-                {/* Inbox Notifications */}
-                <button
-                  onClick={() => {
-                    setIsMailDrawerOpen(true);
-                    setIsMoreMenuOpen(false);
-                  }}
-                  className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:bg-slate-100 transition-colors relative"
-                >
-                  <Mail className="w-5 h-5 text-rose-600" />
-                  <span className="text-[10px] font-bold text-slate-700 mt-1">Inbox</span>
-                  {unreadMails > 0 && (
-                    <span className="absolute top-1 right-1 bg-rose-600 text-white font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
-                      {unreadMails}
-                    </span>
-                  )}
-                </button>
+                {/* Inbox Notifications (Restricted from cashiers) */}
+                {canAccessInbox && (
+                  <button
+                    onClick={() => {
+                      setIsMailDrawerOpen(true);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl hover:bg-slate-100 transition-colors relative"
+                  >
+                    <Mail className="w-5 h-5 text-rose-600" />
+                    <span className="text-[10px] font-bold text-slate-700 mt-1">Inbox</span>
+                    {unreadMails > 0 && (
+                      <span className="absolute top-1 right-1 bg-rose-600 text-white font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center">
+                        {unreadMails}
+                      </span>
+                    )}
+                  </button>
+                )}
 
                 {/* QR Scanner (if barcode was rendered) */}
                 {canUseBarcode && (

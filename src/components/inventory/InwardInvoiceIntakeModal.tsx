@@ -101,7 +101,8 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
     addProductBatch,
     updateProductBatch,
     addLedgerEntry,
-    deliveries = []
+    deliveries = [],
+    saveOrSyncInvoiceToInventory
   } = useERP();
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -643,6 +644,53 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
             onboardedCount++;
           }
         }
+      }
+
+      // Auto-sync parent invoice batch into Inventory module
+      try {
+        await saveOrSyncInvoiceToInventory({
+          id: `IMP-${Date.now()}`,
+          shipmentNumber: `INW-${invoiceNumber.replace(/[^a-zA-Z0-9]/g, '')}`,
+          invoiceNumber,
+          invoiceDate,
+          supplierName: currentSupplier?.name || 'Commercial Mill Supplier',
+          supplierCountry: currentSupplier?.country || (supplyType === 'import' ? 'China' : 'Kenya'),
+          consigneeName: 'TAJI KNITTERS LIMITED',
+          consigneePin: 'P051656758Y',
+          declarantName: 'Blue Pearl Logistics Limited',
+          declarantPin: 'P051506858S',
+          customsEntryNo: customsOrEtimsRef || `26EMKIM-${invoiceNumber}`,
+          kraEslipRef: kraEslipRef || `102026-${invoiceNumber}`,
+          portOfEntry: 'ICD EMBAKASI',
+          destinationLocationId: destinationLocation,
+          exchangeRate: exchangeRate,
+          specificDutyRatePerTonne: 97102.50,
+          adValoremRatePct: 25.0,
+          idfRatePct: 2.5,
+          rdlRatePct: 2.0,
+          vatRatePct: 16.0,
+          mssLevyUSDRatePerTonne: 1.75,
+          cocFeesUSD: cocFeesUSD || 600.0,
+          totalFreightUSD: totalFreightUSD || 5500.0,
+          totalInsuranceUSD: totalInsuranceUSD || 14.38,
+          portClearingFeesKES: portClearingFeesKES || 180000.0,
+          targetMarkupPct: targetMarkupPct || 35.0,
+          status: 'approved_capitalized',
+          journalVoucherRef: journalRef,
+          lineItems: draftItems.map((it, idx) => ({
+            id: `LI-${idx + 1}`,
+            description: it.name,
+            category: it.category,
+            hsCode: it.hsCode || '6006.32.00',
+            fobUSD: (it.unitPriceUSD || 2.10) * (it.quantity || 1000),
+            netWeightKg: it.quantity || 1000,
+            grossWeightKg: it.grossWeightKg || (it.quantity ? it.quantity * 1.02 : 1020),
+            gsm: 260,
+            widthCm: 150
+          }))
+        }, 'Capitalized');
+      } catch (syncErr) {
+        console.warn('Auto-sync from inward intake modal notice:', syncErr);
       }
 
       playSuccessSound();

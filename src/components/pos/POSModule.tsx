@@ -239,6 +239,60 @@ export const POSModule: React.FC = () => {
 
   const activeLocInfo = locations.find(l => l.id === activeLocation);
 
+  // FIFO Batch Distinction & Advisory State
+  const [fifoPromptData, setFifoPromptData] = useState<{
+    targetProduct: ProductBatch;
+    olderProduct: ProductBatch;
+    quantity: number;
+  } | null>(null);
+
+  const getOlderBatchAtLocation = useCallback((target: ProductBatch): ProductBatch | null => {
+    const candidates = products.filter(p =>
+      p.id !== target.id &&
+      p.category === target.category &&
+      ((p.colorName && target.colorName && p.colorName.toLowerCase() === target.colorName.toLowerCase()) ||
+       p.name.toLowerCase().trim() === target.name.toLowerCase().trim()) &&
+      (p.locationStock[activeLocation] || 0) > 0
+    );
+
+    if (candidates.length === 0) return null;
+
+    const targetDate = new Date(target.createdAt).getTime();
+    const olderCandidates = candidates.filter(p => new Date(p.createdAt).getTime() < targetDate);
+    if (olderCandidates.length === 0) return null;
+
+    olderCandidates.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return olderCandidates[0];
+  }, [products, activeLocation]);
+
+  const getIsOldestBatch = useCallback((prod: ProductBatch): boolean => {
+    const locStock = prod.locationStock[activeLocation] || 0;
+    if (locStock <= 0) return false;
+    const sameGroup = products.filter(p =>
+      p.id !== prod.id &&
+      p.category === prod.category &&
+      ((p.colorName && prod.colorName && p.colorName.toLowerCase() === prod.colorName.toLowerCase()) ||
+       p.name.toLowerCase().trim() === prod.name.toLowerCase().trim()) &&
+      (p.locationStock[activeLocation] || 0) > 0
+    );
+    if (sameGroup.length === 0) return false;
+    const prodDate = new Date(prod.createdAt).getTime();
+    return sameGroup.some(p => new Date(p.createdAt).getTime() > prodDate);
+  }, [products, activeLocation]);
+
+  const handleAddToCartWithFIFO = useCallback((product: ProductBatch, qty: number = 1) => {
+    const older = getOlderBatchAtLocation(product);
+    if (older) {
+      setFifoPromptData({
+        targetProduct: product,
+        olderProduct: older,
+        quantity: qty
+      });
+      return;
+    }
+    addToCart(product, qty);
+  }, [getOlderBatchAtLocation, addToCart]);
+
   // Handle Barcode Checkout Scan (Processes real-time scan into cart with stock check & auto-increment)
   const handleBarcodeScanCheckout = useCallback((e?: React.FormEvent, directCode?: string) => {
     if (e) e.preventDefault();
@@ -300,7 +354,7 @@ export const POSModule: React.FC = () => {
           allowRestock: true
         });
       } else {
-        addToCart(matchedProduct, 1, false);
+        handleAddToCartWithFIFO(matchedProduct, 1);
         playBarcodeScanBeep(true);
 
         // Visual flash highlight on cart item
@@ -990,7 +1044,7 @@ export const POSModule: React.FC = () => {
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          addToCart(prod, 1);
+                                          handleAddToCartWithFIFO(prod, 1);
                                           setSearchQuery('');
                                         }}
                                         className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] rounded-lg shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
@@ -1195,6 +1249,33 @@ export const POSModule: React.FC = () => {
                       )}
                     </div>
 
+                    {/* FIFO Batch Priority & Price Distinction Indicator */}
+                    {(() => {
+                      const olderBatch = getOlderBatchAtLocation(prod);
+                      const isOldest = getIsOldestBatch(prod);
+                      if (olderBatch) {
+                        return (
+                          <div className="pt-1">
+                            <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-50 text-amber-900 rounded-md border border-amber-300 flex items-center gap-1">
+                              <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                              <span className="truncate">Newer Batch (Older Lot {olderBatch.dyeLot || olderBatch.sku} @ KSh {olderBatch.unitPriceRetail})</span>
+                            </span>
+                          </div>
+                        );
+                      }
+                      if (isOldest) {
+                        return (
+                          <div className="pt-1">
+                            <span className="text-[9px] font-black px-1.5 py-0.5 bg-emerald-50 text-emerald-900 rounded-md border border-emerald-300 flex items-center gap-1">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                              <span>FIFO Priority (Oldest Stock)</span>
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     {/* Prices & Unit */}
                     <div className="pt-1 flex items-baseline justify-between border-t border-slate-100">
                       <div>
@@ -1310,7 +1391,7 @@ export const POSModule: React.FC = () => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              addToCart(prod, 1);
+                              handleAddToCartWithFIFO(prod, 1);
                             }}
                             disabled={isOut && activeLocInfo?.canSellDirectly}
                             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${
@@ -3398,13 +3479,139 @@ export const POSModule: React.FC = () => {
         <ProductDetailModal
           product={selectedViewProduct}
           onClose={() => setSelectedViewProduct(null)}
-          onAddToCart={(prod, qty) => addToCart(prod, qty)}
+          onAddToCart={(prod, qty) => handleAddToCartWithFIFO(prod, qty)}
           onQuickTransfer={handleQuickTransferProduct}
           onRequestRestock={handleOpenQuickRestock}
           activeLocation={activeLocation}
           canSellDirectly={activeLocInfo?.canSellDirectly ?? true}
           isAdmin={isAdminLevel}
         />
+      )}
+
+      {/* FIFO BATCH SELECTION & COST DISTINCTION ADVISORY MODAL */}
+      {fifoPromptData && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 uppercase tracking-wide">
+                    FIFO Batch Priority Advisory
+                  </span>
+                  <h3 className="font-black text-slate-900 text-base mt-0.5">
+                    Older Stock Batch Available
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setFifoPromptData(null)}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This item was received in multiple shipments with different landing costs. Under <strong>FIFO (First-In, First-Out)</strong> inventory rules, older stock should be sold first to prevent mixing batches and preserve profit margin accuracy.
+            </p>
+
+            {/* Comparison Cards */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              {/* Older Batch Card (Recommended) */}
+              <div className="p-3.5 rounded-2xl bg-emerald-50/80 border-2 border-emerald-400 space-y-2 relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-200 text-emerald-900 text-[10px] font-black uppercase">
+                    FIFO Priority
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-800">Oldest Stock</span>
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 truncate">
+                    {fifoPromptData.olderProduct.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Lot: {fifoPromptData.olderProduct.dyeLot || 'Older Lot'} • {fifoPromptData.olderProduct.sku}
+                  </p>
+                </div>
+                <div className="pt-1 border-t border-emerald-200/80 space-y-1">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-500">Available:</span>
+                    <strong className="text-emerald-900 font-mono">
+                      {fifoPromptData.olderProduct.locationStock[activeLocation] || 0} {fifoPromptData.olderProduct.unit}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-500">Retail Price:</span>
+                    <strong className="text-emerald-900 font-mono text-xs">
+                      KSh {fifoPromptData.olderProduct.unitPriceRetail.toLocaleString()}/{fifoPromptData.olderProduct.unit}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selected Newer Batch Card */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-black uppercase">
+                    Newer Batch
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">Selected</span>
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 truncate">
+                    {fifoPromptData.targetProduct.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Lot: {fifoPromptData.targetProduct.dyeLot || 'Newer Lot'} • {fifoPromptData.targetProduct.sku}
+                  </p>
+                </div>
+                <div className="pt-1 border-t border-slate-200 space-y-1">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-500">Available:</span>
+                    <strong className="text-slate-800 font-mono">
+                      {fifoPromptData.targetProduct.locationStock[activeLocation] || 0} {fifoPromptData.targetProduct.unit}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-500">Retail Price:</span>
+                    <strong className="text-rose-700 font-mono text-xs">
+                      KSh {fifoPromptData.targetProduct.unitPriceRetail.toLocaleString()}/{fifoPromptData.targetProduct.unit}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  addToCart(fifoPromptData.olderProduct, fifoPromptData.quantity);
+                  setFifoPromptData(null);
+                }}
+                className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Sell Older Batch First (KSh {fifoPromptData.olderProduct.unitPriceRetail.toLocaleString()}/{fifoPromptData.olderProduct.unit})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  addToCart(fifoPromptData.targetProduct, fifoPromptData.quantity);
+                  setFifoPromptData(null);
+                }}
+                className="w-full py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Proceed with Newer Batch (KSh {fifoPromptData.targetProduct.unitPriceRetail.toLocaleString()}/{fifoPromptData.targetProduct.unit})
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* FORWARD-DATED RESERVATIONS & ADVANCE ORDERS MODAL */}

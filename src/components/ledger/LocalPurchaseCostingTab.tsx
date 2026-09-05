@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
 import {
   LocalPurchaseRecord,
@@ -68,6 +68,25 @@ export const LocalPurchaseCostingTab: React.FC = () => {
     vatClaimed: number;
   } | null>(null);
 
+  // Capitalization and Change Tracking State
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>(() => JSON.stringify(PRESET_LPS_RIVATEX));
+  const [hasUncapitalizedChanges, setHasUncapitalizedChanges] = useState<boolean>(false);
+  const isPresetSwitchingRef = useRef(false);
+
+  // Detect whenever changes are made in LPS costing to trigger blinking reminder
+  useEffect(() => {
+    if (isPresetSwitchingRef.current) {
+      isPresetSwitchingRef.current = false;
+      return;
+    }
+    const current = JSON.stringify(activePurchase);
+    if (current !== lastSavedSnapshot) {
+      setHasUncapitalizedChanges(true);
+    } else {
+      setHasUncapitalizedChanges(false);
+    }
+  }, [activePurchase, lastSavedSnapshot]);
+
   // Computed summary
   const summary = useMemo(() => {
     return calculateLocalPurchaseCosting(activePurchase);
@@ -77,14 +96,16 @@ export const LocalPurchaseCostingTab: React.FC = () => {
   const handleSelectPreset = (key: 'rivatex' | 'thika' | 'spinners' | 'custom') => {
     setActivePresetKey(key);
     setCapitalizationSuccess(null);
+    isPresetSwitchingRef.current = true;
+    let selected: LocalPurchaseRecord;
     if (key === 'rivatex') {
-      setActivePurchase({ ...PRESET_LPS_RIVATEX });
+      selected = { ...PRESET_LPS_RIVATEX };
     } else if (key === 'thika') {
-      setActivePurchase({ ...PRESET_LPS_THIKA_CLOTH_MILLS });
+      selected = { ...PRESET_LPS_THIKA_CLOTH_MILLS };
     } else if (key === 'spinners') {
-      setActivePurchase({ ...PRESET_LPS_SPINNERS });
+      selected = { ...PRESET_LPS_SPINNERS };
     } else {
-      setActivePurchase({
+      selected = {
         id: `LPS-CUSTOM-${Date.now().toString().slice(-4)}`,
         purchaseOrderNo: `LPO-2026-LOC-${Date.now().toString().slice(-4)}`,
         invoiceNumber: 'INV-LOC-001',
@@ -117,8 +138,11 @@ export const LocalPurchaseCostingTab: React.FC = () => {
           }
         ],
         notes: 'Custom local purchase supply order'
-      });
+      };
     }
+    setActivePurchase(selected);
+    setLastSavedSnapshot(JSON.stringify(selected));
+    setHasUncapitalizedChanges(false);
   };
 
   // Add line item
@@ -225,6 +249,8 @@ export const LocalPurchaseCostingTab: React.FC = () => {
         totalCapitalizedCost: summary.totalCapitalizedInventoryCostKES,
         vatClaimed: summary.totalVat16KES
       });
+      setLastSavedSnapshot(JSON.stringify(activePurchase));
+      setHasUncapitalizedChanges(false);
     }, 450);
   };
 
@@ -274,13 +300,46 @@ export const LocalPurchaseCostingTab: React.FC = () => {
             </div>
             <button
               onClick={() => setIsCapitalizeModalOpen(true)}
-              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className={`relative px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                hasUncapitalizedChanges
+                  ? 'bg-gradient-to-r from-amber-500 via-rose-500 to-emerald-600 text-white ring-4 ring-amber-400 ring-offset-2 ring-offset-slate-900 animate-pulse scale-105 shadow-amber-500/50 hover:scale-108'
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white'
+              }`}
+              title={hasUncapitalizedChanges ? "Costing changes detected! Click to approve, save, and capitalize LPS to GL." : "Capitalize LPS to General Ledger"}
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Capitalize LPS to GL</span>
+              {hasUncapitalizedChanges && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-80"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500 text-[9px] font-black text-white items-center justify-center">
+                    !
+                  </span>
+                </span>
+              )}
+              <CheckCircle2 className={`w-4 h-4 ${hasUncapitalizedChanges ? 'animate-bounce text-amber-200' : ''}`} />
+              <span>{hasUncapitalizedChanges ? '⚡ Capitalize LPS (Save Changes)' : 'Capitalize LPS to GL'}</span>
             </button>
           </div>
         </div>
+
+        {/* Uncapitalized Changes Notification Alert */}
+        {hasUncapitalizedChanges && (
+          <div className="mt-3 p-3 bg-amber-500/20 border-2 border-amber-400 text-amber-100 rounded-xl text-xs font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-pulse">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 animate-bounce" />
+              <div>
+                <span className="font-black text-amber-200 block text-xs">Uncapitalized LPS Changes Detected!</span>
+                <span className="text-[11px] text-amber-100/90 font-medium">Local purchase costing or logistics inputs were altered. Click <strong>Capitalize LPS</strong> to commit values to General Ledger.</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCapitalizeModalOpen(true)}
+              className="px-3 py-1 bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 font-black text-xs rounded-lg shadow-md whitespace-nowrap cursor-pointer shrink-0"
+            >
+              Capitalize Now →
+            </button>
+          </div>
+        )}
 
         {/* Local Mill Presets */}
         <div className="mt-4 pt-3.5 border-t border-emerald-800/40 flex flex-wrap items-center gap-2">
