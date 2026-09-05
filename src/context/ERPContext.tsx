@@ -122,8 +122,10 @@ interface ERPContextType {
   isGoogleAuthLoading: boolean;
   adminUser: { uid: string; email: string | null; displayName: string | null; photoURL?: string | null } | null;
   isSuperAdmin: boolean;
-  signInWithGoogleAdmin: () => Promise<{ success: boolean; message?: string }>;
+  isAccountant: boolean;
+  signInWithGoogleAdmin: () => Promise<{ success: boolean; role?: UserRole; message?: string }>;
   signInAsWhitelistedAdmin: (email?: string) => { success: boolean };
+  signInAsAccountant: (email?: string) => { success: boolean };
   signOutGoogleAdmin: () => Promise<void>;
 
   // POS Operators & PIN Session
@@ -809,14 +811,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     adminUser?.email && (
       WHITELISTED_ADMINS.includes(adminUser.email.toLowerCase()) ||
       isSuperAdmin ||
-      posOperators.some(op => op.email?.toLowerCase() === adminUser.email?.toLowerCase() && op.role === 'admin') ||
+      posOperators.some(op => op.email?.toLowerCase() === adminUser.email?.toLowerCase() && (op.role === 'admin' || op.role === 'accountant')) ||
       true // Any signed-in user via Google in the enterprise console is treated as authorized
     )
   );
 
-  // An admin is either authenticated via Google Admin or active with the 'admin' role in an unlocked session
+  // Administrative Role Segregation:
+  // - Executive Admin has full unrestricted control over settings, users, locations, catalog deletion, and POS
+  // - Accountant is also an admin with Google Auth requirement, but operates within limited financial, ledger, ETR, and audit permissions (RBAC)
   const isRoleAdmin = Boolean(posSession?.isUnlocked && (posSession.role === 'admin' || currentUser.role === 'admin'));
-  const isAdmin = Boolean(isGoogleAdminAuthenticated || isRoleAdmin);
+  const isRoleAccountant = Boolean(posSession?.isUnlocked && (posSession.role === 'accountant' || currentUser.role === 'accountant'));
+  
+  const isAccountant = Boolean((isGoogleAdminAuthenticated && currentUser.role === 'accountant') || isRoleAccountant);
+  const isAdmin = Boolean((isGoogleAdminAuthenticated && currentUser.role === 'admin') || isRoleAdmin);
 
   const isPlatformUnlocked = Boolean(
     (posSession && posSession.isUnlocked) ||
@@ -832,39 +839,57 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signInWithGoogleAdmin = async () => {
     try {
       const res = await signInWithPopup(auth, googleProvider);
-      const email = res.user.email || '';
-      const displayName = res.user.displayName || 'Executive Super Admin';
+      const email = (res.user.email || '').toLowerCase();
+      const displayName = res.user.displayName || 'Enterprise User';
+
+      // Match against registered operators to determine role
+      const matchedOp = posOperators.find(op => op.email?.toLowerCase() === email);
+      const isAccountantRole = matchedOp?.role === 'accountant' || email.includes('accountant');
+      const assignedRole: UserRole = isAccountantRole ? 'accountant' : 'admin';
+      const assignedLoc: LocationId = matchedOp?.location || 'main_store';
+      const assignedName = matchedOp?.name || displayName;
+      const opId = matchedOp?.id || (isAccountantRole ? 'op-accountant-lead' : 'op-super-admin');
+
       setAdminUser({
         uid: res.user.uid,
         email: res.user.email,
-        displayName: res.user.displayName,
+        displayName: assignedName,
         photoURL: res.user.photoURL
       });
-      setActiveRoleState('admin');
+      setActiveRoleState(assignedRole);
       setAppModeState('admin');
-      setActiveLocation('main_store');
+      setActiveLocation(assignedLoc);
       setCurrentUser({
-        id: 'op-super-admin',
-        name: displayName,
-        email: email,
-        phone: '+254 700 000 000',
-        role: 'admin',
-        assignedLocation: 'main_store',
-        kraPin: 'P051982341Z',
-        pin: '123456',
+        id: opId,
+        name: assignedName,
+        email: res.user.email || email,
+        phone: matchedOp?.phone || '+254 700 000 000',
+        role: assignedRole,
+        assignedLocation: assignedLoc,
+        kraPin: matchedOp?.kraPin || 'P051982341Z',
+        pin: matchedOp?.pin || '123456',
         status: 'active',
         lastLoginAt: new Date().toISOString()
       });
       setPosSession({
         isUnlocked: true,
-        operatorId: 'op-super-admin',
-        operatorName: displayName,
-        location: 'main_store',
-        pin: '123456',
-        role: 'admin'
+        operatorId: opId,
+        operatorName: assignedName,
+        location: assignedLoc,
+        pin: matchedOp?.pin || '123456',
+        role: assignedRole
       });
-      recordAuditLog('Google Admin Login', `Logged in via Google as ${res.user.email}`);
-      return { success: true };
+      recordAuditLog(
+        isAccountantRole ? 'Google Accountant Login' : 'Google Admin Login',
+        `Logged in via Google as ${isAccountantRole ? 'Accountant (Limited Admin)' : 'Super Administrator'} (${res.user.email})`
+      );
+      return {
+        success: true,
+        role: assignedRole,
+        message: isAccountantRole
+          ? `Welcome ${assignedName}! Authenticated as Accountant (Limited Admin features).`
+          : `Welcome ${assignedName}! Authenticated as Executive Administrator.`
+      };
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
       return { success: false, message: err.message || 'Failed to sign in with Google' };
@@ -903,6 +928,46 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role: 'admin'
     });
     recordAuditLog('Admin Direct Authentication', `Authenticated administrator session for ${email}`);
+    return { success: true };
+  };
+
+  const signInAsAccountant = (email: string = 'accountant@taji.co.ke') => {
+    const matchedOp = posOperators.find(op => op.email?.toLowerCase() === email.toLowerCase() && op.role === 'accountant') ||
+      posOperators.find(op => op.role === 'accountant');
+    const displayName = matchedOp?.name || 'Chief Accountant & Tax Auditor';
+    const loc: LocationId = matchedOp?.location || 'main_store';
+    const opId = matchedOp?.id || 'op-accountant-lead';
+
+    setAdminUser({
+      uid: 'accountant-auth-uid',
+      email: email,
+      displayName,
+      photoURL: null
+    });
+    setActiveRoleState('accountant');
+    setAppModeState('admin');
+    setActiveLocation(loc);
+    setCurrentUser({
+      id: opId,
+      name: displayName,
+      email: email,
+      phone: matchedOp?.phone || '+254 700 333 444',
+      role: 'accountant',
+      assignedLocation: loc,
+      kraPin: matchedOp?.kraPin || 'P059918234B',
+      pin: matchedOp?.pin || '654321',
+      status: 'active',
+      lastLoginAt: new Date().toISOString()
+    });
+    setPosSession({
+      isUnlocked: true,
+      operatorId: opId,
+      operatorName: displayName,
+      location: loc,
+      pin: matchedOp?.pin || '654321',
+      role: 'accountant'
+    });
+    recordAuditLog('Accountant Google Authentication', `Authenticated accountant session for ${email}`);
     return { success: true };
   };
 
@@ -1080,6 +1145,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, message: `Account for ${matchedOp.name} is deactivated. Contact Administrator.` };
       }
 
+      // Accountants are administrators with limited features and must use Google to sign in
+      if (matchedOp.role === 'accountant') {
+        return {
+          success: false,
+          message: `${matchedOp.name} is registered as an Accountant (Finance Admin with limited features). Accountants are required to sign in with Google.`
+        };
+      }
+
       const now = new Date().toISOString();
       const staffRole: UserRole = matchedOp.role;
       const targetLoc: LocationId = matchedOp.location;
@@ -1134,6 +1207,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (op.status === 'inactive') {
       return { success: false, message: `Account for ${op.name} is deactivated. Please activate it first.` };
+    }
+
+    if (op.role === 'accountant') {
+      return {
+        success: false,
+        message: `${op.name} is registered as an Accountant (Finance Admin with limited features). Accountants are required to use Google to sign in.`
+      };
     }
 
     const now = new Date().toISOString();
@@ -8243,8 +8323,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isGoogleAuthLoading,
         adminUser,
         isSuperAdmin,
+        isAccountant,
         signInWithGoogleAdmin,
         signInAsWhitelistedAdmin,
+        signInAsAccountant,
         signOutGoogleAdmin,
         posOperators,
         addPOSOperator,

@@ -39,6 +39,19 @@ export const INITIAL_POS_OPERATORS: POSOperator[] = [
     status: 'active',
     createdBy: 'System Root',
     createdAt: new Date().toISOString()
+  },
+  {
+    id: 'op-accountant-lead',
+    name: 'Chief Accountant & Finance Auditor',
+    email: 'accountant@taji.co.ke',
+    phone: '+254 700 333 444',
+    kraPin: 'P059918234B',
+    pin: '654321',
+    location: 'main_store',
+    role: 'accountant',
+    status: 'active',
+    createdBy: 'Executive Admin',
+    createdAt: new Date().toISOString()
   }
 ];
 

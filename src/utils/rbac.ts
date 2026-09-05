@@ -452,3 +452,11 @@ export const isTabAllowedForRole = (
   const metadata = getRoleMetadata(role);
   return metadata.allowedTabs.includes(tabId as any);
 };
+
+export const isAdminRole = (role: UserRole): boolean => {
+  return role === 'admin' || role === 'accountant';
+};
+
+export const isGoogleSignInRequired = (role: UserRole): boolean => {
+  return role === 'admin' || role === 'accountant';
+};
