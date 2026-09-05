@@ -2,12 +2,15 @@ import {
   ImportShipmentLineItem,
   ComputedImportLineItem,
   ImportShipmentSummary,
-  ImportShipmentRecord
+  ImportShipmentRecord,
+  TaxableBaseOverride
 } from '../types';
 
 /**
  * Calculates all apportioned values, KRA customs taxes, and unit landed costs
  * across all line items in an import commercial invoice / customs shipment.
+ * Supports "Taxable Base Override" to match official KRA SAD entries without
+ * corrupting original Commercial Invoice liability in Accounts Payable.
  */
 export function calculateImportShipmentCosting(
   params: {
@@ -24,68 +27,136 @@ export function calculateImportShipmentCosting(
     totalInsuranceUSD: number;
     portClearingFeesKES: number;
     targetMarkupPct: number; // e.g. 35%
+    taxableBaseOverride?: TaxableBaseOverride;
   },
   items: ImportShipmentLineItem[]
 ): ImportShipmentSummary {
-  const totalFOB_USD = items.reduce((sum, item) => sum + (Number(item.fobUSD) || 0), 0);
-  const totalNetWeightKg = items.reduce((sum, item) => sum + (Number(item.netWeightKg) || 0), 0);
-  const totalGrossWeightKg = items.reduce((sum, item) => sum + (Number(item.grossWeightKg) || Number(item.netWeightKg) || 0), 0);
+  // 1. TRUE COMMERCIAL INVOICE BASE (ACCOUNTS PAYABLE REALITY - IMMUTABLE)
+  const commFOB_USD = items.reduce((sum, item) => sum + (Number(item.fobUSD) || 0), 0);
+  const commNetWeightKg = items.reduce((sum, item) => sum + (Number(item.netWeightKg) || 0), 0);
+  const commGrossWeightKg = items.reduce((sum, item) => sum + (Number(item.grossWeightKg) || Number(item.netWeightKg) || 0), 0);
+  const commExchangeRate = Number(params.exchangeRate) || 129.38999;
+  const commFreightUSD = Number(params.totalFreightUSD) || 0;
+  const commInsuranceUSD = Number(params.totalInsuranceUSD) || 0;
+  const commCoCUSD = Number(params.cocFeesUSD) || 0;
+  const portClearingFeesKES = Number(params.portClearingFeesKES) || 0;
+  const targetMarkupPct = Number(params.targetMarkupPct) || 35;
 
-  const exchangeRate = Number(params.exchangeRate) || 129.38999;
-  // Specific duty rate floats dynamically with KRA exchange rate: USD 750 * Exchange Rate (e.g. $750 * 129.47 = KES 97,102.50 / tonne)
-  const specificDutyUSDPerTonne = params.specificDutyUSDPerTonne !== undefined ? Number(params.specificDutyUSDPerTonne) : 750;
-  const specificDutyRatePerTonne = specificDutyUSDPerTonne > 0 
-    ? specificDutyUSDPerTonne * exchangeRate 
-    : (Number(params.specificDutyRatePerTonne) || 97500);
+  const commercialTotalLiabilityUSD = commFOB_USD + commFreightUSD + commInsuranceUSD + commCoCUSD;
+  const commercialTotalLiabilityKES = commercialTotalLiabilityUSD * commExchangeRate;
 
+  // 2. KRA CUSTOMS TAXABLE BASE DETERMINATION (SAD ASSESSMENT OVERRIDE OR AUTO-POPULATED)
+  const isOverrideActive = Boolean(params.taxableBaseOverride?.isEnabled);
+  const override = params.taxableBaseOverride;
+
+  const taxableFOB_USD = isOverrideActive && override?.declaredFOB_USD !== undefined
+    ? Number(override.declaredFOB_USD)
+    : commFOB_USD;
+
+  const taxableFreightUSD = isOverrideActive && override?.declaredFreightUSD !== undefined
+    ? Number(override.declaredFreightUSD)
+    : commFreightUSD;
+
+  const taxableInsuranceUSD = isOverrideActive && override?.declaredInsuranceUSD !== undefined
+    ? Number(override.declaredInsuranceUSD)
+    : commInsuranceUSD;
+
+  const taxableExchangeRate = isOverrideActive && override?.declaredExchangeRate !== undefined && Number(override.declaredExchangeRate) > 0
+    ? Number(override.declaredExchangeRate)
+    : commExchangeRate;
+
+  const taxableNetWeightKg = isOverrideActive && override?.declaredNetWeightKg !== undefined && Number(override.declaredNetWeightKg) > 0
+    ? Number(override.declaredNetWeightKg)
+    : commNetWeightKg;
+
+  const taxableGrossWeightKg = isOverrideActive && override?.declaredGrossWeightKg !== undefined && Number(override.declaredGrossWeightKg) > 0
+    ? Number(override.declaredGrossWeightKg)
+    : (isOverrideActive && taxableNetWeightKg > 0 ? taxableNetWeightKg : commGrossWeightKg);
+
+  // Determine Customs Value in KES:
+  // If explicitly overridden via Box 46 Customs Value in KES, use it directly!
+  // Otherwise, compute (taxableFOB + taxableFreight + taxableInsurance) * taxableExchangeRate
+  let totalTaxableCustomsValueKES: number;
+  let taxableCIF_USD: number;
+
+  if (isOverrideActive && override?.overrideCustomsValueKES !== undefined && Number(override.overrideCustomsValueKES) > 0) {
+    totalTaxableCustomsValueKES = Number(override.overrideCustomsValueKES);
+    taxableCIF_USD = totalTaxableCustomsValueKES / (taxableExchangeRate || 1);
+  } else {
+    taxableCIF_USD = taxableFOB_USD + taxableFreightUSD + taxableInsuranceUSD;
+    totalTaxableCustomsValueKES = taxableCIF_USD * taxableExchangeRate;
+  }
+
+  // Statutory Tax Rates
   const adValoremRatePct = Number(params.adValoremRatePct) || 25;
   const idfRatePct = Number(params.idfRatePct) || 2.5;
   const rdlRatePct = Number(params.rdlRatePct) || 2.0;
   const vatRatePct = Number(params.vatRatePct) || 16.0;
   const mssLevyUSDRatePerTonne = Number(params.mssLevyUSDRatePerTonne) || 1.75;
-  const cocFeesUSD = Number(params.cocFeesUSD) || 0;
-  const totalFreightUSD = Number(params.totalFreightUSD) || 0;
-  const totalInsuranceUSD = Number(params.totalInsuranceUSD) || 0;
-  const portClearingFeesKES = Number(params.portClearingFeesKES) || 0;
-  const targetMarkupPct = Number(params.targetMarkupPct) || 35;
 
-  // Total MSS Levy in USD: (Gross Weight Tonnes * USD 1.75)
-  const totalGrossTonnes = totalGrossWeightKg / 1000;
+  const specificDutyUSDPerTonne = params.specificDutyUSDPerTonne !== undefined ? Number(params.specificDutyUSDPerTonne) : 750;
+  // Specific duty rate floats dynamically with KRA exchange rate: USD 750 * Taxable Exchange Rate
+  const specificDutyRatePerTonne = specificDutyUSDPerTonne > 0 
+    ? specificDutyUSDPerTonne * taxableExchangeRate 
+    : (Number(params.specificDutyRatePerTonne) || 97500);
+
+  // MSS Levy on Gross Weight
+  const totalGrossTonnes = taxableGrossWeightKg / 1000;
   const totalMSS_USD = totalGrossTonnes * mssLevyUSDRatePerTonne;
-  const totalMSS_KES = totalMSS_USD * exchangeRate;
+  const totalMSS_KES = totalMSS_USD * taxableExchangeRate;
 
+  // 3. APPORTIONMENT ACROSS LINE ITEMS
   const computedItems: ComputedImportLineItem[] = items.map((item) => {
     const itemFob = Number(item.fobUSD) || 0;
     const itemNetKg = Number(item.netWeightKg) || 0;
     const itemGrossKg = Number(item.grossWeightKg) || itemNetKg;
 
-    // Ratios
-    const fobRatio = totalFOB_USD > 0 ? itemFob / totalFOB_USD : 0;
-    const weightRatio = totalNetWeightKg > 0 ? itemNetKg / totalNetWeightKg : 0;
+    // Commercial Ratios
+    const commFobRatio = commFOB_USD > 0 ? itemFob / commFOB_USD : 0;
+    const commWeightRatio = commNetWeightKg > 0 ? itemNetKg / commNetWeightKg : 0;
 
-    // Apportionment by Value (FOB ratio) - use explicit item freight/insurance if provided, otherwise apportion
+    // Item Taxable Values
+    let itemTaxableCustomsValueKES: number;
+    let itemTaxableNetKg: number;
+    let itemTaxableGrossKg: number;
+    let itemTaxableFobUSD: number;
+
+    const itemOverride = override?.itemOverrides?.[item.id];
+    if (isOverrideActive && itemOverride) {
+      itemTaxableFobUSD = itemOverride.declaredFobUSD !== undefined ? Number(itemOverride.declaredFobUSD) : (taxableFOB_USD * commFobRatio);
+      itemTaxableNetKg = itemOverride.declaredNetWeightKg !== undefined ? Number(itemOverride.declaredNetWeightKg) : (taxableNetWeightKg * commWeightRatio);
+      itemTaxableGrossKg = itemOverride.declaredGrossWeightKg !== undefined ? Number(itemOverride.declaredGrossWeightKg) : (taxableGrossWeightKg * commWeightRatio);
+      itemTaxableCustomsValueKES = itemOverride.customsValueKES !== undefined ? Number(itemOverride.customsValueKES) : (totalTaxableCustomsValueKES * commFobRatio);
+    } else {
+      itemTaxableFobUSD = taxableFOB_USD * commFobRatio;
+      itemTaxableNetKg = taxableNetWeightKg * commWeightRatio;
+      itemTaxableGrossKg = taxableGrossWeightKg * (commGrossWeightKg > 0 ? itemGrossKg / commGrossWeightKg : commWeightRatio);
+      itemTaxableCustomsValueKES = totalTaxableCustomsValueKES * commFobRatio;
+    }
+
+    // Apportioned Logistics
     const apportionedFreightUSD = item.freightUSD !== undefined && item.freightUSD > 0
       ? Number(item.freightUSD)
-      : totalFreightUSD * fobRatio;
+      : commFreightUSD * commFobRatio;
     const apportionedInsuranceUSD = item.insuranceUSD !== undefined && item.insuranceUSD > 0
       ? Number(item.insuranceUSD)
-      : totalInsuranceUSD * fobRatio;
-    const apportionedCoCUSD = cocFeesUSD * fobRatio;
-    const apportionedCoCKES = apportionedCoCUSD * exchangeRate;
-    const apportionedPortClearingKES = portClearingFeesKES * fobRatio;
+      : commInsuranceUSD * commFobRatio;
+    const apportionedCoCUSD = commCoCUSD * commFobRatio;
+    const apportionedCoCKES = apportionedCoCUSD * commExchangeRate;
+    const apportionedPortClearingKES = portClearingFeesKES * commFobRatio;
 
-    // MSS Levy (6401): Gross Weight (Tonnes) * USD 1.75 * Exchange Rate
-    const itemGrossTonnes = itemGrossKg / 1000;
+    // Item MSS Levy (6401)
+    const itemGrossTonnes = itemTaxableGrossKg / 1000;
     const apportionedMssUSD = itemGrossTonnes * mssLevyUSDRatePerTonne;
-    const apportionedMssKES = apportionedMssUSD * exchangeRate;
+    const apportionedMssKES = apportionedMssUSD * taxableExchangeRate;
 
-    // CIF USD & Customs Value (KES)
-    const cifUSD = itemFob + apportionedFreightUSD + apportionedInsuranceUSD;
-    const customsValueKES = cifUSD * exchangeRate;
+    // CIF USD (Taxable)
+    const cifUSD = itemTaxableFobUSD + (taxableFreightUSD * commFobRatio) + (taxableInsuranceUSD * commFobRatio);
+    const customsValueKES = itemTaxableCustomsValueKES;
 
-    // Duty Rule: Max(Ad-Valorem, Specific Duty)
+    // KRA Duty Rule: Max(Ad-Valorem, Specific Duty)
     const adValoremDutyKES = customsValueKES * (adValoremRatePct / 100);
-    const netWeightTonnes = itemNetKg / 1000;
+    const netWeightTonnes = itemTaxableNetKg / 1000;
     const specificDutyKES = netWeightTonnes * specificDutyRatePerTonne;
     const dutyAppliedKES = Math.max(adValoremDutyKES, specificDutyKES);
     const dutyRuleApplied: 'ad_valorem' | 'specific_duty' =
@@ -102,9 +173,11 @@ export function calculateImportShipmentCosting(
 
     const totalTaxesKES = importDuty1002KES + idf1801KES + rdl6001KES + vat1202KES + mss6401KES;
 
-    // Total Landed Cost (KES) = CIF (KES) + Total Taxes + CoC + Port/Clearing
+    // Landed Cost to Inventory:
+    // Commercial Purchase Cost (AP to supplier converted at actual contract FX) + Actual KRA Taxes Paid + CoC + Port/Clearing
+    const itemCommercialPurchaseCostKES = (itemFob + apportionedFreightUSD + apportionedInsuranceUSD) * commExchangeRate;
     const totalLandedCostKES =
-      customsValueKES + totalTaxesKES + apportionedCoCKES + apportionedPortClearingKES;
+      itemCommercialPurchaseCostKES + totalTaxesKES + apportionedCoCKES + apportionedPortClearingKES;
 
     // Unit Landed Costing
     let fabricLengthMetres: number | undefined;
@@ -115,7 +188,6 @@ export function calculateImportShipmentCosting(
     const widthCm = Number(item.widthCm) || 0;
 
     if (gsm > 0 && widthCm > 0) {
-      // Fabric Formula: Length in meters = (Net Weight in kg * 1000) / (GSM * (Width in cm / 100))
       const widthM = widthCm / 100;
       fabricLengthMetres = (itemNetKg * 1000) / (gsm * widthM);
       if (fabricLengthMetres > 0) {
@@ -123,7 +195,6 @@ export function calculateImportShipmentCosting(
         landedCostPerUnitExclVat = (totalLandedCostKES - vat1202KES) / fabricLengthMetres;
       }
     } else {
-      // Weight-based (Yarn / KG)
       if (itemNetKg > 0) {
         landedCostPerUnit = totalLandedCostKES / itemNetKg;
         landedCostPerUnitExclVat = (totalLandedCostKES - vat1202KES) / itemNetKg;
@@ -135,8 +206,8 @@ export function calculateImportShipmentCosting(
 
     return {
       ...item,
-      fobRatio,
-      weightRatio,
+      fobRatio: commFobRatio,
+      weightRatio: commWeightRatio,
       apportionedFreightUSD,
       apportionedInsuranceUSD,
       apportionedCoCUSD,
@@ -166,14 +237,14 @@ export function calculateImportShipmentCosting(
     };
   });
 
-  const totalCIF_USD = computedItems.reduce((sum, i) => sum + i.cifUSD, 0);
-  const totalCustomsValueKES = computedItems.reduce((sum, i) => sum + i.customsValueKES, 0);
+  const totalCIF_USD = taxableCIF_USD;
+  const totalCustomsValueKES = totalTaxableCustomsValueKES;
   const totalImportDuty1002KES = computedItems.reduce((sum, i) => sum + i.importDuty1002KES, 0);
   const totalIDF1801KES = computedItems.reduce((sum, i) => sum + i.idf1801KES, 0);
   const totalRDL6001KES = computedItems.reduce((sum, i) => sum + i.rdl6001KES, 0);
   const totalVAT1202KES = computedItems.reduce((sum, i) => sum + i.vat1202KES, 0);
   const totalMSS6401KES = computedItems.reduce((sum, i) => sum + i.mss6401KES, 0);
-  const totalKRATaxesKES = computedItems.reduce((sum, i) => sum + i.totalTaxesKES, 0);
+  const totalKRATaxesKES = totalImportDuty1002KES + totalIDF1801KES + totalRDL6001KES + totalVAT1202KES + totalMSS6401KES;
   const totalCoCKES = computedItems.reduce((sum, i) => sum + i.apportionedCoCKES, 0);
   const totalPortClearingKES = computedItems.reduce((sum, i) => sum + i.apportionedPortClearingKES, 0);
   const totalLandedInventoryKES = computedItems.reduce((sum, i) => sum + i.totalLandedCostKES, 0);
@@ -186,12 +257,30 @@ export function calculateImportShipmentCosting(
     .filter(i => !(i.fabricLengthMetres && i.fabricLengthMetres > 0))
     .reduce((sum, i) => sum + (i.netWeightKg || 0), 0);
 
+  // 4. BASELINE PURE COMMERCIAL INVOICE TAX COMPUTATION (FOR REAL-TIME VARIANCE & TAX SAVINGS AUDITING)
+  const pureCommCIF_USD = commFOB_USD + commFreightUSD + commInsuranceUSD;
+  const pureCommCustomsValueKES = pureCommCIF_USD * commExchangeRate;
+  const pureCommSpecificDutyKES = (commNetWeightKg / 1000) * (specificDutyUSDPerTonne * commExchangeRate);
+  const pureCommAdValoremDutyKES = pureCommCustomsValueKES * (adValoremRatePct / 100);
+  const pureCommDuty1002KES = Math.max(pureCommAdValoremDutyKES, pureCommSpecificDutyKES);
+  const pureCommIDF1801KES = pureCommCustomsValueKES * (idfRatePct / 100);
+  const pureCommRDL6001KES = pureCommCustomsValueKES * (rdlRatePct / 100);
+  const pureCommVAT1202KES = (pureCommCustomsValueKES + pureCommDuty1002KES + pureCommIDF1801KES + pureCommRDL6001KES) * (vatRatePct / 100);
+  const pureCommMSS6401KES = (commGrossWeightKg / 1000) * mssLevyUSDRatePerTonne * commExchangeRate;
+  const pureCommTotalTaxesKES = pureCommDuty1002KES + pureCommIDF1801KES + pureCommRDL6001KES + pureCommVAT1202KES + pureCommMSS6401KES;
+
+  const varianceFOB_USD = taxableFOB_USD - commFOB_USD;
+  const varianceFOB_Pct = commFOB_USD > 0 ? (varianceFOB_USD / commFOB_USD) * 100 : 0;
+  const varianceNetWeightKg = taxableNetWeightKg - commNetWeightKg;
+  const varianceNetWeightPct = commNetWeightKg > 0 ? (varianceNetWeightKg / commNetWeightKg) * 100 : 0;
+  const varianceCustomsValueKES = totalTaxableCustomsValueKES - pureCommCustomsValueKES;
+
   return {
-    totalFOB_USD,
-    totalNetWeightKg,
-    totalGrossWeightKg,
-    totalFreightUSD,
-    totalInsuranceUSD,
+    totalFOB_USD: taxableFOB_USD,
+    totalNetWeightKg: taxableNetWeightKg,
+    totalGrossWeightKg: taxableGrossWeightKg,
+    totalFreightUSD: taxableFreightUSD,
+    totalInsuranceUSD: taxableInsuranceUSD,
     totalCIF_USD,
     totalCustomsValueKES,
     specificRateKESPerTonne: specificDutyRatePerTonne,
@@ -206,7 +295,42 @@ export function calculateImportShipmentCosting(
     totalLandedInventoryKES,
     totalFabricMetres,
     totalYarnKgs,
-    items: computedItems
+    items: computedItems,
+    accountsPayable: {
+      supplierFOB_USD: commFOB_USD,
+      commercialFreightUSD: commFreightUSD,
+      commercialInsuranceUSD: commInsuranceUSD,
+      commercialCoCUSD: commCoCUSD,
+      totalCommercialLiabilityUSD: commercialTotalLiabilityUSD,
+      totalCommercialLiabilityKES: commercialTotalLiabilityKES,
+      commercialExchangeRate: commExchangeRate,
+      commercialNetWeightKg: commNetWeightKg,
+      commercialGrossWeightKg: commGrossWeightKg,
+      isProtectedFromKRAOverride: true
+    },
+    taxableBaseSummary: {
+      isOverridden: isOverrideActive,
+      taxableCustomsValueKES: totalTaxableCustomsValueKES,
+      taxableNetWeightKg,
+      taxableGrossWeightKg,
+      taxableFOB_USD,
+      taxableFreightUSD,
+      taxableInsuranceUSD,
+      taxableExchangeRate,
+      varianceFOB_USD,
+      varianceFOB_Pct,
+      varianceNetWeightKg,
+      varianceNetWeightPct,
+      varianceCustomsValueKES,
+      taxImpactKES: {
+        dutyDiffKES: totalImportDuty1002KES - pureCommDuty1002KES,
+        idfDiffKES: totalIDF1801KES - pureCommIDF1801KES,
+        rdlDiffKES: totalRDL6001KES - pureCommRDL6001KES,
+        vatDiffKES: totalVAT1202KES - pureCommVAT1202KES,
+        mssDiffKES: totalMSS6401KES - pureCommMSS6401KES,
+        totalTaxDiffKES: totalKRATaxesKES - pureCommTotalTaxesKES
+      }
+    }
   };
 }
 
@@ -242,7 +366,23 @@ export const PRESET_INVOICE_26PA222: ImportShipmentRecord = {
   portClearingFeesKES: 180000.0,
   targetMarkupPct: 35.0,
   status: 'draft',
-  notes: 'Proforma Commercial Invoice 26PA222 from Zhejiang Puan Textile. CNF Mombasa container carrying Derek & Interlock fabrics (FOB USD 46,974.49, Net Wt 22,312.3 kg).',
+  notes: 'Commercial Invoice 26PA222 from Zhejiang Puan Textile. AP Supplier Liability: USD 46,974.49 (Net Wt 22,312.3 kg). Official KRA SAD 26EMKIM400968589 assessment: Declared FOB USD 36,900.00, Net Wt 22,600.0 kg.',
+  commercialInvoiceFOB_USD: 46974.49,
+  commercialInvoiceNetWeightKg: 22312.3,
+  taxableBaseOverride: {
+    isEnabled: false,
+    overrideCustomsValueKES: 5491374.06,
+    declaredFOB_USD: 36900.00,
+    declaredFreightUSD: 5500.00,
+    declaredInsuranceUSD: 14.38,
+    declaredExchangeRate: 129.47,
+    declaredNetWeightKg: 22600.0,
+    declaredGrossWeightKg: 22850.0,
+    customsEntryNo: '26EMKIM400968589',
+    kraEslipRef: '1020260001009685',
+    valuationMethod: 'benchmark_adjusted',
+    justificationReason: 'KRA ICMS valuation benchmark override at ICD Embakasi (Declared FOB USD 36,900.00 vs Commercial FOB USD 46,974.49)'
+  },
   lineItems: [
     {
       id: 'LI-001',

@@ -43,6 +43,10 @@ export interface RoleMetadata {
     canDeleteInventory: boolean;
     canAdjustCashFloat: boolean;
     canAccessSystemSettings: boolean;
+    canAccessVendorDirectory: boolean;
+    canAccessStoreInbox: boolean;
+    canViewFinancialReports: boolean;
+    canSwitchStoreLocation: boolean;
   };
 }
 
@@ -89,7 +93,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: true,
       canDeleteInventory: true,
       canAdjustCashFloat: true,
-      canAccessSystemSettings: true
+      canAccessSystemSettings: true,
+      canAccessVendorDirectory: true,
+      canAccessStoreInbox: true,
+      canViewFinancialReports: true,
+      canSwitchStoreLocation: true
     }
   },
   hr_manager: {
@@ -127,7 +135,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: false,
       canDeleteInventory: false,
       canAdjustCashFloat: false,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: false,
+      canAccessStoreInbox: true,
+      canViewFinancialReports: false,
+      canSwitchStoreLocation: false
     }
   },
   branch_manager: {
@@ -169,7 +181,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: true,
       canDeleteInventory: false,
       canAdjustCashFloat: true,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: true,
+      canAccessStoreInbox: true,
+      canViewFinancialReports: true,
+      canSwitchStoreLocation: true
     }
   },
   accountant: {
@@ -210,23 +226,24 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: true,
       canDeleteInventory: false,
       canAdjustCashFloat: true,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: true,
+      canAccessStoreInbox: true,
+      canViewFinancialReports: true,
+      canSwitchStoreLocation: true
     }
   },
   sales_shop_cashier: {
     role: 'sales_shop_cashier',
     title: 'Retail POS Cashier',
     shortLabel: 'POS Cashier',
-    description: 'Direct customer retail point-of-sale checkout, ETR invoice printing, held cart management, and inventory stock check.',
+    description: 'Direct customer retail point-of-sale checkout, barcode scanning, customer receipt issuance, held cart management, and inventory stock check.',
     badgeClass: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40',
     dotColor: 'bg-emerald-400',
     defaultLocation: 'sales_shop',
     allowedTabs: [
       'pos',
-      'sales_today',
       'catalog',
-      'etr',
-      'gmail',
       'guide'
     ],
     permissions: {
@@ -247,7 +264,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: false,
       canDeleteInventory: false,
       canAdjustCashFloat: false,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: false,
+      canAccessStoreInbox: false,
+      canViewFinancialReports: false,
+      canSwitchStoreLocation: false
     }
   },
   branch_cashier: {
@@ -260,10 +281,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     defaultLocation: 'sales_shop',
     allowedTabs: [
       'pos',
-      'sales_today',
       'catalog',
-      'etr',
-      'gmail',
       'guide'
     ],
     permissions: {
@@ -284,7 +302,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: false,
       canDeleteInventory: false,
       canAdjustCashFloat: false,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: false,
+      canAccessStoreInbox: false,
+      canViewFinancialReports: false,
+      canSwitchStoreLocation: false
     }
   },
   main_store_operator: {
@@ -300,7 +322,6 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       'transfers',
       'branches',
       'audit',
-      'gmail',
       'guide'
     ],
     permissions: {
@@ -321,7 +342,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: false,
       canDeleteInventory: false,
       canAdjustCashFloat: false,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: true,
+      canAccessStoreInbox: false,
+      canViewFinancialReports: false,
+      canSwitchStoreLocation: true
     }
   },
   store_1_attendant: {
@@ -335,7 +360,6 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     allowedTabs: [
       'transfers',
       'catalog',
-      'gmail',
       'guide'
     ],
     permissions: {
@@ -356,7 +380,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: false,
       canDeleteInventory: false,
       canAdjustCashFloat: false,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: false,
+      canAccessStoreInbox: false,
+      canViewFinancialReports: false,
+      canSwitchStoreLocation: false
     }
   },
   store_2_attendant: {
@@ -370,7 +398,6 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     allowedTabs: [
       'transfers',
       'catalog',
-      'gmail',
       'guide'
     ],
     permissions: {
@@ -391,7 +418,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: false,
       canDeleteInventory: false,
       canAdjustCashFloat: false,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: false,
+      canAccessStoreInbox: false,
+      canViewFinancialReports: false,
+      canSwitchStoreLocation: false
     }
   },
   pos_cashier: {
@@ -404,10 +435,7 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
     defaultLocation: 'sales_shop',
     allowedTabs: [
       'pos',
-      'sales_today',
       'catalog',
-      'etr',
-      'gmail',
       'guide'
     ],
     permissions: {
@@ -428,7 +456,11 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleMetadata> = {
       canEditMasterPricing: false,
       canDeleteInventory: false,
       canAdjustCashFloat: false,
-      canAccessSystemSettings: false
+      canAccessSystemSettings: false,
+      canAccessVendorDirectory: false,
+      canAccessStoreInbox: false,
+      canViewFinancialReports: false,
+      canSwitchStoreLocation: false
     }
   }
 };
@@ -459,4 +491,8 @@ export const isAdminRole = (role: UserRole): boolean => {
 
 export const isGoogleSignInRequired = (role: UserRole): boolean => {
   return role === 'admin' || role === 'accountant';
+};
+
+export const isCashierRole = (role: UserRole): boolean => {
+  return role === 'sales_shop_cashier' || role === 'branch_cashier' || role === 'pos_cashier';
 };

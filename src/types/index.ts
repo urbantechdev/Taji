@@ -1,3 +1,16 @@
+export type LedgerTab = 
+  | 'cfo_advisory'
+  | 'import_costing'
+  | 'debtors_aging'
+  | 'financial_statements'
+  | 'general_ledger'
+  | 'balance_sheet'
+  | 'income_statement'
+  | 'cash_flow'
+  | 'tax_engine'
+  | 'bank_reconciliation'
+  | 'fixed_assets';
+
 export type LocationId = string;
 
 export type LocationType = 
@@ -1536,6 +1549,29 @@ export interface ClearingAgent {
 // -----------------------------------------------------------------------------
 // Import Tax & Landed Costing Module Types (KRA SAD ICMS / Landed Capitalization)
 // -----------------------------------------------------------------------------
+
+export interface TaxableBaseOverride {
+  isEnabled: boolean;
+  overrideCustomsValueKES?: number; // Direct KRA SAD Box 46 Customs Value in KES
+  declaredFOB_USD?: number; // Declared FOB USD as per KRA SAD (Box 22, e.g. 36,900.00)
+  declaredFreightUSD?: number; // Declared Freight USD as per KRA SAD
+  declaredInsuranceUSD?: number; // Declared Insurance USD as per KRA SAD
+  declaredExchangeRate?: number; // KRA Customs Exchange Rate on SAD (e.g. 129.47)
+  declaredNetWeightKg?: number; // Declared Net Weight in KG as per KRA SAD (Box 38, e.g. 22,600.0)
+  declaredGrossWeightKg?: number; // Declared Gross Weight in KG as per KRA SAD (Box 35, e.g. 22,850.0)
+  customsEntryNo?: string; // e.g. "26EMKIM400968589"
+  kraEslipRef?: string; // e.g. "1020260001009685"
+  valuationMethod?: 'transaction_value' | 'benchmark_adjusted' | 'deductive_value' | 'computed_value';
+  justificationReason?: string; // e.g., "KRA ICMS valuation benchmark override at ICD Embakasi"
+  assessmentDate?: string;
+  itemOverrides?: Record<string, {
+    declaredFobUSD?: number;
+    declaredNetWeightKg?: number;
+    declaredGrossWeightKg?: number;
+    customsValueKES?: number;
+  }>;
+}
+
 export interface ImportShipmentLineItem {
   id: string;
   description: string; // e.g. "100% Poly Special Derek 150CM 260GSM"
@@ -1614,6 +1650,42 @@ export interface ImportShipmentSummary {
   totalFabricMetres: number;
   totalYarnKgs: number;
   items: ComputedImportLineItem[];
+  // Data Separation: Accounts Payable (True Commercial Liability) vs KRA Taxable Base
+  accountsPayable?: {
+    supplierFOB_USD: number;
+    commercialFreightUSD: number;
+    commercialInsuranceUSD: number;
+    commercialCoCUSD: number;
+    totalCommercialLiabilityUSD: number;
+    totalCommercialLiabilityKES: number;
+    commercialExchangeRate: number;
+    commercialNetWeightKg: number;
+    commercialGrossWeightKg: number;
+    isProtectedFromKRAOverride: boolean;
+  };
+  taxableBaseSummary?: {
+    isOverridden: boolean;
+    taxableCustomsValueKES: number;
+    taxableNetWeightKg: number;
+    taxableGrossWeightKg: number;
+    taxableFOB_USD: number;
+    taxableFreightUSD: number;
+    taxableInsuranceUSD: number;
+    taxableExchangeRate: number;
+    varianceFOB_USD: number;
+    varianceFOB_Pct: number;
+    varianceNetWeightKg: number;
+    varianceNetWeightPct: number;
+    varianceCustomsValueKES: number;
+    taxImpactKES: {
+      dutyDiffKES: number;
+      idfDiffKES: number;
+      rdlDiffKES: number;
+      vatDiffKES: number;
+      mssDiffKES: number;
+      totalTaxDiffKES: number;
+    };
+  };
 }
 
 export interface SupplierUSDDisbursement {
@@ -1723,8 +1795,80 @@ export interface ImportShipmentRecord {
   capitalizedBy?: string;
   journalVoucherRef?: string;
   paymentSchedule?: ImportPaymentSchedule;
+  taxableBaseOverride?: TaxableBaseOverride;
+  commercialInvoiceFOB_USD?: number;
+  commercialInvoiceNetWeightKg?: number;
   lineItems: ImportShipmentLineItem[];
   notes?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Invoice-to-Inventory Parent Batch & Granular Unit-Level Record Types
+// -----------------------------------------------------------------------------
+export interface InvoiceBatchRollItem {
+  id: string;
+  rollNumber: string;
+  barcode: string;
+  grossWeightKg: number;
+  netWeightKg: number;
+  tareWeightKg: number;
+  lengthMeters: number;
+  locationId: LocationId;
+  inspectionStatus: 'Passed' | 'Pending' | 'Quarantined';
+  shadeOrLot?: string;
+}
+
+export interface InvoiceInventoryBatchItem {
+  id: string;
+  description: string;
+  category: CategoryType;
+  subCategory?: string;
+  hsCode: string;
+  gsm: number;
+  widthCm: number;
+  netWeightKg: number;
+  grossWeightKg: number;
+  fabricLengthMetres: number;
+  unit: UnitType;
+  quantity: number;
+  fobUSD: number;
+  unitFobUSD: number;
+  landedCostKESPerUnit: number; // KES/m (fabrics) or KES/kg (yarns)
+  landedCostKESPerUnitExclVat: number;
+  totalLandedCostKES: number;
+  customsValueKES: number;
+  dutyAppliedKES: number;
+  suggestedRetailPriceKES: number;
+  rollsCount: number;
+  dyeLot?: string;
+  shadeCode?: string;
+  matchedProductId?: string;
+  rolls?: InvoiceBatchRollItem[];
+}
+
+export interface InvoiceInventoryBatch {
+  id: string; // e.g. "INV-BATCH-26PA222"
+  invoiceNumber: string; // e.g. "26PA222"
+  supplierName: string; // e.g. "ZHEJIANG PUAN TEXTILE TECHNOLOGY CO.,LTD."
+  supplierCountry?: string;
+  customsEntryNo?: string; // e.g. "26EMKIM400826138"
+  kraEslipRef?: string;
+  createdAt: string; // Exact ISO creation timestamp
+  importDate: string; // Date of invoice / arrival
+  destinationLocationId: LocationId;
+  destinationLocationName?: string;
+  totalQuantity: number; // Total Metres or units
+  totalQuantityUnit: 'meter' | 'kg';
+  totalItemsCount: number; // e.g. number of lines or units
+  totalNetWeightKg: number;
+  totalGrossWeightKg: number;
+  totalLandedCostKES: number;
+  totalFOB_USD: number;
+  exchangeRate: number;
+  status: 'Pending Clearance' | 'Assessed' | 'Capitalized' | 'In Stock';
+  journalRef?: string;
+  notes?: string;
+  lineItems: InvoiceInventoryBatchItem[];
 }
 
 export interface SupplierDebitNoteRecord {

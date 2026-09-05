@@ -37,7 +37,7 @@ import { Footer } from './components/layout/Footer';
 import { StorefrontView } from './components/storefront/StorefrontView';
 
 const ERPContent: React.FC = () => {
-  const { appMode, isPlatformUnlocked, isAdmin, currentUser, viewMode, setViewMode } = useERP();
+  const { appMode, isPlatformUnlocked, isAdmin, currentUser, viewMode, setViewMode, activeNavTab, setActiveNavTab } = useERP();
   const [activeTab, setActiveTab] = useState<NavTab>(() => {
     const role = currentUser?.role;
     if (role === 'admin' || role === 'branch_manager' || role === 'accountant') {
@@ -45,6 +45,18 @@ const ERPContent: React.FC = () => {
     }
     return 'pos';
   });
+
+  // Sync with global activeNavTab from ERPContext
+  useEffect(() => {
+    if (activeNavTab && activeNavTab !== activeTab) {
+      setActiveTab(activeNavTab as NavTab);
+    }
+  }, [activeNavTab, activeTab]);
+
+  const handleSetActiveTab = (tab: NavTab) => {
+    setActiveTab(tab);
+    setActiveNavTab(tab);
+  };
 
   // Verify and enforce role permission for currently selected tab
   const roleAllowedTabs = ROLE_DEFINITIONS[currentUser.role]?.allowedTabs || ['pos'];
@@ -139,14 +151,14 @@ const ERPContent: React.FC = () => {
     <div className="min-h-[100dvh] h-[100dvh] max-h-[100dvh] w-full max-w-[100vw] bg-slate-50/80 font-sans text-slate-800 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900 overflow-hidden relative">
       
       {/* Top Header Bar (Stationary at top) */}
-      <Header activeTab={effectiveTab} setActiveTab={setActiveTab} />
+      <Header activeTab={effectiveTab} setActiveTab={handleSetActiveTab} />
 
       {/* Main Workspace Body (Stationary Sidebar + Scrollable Body) */}
       <div className="flex-1 flex flex-row overflow-hidden w-full min-h-0 relative">
         
         {/* Navigation Sidebar (Stationary left column for users with multiple allowed tabs when not on full POS checkout) */}
         {effectiveTab !== 'pos' && roleAllowedTabs.length > 1 && (
-          <Sidebar activeTab={effectiveTab} setActiveTab={setActiveTab} />
+          <Sidebar activeTab={effectiveTab} setActiveTab={handleSetActiveTab} />
         )}
 
         {/* Dynamic View Area (The only area that scrolls up and down) */}
@@ -174,7 +186,7 @@ const ERPContent: React.FC = () => {
                 {effectiveTab === 'audit' && <AuditLogsModule />}
                 {effectiveTab === 'gmail' && <GmailInbox />}
                 {effectiveTab === 'settings' && <SettingsModule />}
-                {effectiveTab === 'guide' && <UserGuideModule onNavigateToTab={setActiveTab} />}
+                {effectiveTab === 'guide' && <UserGuideModule onNavigateToTab={handleSetActiveTab} />}
               </motion.div>
             </AnimatePresence>
           </main>
@@ -186,10 +198,10 @@ const ERPContent: React.FC = () => {
       </div>
 
       {/* Desktop Floating Dock Navigation Bar (Filtered strictly by current user's role) */}
-      <DesktopBottomNav activeTab={effectiveTab} setActiveTab={setActiveTab} />
+      <DesktopBottomNav activeTab={effectiveTab} setActiveTab={handleSetActiveTab} />
 
       {/* Mobile Bottom Navigation Bar */}
-      <MobileBottomNav activeTab={effectiveTab} setActiveTab={setActiveTab} appMode={appMode} />
+      <MobileBottomNav activeTab={effectiveTab} setActiveTab={handleSetActiveTab} appMode={appMode} />
 
       {/* Global Toast / Popups & Modals */}
       <MailNotificationPopup />

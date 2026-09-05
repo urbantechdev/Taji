@@ -56,8 +56,12 @@ import {
   StocktakeStatus,
   StocktakeDiscrepancyReason,
   Supplier,
-  ClearingAgent
+  ClearingAgent,
+  InvoiceInventoryBatch,
+  ImportShipmentRecord,
+  LedgerTab
 } from '../types';
+import { buildInvoiceInventoryBatch, INITIAL_INVOICE_BATCHES } from '../utils/invoiceBatchSync';
 import { checkDuplicateConflict, calculateCatalogDuplicateReport } from '../utils/duplicationControl';
 import { calculateActiveShiftPreview, computeTodaySalesSummary, computePeriodicStatementSummary } from '../utils/salesStatementEngine';
 import { calculateRollPricing } from '../utils/rollPricingEngine';
@@ -111,6 +115,8 @@ interface ERPContextType {
   // Navigation, Mode & Role Context
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
+  activeNavTab: string;
+  setActiveNavTab: (tab: string) => void;
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
   activeLocation: LocationId;
@@ -123,7 +129,7 @@ interface ERPContextType {
   adminUser: { uid: string; email: string | null; displayName: string | null; photoURL?: string | null } | null;
   isSuperAdmin: boolean;
   isAccountant: boolean;
-  signInWithGoogleAdmin: () => Promise<{ success: boolean; role?: UserRole; message?: string }>;
+  signInWithGoogleAdmin: () => Promise<{ success: boolean; role?: UserRole; message?: string; isUnauthorizedDomain?: boolean; domain?: string }>;
   signInAsWhitelistedAdmin: (email?: string) => { success: boolean };
   signInAsAccountant: (email?: string) => { success: boolean };
   signOutGoogleAdmin: () => Promise<void>;
@@ -134,7 +140,7 @@ interface ERPContextType {
   updatePOSOperator: (id: string, updates: Partial<Omit<POSOperator, 'id' | 'createdAt'>>) => Promise<{ success: boolean; message: string }>;
   deletePOSOperator: (id: string) => Promise<{ success: boolean; message: string }>;
   posSession: { isUnlocked: boolean; operatorId: string; operatorName: string; location: LocationId; pin: string; role: UserRole } | null;
-  unlockPOSWithPin: (pin: string) => { success: boolean; message: string; operator?: POSOperator };
+  unlockPOSWithPin: (pin: string, overrideLocation?: LocationId) => { success: boolean; message: string; operator?: POSOperator };
   loginAsOperator: (operatorOrId: POSOperator | string) => { success: boolean; message: string; operator?: POSOperator };
   lockPOSSession: () => void;
 
@@ -644,15 +650,47 @@ interface ERPContextType {
   addClearingAgent: (newAgent: Omit<ClearingAgent, 'id' | 'createdAt'>) => Promise<{ success: boolean; clearingAgent: ClearingAgent; message: string }>;
   updateClearingAgent: (agentId: string, updates: Partial<ClearingAgent>) => Promise<{ success: boolean; message: string }>;
   deleteClearingAgent: (agentId: string) => Promise<{ success: boolean; message: string }>;
+
+  // Invoice-to-Inventory Parent Batches & Realtime Ledger Sync
+  invoiceBatches: InvoiceInventoryBatch[];
+  saveOrSyncInvoiceToInventory: (shipment: ImportShipmentRecord, customStatus?: 'Pending Clearance' | 'Assessed' | 'Capitalized' | 'In Stock') => Promise<InvoiceInventoryBatch>;
+  deleteInvoiceBatch: (batchId: string) => Promise<{ success: boolean; message: string }>;
+  updateInvoiceBatchStatus: (batchId: string, status: 'Pending Clearance' | 'Assessed' | 'Capitalized' | 'In Stock') => Promise<{ success: boolean; message: string }>;
+  updateInvoiceBatchPricing: (
+    batchId: string,
+    pricingUpdates: {
+      itemId?: string;
+      retailPriceKES: number;
+      bulkPriceKES?: number;
+      targetMarkupPct?: number;
+    }[]
+  ) => Promise<{ success: boolean; message: string }>;
+
+  // Accountant Role Body Menu & Sub-Tab Navigation
+  accountantSubTab: LedgerTab;
+  setAccountantSubTab: (subTab: LedgerTab) => void;
+  isJournalModalOpen: boolean;
+  setIsJournalModalOpen: (open: boolean) => void;
+  isSupplierModalOpen: boolean;
+  setIsSupplierModalOpen: (open: boolean) => void;
+  isInwardInvoiceModalOpen: boolean;
+  setIsInwardInvoiceModalOpen: (open: boolean) => void;
 }
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [appModeState, setAppModeState] = useState<AppMode>('pos');
+  const [activeNavTab, setActiveNavTab] = useState<string>('dashboard');
   const [activeRole, setActiveRoleState] = useState<UserRole>('pos_cashier');
   const [activeLocation, setActiveLocation] = useState<LocationId>('sales_shop');
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
+
+  // Accountant Role Body Menu & Sub-Tab Navigation
+  const [accountantSubTab, setAccountantSubTab] = useState<LedgerTab>('import_costing');
+  const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [isInwardInvoiceModalOpen, setIsInwardInvoiceModalOpen] = useState(false);
 
   // Storefront Frontend vs ERP Admin Control View Mode (ERP default with Website link)
   const [viewMode, setViewModeState] = useState<'storefront' | 'admin'>(() => {
@@ -694,8 +732,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isGoogleAuthLoading, setIsGoogleAuthLoading] = useState(true);
 
   // Whitelisted Admin emails
-  const SUPER_ADMIN_EMAIL = 'urbaninteriorkenya@gmail.com';
+  const SUPER_ADMIN_EMAIL = 'feminiholdings@gmail.com';
   const WHITELISTED_ADMINS = [
+    'feminiholdings@gmail.com',
     'gduniversalstudio@gmail.com',
     'urbaninteriorkenya@gmail.com',
     'zamodasports@gmail.com'
@@ -892,12 +931,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
+      const isUnauthorizedDomain =
+        err?.code === 'auth/unauthorized-domain' ||
+        (err?.message && (err.message.includes('auth/unauthorized-domain') || err.message.includes('unauthorized-domain')));
+      const domain = typeof window !== 'undefined' ? window.location.hostname : '';
+
+      if (isUnauthorizedDomain) {
+        return {
+          success: false,
+          isUnauthorizedDomain: true,
+          domain,
+          message: `Firebase: Error (auth/unauthorized-domain). The preview domain "${domain}" is not in Firebase Console Authorized Domains.`
+        };
+      }
       return { success: false, message: err.message || 'Failed to sign in with Google' };
     }
   };
 
-  const signInAsWhitelistedAdmin = (email: string = 'gduniversalstudio@gmail.com') => {
-    const displayName = email.includes('urban') ? 'Urban Executive Admin' : 'Executive Super Admin';
+  const signInAsWhitelistedAdmin = (email: string = 'feminiholdings@gmail.com') => {
+    const displayName = 'Executive Super Admin';
     setAdminUser({
       uid: 'admin-whitelisted-uid',
       email: email,
@@ -1132,7 +1184,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Profile details updated successfully.' };
   };
 
-  const unlockPOSWithPin = (pin: string) => {
+  const unlockPOSWithPin = (pin: string, overrideLocation?: LocationId) => {
     const trimmedPin = pin.trim();
     if (!trimmedPin || trimmedPin.length !== 6) {
       return { success: false, message: 'PIN code must be exactly 6 numeric digits.' };
@@ -1145,17 +1197,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, message: `Account for ${matchedOp.name} is deactivated. Contact Administrator.` };
       }
 
-      // Accountants are administrators with limited features and must use Google to sign in
-      if (matchedOp.role === 'accountant') {
-        return {
-          success: false,
-          message: `${matchedOp.name} is registered as an Accountant (Finance Admin with limited features). Accountants are required to sign in with Google.`
-        };
-      }
-
       const now = new Date().toISOString();
       const staffRole: UserRole = matchedOp.role;
-      const targetLoc: LocationId = matchedOp.location;
+      const targetLoc: LocationId = overrideLocation || matchedOp.location;
+
+      if (staffRole === 'accountant') {
+        setAdminUser({
+          uid: 'accountant-pin-uid',
+          email: matchedOp.email || 'accountant@taji.co.ke',
+          displayName: matchedOp.name,
+          photoURL: null
+        });
+      } else if (staffRole === 'admin') {
+        setAdminUser({
+          uid: 'admin-pin-uid',
+          email: matchedOp.email || 'feminiholdings@gmail.com',
+          displayName: matchedOp.name,
+          photoURL: null
+        });
+      }
 
       setPosSession({
         isUnlocked: true,
@@ -1181,7 +1241,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       const roleAllowed = ROLE_DEFINITIONS[staffRole]?.allowedTabs || ['pos'];
-      if (staffRole === 'admin') {
+      if (staffRole === 'admin' || staffRole === 'accountant') {
         setAppModeState('admin');
       } else if (roleAllowed.includes('pos')) {
         setAppModeState('pos');
@@ -1431,11 +1491,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('urban_interior_products');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingIds = new Set(parsed.map((p: any) => p.id));
-          const missing = INITIAL_PRODUCTS.filter(p => !existingIds.has(p.id));
-          const merged = [...parsed, ...missing];
-          return merged.map((p: ProductBatch) => {
+        if (Array.isArray(parsed)) {
+          return parsed.map((p: ProductBatch) => {
             if (p.category === 'Fleece' && (!p.imageUrl || p.imageUrl.includes('unsplash.com'))) {
               return { ...p, imageUrl: polarFleeceRollsImg };
             }
@@ -1446,7 +1503,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.warn('Error reading products from localStorage:', e);
     }
-    return INITIAL_PRODUCTS;
+    return [];
   });
 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('syncing');
@@ -1605,7 +1662,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const runAutoInventoryCleanse = async () => {
       try {
-        const flagKey = 'taji_inventory_cleansed_production_v2';
+        const flagKey = 'taji_inventory_cleansed_production_v3';
         const alreadyCleaned = localStorage.getItem(flagKey);
         if (!alreadyCleaned) {
           localStorage.removeItem('urban_interior_products');
@@ -1615,8 +1672,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.removeItem('urban_interior_tare_logs');
           localStorage.removeItem('urban_interior_stocktakes');
           localStorage.removeItem('urban_interior_held_carts');
+          localStorage.setItem('urban_interior_products', '[]');
 
-          const collectionsToCheck = ['products', 'fabric_rolls', 'quarantined_defects', 'deliveries', 'tare_logs', 'stocktakes'];
+          const collectionsToCheck = ['products', 'fabric_rolls', 'quarantine_defects'];
           for (const colName of collectionsToCheck) {
             try {
               const snap = await getDocs(collection(db, colName));
@@ -1647,28 +1705,26 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const unsub = onSnapshot(collection(db, 'products'), (snapshot) => {
         const loaded: ProductBatch[] = [];
-        const existingIds = new Set<string>();
         snapshot.forEach((docSnap) => {
           const item = docSnap.data() as ProductBatch;
           if (item && item.id) {
+            if (
+              item.id.startsWith('prod-drk-') ||
+              item.id.startsWith('prod-flc-') ||
+              item.id.startsWith('prod-yrn-') ||
+              item.id.startsWith('BATCH-YRN-26')
+            ) {
+              deleteDoc(doc(db, 'products', item.id)).catch(() => {});
+              return;
+            }
             if (item.category === 'Fleece' && (!item.imageUrl || item.imageUrl.includes('unsplash.com'))) {
               item.imageUrl = polarFleeceRollsImg;
             }
             loaded.push(item);
-            existingIds.add(item.id);
           }
         });
 
-        // Seed any new catalog products (such as Udey Udyog import batches) to Firestore if not yet present
-        const missingInitial = INITIAL_PRODUCTS.filter(p => !existingIds.has(p.id));
-        if (missingInitial.length > 0) {
-          for (const item of missingInitial) {
-            loaded.push(item);
-            saveFirestoreDoc('products', item.id, item);
-          }
-        }
-
-        setProducts(loaded.length > 0 ? loaded : INITIAL_PRODUCTS);
+        setProducts(loaded);
         setCloudSyncStatus('synced');
         setLastCloudSync(new Date());
       }, (error) => {
@@ -3156,6 +3212,191 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {
       success: true,
       message: 'Clearing agent deleted successfully.'
+    };
+  };
+
+  // Invoice-to-Inventory Parent Batches State & Realtime Cloud Sync
+  const [invoiceBatches, setInvoiceBatches] = useState<InvoiceInventoryBatch[]>(() => {
+    try {
+      const saved = localStorage.getItem('taji_invoice_batches');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading invoice batches from localStorage:', e);
+    }
+    return INITIAL_INVOICE_BATCHES;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('taji_invoice_batches', JSON.stringify(invoiceBatches));
+    } catch (e) {
+      console.warn('Error saving invoice batches to localStorage:', e);
+    }
+  }, [invoiceBatches]);
+
+  // Realtime Cloud Firestore Sync for invoice batches via system_settings/invoice_batches
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(doc(db, 'system_settings', 'invoice_batches'), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && Array.isArray(data.batches) && data.batches.length > 0) {
+            setInvoiceBatches(data.batches);
+          }
+        }
+      }, (error) => {
+        console.warn('Firestore invoice batches listener notice:', error.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error establishing invoice batches listener:', e);
+    }
+  }, []);
+
+  const saveOrSyncInvoiceToInventory = async (
+    shipment: ImportShipmentRecord,
+    customStatus?: 'Pending Clearance' | 'Assessed' | 'Capitalized' | 'In Stock'
+  ): Promise<InvoiceInventoryBatch> => {
+    const newBatch = buildInvoiceInventoryBatch(shipment);
+    if (customStatus) {
+      newBatch.status = customStatus;
+    }
+
+    const updated = [
+      newBatch,
+      ...invoiceBatches.filter(b => b.id !== newBatch.id && b.invoiceNumber !== newBatch.invoiceNumber)
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    setInvoiceBatches(updated);
+
+    try {
+      await setDoc(doc(db, 'system_settings', 'invoice_batches'), {
+        batches: updated,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Firestore invoice batches save sync notice:', e);
+    }
+
+    recordAuditLog(
+      'Invoice Batch Synced',
+      `Auto-created parent inventory batch for Invoice ${newBatch.invoiceNumber} (${newBatch.supplierName}, ${newBatch.totalQuantity.toLocaleString()} ${newBatch.totalQuantityUnit})`
+    );
+
+    return newBatch;
+  };
+
+  const deleteInvoiceBatch = async (batchId: string) => {
+    const target = invoiceBatches.find(b => b.id === batchId);
+    const updated = invoiceBatches.filter(b => b.id !== batchId);
+    setInvoiceBatches(updated);
+
+    try {
+      await setDoc(doc(db, 'system_settings', 'invoice_batches'), {
+        batches: updated,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Firestore invoice batch delete sync notice:', e);
+    }
+
+    recordAuditLog('Invoice Batch Deleted', `Removed inventory batch record for ${target?.invoiceNumber || batchId}`);
+    return { success: true, message: 'Invoice inventory batch deleted successfully.' };
+  };
+
+  const updateInvoiceBatchStatus = async (
+    batchId: string,
+    status: 'Pending Clearance' | 'Assessed' | 'Capitalized' | 'In Stock'
+  ) => {
+    const updated = invoiceBatches.map(b => b.id === batchId ? { ...b, status } : b);
+    setInvoiceBatches(updated);
+
+    try {
+      await setDoc(doc(db, 'system_settings', 'invoice_batches'), {
+        batches: updated,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Firestore invoice batch status sync notice:', e);
+    }
+
+    recordAuditLog('Invoice Batch Status Updated', `Updated batch ${batchId} status to ${status}`);
+    return { success: true, message: `Batch status updated to ${status}.` };
+  };
+
+  const updateInvoiceBatchPricing = async (
+    batchId: string,
+    pricingUpdates: {
+      itemId?: string;
+      retailPriceKES: number;
+      bulkPriceKES?: number;
+      targetMarkupPct?: number;
+    }[]
+  ): Promise<{ success: boolean; message: string }> => {
+    const targetBatch = invoiceBatches.find(b => b.id === batchId || b.invoiceNumber === batchId);
+    if (!targetBatch) {
+      return { success: false, message: 'Invoice batch not found.' };
+    }
+
+    const updatedBatch: InvoiceInventoryBatch = {
+      ...targetBatch,
+      lineItems: targetBatch.lineItems.map(item => {
+        const update = pricingUpdates.find(u => u.itemId === item.id) || pricingUpdates[0];
+        if (!update) return item;
+        const newRetail = Number(update.retailPriceKES) || item.suggestedRetailPriceKES;
+        const newBulk = Number(update.bulkPriceKES) || Math.round(newRetail * 0.95);
+        return {
+          ...item,
+          suggestedRetailPriceKES: newRetail,
+          rolls: item.rolls ? item.rolls.map(r => ({ ...r, allocatedPriceKES: newRetail })) : undefined
+        };
+      })
+    };
+
+    const updatedBatches = invoiceBatches.map(b => (b.id === targetBatch.id ? updatedBatch : b));
+    setInvoiceBatches(updatedBatches);
+
+    // Also update any matching product in the catalog
+    let updatedProductsCount = 0;
+    for (const update of pricingUpdates) {
+      const matchingProducts = products.filter(p => 
+        p.invoiceRef === targetBatch.invoiceNumber || 
+        targetBatch.lineItems.some(li => li.matchedProductId === p.id || li.matchedProductId === p.sku)
+      );
+
+      for (const prod of matchingProducts) {
+        await updateProductBatch(prod.id, {
+          unitPriceRetail: Number(update.retailPriceKES),
+          unitPriceBulk: Number(update.bulkPriceKES) || Math.round(Number(update.retailPriceKES) * 0.95)
+        });
+        updatedProductsCount++;
+      }
+    }
+
+    try {
+      await setDoc(doc(db, 'system_settings', 'invoice_batches'), {
+        batches: updatedBatches,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Firestore invoice batch pricing save notice:', e);
+    }
+
+    recordAuditLog(
+      'Batch Pricing Configured',
+      `Configured selling prices for Invoice ${targetBatch.invoiceNumber} (${pricingUpdates.length} lines, ${updatedProductsCount} linked catalog products synced)`
+    );
+
+    return {
+      success: true,
+      message: `Updated pricing for Invoice ${targetBatch.invoiceNumber}. ${updatedProductsCount} linked catalog products synced.`
     };
   };
 
@@ -7782,7 +8023,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveDeliveryId(null);
 
       // Purge all Firestore inventory collections
-      const inventoryCollections = ['products', 'fabric_rolls', 'quarantined_defects', 'deliveries', 'tare_logs', 'stocktakes'];
+      const inventoryCollections = ['products', 'fabric_rolls', 'quarantine_defects'];
       for (const colName of inventoryCollections) {
         try {
           const snap = await getDocs(collection(db, colName));
@@ -8462,6 +8703,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateCurrentUserProfile,
         isPlatformUnlocked,
         isAdmin,
+        accountantSubTab,
+        setAccountantSubTab,
+        isJournalModalOpen,
+        setIsJournalModalOpen,
+        isSupplierModalOpen,
+        setIsSupplierModalOpen,
+        isInwardInvoiceModalOpen,
+        setIsInwardInvoiceModalOpen,
         lockPlatform,
         isAuthModalOpen,
         setIsAuthModalOpen,
@@ -8522,6 +8771,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addClearingAgent,
         updateClearingAgent,
         deleteClearingAgent,
+        invoiceBatches,
+        saveOrSyncInvoiceToInventory,
+        deleteInvoiceBatch,
+        updateInvoiceBatchStatus,
+        updateInvoiceBatchPricing,
+        activeNavTab,
+        setActiveNavTab,
         viewMode,
         setViewMode: handleSetViewMode
       }}
