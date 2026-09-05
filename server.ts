@@ -47,6 +47,11 @@ function getAuthenticatedGmailClient(req: express.Request) {
 // API ROUTES
 // -------------------------------------------------------------
 
+// 0. Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // 1. Auth Status
 app.get('/api/auth/status', async (req, res) => {
   const auth = getAuthenticatedGmailClient(req);
