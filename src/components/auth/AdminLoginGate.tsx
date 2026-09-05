@@ -93,9 +93,9 @@ export const AdminLoginGate: React.FC = () => {
           <span>Firebase OAuth Secured</span>
         </div>
 
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Admin Dashboard Locked</h1>
+        <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Executive &amp; Finance Portal Locked</h1>
         <p className="text-xs text-rose-100 max-w-md mx-auto leading-relaxed">
-          Google Sign-In authentication is required to access executive store analytics, catalog management, and POS user configurations.
+          Google Sign-In authentication is required to access executive store analytics, catalog management, General Ledger, KRA VAT compliance, and payroll.
         </p>
       </div>
 
@@ -136,7 +136,7 @@ export const AdminLoginGate: React.FC = () => {
                 />
               </svg>
             )}
-            <span>Sign in with Google to Access Admin</span>
+            <span>Sign in with Google (Admin &amp; Accountant)</span>
           </button>
         </div>
 

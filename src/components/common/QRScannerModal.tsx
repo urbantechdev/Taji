@@ -40,6 +40,7 @@ export const QRScannerModal: React.FC = () => {
     setIsQRScannerOpen,
     setIsMobileBarcodeScannerOpen,
     products,
+    fabricRolls,
     locations,
     activeLocation,
     addToCart,
@@ -65,6 +66,7 @@ export const QRScannerModal: React.FC = () => {
   // Scanner Viewport State (Fullscreen & Minimized After Scan)
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [autoMinimizeOnScan, setAutoMinimizeOnScan] = useState<boolean>(true);
+  const [autoAddToCartOnScan, setAutoAddToCartOnScan] = useState<boolean>(true);
 
   // Scanned Match State
   const [scannedProduct, setScannedProduct] = useState<ProductBatch | null>(null);
@@ -296,13 +298,29 @@ export const QRScannerModal: React.FC = () => {
     }
 
     // 2. Direct SKU, ID, Barcode, or embedded QR data token match
-    return products.find(p => 
+    const directMatch = products.find(p => 
       p.sku.toLowerCase() === raw.toLowerCase() ||
       p.id.toLowerCase() === raw.toLowerCase() ||
       (p.barcode && p.barcode.toLowerCase() === raw.toLowerCase()) ||
       (p.qrCodeData && p.qrCodeData.includes(raw)) ||
       p.name.toLowerCase() === raw.toLowerCase()
-    ) || null;
+    );
+    if (directMatch) return directMatch;
+
+    // 3. Fabric Roll Barcode Registry Check
+    if (fabricRolls && fabricRolls.length > 0) {
+      const matchedRoll = fabricRolls.find(r =>
+        (r.barcode && r.barcode.toLowerCase() === raw.toLowerCase()) ||
+        (r.rollNumber && r.rollNumber.toLowerCase() === raw.toLowerCase()) ||
+        r.id.toLowerCase() === raw.toLowerCase()
+      );
+      if (matchedRoll) {
+        const found = products.find(p => p.id === matchedRoll.batchId);
+        if (found) return found;
+      }
+    }
+
+    return null;
   };
 
   // CORE SCAN PROCESSOR
@@ -331,10 +349,21 @@ export const QRScannerModal: React.FC = () => {
     if (matched) {
       // Play loud, crisp laser scanner beep
       playBarcodeScanBeep(true);
-      setActionFeedback({
-        type: 'success',
-        message: `Batch Identified: "${matched.name}" (${matched.sku}) • Ready for POS Cart, Restock, or Catalog inspection.`
-      });
+
+      // Auto-Add to POS Cart if enabled (standard checkout behavior)
+      if (autoAddToCartOnScan) {
+        addToCart(matched, 1, false);
+        setActionFeedback({
+          type: 'success',
+          message: `Scanned & Added to POS Cart (+1): "${matched.name}" (${matched.sku})`
+        });
+      } else {
+        setActionFeedback({
+          type: 'success',
+          message: `Batch Identified: "${matched.name}" (${matched.sku}) • Ready for POS Cart, Restock, or Catalog inspection.`
+        });
+      }
+
       recordAuditLog('Product Batch QR Scanned', `Scanned QR batch code for ${matched.sku} (${matched.name})`);
 
       // Auto-minimize after scan to allow immediate next scan
@@ -497,6 +526,20 @@ export const QRScannerModal: React.FC = () => {
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
+                onClick={() => setAutoAddToCartOnScan(!autoAddToCartOnScan)}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors cursor-pointer flex items-center gap-1 ${
+                  autoAddToCartOnScan
+                    ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}
+                title="Toggle Auto-Add to POS Cart upon scan"
+              >
+                <ShoppingBag className="w-2.5 h-2.5" />
+                <span>Auto-Cart: {autoAddToCartOnScan ? 'ON' : 'OFF'}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setAutoMinimizeOnScan(!autoMinimizeOnScan)}
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
                   autoMinimizeOnScan
@@ -631,6 +674,21 @@ export const QRScannerModal: React.FC = () => {
             >
               <Barcode className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Barcode Wizard</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAutoAddToCartOnScan(!autoAddToCartOnScan)}
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                autoAddToCartOnScan
+                  ? 'bg-emerald-950 text-emerald-300 border-emerald-500/50 shadow-xs'
+                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-white'
+              }`}
+              title="Toggle Auto-Add to POS Cart when barcode is recognized"
+            >
+              <ShoppingBag className={`w-3.5 h-3.5 ${autoAddToCartOnScan ? 'text-emerald-400' : 'text-slate-500'}`} />
+              <span className="hidden sm:inline">Auto-Add Cart:</span>
+              <span>{autoAddToCartOnScan ? 'ON' : 'OFF'}</span>
             </button>
 
             <button

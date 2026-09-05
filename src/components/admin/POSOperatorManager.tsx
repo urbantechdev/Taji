@@ -476,20 +476,27 @@ export const POSOperatorManager: React.FC = () => {
 
                   <div className="flex items-center gap-1.5">
                     {!isCurrentlyActiveSession && op.status !== 'inactive' && (
-                      <button
-                        onClick={() => {
-                          const res = loginAsOperator(op);
-                          setStatusMessage({
-                            type: res.success ? 'success' : 'error',
-                            text: res.message
-                          });
-                        }}
-                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
-                        title={`Activate session as ${op.name} (${roleMeta.shortLabel})`}
-                      >
-                        <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Switch to Role</span>
-                      </button>
+                      op.role === 'accountant' ? (
+                        <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs" title="Accountants are required to use Google Sign-In">
+                          <ShieldCheck className="w-3 h-3 text-amber-600" />
+                          <span>Google Auth Required</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const res = loginAsOperator(op);
+                            setStatusMessage({
+                              type: res.success ? 'success' : 'error',
+                              text: res.message
+                            });
+                          }}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
+                          title={`Activate session as ${op.name} (${roleMeta.shortLabel})`}
+                        >
+                          <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Switch to Role</span>
+                        </button>
+                      )
                     )}
 
                     <button
@@ -718,6 +725,16 @@ export const POSOperatorManager: React.FC = () => {
                       </p>
 
                       {/* Permitted Workspaces */}
+                      {role === 'accountant' && (
+                        <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] font-semibold text-amber-900 flex items-start gap-2">
+                          <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-extrabold block">Admin-Level Google Authentication Required</span>
+                            <span>The Accountant is an administrator with focused financial privileges. They are required to use Google Sign-In with their registered email address to unlock the ERP system.</span>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-1">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
                           Allowed Workspaces ({allowed.length})

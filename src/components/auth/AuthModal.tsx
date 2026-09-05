@@ -133,8 +133,14 @@ export const AuthModal: React.FC = () => {
     }
 
     if (selectedBox === 'admin') {
-      // Validate that PIN belongs to an admin
+      // Validate that PIN belongs to an admin or accountant
       const matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === pinToSubmit));
+      if (matchedOp && matchedOp.role === 'accountant') {
+        playErrorSound();
+        setErrorMessage(`"${matchedOp.name}" is an Accountant (Finance Admin with limited features). Accountants are required to use Google to sign in.`);
+        setPin('');
+        return;
+      }
       if (matchedOp && matchedOp.role !== 'admin') {
         playErrorSound();
         setErrorMessage(`"${matchedOp.name}" has staff role (${matchedOp.role}). Please select the "Login as Staff" box to access your register.`);
@@ -158,7 +164,21 @@ export const AuthModal: React.FC = () => {
         setPin('');
       }
     } else {
-      // Staff login
+      // Staff login: check if operator is admin or accountant
+      const matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === pinToSubmit));
+      if (matchedOp && matchedOp.role === 'accountant') {
+        playErrorSound();
+        setErrorMessage(`"${matchedOp.name}" is an Accountant (Finance Admin with limited features). Accountants are required to use Google to sign in.`);
+        setPin('');
+        return;
+      }
+      if (matchedOp && matchedOp.role === 'admin') {
+        playErrorSound();
+        setErrorMessage(`"${matchedOp.name}" is an Administrator. Please select the "Login as Admin / Accountant" box.`);
+        setPin('');
+        return;
+      }
+
       const result = unlockPOSWithPin(pinToSubmit);
       if (result.success) {
         playSuccessSound();
@@ -255,7 +275,7 @@ export const AuthModal: React.FC = () => {
           </p>
           <div className="grid grid-cols-2 gap-2.5">
             
-            {/* Box 1: Select Login as Admin */}
+            {/* Box 1: Select Login as Admin / Accountant */}
             <button
               type="button"
               id="authmodal-select-admin-box"
@@ -275,13 +295,13 @@ export const AuthModal: React.FC = () => {
                 <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
                   selectedBox === 'admin' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
-                  Admin
+                  Admin &amp; Finance
                 </span>
               </div>
               <div>
-                <div className="text-xs sm:text-sm font-black text-slate-900">Login as Admin</div>
+                <div className="text-xs sm:text-sm font-black text-slate-900">Admin / Accountant</div>
                 <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
-                  ERP &amp; Management
+                  Google Sign-In Required for Accountants
                 </p>
               </div>
               {selectedBox === 'admin' && (
@@ -544,8 +564,11 @@ export const AuthModal: React.FC = () => {
                     />
                   </svg>
                 )}
-                <span>{isGoogleSigningIn ? 'Signing In...' : 'Sign In with Google Admin'}</span>
+                <span>{isGoogleSigningIn ? 'Signing In...' : 'Sign In with Google (Admin & Accountant)'}</span>
               </button>
+              <p className="text-[10px] text-center text-slate-500 font-medium">
+                Accountants &amp; Administrators sign in with Google for role verification.
+              </p>
             </div>
           )}
 

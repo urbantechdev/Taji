@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
@@ -60,6 +60,7 @@ export const POSModule: React.FC = () => {
     activeLocation,
     locations,
     products,
+    fabricRolls,
     cart,
     addToCart,
     removeFromCart,
@@ -215,7 +216,17 @@ export const POSModule: React.FC = () => {
 
   // Barcode Checkout Scanner State
   const [barcodeCheckoutInput, setBarcodeCheckoutInput] = useState('');
-  const [barcodeScanFeedback, setBarcodeScanFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [barcodeScanFeedback, setBarcodeScanFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+    product?: ProductBatch;
+    allowRestock?: boolean;
+  } | null>(null);
+  const [highlightedBatchId, setHighlightedBatchId] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Hardware USB/Bluetooth Barcode Scanner Keyboard Buffer
+  const barcodeBufferRef = useRef<{ chars: string[]; lastTime: number }>({ chars: [], lastTime: 0 });
 
   // Inter-Store Stock Transfer Modal State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -228,8 +239,8 @@ export const POSModule: React.FC = () => {
 
   const activeLocInfo = locations.find(l => l.id === activeLocation);
 
-  // Handle Barcode Checkout Scan (Processes real-time scan into cart with stock check)
-  const handleBarcodeScanCheckout = (e?: React.FormEvent, directCode?: string) => {
+  // Handle Barcode Checkout Scan (Processes real-time scan into cart with stock check & auto-increment)
+  const handleBarcodeScanCheckout = useCallback((e?: React.FormEvent, directCode?: string) => {
     if (e) e.preventDefault();
     const rawCode = (directCode || barcodeCheckoutInput).trim();
     if (!rawCode) return;
@@ -237,30 +248,72 @@ export const POSModule: React.FC = () => {
     setBarcodeScanFeedback(null);
     const codeUpper = rawCode.toUpperCase();
 
-    // Find product by exact barcode, SKU, or ID
-    const matchedProduct = products.find(p =>
+    // 1. Check direct product barcode, SKU, or ID
+    let matchedProduct = products.find(p =>
       (p.barcode && p.barcode.toUpperCase() === codeUpper) ||
       (p.sku && p.sku.toUpperCase() === codeUpper) ||
       p.id.toUpperCase() === codeUpper
     );
 
+    // 2. Check fabric roll barcode registry
+    if (!matchedProduct && fabricRolls && fabricRolls.length > 0) {
+      const matchedRoll = fabricRolls.find(r =>
+        (r.barcode && r.barcode.toUpperCase() === codeUpper) ||
+        (r.rollNumber && r.rollNumber.toUpperCase() === codeUpper) ||
+        r.id.toUpperCase() === codeUpper
+      );
+      if (matchedRoll) {
+        matchedProduct = products.find(p => p.id === matchedRoll.batchId);
+      }
+    }
+
+    // 3. Check JSON QR payload (e.g. {"id":"...", "sku":"..."})
+    if (!matchedProduct) {
+      try {
+        const parsed = JSON.parse(rawCode);
+        const targetId = parsed.batch || parsed.id || parsed.batchId || parsed.sku || parsed.barcode;
+        if (targetId) {
+          const strTarget = String(targetId).toUpperCase();
+          matchedProduct = products.find(p =>
+            p.id.toUpperCase() === strTarget ||
+            p.sku.toUpperCase() === strTarget ||
+            (p.barcode && p.barcode.toUpperCase() === strTarget)
+          );
+        }
+      } catch {
+        // Not a JSON QR token
+      }
+    }
+
     if (matchedProduct) {
       const availableStock = matchedProduct.locationStock[activeLocation] || 0;
       const currentInCart = cart.find(c => c.batchId === matchedProduct.id)?.quantity || 0;
+      const newQty = currentInCart + 1;
 
-      if (availableStock <= currentInCart && !activeLocInfo?.canSellDirectly) {
+      if (availableStock <= 0 && !activeLocInfo?.canSellDirectly) {
         // Warning if stock depleted
         playScannerErrorBeep();
         setBarcodeScanFeedback({
           type: 'error',
-          message: `Zero stock for "${matchedProduct.name}" at ${activeLocInfo?.name || activeLocation}. Reroute needed.`
+          message: `Zero Stock Alert: "${matchedProduct.name}" is depleted at ${activeLocInfo?.name || activeLocation}.`,
+          product: matchedProduct,
+          allowRestock: true
         });
       } else {
         addToCart(matchedProduct, 1, false);
         playBarcodeScanBeep(true);
+
+        // Visual flash highlight on cart item
+        if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+        setHighlightedBatchId(matchedProduct.id);
+        highlightTimeoutRef.current = setTimeout(() => {
+          setHighlightedBatchId(null);
+        }, 2200);
+
         setBarcodeScanFeedback({
           type: 'success',
-          message: `Scanned & Added: ${matchedProduct.name} (${matchedProduct.barcode || matchedProduct.sku})`
+          message: `Scanned & Added to Cart (+1): "${matchedProduct.name}" (${matchedProduct.colorName}) • Total in Cart: ${newQty} ${matchedProduct.unit}`,
+          product: matchedProduct
         });
       }
       setBarcodeCheckoutInput('');
@@ -271,7 +324,50 @@ export const POSModule: React.FC = () => {
         message: `Unrecognized Barcode "${rawCode}". Product not found in database.`
       });
     }
-  };
+  }, [barcodeCheckoutInput, products, fabricRolls, activeLocation, activeLocInfo, cart, addToCart]);
+
+  // Global Hardware USB / Bluetooth Barcode Scanner Listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInputOrTextarea = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      const isOurBarcodeInput = target && target.getAttribute('data-barcode-input') === 'true';
+
+      const now = Date.now();
+      const timeSinceLastChar = now - barcodeBufferRef.current.lastTime;
+
+      // Reset buffer if elapsed time between characters is > 160ms (human typing)
+      if (timeSinceLastChar > 160 && barcodeBufferRef.current.chars.length > 0) {
+        barcodeBufferRef.current = { chars: [], lastTime: now };
+      }
+
+      if (e.key === 'Enter') {
+        const scannedString = barcodeBufferRef.current.chars.join('').trim();
+        const charsLen = barcodeBufferRef.current.chars.length;
+        barcodeBufferRef.current = { chars: [], lastTime: 0 };
+
+        // Barcode scans are usually >= 3 characters
+        if (charsLen >= 3 && (!isInputOrTextarea || isOurBarcodeInput)) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleBarcodeScanCheckout(undefined, scannedString);
+          return;
+        }
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // Collect characters when not in another input, OR if in dedicated barcode input
+        if (!isInputOrTextarea || isOurBarcodeInput) {
+          barcodeBufferRef.current.chars.push(e.key);
+          barcodeBufferRef.current.lastTime = now;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    };
+  }, [handleBarcodeScanCheckout]);
 
   // Filtered product catalog (Restricted to active shop unless admin or explicitly searching for restock)
   const filteredProducts = products.filter(p => {
@@ -731,63 +827,90 @@ export const POSModule: React.FC = () => {
             <div className="space-y-2.5 pt-1">
               
               {/* Barcode Scanner Input Form for Real-time Checkout */}
-              <form onSubmit={handleBarcodeScanCheckout} className="flex items-center gap-2">
-                <div className="relative flex-1 min-w-0">
-                  <Barcode className="w-4 h-4 text-rose-500 absolute left-3 top-2.5 shrink-0" />
-                  <input
-                    type="text"
-                    value={barcodeCheckoutInput}
-                    onChange={e => setBarcodeCheckoutInput(e.target.value)}
-                    placeholder="Scan product barcode (USB / Bluetooth / Camera) or enter SKU..."
-                    className="w-full pl-9 pr-3 py-2 bg-gradient-to-r from-rose-50/50 to-amber-50/30 border-2 border-rose-200 focus:border-rose-500 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400/20"
-                  />
+              <form onSubmit={handleBarcodeScanCheckout} className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <Barcode className="w-4 h-4 text-rose-500 absolute left-3 top-2.5 shrink-0" />
+                    <input
+                      type="text"
+                      data-barcode-input="true"
+                      value={barcodeCheckoutInput}
+                      onChange={e => setBarcodeCheckoutInput(e.target.value)}
+                      placeholder="Scan product barcode (USB / Bluetooth / Camera) or enter SKU..."
+                      className="w-full pl-9 pr-3 py-2 bg-gradient-to-r from-rose-50/50 to-amber-50/30 border-2 border-rose-200 focus:border-rose-500 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400/20 shadow-2xs"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-3.5 py-2 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+                    title="Scan item into active checkout cart"
+                  >
+                    <Scan className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden sm:inline">Scan Checkout</span>
+                    <span className="sm:hidden">Scan</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsQRScannerOpen(true)}
+                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0 whitespace-nowrap cursor-pointer shadow-xs active:scale-95"
+                    title="Open phone or device camera to scan 1D barcodes and 2D QR codes"
+                  >
+                    <QrCode className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span className="hidden sm:inline">Camera QR</span>
+                  </button>
                 </div>
 
-                <button
-                  type="submit"
-                  className="px-3.5 py-2 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-                  title="Scan item into active checkout cart"
-                >
-                  <Scan className="w-3.5 h-3.5 shrink-0" />
-                  <span className="hidden sm:inline">Scan Checkout</span>
-                  <span className="sm:hidden">Scan</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsQRScannerOpen(true)}
-                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0 whitespace-nowrap cursor-pointer shadow-xs active:scale-95"
-                  title="Open phone or device camera to scan 1D barcodes and 2D QR codes"
-                >
-                  <QrCode className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span className="hidden sm:inline">Camera QR</span>
-                </button>
+                <div className="flex items-center justify-between px-1 text-[10px] text-slate-500">
+                  <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    Auto-Add to Cart Enabled • Hardware Scanners (USB/Bluetooth) can scan anytime
+                  </span>
+                  <span className="font-mono text-slate-400">Scans auto-increment quantity</span>
+                </div>
               </form>
 
               {/* Barcode Scanner Feedback Alert */}
               {barcodeScanFeedback && (
                 <div
-                  className={`p-2 rounded-xl text-xs font-bold flex items-center justify-between transition-all ${
+                  className={`p-2.5 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition-all shadow-2xs ${
                     barcodeScanFeedback.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 ring-1 ring-emerald-400/30 animate-pulse'
+                      : 'bg-rose-50 text-rose-800 border border-rose-300 ring-1 ring-rose-400/30'
                   }`}
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
                     {barcodeScanFeedback.type === 'success' ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     ) : (
                       <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                     )}
-                    <span>{barcodeScanFeedback.message}</span>
+                    <span className="truncate">{barcodeScanFeedback.message}</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setBarcodeScanFeedback(null)}
-                    className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {barcodeScanFeedback.allowRestock && barcodeScanFeedback.product && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (barcodeScanFeedback.product) {
+                            handleOpenQuickRestock(barcodeScanFeedback.product);
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-extrabold shadow-2xs transition-all active:scale-95 cursor-pointer"
+                      >
+                        Request Restock
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setBarcodeScanFeedback(null)}
+                      className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1306,7 +1429,9 @@ export const POSModule: React.FC = () => {
                     <div
                       key={item.batchId}
                       className={`p-3 rounded-xl border transition-all space-y-2 ${
-                        item.rollPricing?.isHybridApplied
+                        highlightedBatchId === item.batchId
+                          ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500 shadow-md scale-[1.01]'
+                          : item.rollPricing?.isHybridApplied
                           ? 'bg-indigo-50/40 border-indigo-200'
                           : item.isTareApplied
                           ? 'bg-rose-50/50 border-rose-200'
@@ -1320,8 +1445,13 @@ export const POSModule: React.FC = () => {
                             style={{ backgroundColor: item.colorHex }}
                           />
                           <div>
-                            <p className="font-bold text-slate-900 text-xs leading-tight">
-                              {item.productName}
+                            <p className="font-bold text-slate-900 text-xs leading-tight flex items-center gap-1.5">
+                              <span>{item.productName}</span>
+                              {highlightedBatchId === item.batchId && (
+                                <span className="text-[8px] font-black px-1.5 py-0.2 bg-emerald-600 text-white rounded uppercase tracking-wider animate-pulse shrink-0">
+                                  +1 Scanned
+                                </span>
+                              )}
                             </p>
                             <p className="text-[10px] text-slate-500">
                               {item.colorName} • KSh {item.unitPrice.toLocaleString()} / {item.unit}
@@ -1919,6 +2049,48 @@ export const POSModule: React.FC = () => {
 
             <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
               
+              {/* Quick Barcode Scan into Checkout Order */}
+              <div className="p-2.5 bg-gradient-to-r from-rose-50/70 to-amber-50/50 border border-rose-200/80 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between text-xs px-0.5">
+                  <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                    <Barcode className="w-3.5 h-3.5 text-rose-600" />
+                    Scan Barcode into Order
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    Auto-Adds to Cart
+                  </span>
+                </div>
+                <form onSubmit={handleBarcodeScanCheckout} className="flex items-center gap-1.5">
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type="text"
+                      data-barcode-input="true"
+                      value={barcodeCheckoutInput}
+                      onChange={e => setBarcodeCheckoutInput(e.target.value)}
+                      placeholder="Scan barcode or enter SKU to add..."
+                      className="w-full px-3 py-1.5 bg-white border border-rose-200 focus:border-rose-500 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400/20 shadow-2xs"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <Scan className="w-3.5 h-3.5" />
+                    <span>Add</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsQRScannerOpen(true)}
+                    className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs active:scale-95"
+                    title="Camera scanner"
+                  >
+                    <QrCode className="w-3.5 h-3.5 text-rose-400" />
+                    <span className="hidden sm:inline">Camera</span>
+                  </button>
+                </form>
+              </div>
+
               {/* EDITABLE CART ITEMS & WEIGHED QUANTITIES IN CHECKOUT WINDOW */}
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -1943,7 +2115,11 @@ export const POSModule: React.FC = () => {
                     return (
                       <div
                         key={item.batchId}
-                        className="p-2.5 bg-white rounded-xl border border-slate-200/90 shadow-2xs space-y-2"
+                        className={`p-2.5 rounded-xl border shadow-2xs space-y-2 transition-all ${
+                          highlightedBatchId === item.batchId
+                            ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500 shadow-md scale-[1.01]'
+                            : 'bg-white border-slate-200/90'
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
@@ -1952,8 +2128,13 @@ export const POSModule: React.FC = () => {
                               style={{ backgroundColor: item.colorHex }}
                             />
                             <div className="min-w-0">
-                              <p className="font-bold text-slate-900 text-xs truncate">
-                                {item.productName}
+                              <p className="font-bold text-slate-900 text-xs truncate flex items-center gap-1.5">
+                                <span>{item.productName}</span>
+                                {highlightedBatchId === item.batchId && (
+                                  <span className="text-[8px] font-black px-1.5 py-0.2 bg-emerald-600 text-white rounded uppercase tracking-wider shrink-0 animate-pulse">
+                                    +1 Scanned
+                                  </span>
+                                )}
                               </p>
                               <p className="text-[10px] text-slate-500 font-mono">
                                 {item.colorName} • KSh {item.unitPrice.toLocaleString()} / {item.unit}

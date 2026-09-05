@@ -120,8 +120,14 @@ export const PlatformLockScreen: React.FC = () => {
     }
 
     if (selectedBox === 'admin') {
-      // Check if this PIN belongs to an admin
+      // Check if this PIN belongs to an accountant or non-admin
       const matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === pinToSubmit));
+      if (matchedOp && matchedOp.role === 'accountant') {
+        playErrorSound();
+        setErrorMessage(`"${matchedOp.name}" is an Accountant (Finance Admin with limited features). Accountants are required to use Google Sign-In.`);
+        setPin('');
+        return;
+      }
       if (matchedOp && matchedOp.role !== 'admin') {
         playErrorSound();
         setErrorMessage(`"${matchedOp.name}" has staff role (${matchedOp.role}). Please select the "Login as Staff" box to access your register.`);
@@ -136,11 +142,25 @@ export const PlatformLockScreen: React.FC = () => {
         setErrorMessage(null);
       } else {
         playErrorSound();
-        setErrorMessage(result.message || 'Invalid 6-digit Admin PIN. Please verify your credentials or use Google Admin Sign-In.');
+        setErrorMessage(result.message || 'Invalid 6-digit Admin PIN. Please verify your credentials or use Google Sign-In.');
         setPin('');
       }
     } else {
-      // Staff login
+      // Staff login: check if operator is admin or accountant
+      const matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === pinToSubmit));
+      if (matchedOp && matchedOp.role === 'accountant') {
+        playErrorSound();
+        setErrorMessage(`"${matchedOp.name}" is an Accountant (Finance Admin with limited features). Accountants are required to use Google to sign in.`);
+        setPin('');
+        return;
+      }
+      if (matchedOp && matchedOp.role === 'admin') {
+        playErrorSound();
+        setErrorMessage(`"${matchedOp.name}" is an Administrator. Please select the "Login as Admin / Accountant" box.`);
+        setPin('');
+        return;
+      }
+
       const result = unlockPOSWithPin(pinToSubmit);
       if (result.success) {
         playSuccessSound();
@@ -162,10 +182,10 @@ export const PlatformLockScreen: React.FC = () => {
       const res = await signInWithGoogleAdmin();
       if (res.success) {
         playSuccessSound();
-        setSuccessMessage('Administrator authenticated successfully via Google.');
+        setSuccessMessage(res.message || 'Authenticated successfully via Google.');
       } else {
         playErrorSound();
-        setErrorMessage(res.message || 'Google Admin authentication failed.');
+        setErrorMessage(res.message || 'Google authentication failed.');
       }
     } catch (err: any) {
       playErrorSound();
@@ -232,7 +252,7 @@ export const PlatformLockScreen: React.FC = () => {
             </p>
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
               
-              {/* Box 1: Select Login as Admin */}
+              {/* Box 1: Select Login as Admin / Accountant */}
               <button
                 type="button"
                 id="login-select-admin-box"
@@ -252,13 +272,13 @@ export const PlatformLockScreen: React.FC = () => {
                   <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
                     selectedBox === 'admin' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-500'
                   }`}>
-                    Admin
+                    Admin &amp; Finance
                   </span>
                 </div>
                 <div>
-                  <div className="text-xs sm:text-sm font-black text-slate-900">Login as Admin</div>
+                  <div className="text-xs sm:text-sm font-black text-slate-900">Admin / Accountant</div>
                   <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                    Management &amp; Settings
+                    Google Sign-In Required for Accountants
                   </p>
                 </div>
                 {selectedBox === 'admin' && (
@@ -517,8 +537,11 @@ export const PlatformLockScreen: React.FC = () => {
                       />
                     </svg>
                   )}
-                  <span>{isGoogleSigningIn ? 'Signing In...' : 'Sign In with Google Admin'}</span>
+                  <span>{isGoogleSigningIn ? 'Signing In...' : 'Sign In with Google (Admin & Accountant)'}</span>
                 </button>
+                <p className="text-[10px] text-center text-slate-500 font-medium">
+                  Accountants &amp; Administrators use Google Sign-In for role-verified access.
+                </p>
               </div>
             )}
 
