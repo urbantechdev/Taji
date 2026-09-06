@@ -43,54 +43,66 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
   };
 
   return (
-    <footer className="bg-gradient-to-b from-[#8C0034] via-[#75002C] to-[#5C0022] text-rose-100 border-t border-rose-900 relative z-20" id="storefront-footer">
+    <footer className="relative z-20 text-rose-100 mt-6" id="storefront-footer">
       
-      {/* Main Elaborate Footer Links Body */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10">
-          
-          {/* Column 1: Brand Identity & About (4 Cols) */}
-          <div className="lg:col-span-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white p-0.5 border border-white/30 shadow-md">
-                <img
-                  src={displayLogo}
-                  alt={brandName}
-                  className="w-full h-full object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <div>
-                <span 
-                  className="text-2xl font-black tracking-tight text-white"
-                  style={{ fontFamily: "'Audiowide', sans-serif" }}
-                >
-                  {brandName}
-                </span>
-                <p className="text-[10px] font-semibold text-rose-300 uppercase tracking-widest">
-                  Textile Enterprise
-                </p>
-              </div>
-            </div>
+      {/* Curved Single Wave Design Top Edge */}
+      <div className="w-full overflow-hidden leading-none select-none pointer-events-none">
+        <svg
+          viewBox="0 0 1440 120"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-full h-12 sm:h-16 md:h-20 lg:h-24 block translate-y-[1px]"
+          preserveAspectRatio="none"
+        >
+          {/* Subtle textile accent curve */}
+          <path
+            d="M0,75 C320,20 1020,130 1440,75 L1440,120 L0,120 Z"
+            fill="#B50044"
+            fillOpacity="0.25"
+          />
+          {/* Main single wave curve */}
+          <path
+            d="M0,60 C360,0 1080,120 1440,60 L1440,120 L0,120 Z"
+            fill="#8C0034"
+          />
+        </svg>
+      </div>
 
-            <p className="text-xs text-rose-100/90 leading-relaxed">
-              Taji is Kenya's dedicated textile enterprise providing wholesale &amp; retail supply of structured <strong>Dereck suiting fabrics</strong>, anti-pill <strong>Polar &amp; Coral Fleece</strong> rolls, and 100% High-Bulk <strong>Acrylic &amp; Cotton Knitting Yarns</strong>.
-            </p>
-
-            {/* Corporate Tax / Compliance Badges */}
-            <div className="p-3 bg-black/25 rounded-xl border border-white/15 text-[11px] font-mono text-rose-200 space-y-1">
-              <div className="flex justify-between">
-                <span>KRA PIN:</span>
-                <span className="text-white font-bold">P051982341Z</span>
+      <div className="bg-gradient-to-b from-[#8C0034] via-[#75002C] to-[#5C0022]">
+        {/* Main Elaborate Footer Links Body */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10">
+            
+            {/* Column 1: Brand Identity & About (4 Cols) */}
+            <div className="lg:col-span-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white p-0.5 border border-white/30 shadow-md">
+                  <img
+                    src={displayLogo}
+                    alt={brandName}
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div>
+                  <span 
+                    className="text-2xl font-black tracking-tight text-white"
+                    style={{ fontFamily: "'Audiowide', sans-serif" }}
+                  >
+                    {brandName}
+                  </span>
+                  <p className="text-[10px] font-semibold text-rose-300 uppercase tracking-widest">
+                    Textile Enterprise
+                  </p>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>ETR CU Serial:</span>
-                <span className="text-white font-bold">KRA-CU-8812930</span>
-              </div>
-            </div>
 
-            {/* Newsletter Subscription */}
-            <div className="pt-2 space-y-2">
+              <p className="text-xs text-rose-100/90 leading-relaxed">
+                Taji is Kenya's dedicated textile enterprise providing wholesale &amp; retail supply of structured <strong>Dereck suiting fabrics</strong>, anti-pill <strong>Polar &amp; Coral Fleece</strong> rolls, and 100% High-Bulk <strong>Acrylic &amp; Cotton Knitting Yarns</strong>.
+              </p>
+
+              {/* Newsletter Subscription */}
+              <div className="pt-2 space-y-2">
               <span className="text-xs font-bold text-white">
                 Receive Textile Shipment &amp; Bulk Price Alerts
               </span>
@@ -227,6 +239,15 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
                   <span>Direct Delivery Support</span>
                 </button>
               </li>
+              <li>
+                <button
+                  onClick={onOpenAdminPortal}
+                  className="hover:text-amber-200 transition-colors flex items-center gap-1.5 cursor-pointer text-left font-medium"
+                >
+                  <Lock className="w-3 h-3 text-rose-300" />
+                  <span>System Portal (system.tajiknitters.com)</span>
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -305,6 +326,7 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
         </div>
       </div>
 
+      </div>
     </footer>
   );
 };

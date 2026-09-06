@@ -88,7 +88,8 @@ export const InventoryCatalog: React.FC = () => {
     currentUser,
     isAdmin,
     invoiceBatches,
-    setActiveNavTab
+    setActiveNavTab,
+    setAccountantSubTab
   } = useERP();
 
   // Role-Based Feature Permission Gates
@@ -97,7 +98,7 @@ export const InventoryCatalog: React.FC = () => {
   const canEditPrices = isAdmin || hasPermission(currentUser.role, 'canEditMasterPricing');
   const canDelete = isAdmin || hasPermission(currentUser.role, 'canDeleteInventory');
   const canTareWeight = isAdmin || hasPermission(currentUser.role, 'canDispatchTransfers');
-  const canAccessVendors = isAdmin || hasPermission(currentUser.role, 'canAccessVendorDirectory');
+  const canAccessVendors = isAdmin || hasPermission(currentUser.role, 'canManageGeneralLedger') || hasPermission(currentUser.role, 'canAddProductBatches');
   const isCashier = isCashierRole(currentUser.role);
 
   const [isDuplicateAuditOpen, setIsDuplicateAuditOpen] = useState(false);
@@ -575,10 +576,10 @@ export const InventoryCatalog: React.FC = () => {
                       setIsCategoryIntakeOpen(true);
                     }}
                     className="px-2.5 py-1.5 hover:bg-pink-50 text-pink-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                    title="Category Barcode Scanner Intake Mode for Fleeces, Dereec & Yarns"
+                    title="Sequential Product Barcode Intake (Invoice -> Category -> Price -> Scan)"
                   >
                     <Barcode className="w-3.5 h-3.5 text-pink-600" />
-                    <span>Intake Mode</span>
+                    <span>Product Intake</span>
                   </button>
 
                   <button
@@ -1937,6 +1938,11 @@ export const InventoryCatalog: React.FC = () => {
           setSelectedSupplierForInvoice(undefined);
         }}
         preselectedSupplier={selectedSupplierForInvoice}
+        onOpenCostingSuite={() => {
+          setIsInwardInvoiceModalOpen(false);
+          if (setAccountantSubTab) setAccountantSubTab('import_costing');
+          setActiveNavTab('ledger');
+        }}
       />
 
     </div>

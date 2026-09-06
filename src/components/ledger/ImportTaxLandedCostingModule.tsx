@@ -60,6 +60,7 @@ import { KRAVat3ReconcilerTab } from './KRAVat3ReconcilerTab';
 import { MonthEndFastTrackWizard } from './MonthEndFastTrackWizard';
 import { LocalPurchaseCostingTab } from './LocalPurchaseCostingTab';
 import { ImportPaymentDisbursalSection } from './ImportPaymentDisbursalSection';
+import { TaxableBaseOverridePanel } from './TaxableBaseOverridePanel';
 
 export const ImportTaxLandedCostingModule: React.FC = () => {
   const {
@@ -71,7 +72,10 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
     addLedgerEntry,
     updateProductBatch,
     saveOrSyncInvoiceToInventory,
-    setActiveNavTab
+    setActiveNavTab,
+    addInputVatClaim,
+    recordAuditLog,
+    suppliers
   } = useERP();
 
   // Active Sub-Tab within the Accountant Landed Costing & Tax Suite
@@ -89,8 +93,21 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
   const [isInwardInvoiceModalOpen, setIsInwardInvoiceModalOpen] = useState(false);
   const [selectedSupplierForInvoice, setSelectedSupplierForInvoice] = useState<Supplier | undefined>(undefined);
 
-  // Active Shipment Record State (Initialized with Zhejiang Puan 26PA222 Preset)
-  const [activeShipment, setActiveShipment] = useState<ImportShipmentRecord>(PRESET_INVOICE_26PA222);
+  // Active Shipment Record State (Initialized with saved shipment or default preset)
+  const [activeShipment, setActiveShipment] = useState<ImportShipmentRecord>(() => {
+    try {
+      const saved = localStorage.getItem('taji_active_import_shipment');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id && parsed.lineItems && parsed.lineItems.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading active shipment from localStorage:', e);
+    }
+    return PRESET_INVOICE_26PA222;
+  });
   const [selectedPresetKey, setSelectedPresetKey] = useState<'26pa222' | 'sad_400968589' | 'udey' | 'fleece' | 'custom'>('26pa222');
   const [showSideBySideComparison, setShowSideBySideComparison] = useState(false);
 
@@ -110,9 +127,18 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
   } | null>(null);
 
   // Capitalization and Change Tracking State (Blinks Approve & Capitalize button upon changes)
-  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>(() => JSON.stringify(PRESET_INVOICE_26PA222));
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>(() => JSON.stringify(activeShipment));
   const [hasUncapitalizedChanges, setHasUncapitalizedChanges] = useState<boolean>(false);
   const isPresetSwitchingRef = useRef(false);
+
+  // Persist active shipment to local storage for persistent session continuity
+  useEffect(() => {
+    try {
+      localStorage.setItem('taji_active_import_shipment', JSON.stringify(activeShipment));
+    } catch (e) {
+      console.warn('Error persisting active shipment:', e);
+    }
+  }, [activeShipment]);
 
   // Detect whenever changes are made in the accountant section to trigger the blinking reminder
   useEffect(() => {
@@ -150,6 +176,10 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         cocFeesUSD: activeShipment.cocFeesUSD,
         totalFreightUSD: activeShipment.totalFreightUSD,
         totalInsuranceUSD: activeShipment.totalInsuranceUSD,
+        totalFreightKES: activeShipment.totalFreightKES,
+        totalInsuranceKES: activeShipment.totalInsuranceKES,
+        overrideCustomsValueKES: activeShipment.overrideCustomsValueKES,
+        taxableBaseOverride: activeShipment.taxableBaseOverride,
         portClearingFeesKES: activeShipment.portClearingFeesKES,
         targetMarkupPct: activeShipment.targetMarkupPct
       },
@@ -172,6 +202,10 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         cocFeesUSD: PRESET_INVOICE_26PA222.cocFeesUSD,
         totalFreightUSD: PRESET_INVOICE_26PA222.totalFreightUSD,
         totalInsuranceUSD: PRESET_INVOICE_26PA222.totalInsuranceUSD,
+        totalFreightKES: PRESET_INVOICE_26PA222.totalFreightKES,
+        totalInsuranceKES: PRESET_INVOICE_26PA222.totalInsuranceKES,
+        overrideCustomsValueKES: PRESET_INVOICE_26PA222.overrideCustomsValueKES,
+        taxableBaseOverride: PRESET_INVOICE_26PA222.taxableBaseOverride,
         portClearingFeesKES: PRESET_INVOICE_26PA222.portClearingFeesKES,
         targetMarkupPct: PRESET_INVOICE_26PA222.targetMarkupPct
       },
@@ -193,6 +227,10 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         cocFeesUSD: PRESET_SAD_26EMKIM400968589.cocFeesUSD,
         totalFreightUSD: PRESET_SAD_26EMKIM400968589.totalFreightUSD,
         totalInsuranceUSD: PRESET_SAD_26EMKIM400968589.totalInsuranceUSD,
+        totalFreightKES: PRESET_SAD_26EMKIM400968589.totalFreightKES,
+        totalInsuranceKES: PRESET_SAD_26EMKIM400968589.totalInsuranceKES,
+        overrideCustomsValueKES: PRESET_SAD_26EMKIM400968589.overrideCustomsValueKES,
+        taxableBaseOverride: PRESET_SAD_26EMKIM400968589.taxableBaseOverride,
         portClearingFeesKES: PRESET_SAD_26EMKIM400968589.portClearingFeesKES,
         targetMarkupPct: PRESET_SAD_26EMKIM400968589.targetMarkupPct
       },
@@ -336,6 +374,26 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         category: 'Tax VAT'
       });
 
+      // Register official KRA Input VAT Claim in VAT-3 Registry
+      if (vatClaim > 0 && addInputVatClaim) {
+        try {
+          addInputVatClaim({
+            supplierName: activeShipment.supplierName,
+            supplierPin: activeShipment.supplierPin || 'P051656758Y',
+            supplierCuInvoiceNo: activeShipment.customsEntryNo,
+            purchaseCategory: 'Raw Material (Yarn/Fleece/Dereck)',
+            purchaseDate: activeShipment.dateOfAssessment || activeShipment.invoiceDate || new Date().toISOString().split('T')[0],
+            taxableAmount: costingSummary.totalCustomsValueKES,
+            vatClaimable: vatClaim,
+            grossAmount: costingSummary.totalCustomsValueKES + vatClaim,
+            etimsVerified: true,
+            status: 'Claimed'
+          });
+        } catch (vatErr) {
+          console.warn('Auto-register VAT claim notice:', vatErr);
+        }
+      }
+
       // 3. Post Credit to KRA Customs Duties & Levies Payable
       addLedgerEntry({
         transactionRef: journalRef,
@@ -399,6 +457,13 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
         await saveOrSyncInvoiceToInventory(capitalizedRecord, 'Capitalized');
       } catch (syncErr) {
         console.warn('Auto-sync to inventory notice:', syncErr);
+      }
+
+      if (recordAuditLog) {
+        recordAuditLog(
+          'Import Shipment Capitalized',
+          `Capitalized import shipment ${activeShipment.invoiceNumber} (SAD ${activeShipment.customsEntryNo}) with Landed Asset KSh ${Math.round(totalLandedExclVat).toLocaleString()} and VAT 1202 claim KSh ${Math.round(vatClaim).toLocaleString()}. Journal ref: ${journalRef}`
+        );
       }
 
       setCapitalizationSuccess({
@@ -1480,6 +1545,194 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
               </div>
             </div>
 
+            {/* Direct SAD Entry Import / Override Hook */}
+            <div className="pt-2 border-t border-slate-100">
+              <div className={`p-3 rounded-xl border transition-all ${
+                activeShipment.taxableBaseOverride?.isEnabled
+                  ? 'bg-amber-950/20 border-amber-500/60 text-slate-800 shadow-sm'
+                  : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      id="toggle-direct-sad-override"
+                      checked={activeShipment.taxableBaseOverride?.isEnabled ?? false}
+                      onChange={e => {
+                        const isChecked = e.target.checked;
+                        setActiveShipment(prev => {
+                          const currentOverride = prev.taxableBaseOverride || {
+                            isEnabled: false,
+                            declaredFOB_USD: prev.lineItems.reduce((acc, it) => acc + it.fobUSD, 0),
+                            declaredFreightKES: prev.totalFreightKES || 517866.39,
+                            declaredInsuranceKES: prev.totalInsuranceKES || 3236.66,
+                            declaredExchangeRate: prev.exchangeRate,
+                            overrideCustomsValueKES: prev.overrideCustomsValueKES || 5298546.07
+                          };
+                          return {
+                            ...prev,
+                            taxableBaseOverride: {
+                              ...currentOverride,
+                              isEnabled: isChecked,
+                              overrideCustomsValueKES: isChecked ? (currentOverride.overrideCustomsValueKES || 5298546.07) : undefined,
+                              declaredFreightKES: isChecked ? (currentOverride.declaredFreightKES || 517866.39) : undefined,
+                              declaredInsuranceKES: isChecked ? (currentOverride.declaredInsuranceKES || 3236.66) : undefined
+                            }
+                          };
+                        });
+                      }}
+                      className="rounded text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Direct SAD Entry Import / Override Hook</span>
+                    </span>
+                  </label>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    activeShipment.taxableBaseOverride?.isEnabled
+                      ? 'bg-amber-100 text-amber-900 font-mono border border-amber-300'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {activeShipment.taxableBaseOverride?.isEnabled ? 'LOCKED TO SAD' : 'PROFORMA AUTO'}
+                  </span>
+                </div>
+
+                <p className="text-[10.5px] text-slate-500 mb-2 leading-relaxed">
+                  Directly inject official SAD ICMS customs valuation and CIF components from the KRA E-Slip PDF without proforma inflation.
+                </p>
+
+                {activeShipment.taxableBaseOverride?.isEnabled ? (
+                  <div className="space-y-2.5 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {/* Direct Box 46 Customs Value KES */}
+                      <div className="col-span-1 sm:col-span-2 bg-white p-2 rounded-lg border border-amber-300">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-bold text-amber-950">
+                            Box 46 Total Customs Value (KES)
+                          </label>
+                          <span className="text-[9.5px] font-mono text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                            SAD 26EMKIM400968589
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-amber-700 font-mono">KSh</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={activeShipment.taxableBaseOverride?.overrideCustomsValueKES ?? activeShipment.overrideCustomsValueKES ?? 5298546.07}
+                            onChange={e => {
+                              const val = parseFloat(e.target.value) || 0;
+                              setActiveShipment(prev => ({
+                                ...prev,
+                                overrideCustomsValueKES: val,
+                                taxableBaseOverride: {
+                                  ...(prev.taxableBaseOverride || { isEnabled: true }),
+                                  overrideCustomsValueKES: val
+                                }
+                              }));
+                            }}
+                            className="w-full px-2 py-1 bg-amber-50/50 border border-amber-400 rounded text-xs font-mono font-black text-amber-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                            placeholder="5298546.07"
+                          />
+                        </div>
+                        <span className="text-[9.5px] text-slate-500 mt-1 block">
+                          Master tax baseline: 1002, 1202, 1801, 6001 computed directly against this value
+                        </span>
+                      </div>
+
+                      {/* Declared Line Freight KES */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                          Box 9a Declared Freight (KES)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={activeShipment.taxableBaseOverride?.declaredFreightKES ?? 517866.39}
+                          onChange={e => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setActiveShipment(prev => ({
+                              ...prev,
+                              totalFreightKES: val,
+                              taxableBaseOverride: {
+                                ...(prev.taxableBaseOverride || { isEnabled: true }),
+                                declaredFreightKES: val
+                              }
+                            }));
+                          }}
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-slate-900"
+                          placeholder="517866.39"
+                        />
+                      </div>
+
+                      {/* Declared Line Insurance KES */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                          Box 9b Declared Insurance (KES)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={activeShipment.taxableBaseOverride?.declaredInsuranceKES ?? 3236.66}
+                          onChange={e => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setActiveShipment(prev => ({
+                              ...prev,
+                              totalInsuranceKES: val,
+                              taxableBaseOverride: {
+                                ...(prev.taxableBaseOverride || { isEnabled: true }),
+                                declaredInsuranceKES: val
+                              }
+                            }));
+                          }}
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-slate-900"
+                          placeholder="3236.66"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPreset('sad_400968589')}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10.5px] rounded-lg transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                      >
+                        <Zap className="w-3 h-3 text-amber-200" />
+                        <span>Load SAD 26EMKIM400968589 (KSh 5,298,546.07)</span>
+                      </button>
+                      <span className="text-[10px] font-mono text-emerald-700 font-bold">
+                        ✓ ICMS Apportionment Active
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveShipment(prev => ({
+                        ...prev,
+                        taxableBaseOverride: {
+                          isEnabled: true,
+                          declaredFOB_USD: 36923.40,
+                          declaredFreightKES: 517866.39,
+                          declaredInsuranceKES: 3236.66,
+                          declaredExchangeRate: 129.38999,
+                          overrideCustomsValueKES: 5298546.07
+                        },
+                        totalFreightKES: 517866.39,
+                        totalInsuranceKES: 3236.66,
+                        overrideCustomsValueKES: 5298546.07
+                      }));
+                    }}
+                    className="w-full py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Enable SAD Override &amp; Lock Master Baseline</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Tax Tariff Rates Header & Dynamic USD Specific Duty Benchmark */}
             <div className="pt-2 border-t border-slate-100 space-y-2.5">
               <div className="flex items-center justify-between">
@@ -1731,6 +1984,25 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* DIRECT SAD ENTRY IMPORT / OVERRIDE HOOK & RECONCILIATION PANEL */}
+      <TaxableBaseOverridePanel
+        shipment={activeShipment}
+        summary={costingSummary}
+        effectiveExchangeRate={effectiveExchangeRate}
+        onUpdateOverride={(override) => {
+          setActiveShipment(prev => ({
+            ...prev,
+            taxableBaseOverride: override,
+            totalFreightKES: override?.isEnabled ? (override.declaredFreightKES ?? prev.totalFreightKES) : prev.totalFreightKES,
+            totalInsuranceKES: override?.isEnabled ? (override.declaredInsuranceKES ?? prev.totalInsuranceKES) : prev.totalInsuranceKES,
+            overrideCustomsValueKES: override?.isEnabled ? (override.overrideCustomsValueKES ?? prev.overrideCustomsValueKES) : prev.overrideCustomsValueKES
+          }));
+        }}
+        onUpdateShipmentField={(field, val) => {
+          setActiveShipment(prev => ({ ...prev, [field]: val }));
+        }}
+      />
 
       {/* 3-WAY IMPORT DISBURSAL & PAYMENT SECTION (USD SUPPLIER • KES KRA • KES CLEARING) */}
       <ImportPaymentDisbursalSection
@@ -2227,6 +2499,12 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
           setSelectedSupplierForInvoice(undefined);
         }}
         preselectedSupplier={selectedSupplierForInvoice}
+        onOpenCostingSuite={(record, type) => {
+          setIsInwardInvoiceModalOpen(false);
+          if (type === 'import' && 'lineItems' in record) {
+            setActiveShipment(record as ImportShipmentRecord);
+          }
+        }}
       />
 
       {/* Sticky Bottom Capitalization Reminder when changes are detected */}

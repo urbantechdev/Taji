@@ -593,32 +593,15 @@ export const PlatformLockScreen: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex items-center justify-center gap-2 pt-0.5">
-                  <span className="text-[10px] text-slate-400 font-medium">Quick PINs:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPin('123456');
-                      attemptUnlock('123456');
-                    }}
-                    className="text-[10px] font-bold bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
-                  >
-                    Admin (123456)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPin('654321');
-                      attemptUnlock('654321');
-                    }}
-                    className="text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
-                  >
-                    Accountant (654321)
-                  </button>
+                <div className="flex items-center justify-center gap-1.5 pt-1 text-center">
+                  <ShieldCheck className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    Strict Authentication Enforced • Authorized Personnel Only
+                  </span>
                 </div>
 
                 <p className="text-[10px] text-center text-slate-500 font-medium">
-                  Accountants &amp; Administrators use Google Sign-In for role-verified access.
+                  Accountants &amp; Administrators use 6-digit PIN or Google Sign-In for role-verified access.
                 </p>
               </div>
             )}

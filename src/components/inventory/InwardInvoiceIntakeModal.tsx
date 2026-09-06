@@ -48,7 +48,8 @@ import {
   Lock,
   Unlock,
   ShieldAlert,
-  FileCheck
+  FileCheck,
+  Ship
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
 
@@ -458,6 +459,90 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
         return item;
       })
     );
+  };
+
+  // Construct and bridge active invoice record into the Landed Costing & Tax Suite
+  const handleOpenInCostingSuite = () => {
+    if (!onOpenCostingSuite) return;
+    playClickSound();
+    if (supplyType === 'import') {
+      const record: ImportShipmentRecord = {
+        id: `SHP-${invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}`,
+        shipmentNumber: `SHP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        invoiceNumber,
+        invoiceDate,
+        supplierName: currentSupplier?.name || 'Overseas Supplier',
+        supplierCountry: currentSupplier?.country || 'China',
+        supplierPin: currentSupplier?.kraPin,
+        consigneeName: 'TAJI KNITTERS LIMITED',
+        consigneePin: 'P051656758Y',
+        declarantName: 'Blue Pearl Logistics Limited',
+        declarantPin: 'P051506858S',
+        portOfEntry: 'ICD EMBAKASI',
+        customsEntryNo: customsOrEtimsRef,
+        kraEslipRef,
+        destinationLocationId: destinationLocation,
+        exchangeRate,
+        specificDutyUSDPerTonne: 750,
+        specificDutyRatePerTonne: 750 * exchangeRate,
+        adValoremRatePct: 25.0,
+        idfRatePct: 2.5,
+        rdlRatePct: 2.0,
+        vatRatePct: 16.0,
+        mssLevyUSDRatePerTonne: 1.75,
+        cocFeesUSD,
+        totalFreightUSD,
+        totalInsuranceUSD,
+        totalFreightKES: totalFreightUSD * exchangeRate,
+        totalInsuranceKES: totalInsuranceUSD * exchangeRate,
+        portClearingFeesKES,
+        targetMarkupPct: 35.0,
+        status: 'assessed',
+        lineItems: draftItems.map((item, idx) => ({
+          id: item.id || `LI-${idx + 1}`,
+          description: item.name,
+          hsCode: item.hsCode || '6006.32.00',
+          category: (item.category as any) || 'Dereck',
+          netWeightKg: item.grossWeightKg * 0.95 || 1000,
+          grossWeightKg: item.grossWeightKg || 1050,
+          fabricLengthMetres: item.unit === 'meter' ? item.quantity : undefined,
+          unit: item.unit,
+          fobUSD: (item.unitPriceUSD || 2.0) * (item.unit === 'meter' ? item.quantity : item.grossWeightKg),
+          unitFobUSD: item.unitPriceUSD || 2.0,
+          freightUSD: 0,
+          insuranceUSD: 0,
+          customsValueKES: 0,
+          dutyAppliedKES: 0,
+          landedCostKES: 0,
+          landedCostPerUnitKES: 0,
+          suggestedRetailKES: 0,
+          matchedProductId: item.matchedProductId
+        }))
+      };
+      onOpenCostingSuite(record, 'import');
+    } else {
+      const localRecord: any = {
+        id: `LPO-${invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}`,
+        invoiceNumber,
+        invoiceDate,
+        supplierName: currentSupplier?.name || 'Domestic Supplier',
+        supplierPin: currentSupplier?.kraPin,
+        customsOrEtimsRef,
+        destinationLocationId: destinationLocation,
+        localFreightKES,
+        portClearingFeesKES,
+        status: 'received',
+        lineItems: draftItems.map((item, idx) => ({
+          id: item.id || `L-LI-${idx + 1}`,
+          description: item.name,
+          unitPriceKES: item.unitPriceKES || 250,
+          quantity: item.quantity || 1000,
+          unit: item.unit || 'meter',
+          matchedProductId: item.matchedProductId
+        }))
+      };
+      onOpenCostingSuite(localRecord, 'local');
+    }
   };
 
   // Capitalize directly to both Inventory Catalog & General Ledger
@@ -1671,7 +1756,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
 
         {/* Wizard Footer Controls */}
         <div className="p-4 border-t border-slate-200 bg-white flex items-center justify-between shrink-0">
-          <div>
+          <div className="flex items-center gap-2">
             {currentStep > 1 && !capitalizationResult && (
               <button
                 type="button"
@@ -1680,6 +1765,18 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>Back</span>
+              </button>
+            )}
+
+            {onOpenCostingSuite && !capitalizationResult && (
+              <button
+                type="button"
+                onClick={handleOpenInCostingSuite}
+                className="px-3.5 py-2 rounded-xl bg-sky-50 border border-sky-200 hover:bg-sky-100 text-sky-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title="Transfer and edit this invoice directly in the Accountant Landed Costing & Tax Suite"
+              >
+                <Ship className="w-4 h-4 text-sky-600" />
+                <span>Open in Landed Costing Suite</span>
               </button>
             )}
           </div>

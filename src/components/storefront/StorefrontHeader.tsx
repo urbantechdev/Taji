@@ -10,7 +10,8 @@ import {
   Menu,
   X,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Lock
 } from 'lucide-react';
 
 interface StorefrontHeaderProps {
@@ -28,6 +29,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
   onOpenCart,
   onOpenTrackOrder,
   onOpenContact,
+  onOpenAdminPortal,
   searchQuery,
   setSearchQuery,
   selectedCategory,
@@ -138,6 +140,20 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
               <MapPin className="w-4 h-4 text-rose-600" />
               <span>Branches</span>
             </button>
+
+            {/* System Portal Link (system.tajiknitters.com) */}
+            {onOpenAdminPortal && (
+              <button
+                type="button"
+                onClick={onOpenAdminPortal}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-rose-700 hover:bg-rose-50/50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200"
+                title="Open Internal ERP & POS (system.tajiknitters.com)"
+                id="header-system-portal-button"
+              >
+                <Lock className="w-3.5 h-3.5 text-slate-500" />
+                <span>System Portal</span>
+              </button>
+            )}
 
             {/* Shopping Cart Button */}
             <button
@@ -315,6 +331,24 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
                 <MapPin className="w-4 h-4 text-rose-600" />
                 <span>Branch Locations &amp; Contacts</span>
               </button>
+
+              {onOpenAdminPortal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onOpenAdminPortal();
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-900 text-white font-bold text-xs flex items-center justify-between shadow-xs cursor-pointer"
+                  id="mobile-drawer-system-portal-button"
+                >
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-rose-400" />
+                    <span>System Portal (system.tajiknitters.com)</span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-slate-400" />
+                </button>
+              )}
             </div>
           </motion.div>
         )}

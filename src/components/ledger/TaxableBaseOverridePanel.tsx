@@ -117,21 +117,61 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
       isEnabled: true,
       declaredFOB_USD: 36900.00,
       declaredNetWeightKg: 22600.0,
-      declaredGrossWeightKg: 22850.0,
-      declaredFreightUSD: 5500.00,
-      declaredInsuranceUSD: 14.38,
+      declaredGrossWeightKg: 22600.0,
+      declaredFreightUSD: 3999.8949,
+      declaredInsuranceUSD: 24.9993,
+      declaredFreightKES: 517866.39,
+      declaredInsuranceKES: 3236.66,
       declaredExchangeRate: 129.47,
-      overrideCustomsValueKES: 5491374.06,
+      overrideCustomsValueKES: 5298546.07,
       customsEntryNo: '26EMKIM400968589',
       kraEslipRef: '1020260001009685',
       valuationMethod: 'benchmark_adjusted',
-      justificationReason: 'KRA ICMS valuation benchmark override at ICD Embakasi (Declared FOB USD 36,900.00 vs Commercial FOB USD 46,974.49)'
+      justificationReason: 'Official KRA SAD entry 26EMKIM400968589 assessment at ICD Embakasi (Total Customs Value KSh 5,298,546.07)',
+      itemOverrides: {
+        'LI-001': {
+          declaredFobUSD: 36000.00,
+          declaredNetWeightKg: 22000.0,
+          declaredGrossWeightKg: 22000.0,
+          freightKES: 504117.73,
+          insuranceKES: 3157.72,
+          customsValueKES: 5168195.46
+        },
+        'LI-002': {
+          declaredFobUSD: 900.00,
+          declaredNetWeightKg: 600.0,
+          declaredGrossWeightKg: 600.0,
+          freightKES: 13748.67,
+          insuranceKES: 78.94,
+          customsValueKES: 130350.61
+        },
+        'LI-SAD-001': {
+          declaredFobUSD: 36000.00,
+          declaredNetWeightKg: 22000.0,
+          declaredGrossWeightKg: 22000.0,
+          freightKES: 504117.73,
+          insuranceKES: 3157.72,
+          customsValueKES: 5168195.46
+        },
+        'LI-SAD-002': {
+          declaredFobUSD: 900.00,
+          declaredNetWeightKg: 600.0,
+          declaredGrossWeightKg: 600.0,
+          freightKES: 13748.67,
+          insuranceKES: 78.94,
+          customsValueKES: 130350.61
+        }
+      }
     };
     onUpdateOverride(officialSAD);
     setUseManualBox46(true);
     if (onUpdateShipmentField) {
       onUpdateShipmentField('customsEntryNo', '26EMKIM400968589');
       onUpdateShipmentField('kraEslipRef', '1020260001009685');
+      onUpdateShipmentField('totalFreightKES', 517866.39);
+      onUpdateShipmentField('totalInsuranceKES', 3236.66);
+      onUpdateShipmentField('overrideCustomsValueKES', 5298546.07);
+      onUpdateShipmentField('isSadOverrideActive', true);
     }
   };
 
@@ -160,32 +200,32 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
   const isOverridden = Boolean(varianceSummary?.isOverridden);
 
   return (
-    <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-xl overflow-hidden text-white space-y-0">
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden text-slate-900 space-y-0" id="section-kra-taxable-base-override">
       
       {/* SECTION HEADER & CONTROL BAR */}
-      <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-750 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className={`p-2.5 rounded-xl shadow-md shrink-0 mt-0.5 ${isEnabled ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+          <div className={`p-2.5 rounded-xl shadow-xs shrink-0 mt-0.5 ${isEnabled ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
             <Sliders className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-black text-sm sm:text-base text-white flex items-center gap-2">
+              <h3 className="font-black text-sm sm:text-base text-slate-900 flex items-center gap-2">
                 KRA Taxable Base Override &amp; Customs SAD Valuation
               </h3>
               <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
                 isEnabled
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-400/50 animate-pulse'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                  ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
+                  : 'bg-slate-100 text-slate-600 border-slate-200'
               }`}>
                 {isEnabled ? 'OVERRIDE ACTIVE (KRA SAD VALUATION)' : 'INACTIVE (COMMERCIAL BASE)'}
               </span>
-              <span className="text-[10px] font-mono bg-emerald-950/80 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800/80 flex items-center gap-1">
-                <Lock className="w-3 h-3 text-emerald-400" />
+              <span className="text-[10px] font-mono bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 font-semibold">
+                <Lock className="w-3 h-3 text-emerald-600" />
                 AP Protected (GL #2000)
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1 max-w-3xl leading-relaxed">
+            <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
               Reconcile official KRA SAD declarations (e.g. Cleared FOB USD 36,900 &amp; Net Weight 22,600 kg) for customs taxes without corrupting the true Commercial Invoice liability ($46,974.49) owed in Accounts Payable.
             </p>
           </div>
@@ -198,7 +238,7 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
             type="button"
             id="btn-quick-load-sad-400968589"
             onClick={handleLoadOfficialSAD400968589}
-            className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
             title="Load Official KRA SAD Entry 26EMKIM400968589 ($36,900 FOB / 22,600 kg)"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
@@ -210,10 +250,10 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
             type="button"
             id="btn-auto-populate-invoice"
             onClick={handleAutoPopulateFromInvoice}
-            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
             title="Pull initial values directly from Commercial Invoice"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <RefreshCw className="w-3.5 h-3.5 text-blue-600 shrink-0" />
             <span>Sync Invoice</span>
           </button>
 
@@ -226,8 +266,8 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
               onChange={e => handleToggleEnable(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
-            <span className="ml-2 text-xs font-bold text-slate-300">
+            <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+            <span className="ml-2 text-xs font-bold text-slate-700">
               {isEnabled ? 'Enabled' : 'Disabled'}
             </span>
           </label>
@@ -241,83 +281,83 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
           {/* REALITY 1: ACCOUNTS PAYABLE (IMMUTABLE COMMERCIAL REALITY) */}
-          <div className="lg:col-span-5 bg-slate-950/80 rounded-xl p-4 border border-blue-500/30 space-y-3 relative overflow-hidden">
-            <div className="absolute top-0 right-0 px-3 py-1 bg-blue-500/10 border-b border-l border-blue-500/30 rounded-bl-lg text-[10px] font-mono font-bold text-blue-300 flex items-center gap-1">
-              <Lock className="w-3 h-3 text-blue-400" />
+          <div className="lg:col-span-5 bg-blue-50/60 rounded-xl p-4 border border-blue-200 space-y-3 relative overflow-hidden">
+            <div className="absolute top-0 right-0 px-3 py-1 bg-blue-100 border-b border-l border-blue-200 rounded-bl-lg text-[10px] font-mono font-bold text-blue-800 flex items-center gap-1">
+              <Lock className="w-3 h-3 text-blue-600" />
               <span>ACCOUNTS PAYABLE REALITY</span>
             </div>
 
             <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-blue-400" />
-              <h4 className="font-extrabold text-xs uppercase tracking-wider text-blue-300">
+              <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+              <h4 className="font-extrabold text-xs uppercase tracking-wider text-blue-900">
                 Commercial Invoice Liability (GL #2010)
               </h4>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Supplier Name:</span>
-                <span className="font-bold text-slate-200 truncate max-w-[200px]" title={shipment.supplierName}>
+              <div className="flex items-center justify-between py-1 border-b border-blue-100">
+                <span className="text-slate-500 font-medium">Supplier Name:</span>
+                <span className="font-bold text-slate-900 truncate max-w-[200px]" title={shipment.supplierName}>
                   {shipment.supplierName}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Commercial Invoice #:</span>
-                <span className="font-mono font-bold text-blue-300">{shipment.invoiceNumber}</span>
+              <div className="flex items-center justify-between py-1 border-b border-blue-100">
+                <span className="text-slate-500 font-medium">Commercial Invoice #:</span>
+                <span className="font-mono font-bold text-blue-700">{shipment.invoiceNumber}</span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Invoiced Supplier FOB:</span>
-                <span className="font-mono font-bold text-white text-sm">
+              <div className="flex items-center justify-between py-1 border-b border-blue-100">
+                <span className="text-slate-500 font-medium">Invoiced Supplier FOB:</span>
+                <span className="font-mono font-bold text-slate-900 text-sm">
                   ${commFOB_USD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Commercial Net Weight:</span>
-                <span className="font-mono font-medium text-slate-200">
+              <div className="flex items-center justify-between py-1 border-b border-blue-100">
+                <span className="text-slate-500 font-medium">Commercial Net Weight:</span>
+                <span className="font-mono font-semibold text-slate-800">
                   {commNetWeightKg.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Commercial Gross Weight:</span>
-                <span className="font-mono font-medium text-slate-200">
+              <div className="flex items-center justify-between py-1 border-b border-blue-100">
+                <span className="text-slate-500 font-medium">Commercial Gross Weight:</span>
+                <span className="font-mono font-semibold text-slate-800">
                   {commGrossWeightKg.toLocaleString(undefined, { minimumFractionDigits: 1 })} kg
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Invoiced Freight &amp; Insurance:</span>
-                <span className="font-mono font-medium text-slate-200">
+              <div className="flex items-center justify-between py-1 border-b border-blue-100">
+                <span className="text-slate-500 font-medium">Invoiced Freight &amp; Insurance:</span>
+                <span className="font-mono font-semibold text-slate-800">
                   ${(commFreightUSD + commInsuranceUSD).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Accounting Spot FX Rate:</span>
-                <span className="font-mono font-medium text-slate-300">
+              <div className="flex items-center justify-between py-1 border-b border-blue-100">
+                <span className="text-slate-500 font-medium">Accounting Spot FX Rate:</span>
+                <span className="font-mono font-semibold text-slate-800">
                   KES {commExchangeRate.toFixed(2)} / USD
                 </span>
               </div>
             </div>
 
             {/* Total AP Obligation Banner */}
-            <div className="mt-3 p-3 bg-blue-950/60 rounded-xl border border-blue-800/60 flex items-center justify-between">
+            <div className="mt-3 p-3 bg-white rounded-xl border border-blue-200 shadow-2xs flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-blue-300 uppercase tracking-wider block font-bold">
+                <span className="text-[10px] text-blue-800 uppercase tracking-wider block font-bold">
                   Total AP Liability (Owed to Supplier):
                 </span>
-                <span className="text-sm font-black text-white font-mono">
+                <span className="text-sm font-black text-slate-900 font-mono">
                   ${totalCommLiabilityUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-blue-300 block font-mono">
+                <span className="text-[10px] text-slate-500 block font-mono">
                   KES Equivalent:
                 </span>
-                <span className="text-xs font-extrabold text-blue-200 font-mono">
+                <span className="text-xs font-black text-blue-800 font-mono">
                   KSh {totalCommLiabilityKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
               </div>
             </div>
 
-            <p className="text-[10.5px] text-slate-400 leading-relaxed italic">
+            <p className="text-[10.5px] text-slate-500 leading-relaxed italic">
               🔒 <strong>Strict Protection:</strong> This AP liability is recorded in General Ledger #2010. Payout via Stanbic Bank Nostro TT remains strictly anchored to the true supplier contract, unaffected by KRA customs valuations.
             </p>
           </div>
@@ -325,17 +365,17 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
           {/* REALITY 2: KRA CUSTOMS TAXABLE BASE (EDITABLE OVERRIDE PANEL) */}
           <div className={`lg:col-span-7 rounded-xl p-4 border transition-all space-y-4 ${
             isEnabled
-              ? 'bg-slate-950/90 border-amber-500/50 ring-1 ring-amber-500/20'
-              : 'bg-slate-950/40 border-slate-800 opacity-80'
+              ? 'bg-amber-50/40 border-amber-300 ring-1 ring-amber-400/30'
+              : 'bg-slate-50 border-slate-200 opacity-90'
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-amber-400" />
-                <h4 className="font-extrabold text-xs uppercase tracking-wider text-amber-300">
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
+                <h4 className="font-extrabold text-xs uppercase tracking-wider text-amber-900">
                   KRA Customs SAD Taxable Base (Assessment Parameters)
                 </h4>
               </div>
-              <span className="text-[10px] font-mono text-amber-300/80 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+              <span className="text-[10px] font-mono font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-200">
                 ICMS Valuation
               </span>
             </div>
@@ -345,9 +385,9 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
               
               {/* Declared FOB USD */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Declared FOB (USD)</span>
-                  <span className="text-[9.5px] font-mono text-amber-400">Box 22</span>
+                  <span className="text-[9.5px] font-mono text-amber-700 font-bold">Box 22</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-2 text-slate-400 font-mono">$</span>
@@ -357,20 +397,20 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
                     disabled={!isEnabled}
                     value={override?.declaredFOB_USD ?? commFOB_USD}
                     onChange={e => handleFieldChange('declaredFOB_USD', parseFloat(e.target.value) || 0)}
-                    className="w-full pl-6 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:bg-slate-900/50 disabled:text-slate-500"
+                    className="w-full pl-6 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                     placeholder="e.g. 36900.00"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">
                   Cleared FOB on SAD assessment
                 </span>
               </div>
 
               {/* Declared Net Weight KG */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Declared Net Wt (KG)</span>
-                  <span className="text-[9.5px] font-mono text-amber-400">Box 38</span>
+                  <span className="text-[9.5px] font-mono text-amber-700 font-bold">Box 38</span>
                 </label>
                 <div className="relative">
                   <input
@@ -379,20 +419,20 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
                     disabled={!isEnabled}
                     value={override?.declaredNetWeightKg ?? commNetWeightKg}
                     onChange={e => handleFieldChange('declaredNetWeightKg', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:bg-slate-900/50 disabled:text-slate-500"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                     placeholder="e.g. 22600.0"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">
                   Specific duty basis ($750/t)
                 </span>
               </div>
 
               {/* Declared Gross Weight KG */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>Declared Gross (KG)</span>
-                  <span className="text-[9.5px] font-mono text-amber-400">Box 35</span>
+                  <span className="text-[9.5px] font-mono text-amber-700 font-bold">Box 35</span>
                 </label>
                 <div className="relative">
                   <input
@@ -401,20 +441,20 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
                     disabled={!isEnabled}
                     value={override?.declaredGrossWeightKg ?? commGrossWeightKg}
                     onChange={e => handleFieldChange('declaredGrossWeightKg', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:bg-slate-900/50 disabled:text-slate-500"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                     placeholder="e.g. 22850.0"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">
                   MSS levy basis ($1.75/t)
                 </span>
               </div>
 
               {/* Declared Customs Exchange Rate */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>KRA Customs FX Rate</span>
-                  <span className="text-[9.5px] font-mono text-amber-400">SAD FX</span>
+                  <span className="text-[9.5px] font-mono text-amber-700 font-bold">SAD FX</span>
                 </label>
                 <div className="relative">
                   <input
@@ -423,56 +463,78 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
                     disabled={!isEnabled}
                     value={override?.declaredExchangeRate ?? commExchangeRate}
                     onChange={e => handleFieldChange('declaredExchangeRate', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:bg-slate-900/50 disabled:text-slate-500"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                     placeholder="e.g. 129.47"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block truncate">
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">
                   Customs rate on assessment
                 </span>
               </div>
 
-              {/* Declared Freight USD */}
+              {/* Declared Freight KES & USD */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Declared Freight (USD)
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Declared Freight (KES)</span>
+                  <span className="text-[9.5px] font-mono text-amber-700 font-bold">Box 9a</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-2 text-slate-400 font-mono">$</span>
+                  <span className="absolute left-2 top-2 text-slate-400 font-mono text-[10px]">KSh</span>
                   <input
                     type="number"
                     step="0.01"
                     disabled={!isEnabled}
-                    value={override?.declaredFreightUSD ?? commFreightUSD}
-                    onChange={e => handleFieldChange('declaredFreightUSD', parseFloat(e.target.value) || 0)}
-                    className="w-full pl-6 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:bg-slate-900/50 disabled:text-slate-500"
-                    placeholder="5500.00"
+                    value={override?.declaredFreightKES ?? (override?.declaredFreightUSD ? Number((override.declaredFreightUSD * (override.declaredExchangeRate || commExchangeRate)).toFixed(2)) : undefined)}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      handleFieldChange('declaredFreightKES', val);
+                      if (val > 0) {
+                        const fx = override?.declaredExchangeRate || commExchangeRate || 1;
+                        handleFieldChange('declaredFreightUSD', Number((val / fx).toFixed(4)));
+                      }
+                    }}
+                    className="w-full pl-9 pr-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                    placeholder="517866.39"
                   />
                 </div>
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">
+                  ${(override?.declaredFreightUSD ?? commFreightUSD).toFixed(2)} USD
+                </span>
               </div>
 
-              {/* Declared Insurance USD */}
+              {/* Declared Insurance KES & USD */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Declared Insurance (USD)
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Declared Insurance (KES)</span>
+                  <span className="text-[9.5px] font-mono text-amber-700 font-bold">Box 9b</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-2 text-slate-400 font-mono">$</span>
+                  <span className="absolute left-2 top-2 text-slate-400 font-mono text-[10px]">KSh</span>
                   <input
                     type="number"
                     step="0.01"
                     disabled={!isEnabled}
-                    value={override?.declaredInsuranceUSD ?? commInsuranceUSD}
-                    onChange={e => handleFieldChange('declaredInsuranceUSD', parseFloat(e.target.value) || 0)}
-                    className="w-full pl-6 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:ring-2 focus:ring-amber-500 focus:outline-none disabled:bg-slate-900/50 disabled:text-slate-500"
-                    placeholder="14.38"
+                    value={override?.declaredInsuranceKES ?? (override?.declaredInsuranceUSD ? Number((override.declaredInsuranceUSD * (override.declaredExchangeRate || commExchangeRate)).toFixed(2)) : undefined)}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0;
+                      handleFieldChange('declaredInsuranceKES', val);
+                      if (val > 0) {
+                        const fx = override?.declaredExchangeRate || commExchangeRate || 1;
+                        handleFieldChange('declaredInsuranceUSD', Number((val / fx).toFixed(4)));
+                      }
+                    }}
+                    className="w-full pl-9 pr-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
+                    placeholder="3236.66"
                   />
                 </div>
+                <span className="text-[10px] text-slate-500 mt-0.5 block truncate">
+                  ${(override?.declaredInsuranceUSD ?? commInsuranceUSD).toFixed(2)} USD
+                </span>
               </div>
             </div>
 
             {/* Direct Box 46 Customs Value in KES Override */}
-            <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2">
+            <div className="p-3 bg-white rounded-xl border border-amber-200 shadow-2xs space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -484,42 +546,41 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
                       if (!e.target.checked) {
                         handleFieldChange('overrideCustomsValueKES', undefined);
                       } else {
-                        // initialize with calculated or 5491374.06
-                        handleFieldChange('overrideCustomsValueKES', override?.overrideCustomsValueKES || summary.totalCustomsValueKES);
+                        handleFieldChange('overrideCustomsValueKES', override?.overrideCustomsValueKES || summary.totalCustomsValueKES || 5298546.07);
                       }
                     }}
-                    className="rounded text-amber-500 focus:ring-amber-400"
+                    className="rounded text-amber-600 focus:ring-amber-500"
                   />
-                  <span className="text-xs font-bold text-amber-200">
+                  <span className="text-xs font-bold text-amber-900">
                     Direct Box 46 Customs Value Override (KES)
                   </span>
                 </label>
-                <span className="text-[10px] text-slate-400">
-                  {useManualBox46 ? 'Manual KES Override Active' : 'Auto-Computed: CIF (USD) × Customs FX'}
+                <span className="text-[10px] text-slate-500">
+                  {useManualBox46 ? 'Manual KES Override Active' : 'Auto-Computed: (FOB USD × FX) + Freight (KES) + Insurance (KES)'}
                 </span>
               </div>
 
               {useManualBox46 ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-amber-400 font-mono">KSh</span>
+                  <span className="text-xs font-bold text-amber-700 font-mono">KSh</span>
                   <input
                     type="number"
                     step="0.01"
                     disabled={!isEnabled}
                     value={override?.overrideCustomsValueKES ?? summary.totalCustomsValueKES}
                     onChange={e => handleFieldChange('overrideCustomsValueKES', parseFloat(e.target.value) || 0)}
-                    className="flex-1 px-3 py-1.5 bg-slate-950 border border-amber-500/60 rounded-lg text-xs font-mono font-black text-amber-300 focus:ring-2 focus:ring-amber-400 focus:outline-none"
-                    placeholder="e.g. 5491374.06"
+                    className="flex-1 px-3 py-1.5 bg-white border border-amber-500 rounded-lg text-xs font-mono font-black text-amber-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    placeholder="e.g. 5298546.07"
                   />
-                  <span className="text-[11px] text-slate-400 whitespace-nowrap">
+                  <span className="text-[11px] text-slate-500 whitespace-nowrap font-medium">
                     Exact SAD Box 46 Assessment
                   </span>
                 </div>
               ) : (
-                <div className="text-xs font-mono text-slate-300 flex items-center justify-between">
-                  <span>Computed Taxable Customs Value:</span>
-                  <span className="font-bold text-amber-300">
-                    KSh {summary.totalCustomsValueKES.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                <div className="text-xs font-mono text-slate-700 flex items-center justify-between">
+                  <span className="font-medium">Computed Taxable Customs Value:</span>
+                  <span className="font-black text-amber-900">
+                    KSh {summary.totalCustomsValueKES.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               )}
@@ -528,7 +589,7 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
             {/* Secondary Audit Identifiers (Customs Entry No, PRN, Reason) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
               <div>
-                <label className="block text-[10.5px] font-medium text-slate-400 mb-0.5">
+                <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
                   KRA Customs Entry (SAD) #
                 </label>
                 <input
@@ -536,13 +597,13 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
                   disabled={!isEnabled}
                   value={override?.customsEntryNo ?? shipment.customsEntryNo}
                   onChange={e => handleFieldChange('customsEntryNo', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-amber-400 disabled:opacity-50"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-900 focus:outline-none focus:border-amber-500 disabled:opacity-50"
                   placeholder="26EMKIM400968589"
                 />
               </div>
 
               <div>
-                <label className="block text-[10.5px] font-medium text-slate-400 mb-0.5">
+                <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
                   KRA Tax E-Slip / PRN Ref
                 </label>
                 <input
@@ -550,20 +611,20 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
                   disabled={!isEnabled}
                   value={override?.kraEslipRef ?? shipment.kraEslipRef}
                   onChange={e => handleFieldChange('kraEslipRef', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-amber-400 disabled:opacity-50"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-900 focus:outline-none focus:border-amber-500 disabled:opacity-50"
                   placeholder="1020260001009685"
                 />
               </div>
 
               <div>
-                <label className="block text-[10.5px] font-medium text-slate-400 mb-0.5">
+                <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
                   Valuation Assessment Method
                 </label>
                 <select
                   disabled={!isEnabled}
                   value={override?.valuationMethod ?? 'benchmark_adjusted'}
                   onChange={e => handleFieldChange('valuationMethod', e.target.value as any)}
-                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-amber-400 disabled:opacity-50 cursor-pointer"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-amber-500 disabled:opacity-50 cursor-pointer"
                 >
                   <option value="benchmark_adjusted">KRA Benchmark Adjusted</option>
                   <option value="transaction_value">Transaction Value (Invoice)</option>
@@ -574,7 +635,7 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-[10.5px] font-medium text-slate-400 mb-0.5">
+              <label className="block text-[10.5px] font-bold text-slate-600 mb-0.5">
                 Audit Justification / Clearing Agent Reference Note
               </label>
               <input
@@ -582,7 +643,7 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
                 disabled={!isEnabled}
                 value={override?.justificationReason ?? ''}
                 onChange={e => handleFieldChange('justificationReason', e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-amber-400 disabled:opacity-50"
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-amber-500 disabled:opacity-50"
                 placeholder="e.g. KRA ICMS valuation benchmark override at ICD Embakasi; original AP liability preserved."
               />
             </div>
@@ -590,17 +651,17 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
         </div>
 
         {/* REAL-TIME TAX RECALCULATION & VARIANCE AUDIT BANNER */}
-        <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
             <div className="flex items-center gap-2">
-              <Receipt className="w-4 h-4 text-emerald-400" />
-              <span className="font-extrabold text-xs text-white uppercase tracking-wider">
+              <Receipt className="w-4 h-4 text-emerald-600" />
+              <span className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
                 Live Tax Recalculation Assessment (Calculated from Active Base)
               </span>
             </div>
             {isOverridden && (
-              <span className="text-[11px] text-amber-300 font-mono font-bold flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[11px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-mono font-bold flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                 Variance: ${Math.abs(varianceSummary?.varianceFOB_USD || 0).toLocaleString()} FOB ({varianceSummary?.varianceFOB_Pct.toFixed(1)}%)
               </span>
             )}
@@ -608,76 +669,76 @@ export const TaxableBaseOverridePanel: React.FC<Props> = ({
 
           {/* 5 KRA Tax Heads Display */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
-            <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">1002 Import Duty:</span>
-              <span className="font-mono font-bold text-white text-xs">
+            <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+              <span className="text-slate-500 block text-[10px] font-bold">1002 Import Duty:</span>
+              <span className="font-mono font-bold text-slate-900 text-xs">
                 KSh {summary.totalImportDuty1002KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
-              <span className="text-[9px] text-slate-500 block truncate">
+              <span className="text-[9px] text-slate-400 block truncate font-medium">
                 {summary.items[0]?.dutyRuleApplied === 'specific_duty' ? 'Specific Duty Applied' : 'Ad-Valorem 25%'}
               </span>
             </div>
 
-            <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">1801 IDF (2.5%):</span>
-              <span className="font-mono font-bold text-white text-xs">
+            <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+              <span className="text-slate-500 block text-[10px] font-bold">1801 IDF (2.5%):</span>
+              <span className="font-mono font-bold text-slate-900 text-xs">
                 KSh {summary.totalIDF1801KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
-              <span className="text-[9px] text-slate-500 block truncate">Import Declaration</span>
+              <span className="text-[9px] text-slate-400 block truncate font-medium">Import Declaration</span>
             </div>
 
-            <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">6001 RDL (2.0%):</span>
-              <span className="font-mono font-bold text-white text-xs">
+            <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+              <span className="text-slate-500 block text-[10px] font-bold">6001 RDL (2.0%):</span>
+              <span className="font-mono font-bold text-slate-900 text-xs">
                 KSh {summary.totalRDL6001KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
-              <span className="text-[9px] text-slate-500 block truncate">Railway Dev Levy</span>
+              <span className="text-[9px] text-slate-400 block truncate font-medium">Railway Dev Levy</span>
             </div>
 
-            <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">1202 Import VAT (16%):</span>
-              <span className="font-mono font-bold text-emerald-300 text-xs">
+            <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+              <span className="text-slate-500 block text-[10px] font-bold">1202 Import VAT (16%):</span>
+              <span className="font-mono font-bold text-emerald-700 text-xs">
                 KSh {summary.totalVAT1202KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
-              <span className="text-[9px] text-emerald-400/80 block truncate">Claimable Input Tax</span>
+              <span className="text-[9px] text-emerald-600 block truncate font-medium">Claimable Input Tax</span>
             </div>
 
-            <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-              <span className="text-slate-400 block text-[10px]">6401 MSS Levy:</span>
-              <span className="font-mono font-bold text-white text-xs">
+            <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+              <span className="text-slate-500 block text-[10px] font-bold">6401 MSS Levy:</span>
+              <span className="font-mono font-bold text-slate-900 text-xs">
                 KSh {summary.totalMSS6401KES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
-              <span className="text-[9px] text-slate-500 block truncate">$1.75/gross tonne</span>
+              <span className="text-[9px] text-slate-400 block truncate font-medium">$1.75/gross tonne</span>
             </div>
 
-            <div className="bg-emerald-950/80 p-2.5 rounded-lg border border-emerald-800">
-              <span className="text-emerald-300 block text-[10px] font-bold">Total KRA Assessment:</span>
-              <span className="font-mono font-black text-emerald-200 text-sm">
+            <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-300 shadow-2xs">
+              <span className="text-emerald-800 block text-[10px] font-black">Total KRA Assessment:</span>
+              <span className="font-mono font-black text-emerald-900 text-sm">
                 KSh {summary.totalKRATaxesKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
-              <span className="text-[9px] text-emerald-300/80 block truncate">KRA E-Slip PRN Total</span>
+              <span className="text-[9px] text-emerald-700 block truncate font-bold">KRA E-Slip PRN Total</span>
             </div>
           </div>
 
           {/* Variance & Landed Cost Impact Summary */}
           {isOverridden && varianceSummary && (
-            <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-400 gap-2">
+            <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-slate-300 font-bold">Variance Analysis:</span>
-                <span className="bg-slate-800 px-2 py-0.5 rounded font-mono text-[11px] text-rose-300">
+                <span className="text-slate-700 font-bold">Variance Analysis:</span>
+                <span className="bg-white border border-slate-200 px-2 py-0.5 rounded font-mono text-[11px] text-rose-700 font-semibold">
                   FOB: {varianceSummary.varianceFOB_USD >= 0 ? '+' : ''}${varianceSummary.varianceFOB_USD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
-                <span className="bg-slate-800 px-2 py-0.5 rounded font-mono text-[11px] text-amber-300">
+                <span className="bg-white border border-slate-200 px-2 py-0.5 rounded font-mono text-[11px] text-amber-800 font-semibold">
                   Weight: {varianceSummary.varianceNetWeightKg >= 0 ? '+' : ''}{varianceSummary.varianceNetWeightKg.toLocaleString()} kg
                 </span>
-                <span className="bg-slate-800 px-2 py-0.5 rounded font-mono text-[11px] text-emerald-300">
+                <span className="bg-white border border-slate-200 px-2 py-0.5 rounded font-mono text-[11px] text-emerald-800 font-semibold">
                   Tax Diff: {varianceSummary.taxImpactKES.totalTaxDiffKES >= 0 ? '+' : ''}KSh {varianceSummary.taxImpactKES.totalTaxDiffKES.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
               </div>
 
               <div className="flex items-center gap-2 text-[11px]">
-                <span className="text-slate-400">Derek Unit Cost:</span>
-                <span className="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded">
+                <span className="text-slate-500">Derek Unit Cost:</span>
+                <span className="font-mono font-bold text-slate-900 bg-white border border-slate-200 px-2 py-0.5 rounded">
                   KSh {(summary.items[0]?.landedCostPerUnitExclVat || 0).toFixed(2)} / m
                 </span>
               </div>
