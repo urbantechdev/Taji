@@ -377,6 +377,8 @@ interface ERPContextType {
   setIsProductImageModalOpen: (open: boolean) => void;
   cloudSyncStatus: CloudSyncStatus;
   lastCloudSync: Date | null;
+  isQuotaExceeded: boolean;
+  setIsQuotaExceeded: (val: boolean) => void;
   syncCloudInventory: () => Promise<{ success: boolean; count: number; message: string }>;
   updateETRConfig: (config: Partial<ETRConfig>) => void;
   generateMonthlyPayroll: (monthYear: string) => void;
@@ -692,21 +694,84 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [isInwardInvoiceModalOpen, setIsInwardInvoiceModalOpen] = useState(false);
 
-  // Storefront Frontend vs ERP Admin Control View Mode (ERP default with Website link)
+  // Domain-Aware Storefront Website vs ERP System Routing
+  // - https://tajiknitters.com or https://www.tajiknitters.com -> 'storefront' (Public Website)
+  // - https://system.tajiknitters.com (or system.*, admin.*, erp.*) -> 'admin' (Internal ERP System)
   const [viewMode, setViewModeState] = useState<'storefront' | 'admin'>(() => {
     try {
+      const hostname = window.location.hostname.toLowerCase();
+      const pathname = window.location.pathname.toLowerCase();
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('view') === 'storefront' || urlParams.get('view') === 'website' || window.location.hash === '#storefront' || window.location.hash === '#website') {
-        return 'storefront';
-      }
-      if (urlParams.get('view') === 'admin' || window.location.hash === '#admin') {
+      const hash = window.location.hash.toLowerCase();
+
+      // Rule 1: Specific Subdomain -> System (system.tajiknitters.com)
+      if (
+        hostname === 'system.tajiknitters.com' ||
+        hostname.startsWith('system.') ||
+        hostname.startsWith('admin.') ||
+        hostname.startsWith('erp.') ||
+        hostname.startsWith('pos.')
+      ) {
+        // Allow explicit website toggle query if present
+        if (urlParams.get('view') === 'storefront' || urlParams.get('view') === 'website' || hash === '#website' || hash === '#storefront') {
+          return 'storefront';
+        }
         return 'admin';
       }
+
+      // Rule 2: Root Domain -> Website (tajiknitters.com or www.tajiknitters.com)
+      if (
+        hostname === 'tajiknitters.com' ||
+        hostname === 'www.tajiknitters.com'
+      ) {
+        // If staff explicitly navigates to /system or /admin or ?view=system, route to system
+        if (
+          pathname.startsWith('/system') ||
+          pathname.startsWith('/admin') ||
+          pathname.startsWith('/app') ||
+          urlParams.get('view') === 'system' ||
+          urlParams.get('view') === 'admin' ||
+          hash === '#system' ||
+          hash === '#admin'
+        ) {
+          return 'admin';
+        }
+        // Default on tajiknitters.com is the public customer website
+        return 'storefront';
+      }
+
+      // Rule 3: Query parameters or hash overrides (for dev / preview / testing on Cloud Run or localhost)
+      if (
+        urlParams.get('view') === 'storefront' ||
+        urlParams.get('view') === 'website' ||
+        urlParams.get('domain') === 'tajiknitters.com' ||
+        hash === '#storefront' ||
+        hash === '#website' ||
+        pathname === '/storefront' ||
+        pathname === '/website'
+      ) {
+        return 'storefront';
+      }
+
+      if (
+        urlParams.get('view') === 'admin' ||
+        urlParams.get('view') === 'system' ||
+        urlParams.get('domain') === 'system.tajiknitters.com' ||
+        hash === '#admin' ||
+        hash === '#system' ||
+        pathname.startsWith('/system') ||
+        pathname.startsWith('/admin')
+      ) {
+        return 'admin';
+      }
+
+      // Rule 4: Stored preference (for testing environment)
       const saved = localStorage.getItem('taji_view_mode');
       if (saved === 'admin' || saved === 'storefront') {
         return saved;
       }
     } catch (e) {}
+    // Default fallback in development/preview: system terminal
     return 'admin';
   });
 
@@ -714,6 +779,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setViewModeState(mode);
     try {
       localStorage.setItem('taji_view_mode', mode);
+      const hostname = window.location.hostname.toLowerCase();
+
+      // If running on custom production domains, navigate seamlessly between hostnames
+      if (hostname === 'tajiknitters.com' || hostname === 'www.tajiknitters.com' || hostname === 'system.tajiknitters.com') {
+        if (mode === 'admin' && (hostname === 'tajiknitters.com' || hostname === 'www.tajiknitters.com')) {
+          window.location.href = 'https://system.tajiknitters.com';
+          return;
+        } else if (mode === 'storefront' && hostname === 'system.tajiknitters.com') {
+          window.location.href = 'https://tajiknitters.com';
+          return;
+        }
+      }
+
       if (mode === 'admin') {
         window.location.hash = '#admin';
       } else {
@@ -736,6 +814,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const WHITELISTED_ADMINS = [
     'feminiholdings@gmail.com',
     'gduniversalstudio@gmail.com',
+    'naisiaetext@gmail.com',
     'urbaninteriorkenya@gmail.com',
     'zamodasports@gmail.com'
   ];
@@ -789,7 +868,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     role: UserRole;
   } | null>(() => {
     try {
-      const saved = sessionStorage.getItem('taji_pos_session');
+      const saved = sessionStorage.getItem('taji_pos_session_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.isUnlocked) {
@@ -797,22 +876,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     } catch (e) {}
-    // Default unlocked admin session on initial launch
-    return {
-      isUnlocked: true,
-      operatorId: 'op-super-admin',
-      operatorName: 'Executive Super Admin',
-      location: 'sales_shop',
-      pin: '123456',
-      role: 'admin'
-    };
+    // System is locked by default: all users must login via PIN or Google to access the system
+    return null;
   });
 
   useEffect(() => {
     try {
       if (posSession && posSession.isUnlocked) {
-        sessionStorage.setItem('taji_pos_session', JSON.stringify(posSession));
+        sessionStorage.setItem('taji_pos_session_v2', JSON.stringify(posSession));
       } else {
+        sessionStorage.removeItem('taji_pos_session_v2');
         sessionStorage.removeItem('taji_pos_session');
       }
     } catch (e) {}
@@ -1316,6 +1389,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const lockPOSSession = () => {
     try {
+      sessionStorage.removeItem('taji_pos_session_v2');
       sessionStorage.removeItem('taji_pos_session');
     } catch (e) {}
     setPosSession(null);
@@ -1325,6 +1399,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const lockPlatform = () => {
     try {
+      sessionStorage.removeItem('taji_pos_session_v2');
       sessionStorage.removeItem('taji_pos_session');
     } catch (e) {}
     setPosSession(null);
@@ -1508,6 +1583,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('syncing');
   const [lastCloudSync, setLastCloudSync] = useState<Date | null>(null);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('taji_firestore_quota_exceeded') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const checkAndSetQuotaExceeded = (err: any): boolean => {
+    if (!err) return false;
+    const msg = err?.message || (typeof err === 'string' ? err : '');
+    const code = err?.code || '';
+    if (
+      code === 'resource-exhausted' ||
+      msg.includes('resource-exhausted') ||
+      msg.includes('Quota limit exceeded') ||
+      msg.includes('Quota exceeded')
+    ) {
+      setIsQuotaExceeded(true);
+      try {
+        localStorage.setItem('taji_firestore_quota_exceeded', 'true');
+      } catch {}
+      setCloudSyncStatus('offline');
+      return true;
+    }
+    return false;
+  };
 
   // Category Pricing Configurations
   const DEFAULT_CATEGORY_PRICING: Record<CategoryType, CategoryPricingConfig> = {
@@ -1644,6 +1746,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCloudSyncStatus('synced');
       setLastCloudSync(new Date());
     } catch (e: any) {
+      if (checkAndSetQuotaExceeded(e)) {
+        return;
+      }
       console.warn(`Firestore save error for ${collectionName}/${docId}:`, e?.message || e);
     }
   };
@@ -1654,15 +1759,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCloudSyncStatus('synced');
       setLastCloudSync(new Date());
     } catch (e: any) {
+      if (checkAndSetQuotaExceeded(e)) {
+        return;
+      }
       console.warn(`Firestore delete error for ${collectionName}/${docId}:`, e?.message || e);
     }
   };
 
-  // One-time automatic cleanup to ensure all legacy mock inventory is purged from Firestore and local storage
+  // Safe local cache cleanup on initial load (does not consume cloud write quota)
   useEffect(() => {
-    const runAutoInventoryCleanse = async () => {
+    const runAutoInventoryCleanse = () => {
       try {
-        const flagKey = 'taji_inventory_cleansed_production_v3';
+        const flagKey = 'taji_inventory_cleansed_production_v4';
         const alreadyCleaned = localStorage.getItem(flagKey);
         if (!alreadyCleaned) {
           localStorage.removeItem('urban_interior_products');
@@ -1672,25 +1780,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.removeItem('urban_interior_tare_logs');
           localStorage.removeItem('urban_interior_stocktakes');
           localStorage.removeItem('urban_interior_held_carts');
-          localStorage.setItem('urban_interior_products', '[]');
-
-          const collectionsToCheck = ['products', 'fabric_rolls', 'quarantine_defects'];
-          for (const colName of collectionsToCheck) {
-            try {
-              const snap = await getDocs(collection(db, colName));
-              for (const docSnap of snap.docs) {
-                await deleteDoc(doc(db, colName, docSnap.id));
-              }
-            } catch (colErr) {
-              console.warn(`Initial Firestore cleanup notice for ${colName}:`, colErr);
-            }
-          }
-          setProducts([]);
-          setFabricRolls([]);
-          setQuarantinedDefects([]);
-          setDeliveries([]);
-          setTareReconciliationLogs([]);
-          setStocktakeSessions([]);
           localStorage.setItem(flagKey, 'true');
         }
       } catch (err) {
@@ -1714,7 +1803,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               item.id.startsWith('prod-yrn-') ||
               item.id.startsWith('BATCH-YRN-26')
             ) {
-              deleteDoc(doc(db, 'products', item.id)).catch(() => {});
+              // Exclude legacy mock batches from in-memory catalog without issuing delete mutations
               return;
             }
             if (item.category === 'Fleece' && (!item.imageUrl || item.imageUrl.includes('unsplash.com'))) {
@@ -1729,11 +1818,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLastCloudSync(new Date());
       }, (error) => {
         console.warn('Firestore products listener:', error.message);
+        checkAndSetQuotaExceeded(error);
         setCloudSyncStatus('offline');
       });
       return () => unsub();
     } catch (e) {
       console.warn('Error establishing Firestore products sync listener:', e);
+      checkAndSetQuotaExceeded(e);
       setCloudSyncStatus('offline');
     }
   }, []);
@@ -6553,6 +6644,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const createdProduct: ProductBatch = {
       id: batchId,
       sku: barcodeSku,
+      dyeLot: barcodeSku,
       barcode: barcodeSku,
       name: newProductData.name || `Textile Batch ${barcodeSku}`,
       category: newProductData.category || 'Dereck',
@@ -6763,9 +6855,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     items.forEach(item => {
       const barcodeUpper = item.barcode.trim().toUpperCase();
+      const lotUpper = item.dyeLot?.trim().toUpperCase();
+      const effectiveLotSku = lotUpper || barcodeUpper;
+
       const existingIndex = updatedProducts.findIndex(
         p => (p.barcode && p.barcode.toUpperCase() === barcodeUpper) ||
              (p.sku && p.sku.toUpperCase() === barcodeUpper) ||
+             (lotUpper && p.sku && p.sku.toUpperCase() === lotUpper) ||
+             (lotUpper && p.dyeLot && p.dyeLot.toUpperCase() === lotUpper) ||
              p.id.toUpperCase() === barcodeUpper ||
              (item.shadeCode && p.shadeCode && p.shadeCode.toUpperCase() === item.shadeCode.toUpperCase() && item.dyeLot && p.dyeLot === item.dyeLot)
       );
@@ -6787,7 +6884,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           costPrice: wholesale > 0 ? wholesale : existing.costPrice,
           unitPriceRetail: retail > 0 ? retail : existing.unitPriceRetail,
           yarnCount: item.yarnCount || existing.yarnCount,
-          dyeLot: item.dyeLot || existing.dyeLot,
+          dyeLot: item.dyeLot || existing.dyeLot || effectiveLotSku,
+          sku: existing.sku || effectiveLotSku,
           shadeCode: item.shadeCode || existing.shadeCode,
           bagNumber: item.bagNumber || existing.bagNumber,
           packagesCount: item.packagesCount || existing.packagesCount,
@@ -6798,13 +6896,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         };
       } else {
-        // Auto-create product record under chosen category
+        // Auto-create product record under chosen category (Lot No is our SKU)
         const batchId = `BATCH-${category.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-        const sku = barcodeUpper;
+        const sku = effectiveLotSku;
         const colorName = item.colorName || (category === 'Dereck' ? 'Royal Navy' : category === 'Fleece' ? 'Charcoal Heather' : 'Mix Grey');
         const colorHex = item.colorHex || (category === 'Dereck' ? '#1E3A8A' : category === 'Fleece' ? '#374151' : '#94A3B8');
         const unit = item.unit || (category === 'Yarns' ? 'kg' : 'meter');
-        const name = item.name || `${category} - ${colorName} (${sku})`;
+        const name = item.name || `${category} - ${colorName} (Lot ${sku})`;
 
         const qrData = JSON.stringify({
           sku,
@@ -6813,7 +6911,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           color: colorHex,
           unitPrice: retail,
           costPrice: wholesale,
-          lot: item.dyeLot,
+          lot: effectiveLotSku,
           shade: item.shadeCode,
           intakeAt: now
         });
@@ -6821,6 +6919,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newProd: ProductBatch = {
           id: batchId,
           sku,
+          dyeLot: effectiveLotSku,
           barcode: barcodeUpper,
           name,
           category,
@@ -6982,8 +7081,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ADD NEW PRODUCT BATCH (With Global Firestore Sync & Multi-Device Propagation)
   const addProductBatch = async (newBatch: Omit<ProductBatch, 'id' | 'createdAt' | 'qrCodeData'>) => {
     const batchId = `BATCH-${(newBatch.category || 'GEN').slice(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+    
+    // In this system Lot No is our primary SKU
+    const effectiveLotSku = (newBatch.dyeLot?.trim() || newBatch.sku?.trim() || '').toUpperCase();
+    const finalSku = effectiveLotSku || newBatch.sku;
+    const finalDyeLot = effectiveLotSku || newBatch.dyeLot;
+
     const qrData = JSON.stringify({
-      sku: newBatch.sku,
+      sku: finalSku,
       batch: batchId,
       cat: newBatch.category,
       color: newBatch.colorHex,
@@ -6993,6 +7098,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const created: ProductBatch = {
       ...newBatch,
+      sku: finalSku,
+      dyeLot: finalDyeLot,
+      barcode: newBatch.barcode?.trim() ? newBatch.barcode.trim().toUpperCase() : finalSku,
       id: batchId,
       createdAt: new Date().toISOString().split('T')[0],
       qrCodeData: qrData
@@ -7025,20 +7133,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateProductBatch = async (batchId: string, updates: Partial<ProductBatch>) => {
     let updatedProduct: ProductBatch | null = null;
 
+    // Harmonize Lot No as SKU
+    const effectiveLotSku = updates.dyeLot !== undefined || updates.sku !== undefined
+      ? (updates.dyeLot?.trim() || updates.sku?.trim())
+      : undefined;
+
+    const normalizedUpdates = {
+      ...updates,
+      ...(effectiveLotSku ? { sku: effectiveLotSku.toUpperCase(), dyeLot: effectiveLotSku.toUpperCase() } : {})
+    };
+
     setProducts(prev =>
       prev.map(p => {
         if (p.id === batchId) {
           updatedProduct = {
             ...p,
-            ...updates,
+            ...normalizedUpdates,
             // Recompute QR data if prices/color change
             qrCodeData: JSON.stringify({
-              sku: updates.sku || p.sku,
+              sku: normalizedUpdates.sku || p.sku,
               batch: p.id,
-              cat: updates.category || p.category,
-              color: updates.colorHex || p.colorHex,
-              unitPrice: updates.unitPriceRetail ?? p.unitPriceRetail,
-              comp: updates.fiberComposition || p.fiberComposition
+              cat: normalizedUpdates.category || p.category,
+              color: normalizedUpdates.colorHex || p.colorHex,
+              unitPrice: normalizedUpdates.unitPriceRetail ?? p.unitPriceRetail,
+              comp: normalizedUpdates.fiberComposition || p.fiberComposition
             })
           };
           return updatedProduct;
@@ -8633,6 +8751,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsProductImageModalOpen,
         cloudSyncStatus,
         lastCloudSync,
+        isQuotaExceeded,
+        setIsQuotaExceeded,
         syncCloudInventory,
         addLedgerEntry,
         updateETRConfig,

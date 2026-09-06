@@ -48,23 +48,24 @@ export function checkDuplicateConflict(
       };
     }
 
-    // 2. Barcode matching SKU (often barcodes are SKUs)
-    if (normBarcode && p.sku && normalizeCode(p.sku) === normBarcode) {
+    // 2. Barcode matching SKU or Lot No
+    if (normBarcode && ((p.sku && normalizeCode(p.sku) === normBarcode) || (p.dyeLot && normalizeCode(p.dyeLot) === normBarcode))) {
+      const codeLabel = p.dyeLot || p.sku;
       return {
         isDuplicate: true,
         matchType: 'barcode',
         existingProduct: p,
-        message: `Scanned code "${candidate.barcode}" matches existing Product SKU "${p.sku}" (${p.name}). Duplicate prevention engaged.`
+        message: `Scanned code "${candidate.barcode}" matches existing Product Lot No / SKU "${codeLabel}" (${p.name}). Duplicate prevention engaged.`
       };
     }
 
-    // 3. Strict SKU Check
-    if (normSku && p.sku && normalizeCode(p.sku) === normSku) {
+    // 3. Strict Lot No / SKU Check
+    if (normSku && ((p.sku && normalizeCode(p.sku) === normSku) || (p.dyeLot && normalizeCode(p.dyeLot) === normSku))) {
       return {
         isDuplicate: true,
         matchType: 'sku',
         existingProduct: p,
-        message: `SKU code "${candidate.sku}" already exists for "${p.name}". Duplicate SKUs create double-entry errors on your Balance Sheet asset inventory.`
+        message: `Lot No / SKU "${candidate.sku}" already exists for "${p.name}". Duplicate Lot No (SKU) creates double-entry errors on your Balance Sheet asset inventory.`
       };
     }
 
@@ -111,8 +112,9 @@ export function calculateCatalogDuplicateReport(
       barcodeMap.get(bKey)!.push(p);
     }
 
-    if (p.sku && p.sku.trim()) {
-      const sKey = normalizeCode(p.sku);
+    const lotSku = p.dyeLot?.trim() || p.sku?.trim();
+    if (lotSku) {
+      const sKey = normalizeCode(lotSku);
       if (!skuMap.has(sKey)) skuMap.set(sKey, []);
       skuMap.get(sKey)!.push(p);
     }

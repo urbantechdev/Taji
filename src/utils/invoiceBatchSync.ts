@@ -87,6 +87,10 @@ export function buildInvoiceInventoryBatch(
       cocFeesUSD: shipment.cocFeesUSD,
       totalFreightUSD: shipment.totalFreightUSD,
       totalInsuranceUSD: shipment.totalInsuranceUSD,
+      totalFreightKES: shipment.totalFreightKES,
+      totalInsuranceKES: shipment.totalInsuranceKES,
+      overrideCustomsValueKES: shipment.overrideCustomsValueKES,
+      taxableBaseOverride: shipment.taxableBaseOverride,
       portClearingFeesKES: shipment.portClearingFeesKES,
       targetMarkupPct: shipment.targetMarkupPct
     },

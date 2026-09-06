@@ -352,7 +352,7 @@ export interface TareReconciliationRecord {
 
 export interface ProductBatch {
   id: string; // e.g. BATCH-2026-001
-  sku: string; // e.g. TFX-DRK-101 (Primary barcode / SKU identifier)
+  sku: string; // Lot No is the primary SKU identifier (e.g. 26B020, 26C002)
   barcode?: string; // Optional dedicated UPC / EAN-13 barcode
   name: string;
   category: CategoryType;
@@ -1556,6 +1556,8 @@ export interface TaxableBaseOverride {
   declaredFOB_USD?: number; // Declared FOB USD as per KRA SAD (Box 22, e.g. 36,900.00)
   declaredFreightUSD?: number; // Declared Freight USD as per KRA SAD
   declaredInsuranceUSD?: number; // Declared Insurance USD as per KRA SAD
+  declaredFreightKES?: number; // Declared Freight KES as per KRA SAD Box 9a (e.g. 517,866.39)
+  declaredInsuranceKES?: number; // Declared Insurance KES as per KRA SAD Box 9b (e.g. 3,236.66)
   declaredExchangeRate?: number; // KRA Customs Exchange Rate on SAD (e.g. 129.47)
   declaredNetWeightKg?: number; // Declared Net Weight in KG as per KRA SAD (Box 38, e.g. 22,600.0)
   declaredGrossWeightKg?: number; // Declared Gross Weight in KG as per KRA SAD (Box 35, e.g. 22,850.0)
@@ -1568,6 +1570,8 @@ export interface TaxableBaseOverride {
     declaredFobUSD?: number;
     declaredNetWeightKg?: number;
     declaredGrossWeightKg?: number;
+    freightKES?: number;
+    insuranceKES?: number;
     customsValueKES?: number;
   }>;
 }
@@ -1578,8 +1582,11 @@ export interface ImportShipmentLineItem {
   category: CategoryType;
   hsCode: string; // e.g. "6006.32.00"
   fobUSD: number;
-  freightUSD?: number; // per-item explicit freight or apportioned
-  insuranceUSD?: number; // per-item explicit insurance or apportioned
+  freightUSD?: number; // per-item explicit freight in USD or apportioned
+  insuranceUSD?: number; // per-item explicit insurance in USD or apportioned
+  freightKES?: number; // per-item explicit freight in KES (Box 45b)
+  insuranceKES?: number; // per-item explicit insurance in KES (Box 45c)
+  customsValueKES?: number; // per-item explicit customs value in KES (Box 46)
   netWeightKg: number;
   grossWeightKg: number;
   gsm?: number; // Grams per square meter (for fabrics)
@@ -1603,6 +1610,10 @@ export interface ComputedImportLineItem extends ImportShipmentLineItem {
   weightRatio: number;
   apportionedFreightUSD: number;
   apportionedInsuranceUSD: number;
+  lineFobKES: number;
+  lineFreightKES: number;
+  lineInsuranceKES: number;
+  vatBaseKES: number;
   apportionedCoCUSD: number;
   apportionedCoCKES: number;
   apportionedPortClearingKES: number;
@@ -1635,8 +1646,11 @@ export interface ImportShipmentSummary {
   totalGrossWeightKg: number;
   totalFreightUSD: number;
   totalInsuranceUSD: number;
+  totalFreightKES?: number;
+  totalInsuranceKES?: number;
   totalCIF_USD: number;
   totalCustomsValueKES: number;
+  totalVATBaseKES: number;
   specificRateKESPerTonne?: number;
   totalImportDuty1002KES: number;
   totalIDF1801KES: number;
@@ -1769,6 +1783,8 @@ export interface ImportShipmentRecord {
   invoiceDate: string;
   supplierName: string; // e.g. "ZHEJIANG PUAN TEXTILE TECHNOLOGY CO.,LTD."
   supplierCountry: string;
+  supplierPin?: string;
+  dateOfAssessment?: string;
   consigneeName: string;
   consigneePin: string;
   declarantName: string;
@@ -1788,6 +1804,10 @@ export interface ImportShipmentRecord {
   cocFeesUSD: number; // USD 600.00
   totalFreightUSD: number; // USD 5,500.00
   totalInsuranceUSD: number; // USD 14.38
+  totalFreightKES?: number; // Box 9a Total Freight in KES (e.g. 517,866.39)
+  totalInsuranceKES?: number; // Box 9b Total Insurance in KES (e.g. 3,236.66)
+  overrideCustomsValueKES?: number; // Box 9d Total Customs Value in KES (e.g. 5,298,546.07)
+  isSadOverrideActive?: boolean; // Direct SAD override toggle state
   portClearingFeesKES: number; // KES 180,000.00
   targetMarkupPct: number; // 35%
   status: 'draft' | 'assessed' | 'approved_capitalized';

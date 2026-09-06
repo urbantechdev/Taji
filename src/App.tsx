@@ -29,12 +29,14 @@ import { MobileBarcodeScannerModal } from './components/common/MobileBarcodeScan
 import { DuplicateBarcodeAlertModal } from './components/common/DuplicateBarcodeAlertModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { PlatformLockScreen } from './components/auth/PlatformLockScreen';
+import { InactivityLockModal } from './components/auth/InactivityLockModal';
 import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
 import { ReturnExchangeModal } from './components/ReturnExchangeModal';
 import { FabricRollManagerModal } from './components/FabricRollManagerModal';
 import { UserGuideModule } from './components/docs/UserGuideModule';
 import { Footer } from './components/layout/Footer';
 import { StorefrontView } from './components/storefront/StorefrontView';
+import { QuotaAlertBanner } from './components/common/QuotaAlertBanner';
 
 const ERPContent: React.FC = () => {
   const { appMode, isPlatformUnlocked, isAdmin, currentUser, viewMode, setViewMode, activeNavTab, setActiveNavTab } = useERP();
@@ -138,6 +140,7 @@ const ERPContent: React.FC = () => {
   if (!isPlatformUnlocked) {
     return (
       <>
+        <QuotaAlertBanner />
         <PlatformLockScreen />
         <MailNotificationPopup />
       </>
@@ -152,6 +155,9 @@ const ERPContent: React.FC = () => {
       
       {/* Top Header Bar (Stationary at top) */}
       <Header activeTab={effectiveTab} setActiveTab={handleSetActiveTab} />
+
+      {/* Cloud Quota Status Notice Banner */}
+      <QuotaAlertBanner />
 
       {/* Main Workspace Body (Stationary Sidebar + Scrollable Body) */}
       <div className="flex-1 flex flex-row overflow-hidden w-full min-h-0 relative">
@@ -216,6 +222,7 @@ const ERPContent: React.FC = () => {
       <ReturnExchangeModal />
       <FabricRollManagerModal />
       <AuthModal />
+      <InactivityLockModal />
 
     </div>
   );
