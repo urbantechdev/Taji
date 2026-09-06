@@ -334,7 +334,14 @@ app.post('/api/gmail/trash/:id', async (req, res) => {
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
+    },
+  });
 }
 
 // Resilient helper with multi-model fallback for high demand/503 spikes
@@ -342,7 +349,7 @@ async function generateGeminiJSON(contents: string, systemInstruction: string): 
   const ai = getGeminiClient();
   if (!ai) return null;
 
-  const modelsToTry = ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
   for (const model of modelsToTry) {
     try {
       const response = await ai.models.generateContent({
@@ -371,6 +378,37 @@ async function generateGeminiJSON(contents: string, systemInstruction: string): 
   }
   return null;
 }
+
+// AI Status check endpoint
+app.get('/api/ai/status', async (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.json({ connected: false, reason: 'GEMINI_API_KEY is not set in environment secrets.' });
+  }
+
+  const ai = getGeminiClient();
+  if (!ai) {
+    return res.json({ connected: false, reason: 'Gemini client initialization failed.' });
+  }
+
+  try {
+    const testRes = await ai.models.generateContent({
+      model: 'gemini-flash-latest',
+      contents: 'ping',
+    });
+    return res.json({
+      connected: true,
+      model: 'gemini-flash-latest',
+      response: testRes.text?.trim() || 'pong',
+    });
+  } catch (err: any) {
+    return res.json({
+      connected: false,
+      error: err.message || String(err),
+      hint: 'Ensure Generative Language API is enabled in project gen-lang-client-0971248288 or attach a valid Gemini API key in Settings > Secrets.',
+    });
+  }
+});
 
 // AI Virtual CFO Strategic Analysis
 app.post('/api/ai/cfo-advisor', async (req, res) => {
