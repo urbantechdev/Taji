@@ -1,6 +1,6 @@
 {
   "name": "Taji",
-  "description": "Taji - Certified textile supply, Dereck suiting fabrics, Polar & Coral Fleece rolls, and Acrylic knitting yarns with integrated ERP inventory, ETR billing, and multi-device POS.",
+  "description": "Taji Enterprise ERP platform featuring multi-branch inventory, ETR billing, POS terminal, inter-branch transfers, payroll, and general ledger accounting.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

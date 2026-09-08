@@ -349,7 +349,7 @@ async function generateGeminiJSON(contents: string, systemInstruction: string): 
   const ai = getGeminiClient();
   if (!ai) return null;
 
-  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
   for (const model of modelsToTry) {
     try {
       const response = await ai.models.generateContent({
