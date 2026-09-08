@@ -884,6 +884,8 @@ export interface HeldCart {
   isTransferredSale?: boolean;
 }
 
+export type LogoEffectType = 'gleam' | 'orbital' | 'pulse' | 'float' | 'none';
+
 export interface BrandSettings {
   brandName: string;
   tagline: string;
@@ -892,9 +894,11 @@ export interface BrandSettings {
   logoUrl?: string;
   faviconUrl?: string;
   headerBgColor: string; // e.g. '#ec4899' or 'pink'
+  logoEffect?: LogoEffectType;
   supportEmail?: string;
   supportPhone?: string;
   address?: string;
+  autoLockMinutes?: number; // Inactivity timeout in minutes (default: 2)
 }
 
 export type DeadStockCalculationBasis = 

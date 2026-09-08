@@ -129,7 +129,7 @@ interface ERPContextType {
   adminUser: { uid: string; email: string | null; displayName: string | null; photoURL?: string | null } | null;
   isSuperAdmin: boolean;
   isAccountant: boolean;
-  signInWithGoogleAdmin: () => Promise<{ success: boolean; role?: UserRole; message?: string; isUnauthorizedDomain?: boolean; domain?: string }>;
+  signInWithGoogleAdmin: (forcedRole?: 'admin' | 'accountant') => Promise<{ success: boolean; role?: UserRole; message?: string; isUnauthorizedDomain?: boolean; domain?: string }>;
   signInAsWhitelistedAdmin: (email?: string) => { success: boolean };
   signInAsAccountant: (email?: string) => { success: boolean };
   signOutGoogleAdmin: () => Promise<void>;
@@ -140,7 +140,7 @@ interface ERPContextType {
   updatePOSOperator: (id: string, updates: Partial<Omit<POSOperator, 'id' | 'createdAt'>>) => Promise<{ success: boolean; message: string }>;
   deletePOSOperator: (id: string) => Promise<{ success: boolean; message: string }>;
   posSession: { isUnlocked: boolean; operatorId: string; operatorName: string; location: LocationId; pin: string; role: UserRole } | null;
-  unlockPOSWithPin: (pin: string, overrideLocation?: LocationId) => { success: boolean; message: string; operator?: POSOperator };
+  unlockPOSWithPin: (pin: string, overrideLocation?: LocationId, targetOperatorId?: string) => { success: boolean; message: string; operator?: POSOperator };
   loginAsOperator: (operatorOrId: POSOperator | string) => { success: boolean; message: string; operator?: POSOperator };
   lockPOSSession: () => void;
 
@@ -816,7 +816,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     'gduniversalstudio@gmail.com',
     'naisiaetext@gmail.com',
     'urbaninteriorkenya@gmail.com',
-    'zamodasports@gmail.com'
+    'zamodasports@gmail.com',
+    'mwkomu@gmail.com'
+  ];
+
+  // Whitelisted Accountant emails
+  const WHITELISTED_ACCOUNTANTS = [
+    'mwkomu@gmail.com'
   ];
 
   // POS Operators State & PIN Session with Local Storage Persistence
@@ -840,7 +846,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(parsed) && parsed.length > 0) {
           const filtered = parsed.filter(op => !isMockOrDummyOperator(op));
           if (filtered.length > 0) {
-            return filtered;
+            // Ensure accountant operator is bound to mwkomu@gmail.com
+            const synced = filtered.map(op => {
+              if (op.role === 'accountant' || op.id === 'op-accountant-lead') {
+                return { ...op, email: 'mwkomu@gmail.com' };
+              }
+              return op;
+            });
+            return synced;
           }
         }
       }
@@ -948,18 +961,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const appMode = appModeState;
 
-  const signInWithGoogleAdmin = async () => {
+  const signInWithGoogleAdmin = async (forcedRole?: 'admin' | 'accountant') => {
     try {
       const res = await signInWithPopup(auth, googleProvider);
       const email = (res.user.email || '').toLowerCase();
-      const displayName = res.user.displayName || 'Enterprise User';
+      const displayName = res.user.displayName || (forcedRole === 'accountant' ? 'Chief Accountant' : 'Enterprise User');
 
       // Match against registered operators to determine role
       const matchedOp = posOperators.find(op => op.email?.toLowerCase() === email);
-      const isAccountantRole = matchedOp?.role === 'accountant' || email.includes('accountant');
+      const isAccountantEmail = email === 'mwkomu@gmail.com' || WHITELISTED_ACCOUNTANTS.includes(email);
+      const isAccountantRole = forcedRole === 'accountant' || isAccountantEmail || (!forcedRole && (matchedOp?.role === 'accountant' || email.includes('accountant')));
       const assignedRole: UserRole = isAccountantRole ? 'accountant' : 'admin';
       const assignedLoc: LocationId = matchedOp?.location || 'main_store';
-      const assignedName = matchedOp?.name || displayName;
+      const assignedName = matchedOp?.name || (isAccountantEmail ? 'Chief Accountant (M.W. Komu)' : displayName);
       const opId = matchedOp?.id || (isAccountantRole ? 'op-accountant-lead' : 'op-super-admin');
 
       setAdminUser({
@@ -1056,10 +1070,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
-  const signInAsAccountant = (email: string = 'accountant@taji.co.ke') => {
+  const signInAsAccountant = (email: string = 'mwkomu@gmail.com') => {
     const matchedOp = posOperators.find(op => op.email?.toLowerCase() === email.toLowerCase() && op.role === 'accountant') ||
       posOperators.find(op => op.role === 'accountant');
-    const displayName = matchedOp?.name || 'Chief Accountant & Tax Auditor';
+    const displayName = matchedOp?.name || 'Chief Accountant (M.W. Komu)';
     const loc: LocationId = matchedOp?.location || 'main_store';
     const opId = matchedOp?.id || 'op-accountant-lead';
 
@@ -1257,13 +1271,29 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Profile details updated successfully.' };
   };
 
-  const unlockPOSWithPin = (pin: string, overrideLocation?: LocationId) => {
+  const unlockPOSWithPin = (pin: string, overrideLocation?: LocationId, targetOperatorId?: string) => {
     const trimmedPin = pin.trim();
     if (!trimmedPin || trimmedPin.length !== 6) {
       return { success: false, message: 'PIN code must be exactly 6 numeric digits.' };
     }
 
-    const matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === trimmedPin));
+    let matchedOp: POSOperator | undefined;
+
+    if (targetOperatorId) {
+      const selected = posOperators.find(op => op.id === targetOperatorId);
+      if (!selected) {
+        return { success: false, message: 'Selected staff account was not found.' };
+      }
+      if (selected.role === 'admin' || selected.role === 'accountant') {
+        return { success: false, message: 'Administrators and Accountants must log in using Gmail / Google Sign-In.' };
+      }
+      if (selected.pin !== trimmedPin) {
+        return { success: false, message: `Incorrect 6-digit PIN for ${selected.name}. Please enter your assigned PIN.` };
+      }
+      matchedOp = selected;
+    } else {
+      matchedOp = posOperators.find(op => Boolean(op.pin && op.pin.length === 6 && op.pin === trimmedPin));
+    }
 
     if (matchedOp) {
       if (matchedOp.status === 'inactive') {
@@ -1277,7 +1307,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (staffRole === 'accountant') {
         setAdminUser({
           uid: 'accountant-pin-uid',
-          email: matchedOp.email || 'accountant@taji.co.ke',
+          email: matchedOp.email || 'mwkomu@gmail.com',
           displayName: matchedOp.name,
           photoURL: null
         });
@@ -1401,6 +1431,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       sessionStorage.removeItem('taji_pos_session_v2');
       sessionStorage.removeItem('taji_pos_session');
+      sessionStorage.removeItem('taji_last_active');
+      localStorage.removeItem('taji_pos_session_v2');
+      localStorage.removeItem('taji_pos_session');
     } catch (e) {}
     setPosSession(null);
     setAdminUser(null);
@@ -1410,7 +1443,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Brand Settings & Modals
-  const [brandSettings, setBrandSettings] = useState<BrandSettings>(INITIAL_BRAND_SETTINGS);
+  const [brandSettings, setBrandSettings] = useState<BrandSettings>(() => {
+    try {
+      const saved = localStorage.getItem('taji_brand_settings');
+      if (saved) {
+        return { ...INITIAL_BRAND_SETTINGS, ...JSON.parse(saved) };
+      }
+    } catch (e) {}
+    return INITIAL_BRAND_SETTINGS;
+  });
   const [isBrandSettingsModalOpen, setIsBrandSettingsModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMailDrawerOpen, setIsMailDrawerOpen] = useState(false);
@@ -1568,10 +1609,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           return parsed.map((p: ProductBatch) => {
+            const lotSku = (p.dyeLot || p.sku || '').trim();
+            const normalized: ProductBatch = {
+              ...p,
+              dyeLot: lotSku,
+              sku: p.sku || lotSku,
+              barcode: p.barcode || lotSku
+            };
             if (p.category === 'Fleece' && (!p.imageUrl || p.imageUrl.includes('unsplash.com'))) {
-              return { ...p, imageUrl: polarFleeceRollsImg };
+              normalized.imageUrl = polarFleeceRollsImg;
             }
-            return p;
+            return normalized;
           });
         }
       }
@@ -1809,7 +1857,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (item.category === 'Fleece' && (!item.imageUrl || item.imageUrl.includes('unsplash.com'))) {
               item.imageUrl = polarFleeceRollsImg;
             }
-            loaded.push(item);
+            const lotSku = (item.dyeLot || item.sku || '').trim();
+            const normalized: ProductBatch = {
+              ...item,
+              dyeLot: lotSku,
+              sku: item.sku || lotSku,
+              barcode: item.barcode || lotSku
+            };
+            loaded.push(normalized);
           }
         });
 
@@ -2649,7 +2704,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateBrandSettings = (newSettings: Partial<BrandSettings>) => {
-    setBrandSettings(prev => ({ ...prev, ...newSettings }));
+    setBrandSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      try {
+        localStorage.setItem('taji_brand_settings', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     recordAuditLog('Brand Settings Updated', `Updated brand settings (${newSettings.brandName || brandSettings.brandName})`);
   };
 
@@ -6944,7 +7005,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           countryOfOrigin: item.countryOfOrigin || (category === 'Yarns' ? 'INDIA' : undefined),
           yarnCount: item.yarnCount,
           linearDensityTex: item.linearDensityTex,
-          dyeLot: item.dyeLot,
           shadeCode: item.shadeCode,
           bagNumber: item.bagNumber,
           packagesCount: item.packagesCount,
@@ -8353,8 +8413,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         productId: p.id,
         productName: p.name,
-        sku: p.sku,
-        barcode: p.barcode,
+        sku: p.dyeLot || p.sku,
+        barcode: p.barcode || p.dyeLot || p.sku,
         category: p.category,
         subCategory: p.subCategory,
         unit: p.unit,

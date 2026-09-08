@@ -21,6 +21,7 @@ import {
   FixedAsset,
   KRAInputVATClaim,
   StockAlertSettings,
+  BrandSettings,
   Supplier,
   ClearingAgent
 } from '../types';
@@ -43,7 +44,7 @@ export const INITIAL_POS_OPERATORS: POSOperator[] = [
   {
     id: 'op-accountant-lead',
     name: 'Chief Accountant & Tax Auditor',
-    email: 'accountant@taji.co.ke',
+    email: 'mwkomu@gmail.com',
     phone: '+254 700 333 444',
     kraPin: 'P059918234B',
     pin: '654321',
@@ -1066,14 +1067,16 @@ export const INITIAL_ETR_CONFIG: ETRConfig = {
   receiptFooterMessage: 'Thank you for trading with Taji. Official KRA ETR Tax Invoice.'
 };
 
-export const INITIAL_BRAND_SETTINGS = {
+export const INITIAL_BRAND_SETTINGS: BrandSettings = {
   brandName: 'Taji',
   tagline: 'Powered by urbantechdev',
   primaryColor: '#B50044', // Taji Pink #B50044
   accentColor: '#9f003c',
   headerBgColor: 'pink', // Options: 'pink', 'rose', 'slate', 'indigo', 'emerald'
+  logoEffect: 'gleam',
   logoUrl: 'https://i.pinimg.com/736x/b2/47/2b/b2472b0a27beee4bf5d46d692ae0d8ed.jpg',
-  faviconUrl: ''
+  faviconUrl: '',
+  autoLockMinutes: 2
 };
 
 export const INITIAL_STOCK_ALERT_SETTINGS: StockAlertSettings = {
