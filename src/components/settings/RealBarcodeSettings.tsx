@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { ProductBatch, CategoryType } from '../../types';
 import jsPDF from 'jspdf';
@@ -25,6 +25,7 @@ import {
   Scissors
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
+import { generateRealBarcodeDataURL, generateRealQRCodeDataURL } from '../../utils/realQrBarcode';
 
 export const RealBarcodeSettings: React.FC = () => {
   const { products, brandSettings, activeLocation, recordAuditLog } = useERP();
@@ -144,94 +145,40 @@ export const RealBarcodeSettings: React.FC = () => {
     setBatchQueue(prev => prev.filter(item => item.id !== id));
   };
 
-  // Real SVG Barcode DataURL Generator (Code 128 Standard)
-  const generateBarcodeSvgDataUrl = (code: string): string => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 240;
-    canvas.height = 70;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = '#000000';
-    let x = 12;
-    const str = code.toUpperCase();
-    const bitArray: number[] = [1, 0, 1, 0];
-    for (let i = 0; i < str.length; i++) {
-      const charCode = str.charCodeAt(i);
-      const pattern = [
-        (charCode % 2) + 1,
-        ((charCode >> 1) % 2) + 1,
-        ((charCode >> 2) % 2) + 1,
-        ((charCode >> 3) % 2) + 1
-      ];
-      pattern.forEach((p, idx) => {
-        bitArray.push(idx % 2 === 0 ? 1 : 0);
-        if (p > 1) bitArray.push(idx % 2 === 0 ? 1 : 0);
-      });
-    }
-    bitArray.push(1, 1, 0, 0, 1, 0, 1);
-
-    const barWidth = Math.max(1.8, (canvas.width - 24) / bitArray.length);
-    bitArray.forEach(bit => {
-      if (bit === 1) {
-        ctx.fillRect(x, 8, barWidth + 0.2, 42);
-      }
-      x += barWidth;
+  // Genuine preview states
+  const [previewQrUrl, setPreviewQrUrl] = useState<string>('');
+  const previewBarcodeUrl = useMemo(() => {
+    return generateRealBarcodeDataURL(sku, {
+      format: barcodeFormat === 'EAN13' ? 'EAN13' : 'CODE128',
+      height: 48,
+      width: 2,
+      displayValue: true
     });
+  }, [sku, barcodeFormat]);
 
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(code, canvas.width / 2, 62);
+  useEffect(() => {
+    let isMounted = true;
+    generateRealQRCodeDataURL(sku, { width: 140, margin: 1 }).then(url => {
+      if (isMounted) setPreviewQrUrl(url);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [sku]);
 
-    return canvas.toDataURL('image/png');
+  // Real SVG Barcode DataURL Generator (Code 128 / EAN13 Standard)
+  const generateBarcodeSvgDataUrl = (code: string): string => {
+    return generateRealBarcodeDataURL(code, {
+      format: barcodeFormat === 'EAN13' ? 'EAN13' : 'CODE128',
+      height: 48,
+      width: 2,
+      displayValue: true
+    });
   };
 
-  // Real Canvas 2D QR Code Generator
+  // Real QR Code DataURL Generator
   const generateQrCodeDataUrl = (text: string): string => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 90;
-    canvas.height = 90;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, 90, 90);
-
-    ctx.fillStyle = '#000000';
-    const drawFinder = (x: number, y: number) => {
-      ctx.fillRect(x, y, 22, 22);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(x + 3, y + 3, 16, 16);
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(x + 6, y + 6, 10, 10);
-    };
-
-    drawFinder(6, 6);
-    drawFinder(62, 6);
-    drawFinder(6, 62);
-
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-      hash = (hash << 5) - hash + text.charCodeAt(i);
-      hash |= 0;
-    }
-
-    const gridSize = 16;
-    const cellSize = 3.2;
-    for (let r = 0; r < gridSize; r++) {
-      for (let c = 0; c < gridSize; c++) {
-        if ((r < 7 && c < 7) || (r < 7 && c > 8) || (r > 8 && c < 7)) continue;
-        const bit = Math.abs((hash ^ (r * 31 + c * 17))) % 2;
-        if (bit === 1) {
-          ctx.fillRect(20 + c * cellSize, 20 + r * cellSize, cellSize, cellSize);
-        }
-      }
-    }
-
-    return canvas.toDataURL('image/png');
+    return previewQrUrl;
   };
 
   // Copy Barcode to Clipboard
@@ -293,12 +240,21 @@ export const RealBarcodeSettings: React.FC = () => {
         doc.text(`Roll Length: ${item.meterage} Mtrs | Retail Price: KSh ${item.price.toLocaleString()}`, 20, startY + 19);
 
         // Barcode Image
-        const barcodeDataUrl = generateBarcodeSvgDataUrl(item.sku);
-        doc.addImage(barcodeDataUrl, 'PNG', 20, startY + 22, 90, 14);
+        const barcodeDataUrl = generateRealBarcodeDataURL(item.sku, {
+          format: barcodeFormat === 'EAN13' ? 'EAN13' : 'CODE128',
+          height: 40,
+          width: 2,
+          displayValue: true
+        });
+        if (barcodeDataUrl) {
+          doc.addImage(barcodeDataUrl, 'PNG', 20, startY + 22, 90, 14);
+        }
 
         // QR Code Image
-        const qrDataUrl = generateQrCodeDataUrl(item.sku);
-        doc.addImage(qrDataUrl, 'PNG', 145, startY + 5, 28, 28);
+        const qrDataUrl = await generateRealQRCodeDataURL(item.sku, { width: 140, margin: 1 });
+        if (qrDataUrl) {
+          doc.addImage(qrDataUrl, 'PNG', 145, startY + 5, 28, 28);
+        }
 
         startY += 44;
       }
@@ -608,20 +564,36 @@ export const RealBarcodeSettings: React.FC = () => {
 
               {/* Barcode & QR rendering */}
               <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-100">
-                <div className="flex-1">
-                  <img
-                    src={generateBarcodeSvgDataUrl(sku)}
-                    alt={`Barcode ${sku}`}
-                    className="w-full h-11 object-contain"
-                  />
-                </div>
-                <div className="shrink-0">
-                  <img
-                    src={generateQrCodeDataUrl(sku)}
-                    alt={`QR Code ${sku}`}
-                    className="w-12 h-12 object-contain"
-                  />
-                </div>
+                {(barcodeFormat === 'CODE128' || barcodeFormat === 'EAN13' || barcodeFormat === 'BOTH') && (
+                  <div className="flex-1">
+                    {previewBarcodeUrl ? (
+                      <img
+                        src={previewBarcodeUrl}
+                        alt={`Barcode ${sku}`}
+                        className="w-full h-11 object-contain"
+                      />
+                    ) : (
+                      <div className="h-11 bg-slate-100 rounded flex items-center justify-center text-[10px] text-slate-400">
+                        Generating Barcode...
+                      </div>
+                    )}
+                  </div>
+                )}
+                {(barcodeFormat === 'QR' || barcodeFormat === 'BOTH') && (
+                  <div className="shrink-0">
+                    {previewQrUrl ? (
+                      <img
+                        src={previewQrUrl}
+                        alt={`QR Code ${sku}`}
+                        className="w-12 h-12 object-contain"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center text-[10px] text-slate-400">
+                        <QrCode className="w-8 h-8 text-slate-300" />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

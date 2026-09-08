@@ -15,7 +15,11 @@ import {
   Upload,
   Globe,
   Database,
-  Radio
+  Radio,
+  Lock,
+  ShieldAlert,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
 import {
   playClickSound,
@@ -40,7 +44,8 @@ export const GeneralPlatformSettings: React.FC = () => {
     transfers,
     staff,
     locations,
-    recordAuditLog
+    recordAuditLog,
+    lockPlatform
   } = useERP();
 
   // Brand state
@@ -52,6 +57,7 @@ export const GeneralPlatformSettings: React.FC = () => {
   const [supportEmail, setSupportEmail] = useState(brandSettings.supportEmail || 'support@taji.co.ke');
   const [supportPhone, setSupportPhone] = useState(brandSettings.supportPhone || '+254 700 000 000');
   const [address, setAddress] = useState(brandSettings.address || 'Biashara Street, Nairobi, Kenya');
+  const [autoLockMinutes, setAutoLockMinutes] = useState<number>(brandSettings.autoLockMinutes || 2);
 
   // Audio state
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
@@ -82,11 +88,12 @@ export const GeneralPlatformSettings: React.FC = () => {
       logoUrl: logoUrl.trim() || undefined,
       supportEmail: supportEmail.trim() || undefined,
       supportPhone: supportPhone.trim() || undefined,
-      address: address.trim() || undefined
+      address: address.trim() || undefined,
+      autoLockMinutes
     });
     playSuccessSound();
     setStatusMessage({ type: 'success', text: 'Brand identity & store details updated successfully!' });
-    recordAuditLog('BRAND_SETTINGS_UPDATED', `Brand name ${brandName} updated`);
+    recordAuditLog('BRAND_SETTINGS_UPDATED', `Brand name ${brandName} and auto-lock timeout (${autoLockMinutes}m) updated`);
   };
 
   const handleLogoUpload = (file: File) => {
@@ -430,6 +437,86 @@ export const GeneralPlatformSettings: React.FC = () => {
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'Synchronizing Cloud...' : 'Force Cloud Sync Now'}</span>
             </button>
+          </div>
+
+          {/* Terminal Security & Strict Auto Log-Off */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-rose-600" />
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                  4. Strict Auto Log-Off &amp; Terminal Security
+                </h4>
+              </div>
+              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-rose-600" />
+                Strict Enforced
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              When nobody is using the terminal, an audible 30-second warning countdown is triggered. If not confirmed, the session is forcefully terminated and logged off.
+            </p>
+
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Inactivity Timeout Before Countdown
+                </label>
+                <select
+                  value={autoLockMinutes}
+                  onChange={e => {
+                    const mins = Number(e.target.value);
+                    setAutoLockMinutes(mins);
+                    updateBrandSettings({ autoLockMinutes: mins });
+                    playClickSound();
+                    recordAuditLog('AUTO_LOCK_UPDATED', `Auto-lock inactivity timeout set to ${mins} minutes`);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white outline-hidden cursor-pointer"
+                >
+                  <option value={1}>1 Minute (High Security / Busy Retail Desk)</option>
+                  <option value={2}>2 Minutes (Standard Recommended)</option>
+                  <option value={3}>3 Minutes</option>
+                  <option value={5}>5 Minutes</option>
+                  <option value={10}>10 Minutes</option>
+                </select>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600 space-y-1">
+                <div className="flex justify-between items-center font-bold text-slate-700">
+                  <span>Warning Countdown Window:</span>
+                  <span className="text-rose-600 font-mono">30 Seconds</span>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  Prompt strictly requires tapping "I'm Still Working" or pressing Enter. Unattended terminals log off immediately at 0 sec.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    window.dispatchEvent(new CustomEvent('taji:test-inactivity-lock'));
+                  }}
+                  className="p-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-bold transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5"
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Test Countdown Prompt</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    lockPlatform();
+                  }}
+                  className="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Lock Platform Now</span>
+                </button>
+              </div>
+            </div>
           </div>
 
         </div>

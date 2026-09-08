@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
-import { Palette, Image as ImageIcon, Upload, Link as LinkIcon, Trash2, Sparkles, X, Check, RefreshCw, Globe, FileImage } from 'lucide-react';
+import { BrandLogo } from '../common/BrandLogo';
+import { LogoEffectType } from '../../types';
+import { Palette, Image as ImageIcon, Upload, Link as LinkIcon, Trash2, Sparkles, X, Check, RefreshCw, Globe, FileImage, Zap, Waves, Activity, CircleDot } from 'lucide-react';
 
 export const BrandSettingsModal: React.FC = () => {
   const {
@@ -17,6 +19,7 @@ export const BrandSettingsModal: React.FC = () => {
   const [primaryColor, setPrimaryColor] = useState(brandSettings.primaryColor);
   const [logoUrl, setLogoUrl] = useState(brandSettings.logoUrl || '');
   const [faviconUrl, setFaviconUrl] = useState(brandSettings.faviconUrl || '');
+  const [logoEffect, setLogoEffect] = useState<LogoEffectType>(brandSettings.logoEffect || 'gleam');
   const [isSaved, setIsSaved] = useState(false);
 
   const logoFileInputRef = useRef<HTMLInputElement>(null);
@@ -68,6 +71,7 @@ export const BrandSettingsModal: React.FC = () => {
       tagline,
       headerBgColor,
       primaryColor,
+      logoEffect,
       logoUrl: logoUrl.trim() || undefined,
       faviconUrl: faviconUrl.trim() || undefined
     });
@@ -195,20 +199,23 @@ export const BrandSettingsModal: React.FC = () => {
 
             {/* Logo Preview & Upload Box */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Preview Box */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center justify-center text-center min-h-[110px] shadow-xs">
-                {logoUrl ? (
-                  <div className="w-20 h-20 rounded-full border-2 border-pink-500/40 p-1 bg-slate-50 ring-4 ring-pink-50 flex items-center justify-center overflow-hidden">
-                    <img src={logoUrl} alt="Logo preview" className="w-full h-full object-cover rounded-full" />
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-1.5 text-slate-400">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl shadow-sm border-2 border-white">
-                      {(brandName || 'T').charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Default Logo Badge</span>
-                  </div>
-                )}
+              {/* Live Effect Preview Box */}
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 flex flex-col items-center justify-center text-center min-h-[140px] shadow-inner relative overflow-hidden group/preview">
+                {/* Subtle dark backdrop grid */}
+                <div className="absolute inset-0 bg-[radial-gradient(#ffffff12_1px,transparent_1px)] [background-size:12px_12px] pointer-events-none" />
+                <BrandLogo
+                  logoUrl={logoUrl}
+                  brandName={brandName}
+                  size="xl"
+                  effect={logoEffect}
+                  primaryColor={primaryColor}
+                  showSparkle={true}
+                  interactive={true}
+                />
+                <span className="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider relative z-10 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-pink-400" />
+                  Live Effect Preview
+                </span>
               </div>
 
               {/* Upload Drop Zone & URL */}
@@ -248,6 +255,78 @@ export const BrandSettingsModal: React.FC = () => {
                     className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:border-pink-500 focus:outline-none"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Logo Motion & Visual Effects Selector */}
+            <div className="pt-2 border-t border-slate-200/60 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-pink-600" />
+                  Logo Motion &amp; Animation Effect
+                </span>
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-bold tracking-wider">
+                  Selected: {logoEffect}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  {
+                    id: 'gleam' as LogoEffectType,
+                    name: 'Gleam Sheen',
+                    icon: Sparkles,
+                    desc: 'Prismatic light sweep & sparkle'
+                  },
+                  {
+                    id: 'orbital' as LogoEffectType,
+                    name: 'Orbital Ring',
+                    icon: CircleDot,
+                    desc: 'Dual cosmic rotating rings'
+                  },
+                  {
+                    id: 'pulse' as LogoEffectType,
+                    name: 'Acoustic Pulse',
+                    icon: Waves,
+                    desc: 'Expanding sonar radar ripples'
+                  },
+                  {
+                    id: 'float' as LogoEffectType,
+                    name: 'Float Lift',
+                    icon: Activity,
+                    desc: 'Weightless levitation & shadow'
+                  },
+                  {
+                    id: 'none' as LogoEffectType,
+                    name: 'Static Clean',
+                    icon: X,
+                    desc: 'Classic motionless badge'
+                  }
+                ].map(opt => {
+                  const Icon = opt.icon;
+                  const isSelected = logoEffect === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setLogoEffect(opt.id)}
+                      className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-pink-500 bg-pink-50/80 ring-2 ring-pink-500/30 text-pink-900 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1">
+                        <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-pink-600' : 'text-slate-400'}`} />
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-pink-600" />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold truncate leading-tight">{opt.name}</p>
+                        <p className="text-[10px] text-slate-400 leading-tight mt-0.5 line-clamp-1">{opt.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

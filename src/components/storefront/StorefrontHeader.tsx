@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CategoryType } from '../../types';
 import { useERP } from '../../context/ERPContext';
 import tajiLogo from '../../assets/images/taji_logo_1786034537873.jpg';
+import { BrandLogo } from '../common/BrandLogo';
 import {
   ShoppingBag,
   Search,
@@ -70,14 +71,15 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
               }}
               className="flex items-center gap-3 cursor-pointer group"
             >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl overflow-hidden shadow-xs border border-rose-200 bg-white p-0.5 group-hover:scale-105 transition-transform duration-200">
-                <img
-                  src={displayLogo}
-                  alt={brandName}
-                  className="w-full h-full object-contain"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
+              <BrandLogo
+                logoUrl={displayLogo}
+                brandName={brandName}
+                size="sm"
+                effect={brandSettings?.logoEffect || 'gleam'}
+                primaryColor={primaryColor}
+                showSparkle={true}
+                interactive={true}
+              />
               <div>
                 <div className="flex items-center gap-2">
                   <span 
