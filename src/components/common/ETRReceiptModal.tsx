@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from './ReflectionOverlay';
 import { DocumentHeader } from './DocumentHeader';
@@ -7,6 +7,7 @@ import {
   Printer,
   CheckCircle2,
   QrCode,
+  Barcode,
   Building2,
   FileText,
   Receipt,
@@ -37,6 +38,7 @@ import {
   getDocumentTypeName
 } from '../../utils/documentExport';
 import { DocumentType } from '../../types';
+import { generateReceiptQRDataURL, generateReceiptBarcodeDataURL } from '../../utils/realQrBarcode';
 
 export const ETRReceiptModal: React.FC = () => {
   const {
@@ -60,6 +62,40 @@ export const ETRReceiptModal: React.FC = () => {
   const [convertWhtCert, setConvertWhtCert] = useState('');
   const [convertFeedback, setConvertFeedback] = useState<string | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+
+  // Genuine QR & Barcode generation states
+  const [receiptQrUrl, setReceiptQrUrl] = useState<string>('');
+  const [receiptBarcodeUrl, setReceiptBarcodeUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (!selectedReceipt) return;
+    let isMounted = true;
+
+    const generateCodes = async () => {
+      try {
+        const qr = await generateReceiptQRDataURL(
+          selectedReceipt.receiptNumber || selectedReceipt.id,
+          etrConfig.taxPin,
+          selectedReceipt.grandTotal
+        );
+        const barcode = generateReceiptBarcodeDataURL(
+          selectedReceipt.receiptNumber || selectedReceipt.id
+        );
+        if (isMounted) {
+          setReceiptQrUrl(qr);
+          setReceiptBarcodeUrl(barcode);
+        }
+      } catch (e) {
+        console.error('Error generating genuine receipt QR / Barcode:', e);
+      }
+    };
+
+    generateCodes();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedReceipt, etrConfig.taxPin]);
 
   if (!selectedReceipt) return null;
 
@@ -599,9 +635,37 @@ export const ETRReceiptModal: React.FC = () => {
 
             {/* KRA QR Code Verification */}
             <div className="pt-2 flex flex-col items-center justify-center space-y-2">
-              <div className="p-2 border-2 border-slate-800 rounded bg-white flex flex-col items-center">
-                <QrCode className="w-16 h-16 text-slate-900" />
-                <span className="text-[8px] font-mono mt-1 text-slate-500 uppercase">KRA TIMS Fiscal Verification Code</span>
+              {/* Scannable Code128 Barcode */}
+              {receiptBarcodeUrl ? (
+                <div className="w-full flex flex-col items-center py-1 bg-white border border-slate-200 rounded p-1">
+                  <img
+                    src={receiptBarcodeUrl}
+                    alt={selectedReceipt.receiptNumber}
+                    className="h-10 max-w-full object-contain mx-auto"
+                  />
+                  <span className="text-[7.5px] font-mono text-slate-500 mt-0.5">
+                    BARCODE: {selectedReceipt.receiptNumber}
+                  </span>
+                </div>
+              ) : null}
+
+              {/* Genuine KRA Fiscal Verification QR */}
+              <div className="p-2 border-2 border-slate-800 rounded bg-white flex flex-col items-center shadow-2xs">
+                {receiptQrUrl ? (
+                  <img
+                    src={receiptQrUrl}
+                    alt="KRA Fiscal QR"
+                    className="w-24 h-24 object-contain"
+                  />
+                ) : (
+                  <QrCode className="w-16 h-16 text-slate-900" />
+                )}
+                <span className="text-[8px] font-mono mt-1 text-slate-900 font-bold uppercase">
+                  KRA TIMS Fiscal Verification Code
+                </span>
+                <span className="text-[7px] font-mono text-slate-500">
+                  {selectedReceipt.receiptNumber} • PIN: {etrConfig.taxPin}
+                </span>
               </div>
               <p className="text-[9px] text-center text-slate-500 font-sans italic max-w-xs">
                 {etrConfig.receiptFooterMessage}
@@ -735,6 +799,41 @@ export const ETRReceiptModal: React.FC = () => {
               <p className="text-slate-600">
                 {selectedReceipt.deliveryNotes || 'Please inspect rolls, carton packaging, and seals upon handover. Sign below only when all quantities and textile specifications are verified.'}
               </p>
+            </div>
+
+            {/* Genuine Delivery Note Barcode & QR Verification Banner */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-white border border-slate-300 rounded-lg shadow-2xs">
+                  {receiptQrUrl ? (
+                    <img
+                      src={receiptQrUrl}
+                      alt="Delivery Note QR"
+                      className="w-14 h-14 object-contain"
+                    />
+                  ) : (
+                    <QrCode className="w-12 h-12 text-slate-800" />
+                  )}
+                </div>
+                <div className="text-[10px] space-y-0.5">
+                  <p className="font-bold text-slate-900 uppercase">Waybill Dispatch &amp; Handover Seal</p>
+                  <p className="font-mono text-slate-600">REF: {selectedReceipt.receiptNumber}</p>
+                  <p className="text-slate-500">Scan to verify consignment authenticity &amp; contents</p>
+                </div>
+              </div>
+
+              {receiptBarcodeUrl && (
+                <div className="flex flex-col items-center bg-white border border-slate-200 rounded p-1">
+                  <img
+                    src={receiptBarcodeUrl}
+                    alt={selectedReceipt.receiptNumber}
+                    className="h-9 max-w-[200px] object-contain"
+                  />
+                  <span className="text-[7.5px] font-mono text-slate-500">
+                    {selectedReceipt.receiptNumber}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* 3 Signature Endorsement Boxes */}
@@ -949,17 +1048,39 @@ export const ETRReceiptModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Footer Sign-off */}
-            <div className="flex justify-between items-end pt-4 border-t border-slate-200 text-xs">
+            {/* Footer Sign-off with Genuine Barcode & QR Code */}
+            <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-4 pt-4 border-t border-slate-200 text-xs">
               <div className="flex items-center gap-3">
-                <div className="p-2 border border-slate-300 rounded-lg bg-white">
-                  <QrCode className="w-12 h-12 text-slate-900" />
+                <div className="p-1.5 border border-slate-300 rounded-lg bg-white shadow-2xs">
+                  {receiptQrUrl ? (
+                    <img
+                      src={receiptQrUrl}
+                      alt="KRA TIMS QR Code"
+                      className="w-14 h-14 object-contain"
+                    />
+                  ) : (
+                    <QrCode className="w-12 h-12 text-slate-900" />
+                  )}
                 </div>
-                <div className="text-[10px] text-slate-500">
-                  <p className="font-bold text-slate-700">KRA TIMS DIGITAL SIGNATURE</p>
-                  <p className="font-mono">VERIFY: kra.go.ke/verify/{selectedReceipt.receiptNumber}</p>
+                <div className="text-[10px] text-slate-500 space-y-0.5">
+                  <p className="font-bold text-slate-800 uppercase tracking-wide">KRA TIMS FISCAL SIGNATURE</p>
+                  <p className="font-mono text-slate-700">VERIFY: kra.go.ke/verify/{selectedReceipt.receiptNumber}</p>
+                  <p className="font-mono text-[9px] text-slate-400">PIN: {etrConfig.taxPin} • CU Serial: {etrConfig.cuSerialNumber || 'KRAMW019284'}</p>
                 </div>
               </div>
+
+              {receiptBarcodeUrl && (
+                <div className="flex flex-col items-center bg-white border border-slate-200 rounded p-1">
+                  <img
+                    src={receiptBarcodeUrl}
+                    alt={selectedReceipt.receiptNumber}
+                    className="h-10 max-w-[200px] object-contain"
+                  />
+                  <span className="text-[7.5px] font-mono text-slate-500">
+                    {selectedReceipt.receiptNumber}
+                  </span>
+                </div>
+              )}
 
               <div className="text-right">
                 <div className="w-40 border-b border-slate-400 pb-1 mb-1 font-sans text-[11px] font-bold text-slate-800">

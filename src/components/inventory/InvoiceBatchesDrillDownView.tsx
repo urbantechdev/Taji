@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useERP } from '../../context/ERPContext';
 import {
   InvoiceInventoryBatch,
@@ -28,6 +28,7 @@ import {
   X
 } from 'lucide-react';
 import { playClickSound } from '../../utils/audio';
+import { generateRealBarcodeDataURL, generateRealQRCodeDataURL } from '../../utils/realQrBarcode';
 
 interface InvoiceBatchesDrillDownViewProps {
   onOpenCostingSuite?: () => void;
@@ -47,6 +48,33 @@ export const InvoiceBatchesDrillDownView: React.FC<InvoiceBatchesDrillDownViewPr
   });
   const [activeSubTab, setActiveSubTab] = useState<'line_items' | 'rolls' | 'customs_summary'>('line_items');
   const [selectedRollForBarcode, setSelectedRollForBarcode] = useState<InvoiceBatchRollItem | null>(null);
+  const [rollQrUrl, setRollQrUrl] = useState<string>('');
+
+  const rollBarcodeUrl = useMemo(() => {
+    if (!selectedRollForBarcode) return '';
+    return generateRealBarcodeDataURL(
+      selectedRollForBarcode.barcode || selectedRollForBarcode.rollNumber,
+      { format: 'CODE128', height: 48, width: 2, displayValue: true }
+    );
+  }, [selectedRollForBarcode]);
+
+  useEffect(() => {
+    if (!selectedRollForBarcode) return;
+    let isMounted = true;
+    const payload = JSON.stringify({
+      type: 'FABRIC_ROLL',
+      rollNumber: selectedRollForBarcode.rollNumber,
+      barcode: selectedRollForBarcode.barcode,
+      netWeightKg: selectedRollForBarcode.netWeightKg,
+      lengthMeters: selectedRollForBarcode.lengthMeters
+    });
+    generateRealQRCodeDataURL(payload, { width: 140, margin: 1 }).then(url => {
+      if (isMounted) setRollQrUrl(url);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedRollForBarcode]);
 
   // Filtered invoice batches list
   const filteredBatches = useMemo(() => {
@@ -699,19 +727,31 @@ export const InvoiceBatchesDrillDownView: React.FC<InvoiceBatchesDrillDownViewPr
                 {selectedRollForBarcode.rollNumber}
               </div>
 
-              {/* Stylized Barcode Graphic */}
-              <div className="my-3 py-2 bg-white rounded border border-slate-200 flex justify-center items-center gap-0.5 px-4 h-16">
-                {[4, 2, 6, 1, 3, 5, 2, 7, 3, 1, 4, 6, 2, 5, 3, 2, 4, 1, 6, 3, 5, 2, 4, 1, 3, 6, 2, 5].map((h, i) => (
-                  <div
-                    key={i}
-                    className="bg-slate-900 w-1 rounded-xs"
-                    style={{ height: `${20 + h * 4}px` }}
-                  />
-                ))}
-              </div>
-
-              <div className="font-mono text-xs font-bold text-slate-700 tracking-wider">
-                {selectedRollForBarcode.barcode}
+              {/* Genuine Scannable Code128 Barcode & QR Code */}
+              <div className="my-3 p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2 flex flex-col items-center">
+                {rollBarcodeUrl && (
+                  <div className="w-full flex flex-col items-center">
+                    <img
+                      src={rollBarcodeUrl}
+                      alt={selectedRollForBarcode.barcode}
+                      className="h-12 max-w-full object-contain mx-auto"
+                    />
+                  </div>
+                )}
+                {rollQrUrl && (
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-2 w-full">
+                    <img
+                      src={rollQrUrl}
+                      alt="Roll QR"
+                      className="w-14 h-14 object-contain"
+                    />
+                    <div className="text-left text-[9.5px] font-mono text-slate-500">
+                      <p className="font-bold text-slate-800">SCANNABLE ROLL TOKEN</p>
+                      <p>Roll: {selectedRollForBarcode.rollNumber}</p>
+                      <p>Barcode: {selectedRollForBarcode.barcode}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="mt-3 pt-2 border-t border-slate-200 grid grid-cols-2 text-left text-[11px]">

@@ -13,6 +13,7 @@ import { CategoryPricingModal } from './CategoryPricingModal';
 import { ProductImageManagerModal } from './ProductImageManagerModal';
 import { BulkBarcodeGeneratorModal } from './BulkBarcodeGeneratorModal';
 import { DuplicateAuditModal } from './DuplicateAuditModal';
+import { ProductQRTagModal } from './ProductQRTagModal';
 import { StocktakeDashboard } from './StocktakeDashboard';
 import { InwardInvoiceIntakeModal } from './InwardInvoiceIntakeModal';
 import { InvoiceBatchesDrillDownView } from './InvoiceBatchesDrillDownView';
@@ -207,6 +208,7 @@ export const InventoryCatalog: React.FC = () => {
 
     const res = await addProductBatch({
       sku: newSku.toUpperCase(),
+      dyeLot: newSku.toUpperCase(),
       barcode: newBarcode.trim() ? newBarcode.trim().toUpperCase() : newSku.toUpperCase(),
       name: newName,
       category: newCategory,
@@ -920,7 +922,7 @@ export const InventoryCatalog: React.FC = () => {
                             )}
                             <div>
                               <p className="font-bold text-slate-900">{p.name}</p>
-                              <p className="font-mono text-[10px] text-slate-500">{p.sku} • {p.id}</p>
+                              <p className="font-mono text-[10px] text-slate-500">Lot (SKU): {p.dyeLot || p.sku} • {p.id}</p>
                             </div>
                           </div>
                         </td>
@@ -1124,99 +1126,16 @@ export const InventoryCatalog: React.FC = () => {
         </>
       )}
 
-      {/* BATCH QR CODE GENERATOR & TAG MODAL */}
+      {/* BATCH GENUINE QR CODE & BARCODE GENERATOR TAG MODAL */}
       {activeBatchModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl max-w-sm w-full h-full sm:h-auto max-h-[100dvh] sm:max-h-[90vh] p-5 sm:p-6 space-y-4 border-0 sm:border border-rose-100 animate-in fade-in zoom-in duration-200 overflow-y-auto flex flex-col justify-between sm:justify-start">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-rose-600" />
-                  <h3 className="font-bold text-slate-900 text-base">
-                    Product Batch QR Tag
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setActiveBatchModal(null)}
-                  className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Printable QR Tag Card */}
-              <div className="p-4 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 space-y-3 text-center">
-                {activeBatchModal.imageUrl && (
-                  <div className="relative w-full h-24 rounded-xl overflow-hidden shadow-xs border border-slate-200">
-                    <img
-                      src={activeBatchModal.imageUrl}
-                      alt={activeBatchModal.name}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div
-                      className="absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white shadow-md"
-                      style={{ backgroundColor: activeBatchModal.colorHex }}
-                      title={activeBatchModal.colorName}
-                    />
-                  </div>
-                )}
-                {!activeBatchModal.imageUrl && (
-                  <div
-                    className="w-10 h-10 rounded-full mx-auto border-2 border-white shadow-md"
-                    style={{ backgroundColor: activeBatchModal.colorHex }}
-                  />
-                )}
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">
-                    {activeBatchModal.name}
-                  </h4>
-                  <p className="text-xs text-rose-700 font-semibold">
-                    {activeBatchModal.colorName} ({activeBatchModal.colorHex})
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                    SKU: {activeBatchModal.sku} • ID: {activeBatchModal.id}
-                  </p>
-                </div>
-
-                {/* QR Code Payload Simulation */}
-                <div className="bg-white p-3 rounded-xl border border-slate-200 inline-block shadow-xs">
-                  <QrCode className="w-24 h-24 mx-auto text-slate-900" />
-                  <span className="text-[8px] font-mono text-slate-400 uppercase mt-1 block">
-                    Scannable Batch QR Token
-                  </span>
-                </div>
-
-                <div className="text-[10px] text-slate-600 space-y-0.5">
-                  <p>Fiber: {activeBatchModal.fiberComposition}</p>
-                  <p>Retail: KSh {activeBatchModal.unitPriceRetail} / {activeBatchModal.unit}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-4">
-              <button
-                onClick={() => {
-                  const target = activeBatchModal;
-                  setActiveBatchModal(null);
-                  setProductToDelete(target);
-                }}
-                className="px-3 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Instant Delete this product from inventory"
-              >
-                <Trash2 className="w-4 h-4 text-rose-600" />
-                <span>Delete Batch</span>
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                Print Batch Tag
-              </button>
-            </div>
-          </div>
-        </div>
+        <ProductQRTagModal
+          product={activeBatchModal}
+          onClose={() => setActiveBatchModal(null)}
+          onDeleteRequest={(target) => {
+            setActiveBatchModal(null);
+            setProductToDelete(target);
+          }}
+        />
       )}
 
       {/* ADD PRODUCT BATCH MODAL */}
@@ -1238,13 +1157,13 @@ export const InventoryCatalog: React.FC = () => {
             <form onSubmit={handleAddSubmit} className="space-y-4 text-xs font-sans">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">SKU Code:</label>
+                  <label className="font-bold text-slate-700 block mb-1">Lot No / SKU Code *:</label>
                   <input
                     type="text"
                     required
                     value={newSku}
                     onChange={e => setNewSku(e.target.value)}
-                    placeholder="e.g. DRK-CRIMSON-220"
+                    placeholder="e.g. 26B020 or LOT-DRK-101"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase focus:ring-2 focus:ring-rose-500 focus:outline-none"
                   />
                 </div>

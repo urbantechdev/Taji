@@ -192,6 +192,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
       const matchesQuery = !query || 
         p.name.toLowerCase().includes(query) ||
         p.sku?.toLowerCase().includes(query) ||
+        p.dyeLot?.toLowerCase().includes(query) ||
         p.barcode?.toLowerCase().includes(query) ||
         p.colorName?.toLowerCase().includes(query) ||
         p.category.toLowerCase().includes(query);
@@ -834,7 +835,7 @@ export const MobileBarcodeScannerModal: React.FC = () => {
                                 {prod.name}
                               </h5>
                               <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                SKU: {prod.sku || prod.id}
+                                Lot (SKU): {prod.dyeLot || prod.sku || prod.id}
                               </p>
                             </div>
                           </div>

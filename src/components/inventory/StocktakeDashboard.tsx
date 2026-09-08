@@ -671,7 +671,7 @@ export const StocktakeDashboard: React.FC = () => {
                         <td className="p-3.5">
                           <div className="font-extrabold text-slate-900">{item.productName}</div>
                           <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500 font-mono">
-                            <span>SKU: {item.sku}</span>
+                            <span>Lot (SKU): {item.sku}</span>
                             {item.barcode && <span>• Bar: {item.barcode}</span>}
                           </div>
                         </td>

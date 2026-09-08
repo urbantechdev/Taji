@@ -95,10 +95,12 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
     setIsSaving(true);
     setFeedback(null);
 
+    const effectiveLotSku = (sku.trim() || dyeLot.trim()).toUpperCase();
+
     const updates: Partial<ProductBatch> = {
       name: name.trim(),
-      sku: sku.trim().toUpperCase(),
-      barcode: barcode.trim().toUpperCase(),
+      sku: effectiveLotSku,
+      barcode: barcode.trim() ? barcode.trim().toUpperCase() : effectiveLotSku,
       category,
       subCategory: subCategory.trim() || `${category} Stock`,
       fiberComposition: fiberComposition.trim(),
@@ -111,7 +113,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
       minReorderLevel: Number(minReorderLevel),
       imageUrl: imageUrl.trim() || undefined,
       yarnCount: category === 'Yarns' ? yarnCount : undefined,
-      dyeLot: category === 'Yarns' ? dyeLot : undefined,
+      dyeLot: effectiveLotSku,
       shadeCode: category === 'Yarns' ? shadeCode : undefined,
       bagNumber: category === 'Yarns' ? bagNumber : undefined,
       packagesCount: category === 'Yarns' ? Number(packagesCount) : undefined,
@@ -240,16 +242,20 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                SKU / Batch Code *
+                Lot No / SKU (Primary) *
               </label>
               <div className="relative">
                 <input
                   type="text"
                   required
                   value={sku}
-                  onChange={e => setSku(e.target.value.toUpperCase())}
+                  onChange={e => {
+                    const val = e.target.value.toUpperCase();
+                    setSku(val);
+                    setDyeLot(val);
+                  }}
                   className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono font-bold text-slate-800 uppercase"
-                  placeholder="TFX-DRK-101"
+                  placeholder="e.g. 26B020"
                 />
                 <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               </div>
@@ -503,12 +509,16 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
 
                 <div className="bg-white p-2.5 rounded-xl border border-slate-200">
                   <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                    Dye Lot
+                    Dye Lot No (Primary SKU)
                   </label>
                   <input
                     type="text"
                     value={dyeLot}
-                    onChange={e => setDyeLot(e.target.value)}
+                    onChange={e => {
+                      const val = e.target.value.toUpperCase();
+                      setDyeLot(val);
+                      setSku(val);
+                    }}
                     placeholder="e.g. 26E081"
                     className="w-full font-mono text-slate-800 text-xs focus:outline-none"
                   />

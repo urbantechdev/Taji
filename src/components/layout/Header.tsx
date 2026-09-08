@@ -9,6 +9,7 @@ import { MailInboxDrawer } from '../notifications/MailInboxDrawer';
 import { BrandSettingsModal } from '../settings/BrandSettingsModal';
 import { UserProfileModal } from '../profile/UserProfileModal';
 import { CapabilityTooltip } from '../guide/CapabilityTooltip';
+import { BrandLogo } from '../common/BrandLogo';
 import { isSoundEnabled, toggleSound, playClickSound } from '../../utils/audio';
 import {
   Store,
@@ -509,43 +510,19 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
             className="flex items-center gap-3.5 min-w-0 cursor-pointer active:scale-98 transition-transform"
             title="Open Menu & System Tools"
           >
-            <motion.div
-              animate={{
-                scale: [1, 1.03, 1],
-                boxShadow: [
-                  '0 0 0 0px rgba(255, 255, 255, 0.45)',
-                  '0 0 0 12px rgba(255, 255, 255, 0)',
-                  '0 0 0 0px rgba(255, 255, 255, 0.45)'
-                ]
+            <BrandLogo
+              logoUrl={brandSettings?.logoUrl}
+              brandName={brandSettings?.brandName}
+              size="md"
+              effect={brandSettings?.logoEffect || 'gleam'}
+              primaryColor={brandSettings?.primaryColor || '#B50044'}
+              showSparkle={true}
+              title="Click to customize brand logo & settings"
+              onClick={() => {
+                playClickSound();
+                setIsBrandSettingsModalOpen(true);
               }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                ease: 'easeInOut'
-              }}
-              className="w-22 h-22 rounded-full bg-white/20 border-3 border-white/80 p-1 shadow-xl flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative"
-            >
-              {brandSettings?.logoUrl ? (
-                <motion.img
-                  src={brandSettings.logoUrl}
-                  alt={brandSettings.brandName || 'Logo'}
-                  className="w-full h-full object-cover rounded-full bg-white p-0.5 shadow-inner"
-                  referrerPolicy="no-referrer"
-                  animate={{
-                    rotate: [0, 2, -2, 0]
-                  }}
-                  transition={{
-                    duration: 6,
-                    repeat: Infinity,
-                    ease: 'easeInOut'
-                  }}
-                />
-              ) : (
-                <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl shadow-inner">
-                  {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
-                </div>
-              )}
-            </motion.div>
+            />
 
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
@@ -602,46 +579,19 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
           
           {/* Brand Title & Logo */}
           <div className="flex items-center gap-3.5 lg:gap-5">
-            <motion.div
-              onClick={() => setIsBrandSettingsModalOpen(true)}
+            <BrandLogo
+              logoUrl={brandSettings?.logoUrl}
+              brandName={brandSettings?.brandName}
+              size="lg"
+              effect={brandSettings?.logoEffect || 'gleam'}
+              primaryColor={brandSettings?.primaryColor || '#B50044'}
+              showSparkle={true}
               title="Click to customize brand logo & settings"
-              animate={{
-                scale: [1, 1.03, 1],
-                boxShadow: [
-                  '0 0 0 0px rgba(255, 255, 255, 0.45)',
-                  '0 0 0 16px rgba(255, 255, 255, 0)',
-                  '0 0 0 0px rgba(255, 255, 255, 0.45)'
-                ]
+              onClick={() => {
+                playClickSound();
+                setIsBrandSettingsModalOpen(true);
               }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                ease: 'easeInOut'
-              }}
-              className="w-16 h-16 lg:w-22 lg:h-22 rounded-full bg-white/25 border-3 lg:border-4 border-white/60 p-1 lg:p-1.5 shadow-2xl ring-2 lg:ring-4 ring-white/20 flex items-center justify-center shrink-0 backdrop-blur-md overflow-hidden relative cursor-pointer group/logo hover:border-white transition-all"
-            >
-              {brandSettings?.logoUrl ? (
-                <motion.img
-                  src={brandSettings.logoUrl}
-                  alt={brandSettings.brandName || 'Logo'}
-                  className="w-full h-full object-cover rounded-full bg-white p-1 shadow-inner group-hover/logo:scale-105 transition-transform"
-                  referrerPolicy="no-referrer"
-                  animate={{
-                    rotate: [0, 1.5, -1.5, 0]
-                  }}
-                  transition={{
-                    duration: 6,
-                    repeat: Infinity,
-                    ease: 'easeInOut'
-                  }}
-                  whileHover={{ scale: 1.1, rotate: 3 }}
-                />
-              ) : (
-                <div className="w-full h-full rounded-full bg-gradient-to-tr from-rose-600 via-pink-600 to-pink-500 flex items-center justify-center text-white font-black text-2xl lg:text-3xl shadow-inner border border-white/30 group-hover/logo:scale-105 transition-transform">
-                  {(brandSettings?.brandName || 'T').charAt(0).toUpperCase()}
-                </div>
-              )}
-            </motion.div>
+            />
 
             <div className="space-y-1">
               <div className="flex items-center gap-2.5">

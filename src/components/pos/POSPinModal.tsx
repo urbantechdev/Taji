@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { Lock, Delete, KeyRound, ShieldCheck, CheckCircle, AlertCircle, Store, Keyboard } from 'lucide-react';
 import { LocationId } from '../../types';
+import { BrandLogo } from '../common/BrandLogo';
 
 export const POSPinModal: React.FC = () => {
   const { unlockPOSWithPin, activeLocation, setActiveLocation, brandSettings } = useERP();
@@ -84,19 +85,16 @@ export const POSPinModal: React.FC = () => {
       <div className="w-full max-w-md bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xl sm:shadow-2xl p-4 sm:p-8 space-y-3.5 sm:space-y-6">
         
         {/* Top Header */}
-        <div className="text-center space-y-1.5 sm:space-y-2">
-          {brandSettings.logoUrl ? (
-            <img
-              src={brandSettings.logoUrl}
-              alt={brandSettings.brandName}
-              className="w-16 h-16 sm:w-28 sm:h-28 object-contain rounded-full mx-auto mb-1 mix-blend-multiply"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-slate-900 text-rose-400 border border-slate-800 flex items-center justify-center mx-auto shadow-lg">
-              <KeyRound className="w-5 h-5 sm:w-7 sm:h-7" />
-            </div>
-          )}
+        <div className="text-center space-y-1.5 sm:space-y-2 flex flex-col items-center">
+          <BrandLogo
+            logoUrl={brandSettings?.logoUrl}
+            brandName={brandSettings?.brandName}
+            size="xl"
+            effect={brandSettings?.logoEffect || 'gleam'}
+            primaryColor={brandSettings?.primaryColor || '#B50044'}
+            showSparkle={true}
+            className="mb-1"
+          />
 
           <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] sm:text-[11px] font-extrabold">
             <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-rose-600" />

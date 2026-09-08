@@ -147,17 +147,20 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
   }> = [
     ...products
       .filter(p => selectedProductIds.includes(p.id))
-      .map(p => ({
-        id: p.id,
-        sku: p.sku,
-        barcode: p.barcode || p.sku,
-        name: p.name,
-        category: p.category,
-        colorName: p.colorName,
-        colorHex: p.colorHex,
-        price: p.unitPriceRetail,
-        unit: p.unit
-      })),
+      .map(p => {
+        const lotSku = p.dyeLot || p.sku;
+        return {
+          id: p.id,
+          sku: lotSku,
+          barcode: p.barcode || lotSku,
+          name: p.name,
+          category: p.category,
+          colorName: p.colorName,
+          colorHex: p.colorHex,
+          price: p.unitPriceRetail,
+          unit: p.unit
+        };
+      }),
     ...customItems.map((c, i) => ({
       id: `CUSTOM-${i}`,
       sku: c.sku,

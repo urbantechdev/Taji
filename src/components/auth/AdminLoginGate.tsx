@@ -75,10 +75,10 @@ export const AdminLoginGate: React.FC = () => {
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-2">
           <p className="text-xs font-bold text-slate-800 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Super Admin Whitelist:</span>
+            <span>Super Administrator Credential Required:</span>
           </p>
-          <p className="text-xs font-mono text-rose-700 bg-white px-3 py-1.5 rounded-xl border border-rose-200 font-semibold">
-            feminiholdings@gmail.com
+          <p className="text-xs font-sans text-rose-700 bg-white px-3 py-1.5 rounded-xl border border-rose-200 font-bold">
+            Authorized Executive Google Account
           </p>
           <p className="text-[11px] text-slate-500">
             Only whitelisted administrators and operators created by the Super Admin can access executive management controls.
@@ -145,19 +145,19 @@ export const AdminLoginGate: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => signInAsWhitelistedAdmin('feminiholdings@gmail.com')}
+                  onClick={() => signInAsWhitelistedAdmin()}
                   className="p-3 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer shadow-2xs flex flex-col gap-0.5"
                 >
                   <span>Authorize as Super Admin</span>
-                  <span className="text-[10px] text-slate-400 font-mono font-normal truncate">feminiholdings@gmail.com</span>
+                  <span className="text-[10px] text-slate-400 font-normal truncate">Executive Management</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => signInAsAccountant('accountant@taji.co.ke')}
+                  onClick={() => signInAsAccountant('mwkomu@gmail.com')}
                   className="p-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer shadow-2xs flex flex-col gap-0.5"
                 >
                   <span>Authorize as Accountant</span>
-                  <span className="text-[10px] text-slate-400 font-mono font-normal">Finance &amp; Ledger Access</span>
+                  <span className="text-[10px] text-emerald-600 font-mono">mwkomu@gmail.com</span>
                 </button>
               </div>
             </div>
@@ -196,29 +196,37 @@ export const AdminLoginGate: React.FC = () => {
           </button>
         </div>
 
-        {/* Super Admin Whitelist Badge Callout */}
+        {/* Whitelisted Super Admin & Accountant Callouts */}
         <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
           <div className="flex items-center justify-between text-xs">
             <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              Whitelisted Super Admin
+              Whitelisted Admin &amp; Accountant
             </span>
             <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
               Active
             </span>
           </div>
 
-          <div className="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-rose-700">
-              feminiholdings@gmail.com
-            </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          <div className="space-y-1.5">
+            <div className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-sans font-bold text-rose-700">
+                Executive Super Admin
+              </span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            </div>
+
+            <div className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-emerald-700">
+                mwkomu@gmail.com (Accountant)
+              </span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            </div>
           </div>
 
           <ul className="text-[11px] text-slate-500 space-y-1 list-disc list-inside leading-normal">
-            <li>Full executive access to all store locations</li>
-            <li>Create &amp; manage POS users, Cashier 6-digit PINs, and operators</li>
-            <li>Configure ETR, VAT, and financial ledgers</li>
+            <li>Google OAuth access for Executive Super Admin &amp; Chief Accountant</li>
+            <li>Direct access to General Ledger, VAT compliance, ETR, and Audit trails</li>
           </ul>
         </div>
       </div>

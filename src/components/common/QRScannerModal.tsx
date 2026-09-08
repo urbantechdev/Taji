@@ -286,20 +286,25 @@ export const QRScannerModal: React.FC = () => {
     try {
       const parsed = JSON.parse(raw);
       const targetBatchId = parsed.batch || parsed.id || parsed.batchId;
-      const targetSku = parsed.sku || parsed.barcode;
+      const targetSku = parsed.sku || parsed.lot || parsed.dyeLot || parsed.barcode;
 
       const found = products.find(p => 
         (targetBatchId && p.id.toLowerCase() === String(targetBatchId).toLowerCase()) ||
-        (targetSku && (p.sku.toLowerCase() === String(targetSku).toLowerCase() || (p.barcode && p.barcode.toLowerCase() === String(targetSku).toLowerCase())))
+        (targetSku && (
+          p.sku.toLowerCase() === String(targetSku).toLowerCase() || 
+          (p.dyeLot && p.dyeLot.toLowerCase() === String(targetSku).toLowerCase()) ||
+          (p.barcode && p.barcode.toLowerCase() === String(targetSku).toLowerCase())
+        ))
       );
       if (found) return found;
     } catch {
       // Non-JSON payload
     }
 
-    // 2. Direct SKU, ID, Barcode, or embedded QR data token match
+    // 2. Direct SKU, Lot No, ID, Barcode, or embedded QR data token match
     const directMatch = products.find(p => 
       p.sku.toLowerCase() === raw.toLowerCase() ||
+      (p.dyeLot && p.dyeLot.toLowerCase() === raw.toLowerCase()) ||
       p.id.toLowerCase() === raw.toLowerCase() ||
       (p.barcode && p.barcode.toLowerCase() === raw.toLowerCase()) ||
       (p.qrCodeData && p.qrCodeData.includes(raw)) ||

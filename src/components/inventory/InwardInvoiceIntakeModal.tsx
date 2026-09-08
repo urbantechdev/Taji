@@ -623,9 +623,12 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               onboardedCount++;
             }
           } else {
-            // Create brand new product in catalog
+            // Create brand new product in catalog (Lot No is our SKU)
+            const lotSku = (draft.dyeLot?.trim() || draft.sku?.trim() || `LOT-${Date.now().toString().slice(-6)}`).toUpperCase();
             await addProductBatch({
-              sku: draft.sku || `SKU-${Date.now().toString().slice(-6)}`,
+              sku: lotSku,
+              dyeLot: lotSku,
+              barcode: lotSku,
               name: draft.name,
               category: draft.category,
               subCategory: draft.subCategory || (draft.category === 'Yarns' ? 'Machine Knitting Yarn 2/24 NM' : 'Imported Grade'),
@@ -644,7 +647,6 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               manufacturer: currentSupplier?.name || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
               grossWeightKg: comp.grossWeightKg || draft.grossWeightKg,
               netWeightKg: comp.netWeightKg || draft.quantity,
-              dyeLot: draft.dyeLot || (comp as any).dyeLot,
               shadeCode: draft.shadeCode || (comp as any).shadeCode,
               packagesCount: draft.packagesCount || (comp as any).packagesCount,
               packageDetails: draft.packageDetails || (comp as any).packageDetails,
@@ -705,9 +707,12 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               onboardedCount++;
             }
           } else {
-            // Create brand new product in catalog
+            // Create brand new product in catalog (Lot No is our SKU)
+            const lotSku = (draft.dyeLot?.trim() || draft.sku?.trim() || `LOT-${Date.now().toString().slice(-6)}`).toUpperCase();
             await addProductBatch({
-              sku: draft.sku || `LPS-${Date.now().toString().slice(-6)}`,
+              sku: lotSku,
+              dyeLot: lotSku,
+              barcode: lotSku,
               name: draft.name,
               category: draft.category,
               subCategory: draft.subCategory || 'Local Mill Woven',
@@ -1363,12 +1368,16 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
 
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                          New SKU / Barcode *
+                          Lot No / SKU *
                         </label>
                         <input
                           type="text"
                           value={item.sku}
-                          onChange={e => handleUpdateDraft(item.id, { sku: e.target.value.toUpperCase() })}
+                          onChange={e => {
+                            const val = e.target.value.toUpperCase();
+                            handleUpdateDraft(item.id, { sku: val, dyeLot: val });
+                          }}
+                          placeholder="e.g. 26C002"
                           className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
                         />
                       </div>
@@ -1481,13 +1490,16 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Dye Lot #
+                        Dye Lot # (SKU)
                       </label>
                       <input
                         type="text"
                         placeholder="e.g. 26C002"
                         value={item.dyeLot || ''}
-                        onChange={e => handleUpdateDraft(item.id, { dyeLot: e.target.value.toUpperCase() })}
+                        onChange={e => {
+                          const val = e.target.value.toUpperCase();
+                          handleUpdateDraft(item.id, { dyeLot: val, sku: val || item.sku });
+                        }}
                         className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-rose-500"
                       />
                     </div>

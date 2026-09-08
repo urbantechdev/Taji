@@ -798,7 +798,7 @@ export const POSModule: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Filter catalog by name, SKU (e.g. DRK-CRIMSON), or color name..."
+                  placeholder="Filter catalog by Lot No / SKU (e.g. 26B020), name, or color..."
                   className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none relative z-10"
                 />
                 {searchQuery && (
@@ -1053,9 +1053,9 @@ export const POSModule: React.FC = () => {
                               Shade: {prod.shadeCode}
                             </span>
                           )}
-                          {prod.dyeLot && (
+                          {(prod.dyeLot || prod.sku) && (
                             <span className="text-[9px] font-bold px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded border border-purple-200">
-                              Lot: {prod.dyeLot}
+                              Lot (SKU): {prod.dyeLot || prod.sku}
                             </span>
                           )}
                           {prod.yarnCount && (
