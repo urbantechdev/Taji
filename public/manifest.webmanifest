@@ -1,0 +1,73 @@
+{
+  "id": "https://tewaw.com/",
+  "name": "Tewaw Enterprise | Kenyan Garment Manufacturing",
+  "short_name": "Tewaw",
+  "description": "Elite Kenyan garment manufacturing, industrial workwear, corporate apparel, school uniforms, and custom embroidery.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#0B2C7A",
+  "theme_color": "#0B2C7A",
+  "orientation": "portrait-primary",
+  "dir": "ltr",
+  "lang": "en-KE",
+  "categories": ["shopping", "business", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "48x48 72x72 96x96 128x128 192x192 256x256 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Product Catalogue",
+      "short_name": "Catalogue",
+      "description": "Browse uniforms, workwear, and apparel",
+      "url": "/#catalogue",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Order Custom Quote",
+      "short_name": "Get Quote",
+      "description": "Request factory pricing & custom branding",
+      "url": "/contact",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Factory Gallery",
+      "short_name": "Gallery",
+      "description": "View manufacturing and craftsmanship",
+      "url": "/gallery",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Services & Machinery",
+      "short_name": "Services",
+      "description": "Industrial cutting, stitching, and embroidery",
+      "url": "/services",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

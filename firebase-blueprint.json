@@ -1,169 +1,230 @@
 {
   "entities": {
-    "POSOperator": {
-      "title": "POS Operator",
-      "description": "Store cashier or operator authorized with a 6-digit PIN",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "pin": { "type": "string", "minLength": 6, "maxLength": 6 },
-        "location": { "type": "string" },
-        "role": { "type": "string" },
-        "createdBy": { "type": "string" },
-        "createdAt": { "type": "string" }
-      },
-      "required": ["id", "name", "pin", "location"]
-    },
     "Product": {
-      "title": "Product Batch",
-      "description": "Textile product batch item in inventory",
+      "title": "Product",
+      "description": "Apparel and garment items for sale.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "priceRange": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "model3dUrl": { "type": "string", "format": "uri" },
+        "linkUrl": { "type": "string", "format": "uri" },
         "category": { "type": "string" },
-        "fabricType": { "type": "string" },
-        "batchNumber": { "type": "string" },
-        "location": { "type": "string" },
-        "quantity": { "type": "number" },
-        "buyingPrice": { "type": "number" },
-        "sellingPrice": { "type": "number" },
-        "supplier": { "type": "string" },
-        "minThreshold": { "type": "number" },
-        "qrCodeData": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "colors": { "type": "array", "items": { "type": "string" } },
+        "variants": { "type": "array", "items": { "type": "object" } },
+        "subItems": { "type": "array", "items": { "type": "string" } },
+        "brand": { "type": "string" },
+        "sku": { "type": "string" },
+        "gtin": { "type": "string" },
+        "mpn": { "type": "string" },
+        "condition": { "type": "string", "enum": ["new", "refurbished", "used"] },
+        "availability": { "type": "string", "enum": ["in_stock", "out_of_stock", "preorder", "backorder"] },
+        "googleProductCategory": { "type": "string" },
+        "isDeleted": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "draft", "out_of_stock"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "location"]
+      "required": ["name", "price", "imageUrl", "category"]
     },
-    "SaleOrder": {
-      "title": "Sale Order",
-      "description": "Completed or held POS sales order",
+    "SiteSettings": {
+      "title": "Site Settings",
+      "description": "Global configuration for brand assets and integrations.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "orderNumber": { "type": "string" },
-        "totalAmount": { "type": "number" },
-        "paymentMethod": { "type": "string" },
+        "headerLogoUrl": { "type": "string", "format": "uri" },
+        "faviconUrl": { "type": "string", "format": "uri" },
+        "footerLogoUrl": { "type": "string", "format": "uri" },
+        "analyticsId": { "type": "string" },
+        "brandColors": {
+          "type": "object",
+          "properties": {
+            "primary": { "type": "string" },
+            "secondary": { "type": "string" }
+          }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Client orders for garments.",
+      "type": "object",
+      "properties": {
         "customerName": { "type": "string" },
-        "customerKraPin": { "type": "string" },
-        "location": { "type": "string" },
-        "cashierName": { "type": "string" },
-        "timestamp": { "type": "string" }
+        "customerEmail": { "type": "string", "format": "email" },
+        "customerPhone": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "processing", "shipped", "delivered", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "totalAmount", "paymentMethod", "location"]
+      "required": ["customerName", "customerEmail", "items", "totalAmount"]
     },
-    "BrandSettings": {
-      "title": "Brand Settings",
-      "description": "Store customization and branding configurations",
+    "Notification": {
+      "title": "Notification",
+      "description": "System alerts and order updates.",
       "type": "object",
       "properties": {
-        "storeName": { "type": "string" },
-        "primaryColor": { "type": "string" },
-        "headerBgColor": { "type": "string" },
-        "logoUrl": { "type": "string" },
-        "contactEmail": { "type": "string" },
-        "phone": { "type": "string" }
-      },
-      "required": ["storeName"]
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["order", "system", "alert"] },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     },
-    "Supplier": {
-      "title": "Supplier",
-      "description": "Registered local or overseas vendor / supplier",
+    "InboundMail": {
+      "title": "Inbound Mail",
+      "description": "Messages from contact forms or synchronized gmail inquiries.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "from": { "type": "string" },
+        "fromEmail": { "type": "string", "format": "email" },
+        "body": { "type": "string" },
+        "receivedAt": { "type": "string", "format": "date-time" },
+        "isStarred": { "type": "boolean" }
+      }
+    },
+    "Slider": {
+      "title": "Slider",
+      "description": "Hero section slides for the main carousel.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "buttonText": { "type": "string" },
+        "buttonLink": { "type": "string" },
+        "badge": { "type": "string" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "imageUrl", "order"]
+    },
+    "GalleryItem": {
+      "title": "Gallery Item",
+      "description": "Stunning visuals for the mobile gallery showcase.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "category": { "type": "string" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "imageUrl"]
+    },
+    "AdminUser": {
+      "title": "Admin User",
+      "description": "Authorized staff, editors, and superadministrators for the management portal.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
-        "type": { "type": "string" },
-        "country": { "type": "string" },
-        "kraPin": { "type": "string" },
-        "currency": { "type": "string" }
+        "role": { "type": "string", "enum": ["superadmin", "admin", "editor"] },
+        "phone": { "type": "string" },
+        "department": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "addedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "type", "currency"]
+      "required": ["email", "role"]
     },
-    "ClearingAgent": {
-      "title": "ClearingAgent",
-      "description": "Registered KRA licensed customs clearing agent and CFS logistics declarant",
+    "Category": {
+      "title": "Category",
+      "description": "Collection and showcase categories with round badges and technical specifications.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "name": { "type": "string" },
-        "kraPin": { "type": "string" },
-        "declarantCode": { "type": "string" },
-        "operatingPorts": { "type": "string" },
-        "status": { "type": "string" }
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "items": { "type": "array", "items": { "type": "string" } },
+        "specialties": { "type": "array", "items": { "type": "string" } },
+        "materials": { "type": "array", "items": { "type": "string" } },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "kraPin"]
+      "required": ["title", "image"]
     },
-    "InwardInvoice": {
-      "title": "Inward Commercial and Local Invoice",
-      "description": "Inward supplier invoice, customs declaration, and landed costing draft",
+    "SupportTicket": {
+      "title": "Support Ticket",
+      "description": "Customer contact tickets, quotation requests, and helpdesk inquiries.",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "invoiceNumber": { "type": "string" },
-        "invoiceDate": { "type": "string" },
-        "supplyType": { "type": "string" },
-        "supplierId": { "type": "string" },
-        "supplierName": { "type": "string" },
-        "customsOrEtimsRef": { "type": "string" },
-        "destinationLocation": { "type": "string" },
-        "exchangeRate": { "type": "number" },
-        "status": { "type": "string" },
-        "totalAmountKES": { "type": "number" },
-        "totalAmountUSD": { "type": "number" },
-        "totalQuantity": { "type": "number" },
-        "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "ticketId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string", "format": "email" },
+        "customerPhone": { "type": "string" },
+        "companyName": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "category": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved", "closed"] },
+        "source": { "type": "string" },
+        "emailDispatched": { "type": "boolean" },
+        "assignedTo": { "type": "string" },
+        "adminNotes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "invoiceNumber", "supplyType", "supplierName", "destinationLocation"]
+      "required": ["ticketId", "customerName", "message", "status"]
     }
   },
   "firestore": {
-    "/inward_invoices/{invoiceId}": {
-      "schema": "InwardInvoice",
-      "description": "Inward commercial and local supplier invoices, customs declarations, and landed costing drafts"
-    },
-    "/clearing_agents/{agentId}": {
-      "schema": "ClearingAgent",
-      "description": "Master registry of KRA licensed clearing and forwarding agents and CFS declarants"
-    },
-    "/suppliers/{supplierId}": {
-      "schema": "Supplier",
-      "description": "Master registry of domestic and international suppliers"
-    },
-    "/pos_operators/{operatorId}": {
-      "schema": "POSOperator",
-      "description": "List of authorized POS Cashiers and Operators with 6-digit PINs"
-    },
     "/products/{productId}": {
       "schema": "Product",
-      "description": "Inventory product batch items"
+      "description": "Collection of all saleable garments."
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Collection of garment categories and showcase circles."
+    },
+    "/settings/global": {
+      "schema": "SiteSettings",
+      "description": "Single document for global site configuration."
     },
     "/orders/{orderId}": {
-      "schema": "SaleOrder",
-      "description": "Completed checkout and sales receipts"
+      "schema": "Order",
+      "description": "Customer order records."
     },
-    "/brand_settings/{settingsId}": {
-      "schema": "BrandSettings",
-      "description": "Store layout, color theme, and header branding"
+    "/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "Real-time alerts for the admin dashboard."
     },
-    "/system_settings/{settingId}": {
-      "schema": "BrandSettings",
-      "description": "System-level settings including stock alert thresholds and notifications"
+    "/messages/{msgId}": {
+      "schema": "InboundMail",
+      "description": "Internal communication records."
     },
-    "/category_images/{imageId}": {
-      "schema": "BrandSettings",
-      "description": "Category visual images and assets"
+    "/contact_inquiries/{inquiryId}": {
+      "schema": "InboundMail",
+      "description": "Public contact form inquiries."
     },
-    "/category_pricing/{categoryId}": {
-      "schema": "BrandSettings",
-      "description": "Category pricing rates and margin settings"
+    "/tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Customer helpdesk and quotation tickets raised via website contact or admin."
     },
-    "/category_pricing_configs/{categoryId}": {
-      "schema": "BrandSettings",
-      "description": "Category pricing configuration details"
+    "/sliders/{sliderId}": {
+      "schema": "Slider",
+      "description": "Dynamic slides for the website hero section."
+    },
+    "/gallery/{galleryId}": {
+      "schema": "GalleryItem",
+      "description": "Showcase items for the portfolio gallery."
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminUser",
+      "description": "Authorized staff, editors, and superadministrators access directory."
     }
   }
 }

@@ -1,6 +1,8 @@
 {
-  "name": "Taji",
-  "description": "Taji Enterprise ERP platform featuring multi-branch inventory, ETR billing, POS terminal, inter-branch transfers, payroll, and general ledger accounting.",
-  "requestFramePermissions": ["camera"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "Tewaw Enterprise",
+  "description": "Looking for bulk garment manufacturing, custom DTF printing, and corporate branding in Nairobi? Visit Tewaw Enterprise at Uhuru Market. Experts in apparel, uniforms, and high-quality digital textile printing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

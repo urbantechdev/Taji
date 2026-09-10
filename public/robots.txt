@@ -1,12 +1,26 @@
-# Taji E-Commerce Public Robots.txt
 User-agent: *
 Allow: /
-Allow: /?category=*
-Allow: /?product=*
-
-# Disallow private ERP staff routes from crawler index
-Disallow: /?view=admin
+Allow: /gallery
+Allow: /api/gallery/image/
+Allow: /favicon.ico
+Allow: /favicon.svg
+Allow: /icon-*.png
 Disallow: /admin
-Disallow: /api/
+Disallow: /admin*
+Disallow: /api/admin*
 
-Sitemap: https://taji.co.ke/sitemap.xml
+User-agent: Googlebot
+Allow: /
+Allow: /gallery
+Allow: /api/gallery/image/
+
+User-agent: Googlebot-Image
+Allow: /
+Allow: /gallery
+Allow: /api/gallery/image/
+Allow: /favicon.ico
+Allow: /favicon.svg
+Allow: /icon-*.png
+
+Sitemap: https://tewaw.com/sitemap.xml
+
