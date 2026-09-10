@@ -1,15 +1,62 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { initializeFirestore, getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app = initializeApp(firebaseConfig);
 
-const configWithDb = firebaseConfig as typeof firebaseConfig & { firestoreDatabaseId?: string };
-export const db = configWithDb.firestoreDatabaseId ? getFirestore(app, configWithDb.firestoreDatabaseId) : getFirestore(app);
+const databaseId = (firebaseConfig as any).firestoreDatabaseId || "ai-studio-tewawenterprise-19b671ce-0125-49ca-9800-de239bbfa7d7";
+
+// Use experimentalForceLongPolling to prevent WebChannel streaming connection timeouts in iframe/cloud sandbox environments
+export const db = typeof window !== 'undefined'
+  ? initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+    }, databaseId)
+  : getFirestore(app, databaseId);
+
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
+export const signInWithGoogle = async () => {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+  } catch (error: any) {
+    const errStr = String(error?.code || error?.message || error || '');
+    if (
+      errStr.includes('popup-blocked') ||
+      errStr.includes('cancelled-popup-request') ||
+      errStr.includes('popup-closed-by-user') ||
+      errStr.includes('popup_closed')
+    ) {
+      console.warn("Pop-up blocked or closed by user, falling back to signInWithRedirect...");
+      try {
+        await signInWithRedirect(auth, googleProvider);
+      } catch (rErr) {
+        console.warn("Redirect fallback notice:", rErr);
+      }
+      return null;
+    }
+    console.error("Google login error:", error);
+    throw error;
+  }
+};
+
+// Connectivity Test
+async function testConnection() {
+  try {
+    const testDoc = doc(db, 'settings', 'global');
+    await getDocFromServer(testDoc);
+    console.log("Firestore connected successfully.");
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("Firestore connection check: Client operating in offline mode or database initializing.");
+    }
+  }
+}
+testConnection();
+
+// Error Handling Utility
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -28,7 +75,12 @@ export interface FirestoreErrorInfo {
     email?: string | null;
     emailVerified?: boolean | null;
     isAnonymous?: boolean | null;
-  };
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
@@ -39,17 +91,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
       email: auth.currentUser?.email,
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
     },
     operationType,
-    path,
+    path
   };
-  console.error('Firestore Error:', JSON.stringify(errInfo));
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
-// Safe test connection helper if invoked manually
-export async function testFirestoreConnection() {
-  // Graceful no-op on initial module load to avoid 10-second backend timeout errors when offline
-}
-
-export { signInWithPopup, signOut };
