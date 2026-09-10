@@ -129,6 +129,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Inward Commercial & Local Invoices Collection
+    match /inward_invoices/{invoiceId} {
+      allow read, write: if true;
+    }
+
     // User Profiles
     match /users/{userId} {
       allow read, write: if true;

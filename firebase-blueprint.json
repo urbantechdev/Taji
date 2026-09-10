@@ -95,9 +95,36 @@
         "status": { "type": "string" }
       },
       "required": ["id", "name", "kraPin"]
+    },
+    "InwardInvoice": {
+      "title": "Inward Commercial and Local Invoice",
+      "description": "Inward supplier invoice, customs declaration, and landed costing draft",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "invoiceDate": { "type": "string" },
+        "supplyType": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "customsOrEtimsRef": { "type": "string" },
+        "destinationLocation": { "type": "string" },
+        "exchangeRate": { "type": "number" },
+        "status": { "type": "string" },
+        "totalAmountKES": { "type": "number" },
+        "totalAmountUSD": { "type": "number" },
+        "totalQuantity": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "supplyType", "supplierName", "destinationLocation"]
     }
   },
   "firestore": {
+    "/inward_invoices/{invoiceId}": {
+      "schema": "InwardInvoice",
+      "description": "Inward commercial and local supplier invoices, customs declarations, and landed costing drafts"
+    },
     "/clearing_agents/{agentId}": {
       "schema": "ClearingAgent",
       "description": "Master registry of KRA licensed clearing and forwarding agents and CFS declarants"
