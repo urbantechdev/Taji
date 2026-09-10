@@ -10,6 +10,9 @@ import { StorefrontCheckoutModal } from './StorefrontCheckoutModal';
 import { StorefrontOrderTracker } from './StorefrontOrderTracker';
 import { StorefrontContactModal } from './StorefrontContactModal';
 import { StorefrontFooter } from './StorefrontFooter';
+import { StorefrontMobileBottomNav } from './StorefrontMobileBottomNav';
+import { StorefrontCustomerProfileModal } from './StorefrontCustomerProfileModal';
+import { StorefrontCustomerAuthModal } from './StorefrontCustomerAuthModal';
 import { playClickSound } from '../../utils/audio';
 
 interface TajiStorefrontWebsiteProps {
@@ -206,7 +209,7 @@ export const TajiStorefrontWebsite: React.FC<TajiStorefrontWebsiteProps> = ({
 
   return (
     <div 
-      className="min-h-screen bg-white flex flex-col font-sans antialiased text-slate-900 selection:bg-rose-500 selection:text-white" 
+      className="min-h-screen bg-white flex flex-col font-sans antialiased text-slate-900 selection:bg-rose-500 selection:text-white pb-24 lg:pb-0" 
       id="taji-ecommerce-storefront"
     >
       {/* Search Engine Crawler JSON-LD Structured Data */}
@@ -289,6 +292,44 @@ export const TajiStorefrontWebsite: React.FC<TajiStorefrontWebsiteProps> = ({
       <StorefrontContactModal
         isOpen={isContactOpen}
         onClose={() => setIsContactOpen(false)}
+      />
+
+      {/* Customer Profile Modal (Strictly Independent from Internal ERP) */}
+      <StorefrontCustomerProfileModal onOpenOrderTracker={() => setIsOrderTrackerOpen(true)} />
+
+      {/* Public Customer Authentication Modal (Staff/Admin/Accountant Rejected) */}
+      <StorefrontCustomerAuthModal />
+
+      {/* 5. Mobile Fixed Bottom Navigation with Single Wave Curved Top Edge */}
+      <StorefrontMobileBottomNav
+        onOpenCatalog={() => {
+          setSelectedCategory('all');
+          const el = document.getElementById('storefront-catalog');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth' });
+          } else {
+            window.scrollTo({ top: 400, behavior: 'smooth' });
+          }
+        }}
+        onOpenSearch={() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          const searchInput = document.querySelector('#storefront-header input') as HTMLInputElement | null;
+          if (searchInput) {
+            searchInput.focus();
+          }
+        }}
+        onOpenCart={() => setIsCartOpen(true)}
+        onOpenTrackOrder={() => setIsOrderTrackerOpen(true)}
+        onOpenContact={() => setIsContactOpen(true)}
+        activeTab={
+          isOrderTrackerOpen
+            ? 'track'
+            : isContactOpen
+            ? 'contact'
+            : isCartOpen
+            ? 'cart'
+            : 'catalog'
+        }
       />
 
     </div>

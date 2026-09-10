@@ -48,7 +48,8 @@ import {
   FileText,
   Truck,
   Building2,
-  Boxes
+  Boxes,
+  Barcode
 } from 'lucide-react';
 import { Supplier, ClearingAgent } from '../../types';
 import { SupplierDirectoryModal } from '../suppliers/SupplierDirectoryModal';
@@ -75,7 +76,8 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
     setActiveNavTab,
     addInputVatClaim,
     recordAuditLog,
-    suppliers
+    suppliers,
+    openCategoryIntakeModal
   } = useERP();
 
   // Active Sub-Tab within the Accountant Landed Costing & Tax Suite
@@ -608,6 +610,19 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
                 >
                   <Boxes className="w-3.5 h-3.5 text-rose-200 shrink-0" />
                   <span>⚡ Sync to Inventory</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-tax-start-updating-inventory"
+                  onClick={() => {
+                    openCategoryIntakeModal(activeShipment.invoiceNumber);
+                  }}
+                  className="px-2.5 py-1.5 bg-gradient-to-r from-teal-600 to-cyan-700 hover:from-teal-500 hover:to-cyan-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
+                  title="Start Updating Physical Inventory for this Invoice (Scan Lot, Shade, and Mass)"
+                >
+                  <Barcode className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
+                  <span>Start Updating Inventory</span>
                 </button>
               </div>
 
@@ -2504,6 +2519,9 @@ export const ImportTaxLandedCostingModule: React.FC = () => {
           if (type === 'import' && 'lineItems' in record) {
             setActiveShipment(record as ImportShipmentRecord);
           }
+        }}
+        onStartUpdatingInventory={(invId, cat) => {
+          openCategoryIntakeModal(invId, cat as any);
         }}
       />
 

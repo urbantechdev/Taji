@@ -739,7 +739,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
       colorName: output.colorName,
       colorHex: output.colorHex,
       dyeLot: output.dyeLot,
-      quantity: 1,
+      quantity: output.netWeightKg || (selectedCategory === 'Yarns' ? (yarnNetWeightKg > 0 ? yarnNetWeightKg : 24.000) : 1),
       fiberComposition: output.fiberComposition || currentPreset.defaultComposition,
       yarnCount: selectedCategory === 'Yarns' ? (output.yarnCount || '2/24 NM') : undefined,
       packagesCount: selectedCategory === 'Yarns' ? (output.packagesCount || yarnPackagesCount) : undefined,
@@ -1994,15 +1994,17 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
 
                       <button
                         type="button"
+                        id="btn-category-open-camera-scanner"
                         onClick={() => {
                           playClickSound();
                           setIsOpticalScannerOpen(true);
                         }}
-                        className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0"
-                        title="Open Live Camera Scanner"
+                        className="px-3.5 py-2.5 bg-gradient-to-r from-teal-700 to-cyan-800 hover:from-teal-600 hover:to-cyan-700 text-white font-black text-xs rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0 ring-2 ring-cyan-400/20"
+                        title="Open Live Camera Scanner (Captures Lot, Shade, and Mass)"
                       >
-                        <Camera className="w-4 h-4 text-rose-400" />
-                        <span className="hidden sm:inline">Camera</span>
+                        <Camera className="w-4 h-4 text-cyan-200" />
+                        <span className="hidden sm:inline">Camera (Lot, Shade, Mass)</span>
+                        <span className="sm:hidden">Camera</span>
                       </button>
 
                       <button
@@ -2014,6 +2016,71 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                       </button>
                     </div>
                   </form>
+
+                  {/* Quick Tag Simulators for instant testing */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] text-slate-500 py-0.5 scrollbar-thin">
+                    <span className="font-bold text-slate-400 shrink-0">Sample Mill Barcodes:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleScanBarcode('MIX GREY-4251', {
+                          barcode: '26E081',
+                          shadeCode: 'MIX GREY-4251',
+                          colorName: 'Mix Grey (Melange 4251)',
+                          colorHex: '#94A3B8',
+                          dyeLot: '26E081',
+                          quantity: 24.00,
+                          netWeightKg: 24.00,
+                          grossWeightKg: 24.84,
+                          tareWeightKg: 0.84,
+                          packagesCount: 12
+                        });
+                      }}
+                      className="px-2.5 py-0.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-lg border border-slate-200 font-mono text-[10.5px] cursor-pointer shrink-0 transition-colors"
+                    >
+                      🏷️ Mix Grey 4251 (Lot 26E081 • 24kg)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleScanBarcode('NAVY-108', {
+                          barcode: '26E112',
+                          shadeCode: 'NAVY-108',
+                          colorName: 'Midnight Navy',
+                          colorHex: '#1E3A8A',
+                          dyeLot: '26E112',
+                          quantity: 24.00,
+                          netWeightKg: 24.00,
+                          grossWeightKg: 24.84,
+                          tareWeightKg: 0.84,
+                          packagesCount: 12
+                        });
+                      }}
+                      className="px-2.5 py-0.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-lg border border-slate-200 font-mono text-[10.5px] cursor-pointer shrink-0 transition-colors"
+                    >
+                      🏷️ Navy-108 (Lot 26E112 • 24kg)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleScanBarcode('MAROON-88', {
+                          barcode: '26E044',
+                          shadeCode: 'MAROON-88',
+                          colorName: 'Royal Maroon',
+                          colorHex: '#881337',
+                          dyeLot: '26E044',
+                          quantity: 24.00,
+                          netWeightKg: 24.00,
+                          grossWeightKg: 24.84,
+                          tareWeightKg: 0.84,
+                          packagesCount: 12
+                        });
+                      }}
+                      className="px-2.5 py-0.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-lg border border-slate-200 font-mono text-[10.5px] cursor-pointer shrink-0 transition-colors"
+                    >
+                      🏷️ Maroon-88 (Lot 26E044 • 24kg)
+                    </button>
+                  </div>
 
                   {/* Scanned Items Session Table */}
                   <div className="space-y-2">
@@ -2047,7 +2114,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                           Scanner Ready for Invoice #{lockedInvoiceRef}
                         </h5>
                         <p className="text-[11px] text-slate-400 max-w-md mx-auto">
-                          Use a handheld USB / Bluetooth laser scanner, mobile camera, or enter roll/bale codes above. Items will appear here in real time.
+                          Use a mobile camera, handheld barcode scanner, or sample tags above. Items with Shade, Dye Lot, and Mass will appear here in real time.
                         </p>
                       </div>
                     ) : (
@@ -2055,9 +2122,9 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-200 sticky top-0">
                             <tr>
-                              <th className="py-2.5 px-3">Item / Shade</th>
-                              <th className="py-2.5 px-3">Barcode / Lot</th>
-                              <th className="py-2.5 px-3 text-center">Quantity</th>
+                              <th className="py-2.5 px-3">Shade &amp; Color</th>
+                              <th className="py-2.5 px-3">Dye Lot No</th>
+                              <th className="py-2.5 px-3 text-center">Mass / Quantity</th>
                               <th className="py-2.5 px-3 text-right">Cost Value</th>
                               <th className="py-2.5 px-3 text-right">Retail Worth</th>
                               <th className="py-2.5 px-3 text-center">Action</th>
@@ -2070,7 +2137,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                                   <div className="flex items-center gap-2">
                                     {item.colorHex && (
                                       <span
-                                        className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0"
+                                        className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0 shadow-2xs"
                                         style={{ backgroundColor: item.colorHex }}
                                       />
                                     )}
@@ -2085,10 +2152,13 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                                   </div>
                                 </td>
 
-                                <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600">
-                                  <div>{item.barcode}</div>
-                                  {item.dyeLot && (
-                                    <span className="text-[10px] text-slate-400 font-mono">Lot {item.dyeLot}</span>
+                                <td className="py-2.5 px-3 font-mono text-[11px]">
+                                  {item.dyeLot ? (
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-mono font-bold border border-amber-300 text-xs">
+                                      Lot {item.dyeLot}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-500">{item.barcode}</span>
                                   )}
                                 </td>
 
@@ -2102,7 +2172,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                                       onChange={e => handleUpdateItemQuantity(item.id, Number(e.target.value))}
                                       className="w-16 text-center font-mono font-bold bg-white border border-slate-200 rounded px-1 py-0.5 text-xs text-slate-900"
                                     />
-                                    <span className="text-[10px] text-slate-400">{item.unit}</span>
+                                    <span className="text-[10px] text-slate-400 font-bold">{item.unit}</span>
                                   </div>
                                 </td>
 

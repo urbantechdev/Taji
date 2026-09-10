@@ -238,24 +238,43 @@ export const StorefrontProductDetailModal: React.FC<StorefrontProductDetailModal
                       <span>Order Quantity ({product.unit}s):</span>
                     </label>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        type="button"
+                        onClick={() => {
+                          const step = product.unit?.toLowerCase() === 'kg' ? 0.5 : 1;
+                          setQuantity(Math.max(0.1, Math.round((quantity - step) * 100) / 100));
+                        }}
                         className="w-8 h-8 rounded-lg bg-white border border-rose-200 text-slate-700 font-bold hover:bg-rose-100 flex items-center justify-center transition-colors cursor-pointer"
+                        title="Decrease"
                       >
                         -
                       </button>
-                      <input
-                        type="number"
-                        min="1"
-                        max={totalStock > 0 ? totalStock : 9999}
-                        value={quantity}
-                        onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="w-16 text-center py-1 bg-white border border-rose-200 rounded-lg font-bold font-mono text-slate-900 text-sm focus:outline-rose-500"
-                      />
+                      <div className="flex items-center bg-white border border-rose-200 rounded-lg px-2 py-1">
+                        <input
+                          type="number"
+                          step={product.unit?.toLowerCase() === 'kg' ? "0.01" : "1"}
+                          min="0.01"
+                          max={totalStock > 0 ? totalStock : 9999}
+                          value={quantity}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              setQuantity(Math.max(0.01, val));
+                            }
+                          }}
+                          className="w-16 text-center font-bold font-mono text-slate-900 text-sm focus:outline-hidden"
+                        />
+                        <span className="text-xs font-bold text-slate-500 ml-1">{product.unit || 'pcs'}</span>
+                      </div>
                       <button
-                        onClick={() => setQuantity(quantity + 1)}
+                        type="button"
+                        onClick={() => {
+                          const step = product.unit?.toLowerCase() === 'kg' ? 0.5 : 1;
+                          setQuantity(Math.round((quantity + step) * 100) / 100);
+                        }}
                         className="w-8 h-8 rounded-lg bg-white border border-rose-200 text-slate-700 font-bold hover:bg-rose-100 flex items-center justify-center transition-colors cursor-pointer"
+                        title="Increase"
                       >
                         +
                       </button>

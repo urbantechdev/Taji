@@ -94,6 +94,7 @@ BAG NO :- 148`;
     return parseMillLabelPayload(defaultSampleOsterLabel);
   });
   const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState<boolean>(false);
+  const [lastDetectedIntake, setLastDetectedIntake] = useState<OpticalScanOutput | null>(null);
 
   // Optical Shade Eyedropper State
   const [isEyedropperStreaming, setIsEyedropperStreaming] = useState<boolean>(false);
@@ -230,6 +231,7 @@ BAG NO :- 148`;
             category: parsed?.category
           };
 
+          setLastDetectedIntake(result);
           onApplyIntakeData(result);
           playSuccessSound();
 
@@ -664,12 +666,63 @@ BAG NO :- 148`;
                 </div>
               </div>
 
+              {/* Overlaid Live Captured Inspection HUD Card */}
+              {lastDetectedIntake && (
+                <div className="p-3.5 rounded-2xl bg-emerald-950/90 border-2 border-emerald-500 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl animate-fade-in">
+                  <div className="flex items-center gap-3">
+                    {lastDetectedIntake.colorHex && (
+                      <span
+                        className="w-9 h-9 rounded-xl border-2 border-white/60 shadow-md shrink-0"
+                        style={{ backgroundColor: lastDetectedIntake.colorHex }}
+                      />
+                    )}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">
+                          ✓ Successfully Captured
+                        </span>
+                        <span className="font-mono font-bold text-sm text-emerald-300">
+                          {lastDetectedIntake.shadeCode || lastDetectedIntake.barcode}
+                        </span>
+                        {lastDetectedIntake.colorName && (
+                          <span className="text-xs text-slate-300">({lastDetectedIntake.colorName})</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-slate-200">
+                        <span><strong>Lot No:</strong> <span className="text-amber-300 font-mono font-bold">{lastDetectedIntake.dyeLot || '26E081'}</span></span>
+                        <span>•</span>
+                        <span><strong>Net Mass:</strong> <span className="text-cyan-300 font-mono font-bold">{lastDetectedIntake.netWeightKg ? `${lastDetectedIntake.netWeightKg.toFixed(2)} kg` : '24.00 kg'}</span></span>
+                        {lastDetectedIntake.grossWeightKg && (
+                          <span className="text-slate-400 text-[11px]">(Gross: {lastDetectedIntake.grossWeightKg.toFixed(2)} kg)</span>
+                        )}
+                        <span>•</span>
+                        <span><strong>Category:</strong> <span className="text-rose-300 font-semibold">{lastDetectedIntake.category || activeCategory}</span></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        onClose();
+                      }}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>Apply &amp; Return to Manifest</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Mobile Phone User Guide Banner */}
               <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-emerald-300">
                 <div className="flex items-center gap-2">
                   <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span className="leading-snug">
-                    <strong className="text-white font-bold">Mobile Phone Camera Active:</strong> Point rear phone camera at either barcode (Shade or Lot), or tap <strong className="text-white font-bold">Snap &amp; Read Full Label</strong> above.
+                    <strong className="text-white font-bold">Live Camera Barcode Scanner:</strong> Point camera at bale / cone / roll barcode. It automatically parses <strong className="text-amber-300">Lot</strong>, <strong className="text-rose-300">Shade</strong>, and <strong className="text-cyan-300">Mass</strong>.
                   </span>
                 </div>
                 <button
@@ -683,6 +736,130 @@ BAG NO :- 148`;
                   <Camera className="w-3.5 h-3.5" />
                   <span>Launch Phone Camera Shutter</span>
                 </button>
+              </div>
+
+              {/* Quick Simulation Barcode Testing Controls */}
+              <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Quick Scan Simulators (Test Lot, Shade &amp; Mass Without Physical Barcode):</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Click to emulate instant camera scan</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const payload = 'LOT NO:- 26E081\nSHADE :- MIX GREY-4251\nNET MASS :- 24.000KGS\nGROSS MASS :- 24.840KGS\nBAG NO :- 148';
+                      const parsed = parseMillLabelPayload(payload);
+                      if (parsed) {
+                        const res: OpticalScanOutput = {
+                          barcode: '26E081',
+                          shadeCode: parsed.shadeCode,
+                          colorName: parsed.colorName,
+                          colorHex: parsed.colorHex,
+                          dyeLot: parsed.dyeLot,
+                          netWeightKg: parsed.netWeightKg,
+                          grossWeightKg: parsed.grossWeightKg,
+                          tareWeightKg: parsed.tareWeightKg,
+                          packagesCount: parsed.packagesCount,
+                          category: 'Yarns'
+                        };
+                        setLastDetectedIntake(res);
+                        onApplyIntakeData(res);
+                        playSuccessSound();
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <span className="w-3 h-3 rounded-full bg-[#94A3B8] border border-white/20" />
+                    <span>Mix Grey 4251 • Lot 26E081 • 24kg</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const payload = 'LOT NO:- 26E112\nSHADE :- NAVY-108\nNET MASS :- 24.000KGS\nGROSS MASS :- 24.840KGS\nBAG NO :- 112';
+                      const parsed = parseMillLabelPayload(payload);
+                      if (parsed) {
+                        const res: OpticalScanOutput = {
+                          barcode: '26E112',
+                          shadeCode: parsed.shadeCode,
+                          colorName: parsed.colorName,
+                          colorHex: parsed.colorHex,
+                          dyeLot: parsed.dyeLot,
+                          netWeightKg: parsed.netWeightKg,
+                          grossWeightKg: parsed.grossWeightKg,
+                          tareWeightKg: parsed.tareWeightKg,
+                          packagesCount: parsed.packagesCount,
+                          category: 'Yarns'
+                        };
+                        setLastDetectedIntake(res);
+                        onApplyIntakeData(res);
+                        playSuccessSound();
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <span className="w-3 h-3 rounded-full bg-[#1E3A8A] border border-white/20" />
+                    <span>Navy-108 • Lot 26E112 • 24kg</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const payload = 'LOT NO:- 26E044\nSHADE :- MAROON-88\nNET MASS :- 24.000KGS\nGROSS MASS :- 24.840KGS\nBAG NO :- 088';
+                      const parsed = parseMillLabelPayload(payload);
+                      if (parsed) {
+                        const res: OpticalScanOutput = {
+                          barcode: '26E044',
+                          shadeCode: parsed.shadeCode,
+                          colorName: parsed.colorName,
+                          colorHex: parsed.colorHex,
+                          dyeLot: parsed.dyeLot,
+                          netWeightKg: parsed.netWeightKg,
+                          grossWeightKg: parsed.grossWeightKg,
+                          tareWeightKg: parsed.tareWeightKg,
+                          packagesCount: parsed.packagesCount,
+                          category: 'Yarns'
+                        };
+                        setLastDetectedIntake(res);
+                        onApplyIntakeData(res);
+                        playSuccessSound();
+                      }
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <span className="w-3 h-3 rounded-full bg-[#881337] border border-white/20" />
+                    <span>Maroon-88 • Lot 26E044 • 24kg</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const res: OpticalScanOutput = {
+                        barcode: 'DRK-NAVY-60M',
+                        shadeCode: 'DERECK-NAVY',
+                        colorName: 'Royal Navy Dereck Fabric',
+                        colorHex: '#1E3A8A',
+                        dyeLot: 'LOT-DRK-2026',
+                        netWeightKg: 60.00,
+                        grossWeightKg: 61.20,
+                        tareWeightKg: 1.20,
+                        packagesCount: 1,
+                        category: 'Dereck'
+                      };
+                      setLastDetectedIntake(res);
+                      onApplyIntakeData(res);
+                      playSuccessSound();
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <span className="w-3 h-3 rounded-full bg-[#1E3A8A] border border-white/20" />
+                    <span>Dereck Roll • Lot DRK-2026 • 60m</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">

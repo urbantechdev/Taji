@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useERP } from '../../context/ERPContext';
 import { SaleOrder, LocationId } from '../../types';
@@ -20,7 +20,11 @@ import {
   Lock,
   ArrowRight,
   ArrowLeft,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  Plus,
+  Minus,
+  Scale
 } from 'lucide-react';
 
 interface StorefrontCheckoutModalProps {
@@ -36,26 +40,40 @@ export const StorefrontCheckoutModal: React.FC<StorefrontCheckoutModalProps> = (
 }) => {
   const { 
     cart, 
+    updateCartQuantity,
+    removeFromCart,
     clearCart, 
     locations, 
     createBillingDocument, 
     recordAuditLog,
-    brandSettings 
+    brandSettings,
+    websiteCustomer
   } = useERP();
 
   const [step, setStep] = useState<'details' | 'payment' | 'confirmation'>('details');
   
   // Customer details state
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [customerKraPin, setCustomerKraPin] = useState('');
+  const [customerName, setCustomerName] = useState(websiteCustomer?.name || '');
+  const [customerPhone, setCustomerPhone] = useState(websiteCustomer?.phone || '');
+  const [customerEmail, setCustomerEmail] = useState(websiteCustomer?.email || '');
+  const [customerKraPin, setCustomerKraPin] = useState(websiteCustomer?.kraPin || '');
 
   // Fulfillment state
   const [fulfillmentType, setFulfillmentType] = useState<'store_pickup' | 'dispatch_delivery'>('store_pickup');
   const [pickupLocation, setPickupLocation] = useState<LocationId>('main_store');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [deliveryTown, setDeliveryTown] = useState('Nairobi');
+  const [deliveryAddress, setDeliveryAddress] = useState(websiteCustomer?.deliveryAddress || '');
+  const [deliveryTown, setDeliveryTown] = useState(websiteCustomer?.deliveryCity || 'Nairobi');
+
+  useEffect(() => {
+    if (websiteCustomer) {
+      if (websiteCustomer.name) setCustomerName(websiteCustomer.name);
+      if (websiteCustomer.phone) setCustomerPhone(websiteCustomer.phone);
+      if (websiteCustomer.email) setCustomerEmail(websiteCustomer.email);
+      if (websiteCustomer.kraPin) setCustomerKraPin(websiteCustomer.kraPin);
+      if (websiteCustomer.deliveryAddress) setDeliveryAddress(websiteCustomer.deliveryAddress);
+      if (websiteCustomer.deliveryCity) setDeliveryTown(websiteCustomer.deliveryCity);
+    }
+  }, [websiteCustomer]);
 
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState<'M-Pesa' | 'Bank Transfer' | 'Card' | 'Cash'>('M-Pesa');
@@ -66,7 +84,14 @@ export const StorefrontCheckoutModal: React.FC<StorefrontCheckoutModalProps> = (
   if (!isOpen) return null;
 
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const subtotal = cart.reduce((acc, item) => acc + (item.rollPricing?.totalPrice ?? (item.unitPrice * item.quantity)), 0);
+  const totalWeightKg = cart.reduce((acc, item) => {
+    if (item.unit?.toLowerCase() === 'kg' || item.category === 'Yarns') {
+      return acc + item.quantity;
+    }
+    return acc;
+  }, 0);
+  const totalItemsCountDisplay = totalItems % 1 === 0 ? totalItems.toString() : totalItems.toFixed(2);
+  const subtotal = cart.reduce((acc, item) => acc + (item.rollPricing?.totalPrice ?? Math.round(item.unitPrice * item.quantity)), 0);
   const deliveryFee = fulfillmentType === 'dispatch_delivery' && subtotal < 10000 ? 500 : 0;
   const vatAmount = Math.round(subtotal * 0.16);
   const grandTotal = subtotal + vatAmount + deliveryFee;
@@ -108,12 +133,12 @@ export const StorefrontCheckoutModal: React.FC<StorefrontCheckoutModalProps> = (
           productName: c.productName,
           category: c.category,
           unit: c.unit,
-          quantity: c.quantity,
+          quantity: Number(c.quantity),
           unitPrice: c.unitPrice,
-          totalPrice: c.rollPricing?.totalPrice ?? (c.unitPrice * c.quantity),
+          totalPrice: c.rollPricing?.totalPrice ?? Math.round(c.unitPrice * c.quantity),
           scaleGrossWeight: c.scaleGrossWeight,
           tareDeduction: c.tareDeduction,
-          netBillableWeight: c.netBillableWeight,
+          netBillableWeight: c.netBillableWeight ?? (c.unit?.toLowerCase() === 'kg' ? Number(c.quantity) : undefined),
           tareDescription: c.tareDescription
         })),
         notes: `Online Storefront Order (${fulfillmentType === 'store_pickup' ? 'Branch Pickup at ' + pickupLocation : 'Delivery to ' + deliveryTown})`
@@ -197,13 +222,175 @@ export const StorefrontCheckoutModal: React.FC<StorefrontCheckoutModalProps> = (
             
             {/* STEP 1: CUSTOMER & FULFILLMENT DETAILS */}
             {step === 'details' && (
-              <form onSubmit={handleDetailsSubmit} className="space-y-5">
-                
-                {/* Customer Information */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    1. Contact Information
-                  </h4>
+              cart.length === 0 ? (
+                <div className="text-center py-12 space-y-4">
+                  <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto text-rose-600">
+                    <ShoppingBag className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-slate-900">Your Cart is Empty</h4>
+                    <p className="text-xs text-slate-500">Please select items from the catalog before checking out.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-5 py-2.5 bg-rose-700 hover:bg-rose-800 text-white rounded-xl text-xs font-bold cursor-pointer"
+                  >
+                    Return to Catalog
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleDetailsSubmit} className="space-y-5">
+                  
+                  {/* Itemized Cart Review with Decimal Kgs Editing */}
+                  <div className="space-y-3 bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-rose-100 flex items-center justify-center text-rose-700">
+                          <Scale className="w-3.5 h-3.5" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                          1. Order Items &amp; Weights (Edit Kgs in Decimals)
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {totalWeightKg > 0 && (
+                          <span className="text-[11px] font-mono font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">
+                            {totalWeightKg.toFixed(2)} kg Net
+                          </span>
+                        )}
+                        <span className="text-[11px] font-mono font-bold text-slate-700 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                          {cart.length} {cart.length === 1 ? 'item' : 'items'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      You can type decimal kilogram weights (e.g. <strong>24.85</strong> kg, <strong>2.50</strong> kg, <strong>12.25</strong> kg) or adjust with the +/- buttons. Line prices and billable weights update instantly.
+                    </p>
+
+                    <div className="space-y-2.5">
+                      {cart.map((item) => {
+                        const isKg = item.unit?.toLowerCase() === 'kg' || item.category === 'Yarns';
+                        const lineTotal = item.rollPricing?.totalPrice ?? Math.round(item.unitPrice * item.quantity);
+
+                        return (
+                          <div
+                            key={item.batchId}
+                            className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="px-1.5 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[10px] rounded">
+                                  {item.category}
+                                </span>
+                                <span className="font-bold text-xs text-slate-900 truncate">
+                                  {item.productName}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Unit Rate: KSh {item.unitPrice.toLocaleString()}/{item.unit}
+                              </p>
+                            </div>
+
+                            {/* Decimal Quantity / Kgs Controller */}
+                            <div className="flex items-center justify-between sm:justify-end gap-3">
+                              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const stepVal = isKg ? 0.5 : 1;
+                                    const newQty = Math.max(0.01, Math.round((item.quantity - stepVal) * 100) / 100);
+                                    updateCartQuantity(item.batchId, newQty);
+                                  }}
+                                  className="w-7 h-7 rounded-md bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs cursor-pointer shadow-2xs"
+                                  title="Decrease"
+                                >
+                                  <Minus className="w-3.5 h-3.5" />
+                                </button>
+
+                                <div className="flex items-center px-1">
+                                  <input
+                                    type="number"
+                                    step={isKg ? "0.01" : "1"}
+                                    min="0.01"
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value);
+                                      if (!isNaN(val) && val > 0) {
+                                        updateCartQuantity(item.batchId, val);
+                                      }
+                                    }}
+                                    className="w-16 text-center font-mono font-bold text-xs text-slate-900 bg-white border border-rose-300 rounded px-1.5 py-1 focus:outline-hidden focus:border-rose-600"
+                                    title="Type decimal kilogram or quantity"
+                                  />
+                                  <span className="text-[11px] font-bold text-slate-600 ml-1">
+                                    {item.unit || 'pcs'}
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const stepVal = isKg ? 0.5 : 1;
+                                    const newQty = Math.round((item.quantity + stepVal) * 100) / 100;
+                                    updateCartQuantity(item.batchId, newQty);
+                                  }}
+                                  className="w-7 h-7 rounded-md bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs cursor-pointer shadow-2xs"
+                                  title="Increase"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              {/* Price & Remove */}
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-black text-xs text-slate-900 min-w-20 text-right">
+                                  KSh {lineTotal.toLocaleString()}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeFromCart(item.batchId)}
+                                  className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer transition-colors"
+                                  title="Remove item from checkout"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Fast Presets for Kilograms */}
+                    {cart.some(i => i.unit?.toLowerCase() === 'kg' || i.category === 'Yarns') && (
+                      <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                        <span className="font-semibold text-slate-600">Quick Kg Presets:</span>
+                        {[0.5, 1.0, 2.5, 5.0, 10.0, 24.0].map((presetKg) => (
+                          <button
+                            key={presetKg}
+                            type="button"
+                            onClick={() => {
+                              const kgItem = cart.find(i => i.unit?.toLowerCase() === 'kg' || i.category === 'Yarns');
+                              if (kgItem) {
+                                updateCartQuantity(kgItem.batchId, presetKg);
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-slate-700 font-mono font-medium transition-colors cursor-pointer"
+                          >
+                            {presetKg === 24.0 ? '24.0 kg (Full Bale)' : `${presetKg} kg`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Customer Information */}
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      2. Contact Information
+                    </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -361,7 +548,7 @@ export const StorefrontCheckoutModal: React.FC<StorefrontCheckoutModalProps> = (
                 {/* Order Cost Preview */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
                   <div className="flex justify-between text-slate-600">
-                    <span>Subtotal ({totalItems} items):</span>
+                    <span>Subtotal ({totalItemsCountDisplay} {totalWeightKg > 0 ? `units • ${totalWeightKg.toFixed(2)} kg Net` : 'items'}):</span>
                     <span className="font-mono font-bold text-slate-900">KSh {subtotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
@@ -388,18 +575,49 @@ export const StorefrontCheckoutModal: React.FC<StorefrontCheckoutModalProps> = (
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
-            )}
+            ))}
 
             {/* STEP 2: PAYMENT METHOD & ETR PROCESSING */}
             {step === 'payment' && (
               <div className="space-y-5">
-                <button
-                  onClick={() => setStep('details')}
-                  className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back to Customer Details</span>
-                </button>
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setStep('details')}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back to Customer Details</span>
+                  </button>
+                  <span className="text-[11px] font-bold text-slate-400">Step 2 of 2</span>
+                </div>
+
+                {/* Items & Decimal Weights Summary in Payment Step */}
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                    <span className="flex items-center gap-1.5">
+                      <ShoppingBag className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Items to Be Billed:</span>
+                    </span>
+                    <span className="font-mono text-rose-700 font-black">
+                      KSh {grandTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-slate-200/60 text-[11px] text-slate-600">
+                    {cart.map(item => (
+                      <div key={item.batchId} className="py-1.5 flex justify-between items-center">
+                        <div className="truncate max-w-[220px] sm:max-w-xs">
+                          <span className="font-semibold text-slate-800">{item.productName}</span>
+                          <span className="text-slate-500 ml-1 font-mono font-bold text-[10px]">
+                            ({item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)} {item.unit})
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-slate-800">
+                          KSh {(item.rollPricing?.totalPrice ?? Math.round(item.unitPrice * item.quantity)).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -554,6 +772,28 @@ export const StorefrontCheckoutModal: React.FC<StorefrontCheckoutModalProps> = (
                     <div>
                       <span className="text-[10px] text-slate-400 block">Payment Ref:</span>
                       <span className="font-mono font-semibold text-slate-800">{completedOrder.paymentReference || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  {/* Itemized Order Line Items */}
+                  <div className="pt-2 border-t border-slate-200">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                      Billed Items &amp; Weights
+                    </span>
+                    <div className="divide-y divide-slate-100 text-[11px]">
+                      {completedOrder.items.map((item, idx) => (
+                        <div key={idx} className="py-1 flex justify-between items-center text-slate-700">
+                          <div className="truncate max-w-[220px]">
+                            <span>{item.productName}</span>
+                            <span className="font-mono font-bold text-slate-500 ml-1 text-[10px]">
+                              × {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(2)} {item.unit}
+                            </span>
+                          </div>
+                          <span className="font-mono font-bold text-slate-900">
+                            KSh {item.totalPrice.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 

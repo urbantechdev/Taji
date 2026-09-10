@@ -10,7 +10,8 @@ import {
   LocalPurchaseRecord,
   LocalPurchaseLineItem,
   ProductBatch,
-  DeliveryRecord
+  DeliveryRecord,
+  InwardInvoiceRecord
 } from '../../types';
 import {
   calculateImportShipmentCosting,
@@ -49,7 +50,10 @@ import {
   Unlock,
   ShieldAlert,
   FileCheck,
-  Ship
+  Ship,
+  Barcode,
+  Boxes,
+  Save
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
 
@@ -57,8 +61,9 @@ interface InwardInvoiceIntakeModalProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedSupplier?: Supplier;
-  preselectedInvoice?: ImportShipmentRecord | LocalPurchaseRecord | DeliveryRecord;
+  preselectedInvoice?: ImportShipmentRecord | LocalPurchaseRecord | DeliveryRecord | InwardInvoiceRecord;
   onOpenCostingSuite?: (record: ImportShipmentRecord | LocalPurchaseRecord, type: 'import' | 'local') => void;
+  onStartUpdatingInventory?: (invoiceId: string, category?: string) => void;
 }
 
 interface NewLineDraft {
@@ -91,7 +96,8 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
   onClose,
   preselectedSupplier,
   preselectedInvoice,
-  onOpenCostingSuite
+  onOpenCostingSuite,
+  onStartUpdatingInventory
 }) => {
   const {
     suppliers,
@@ -103,10 +109,16 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
     updateProductBatch,
     addLedgerEntry,
     deliveries = [],
-    saveOrSyncInvoiceToInventory
+    saveOrSyncInvoiceToInventory,
+    openCategoryIntakeModal,
+    inwardInvoices = [],
+    saveInwardInvoice
   } = useERP();
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [editingInvoiceRecordId, setEditingInvoiceRecordId] = useState<string | null>(null);
 
   // Inward Invoice Selection & Store Lock Governance
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('custom');
@@ -161,7 +173,66 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
   }, [preselectedInvoice, isOpen]);
 
   // Helper to load an invoice / shipment / delivery record and enforce store lock
-  const applyInvoiceRecord = (record: ImportShipmentRecord | LocalPurchaseRecord | DeliveryRecord) => {
+  const applyInvoiceRecord = (record: ImportShipmentRecord | LocalPurchaseRecord | DeliveryRecord | InwardInvoiceRecord) => {
+    // Check if it's an InwardInvoiceRecord
+    if ('lineItems' in record && 'status' in record && 'supplyType' in record) {
+      const inv = record as InwardInvoiceRecord;
+      setEditingInvoiceRecordId(inv.id);
+      setSelectedInvoiceId(inv.id);
+      setSupplyType(inv.supplyType);
+      setInvoiceNumber(inv.invoiceNumber);
+      setInvoiceDate(inv.invoiceDate);
+      setCustomsOrEtimsRef(inv.customsOrEtimsRef || '');
+      setKraEslipRef(inv.kraEslipRef || '');
+      setExchangeRate(inv.exchangeRate || 129.38999);
+      setTotalFreightUSD(inv.totalFreightUSD || 0);
+      setTotalInsuranceUSD(inv.totalInsuranceUSD || 0);
+      setCocFeesUSD(inv.cocFeesUSD || 0);
+      setPortClearingFeesKES(inv.portClearingFeesKES || 0);
+      setLocalFreightKES(inv.localFreightKES || 0);
+      setTargetMarkupPct(inv.targetMarkupPct || 35);
+
+      const targetStore = (inv.destinationLocation as LocationId) || 'main_store';
+      setDestinationLocation(targetStore);
+      setIsStoreLockedByInvoice(true);
+      setStoreLockOverridden(false);
+
+      if (inv.supplierId) {
+        setSelectedSupplierId(inv.supplierId);
+      } else {
+        const sup = suppliers.find(s => s.name.toLowerCase().includes(inv.supplierName.toLowerCase().slice(0, 8)));
+        if (sup) setSelectedSupplierId(sup.id);
+      }
+
+      if (inv.lineItems && inv.lineItems.length > 0) {
+        setDraftItems(inv.lineItems.map((li, idx) => ({
+          id: li.id || `draft-${idx + 1}`,
+          isExistingCatalogProduct: !!li.matchedProductId,
+          matchedProductId: li.matchedProductId,
+          name: li.name,
+          sku: li.sku || `SKU-${Date.now().toString().slice(-4)}`,
+          category: li.category,
+          subCategory: li.subCategory || 'Standard Grade',
+          fiberComposition: li.fiberComposition || '100% Synthetic',
+          colorName: li.colorName || 'Standard',
+          colorHex: li.colorHex || '#3B82F6',
+          unit: li.unit,
+          quantity: Number(li.quantity) || 0,
+          grossWeightKg: li.grossWeightKg ? Number(li.grossWeightKg) : undefined,
+          unitPriceUSD: Number(li.unitPriceUSD) || 0,
+          unitPriceKES: Number(li.unitPriceKES) || 0,
+          hsCode: li.hsCode || '',
+          rollsCount: li.rollsCount ? Number(li.rollsCount) : undefined,
+          dyeLot: li.dyeLot,
+          shadeCode: li.shadeCode,
+          packagesCount: li.packagesCount ? Number(li.packagesCount) : undefined,
+          packageDetails: li.packageDetails,
+          bagNumberRange: li.bagNumberRange
+        })));
+      }
+      return;
+    }
+
     if ('customsEntryNo' in record) {
       // ImportShipmentRecord
       setSupplyType('import');
@@ -274,7 +345,15 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
     if (id === 'custom') {
       setIsStoreLockedByInvoice(false);
       setStoreLockOverridden(false);
+      setEditingInvoiceRecordId(null);
       setInvoiceNumber(`INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+      return;
+    }
+
+    // Check saved inward invoices from Firestore
+    const existingInward = inwardInvoices.find(inv => inv.id === id);
+    if (existingInward) {
+      applyInvoiceRecord(existingInward);
       return;
     }
 
@@ -292,6 +371,115 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
       const delId = id.replace('DEL-', '');
       const del = deliveries.find(d => d.id === delId);
       if (del) applyInvoiceRecord(del);
+    }
+  };
+
+  // Immediate Firestore database persistence for Inward Invoice
+  const handleSaveInvoice = async (
+    targetStatus?: 'draft' | 'pending_clearance' | 'assessed' | 'capitalized'
+  ): Promise<InwardInvoiceRecord | null> => {
+    if (!invoiceNumber.trim()) {
+      alert('Please provide an Invoice Number before saving.');
+      return null;
+    }
+    if (!selectedSupplierId) {
+      alert('Please select a Supplier before saving.');
+      return null;
+    }
+
+    setIsSaving(true);
+    try {
+      const totalQty = draftItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+      const primaryUnit = draftItems[0]?.unit || (supplyType === 'import' ? 'kg' : 'meter');
+      const totalUSD = supplyType === 'import'
+        ? draftItems.reduce((sum, it) => sum + ((Number(it.unitPriceUSD) || 0) * (Number(it.quantity) || 0)), 0)
+        : 0;
+      const totalKES = supplyType === 'import'
+        ? Math.round(totalUSD * exchangeRate)
+        : draftItems.reduce((sum, it) => sum + ((Number(it.unitPriceKES) || 0) * (Number(it.quantity) || 0)), 0);
+      const totalRollsOrPkgs = draftItems.reduce((sum, it) => sum + (Number(it.rollsCount) || Number(it.packagesCount) || 0), 0);
+
+      const existingInward = inwardInvoices.find(
+        i => i.id === editingInvoiceRecordId ||
+             (selectedInvoiceId !== 'custom' && i.id === selectedInvoiceId) ||
+             i.invoiceNumber.trim().toLowerCase() === invoiceNumber.trim().toLowerCase()
+      );
+
+      const recordId = editingInvoiceRecordId || existingInward?.id || `INV-${supplyType.toUpperCase()}-${invoiceNumber.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
+      const statusToSave = targetStatus || existingInward?.status || (currentStep === 3 ? 'assessed' : 'draft');
+
+      const invoiceRecord: InwardInvoiceRecord = {
+        id: recordId,
+        invoiceNumber: invoiceNumber.trim(),
+        invoiceDate,
+        supplyType,
+        supplierId: selectedSupplierId,
+        supplierName: currentSupplier?.name || 'Supplier',
+        supplierCountry: currentSupplier?.country || (supplyType === 'import' ? 'Overseas' : 'Kenya'),
+        supplierPin: currentSupplier?.kraPin,
+        customsOrEtimsRef: customsOrEtimsRef.trim(),
+        kraEslipRef: kraEslipRef.trim(),
+        destinationLocation,
+        exchangeRate,
+        status: statusToSave,
+        totalFreightUSD,
+        totalInsuranceUSD,
+        cocFeesUSD,
+        portClearingFeesKES,
+        localFreightKES,
+        targetMarkupPct,
+        totalAmountUSD: totalUSD,
+        totalAmountKES: totalKES,
+        totalQuantity: totalQty,
+        totalQuantityUnit: primaryUnit,
+        totalRollsOrPackages: totalRollsOrPkgs,
+        lineItems: draftItems.map((d, idx) => ({
+          id: d.id || `li-${idx + 1}`,
+          name: d.name,
+          sku: d.sku,
+          category: d.category,
+          subCategory: d.subCategory,
+          fiberComposition: d.fiberComposition,
+          colorName: d.colorName,
+          colorHex: d.colorHex,
+          unit: d.unit,
+          quantity: Number(d.quantity) || 0,
+          grossWeightKg: d.grossWeightKg ? Number(d.grossWeightKg) : undefined,
+          unitPriceUSD: d.unitPriceUSD ? Number(d.unitPriceUSD) : undefined,
+          unitPriceKES: d.unitPriceKES ? Number(d.unitPriceKES) : undefined,
+          hsCode: d.hsCode,
+          rollsCount: d.rollsCount ? Number(d.rollsCount) : undefined,
+          dyeLot: d.dyeLot,
+          shadeCode: d.shadeCode,
+          packagesCount: d.packagesCount ? Number(d.packagesCount) : undefined,
+          packageDetails: d.packageDetails,
+          bagNumberRange: d.bagNumberRange,
+          matchedProductId: d.matchedProductId,
+          totalPriceUSD: supplyType === 'import' ? (Number(d.unitPriceUSD) || 0) * (Number(d.quantity) || 0) : undefined,
+          totalPriceKES: (Number(d.unitPriceKES) || (d.unitPriceUSD ? Math.round(Number(d.unitPriceUSD) * exchangeRate) : 0)) * (Number(d.quantity) || 0)
+        })),
+        createdAt: existingInward?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastEditedBy: currentUser.name || currentUser.email || 'Accountant',
+        portOfEntry: 'ICD EMBAKASI',
+        declarantName: 'Blue Pearl Logistics Limited',
+        declarantPin: 'P051506858S'
+      };
+
+      const res = await saveInwardInvoice(invoiceRecord);
+      setEditingInvoiceRecordId(invoiceRecord.id);
+      setSelectedInvoiceId(invoiceRecord.id);
+      playSuccessSound();
+
+      setSaveNotice(`✓ Invoice ${invoiceRecord.invoiceNumber} saved to database immediately.`);
+      setTimeout(() => setSaveNotice(null), 5000);
+      return res.invoice;
+    } catch (err: any) {
+      console.error('Failed to save inward invoice:', err);
+      alert('Error saving invoice to database: ' + (err?.message || 'Unknown error'));
+      return null;
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -783,6 +971,13 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
         console.warn('Auto-sync from inward intake modal notice:', syncErr);
       }
 
+      // Persist the inward invoice record as 'capitalized' in Firestore immediately
+      try {
+        await handleSaveInvoice('capitalized');
+      } catch (saveErr) {
+        console.warn('Inward invoice capitalization persistence notice:', saveErr);
+      }
+
       playSuccessSound();
       setCapitalizationResult({
         journalRef,
@@ -823,13 +1018,46 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              id="btn-modal-save-invoice-top"
+              type="button"
+              onClick={() => handleSaveInvoice()}
+              disabled={isSaving}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Save invoice header and all line items to database immediately"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{isSaving ? 'Saving...' : 'Save to Database'}</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
+
+        {/* Save confirmation banner */}
+        {saveNotice && (
+          <div
+            id="banner-modal-save-notice"
+            className="bg-emerald-50 border-b border-emerald-200 px-5 py-2.5 text-xs text-emerald-800 font-bold flex items-center justify-between animate-fade-in"
+          >
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{saveNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSaveNotice(null)}
+              className="text-emerald-700 hover:text-emerald-900 text-xs font-semibold cursor-pointer underline ml-4"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Step Progress Bar */}
         <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50 text-xs font-bold shrink-0">
@@ -915,6 +1143,18 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                     className="w-full bg-slate-800/90 hover:bg-slate-800 border border-slate-600 rounded-xl px-3.5 py-2.5 text-xs text-white font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer transition-colors shadow-inner"
                   >
                     <option value="custom">✍️ Enter New / Custom Inward Invoice Header (Manual Store Allocation)</option>
+                    {inwardInvoices && inwardInvoices.length > 0 && (
+                      <optgroup label="Saved Inward Invoices (Live Database)">
+                        {inwardInvoices.map(inv => {
+                          const loc = locations.find(l => l.id === inv.destinationLocation);
+                          return (
+                            <option key={inv.id} value={inv.id}>
+                              📄 {inv.invoiceNumber} — {inv.supplierName} ({inv.supplyType === 'import' ? 'Import' : 'Local'} • {inv.status.toUpperCase()} • KSh {Math.round(inv.totalAmountKES).toLocaleString()} • {loc?.name || inv.destinationLocation})
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
                     <optgroup label="Overseas Import Invoices & KRA Customs Declarations">
                       <option value="IMP-2026-PA222">📄 Commercial Invoice 26PA222 — Zhejiang Puan Textile (Locked: Main Store / Industrial Area)</option>
                       <option value="SAD-26EMKIM400968589">📄 SAD Entry 26EMKIM400968589 — ICMS Reconciled (Locked: Main Store / Industrial Area)</option>
@@ -1582,10 +1822,31 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                     </div>
                   </div>
 
-                  <div className="pt-4 flex items-center justify-center gap-3">
+                  <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      id="btn-start-updating-inventory"
+                      type="button"
+                      onClick={() => {
+                        playSuccessSound();
+                        onClose();
+                        const primaryCategory = (draftItems[0]?.category as any) || 'Yarns';
+                        if (onStartUpdatingInventory) {
+                          onStartUpdatingInventory(invoiceNumber, primaryCategory);
+                        } else {
+                          openCategoryIntakeModal(invoiceNumber, primaryCategory);
+                        }
+                      }}
+                      className="px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black transition-all shadow-xl flex items-center gap-2 cursor-pointer scale-105 hover:scale-108 ring-4 ring-emerald-400/30"
+                      title="Start updating physical roll/bale inventory for this invoice"
+                    >
+                      <Barcode className="w-4 h-4 text-emerald-200" />
+                      <span>Start Updating Inventory</span>
+                      <ArrowRight className="w-4 h-4 text-emerald-200" />
+                    </button>
+
                     <button
                       onClick={onClose}
-                      className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
+                      className="px-5 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
                     >
                       Close &amp; View Catalog
                     </button>
@@ -1802,6 +2063,20 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
               Cancel
             </button>
 
+            {!capitalizationResult && (
+              <button
+                id="btn-modal-save-invoice-bottom"
+                type="button"
+                disabled={isSaving}
+                onClick={() => handleSaveInvoice()}
+                className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                title="Save invoice header and all line items to database immediately"
+              >
+                <Save className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{isSaving ? 'Saving...' : 'Save Draft / Changes'}</span>
+              </button>
+            )}
+
             {currentStep < 3 && (
               <button
                 type="button"
@@ -1819,7 +2094,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
             {currentStep === 3 && !capitalizationResult && (
               <button
                 type="button"
-                disabled={isCapitalizing}
+                disabled={isCapitalizing || isSaving}
                 onClick={handleApproveAndCapitalize}
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
               >

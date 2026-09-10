@@ -241,11 +241,11 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
               </li>
               <li>
                 <button
-                  onClick={onOpenAdminPortal}
-                  className="hover:text-amber-200 transition-colors flex items-center gap-1.5 cursor-pointer text-left font-medium"
+                  onClick={onOpenContact}
+                  className="hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer text-left"
                 >
-                  <Lock className="w-3 h-3 text-rose-300" />
-                  <span>System Portal (system.tajiknitters.com)</span>
+                  <ChevronRight className="w-3 h-3 text-rose-300" />
+                  <span>Corporate &amp; B2B Partnerships</span>
                 </button>
               </li>
             </ul>
@@ -310,17 +310,6 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
               <span>Powered by <strong>Urbantechdev</strong></span>
               <ExternalLink className="w-3 h-3" />
             </a>
-
-            {/* Discreet Hidden Admin Icon for Staff / ERP Portal */}
-            <button
-              onClick={onOpenAdminPortal}
-              className="opacity-15 hover:opacity-90 text-rose-200 hover:text-amber-300 p-1 rounded-md transition-all cursor-pointer hover:bg-white/10"
-              title="Staff Access"
-              aria-label="Staff Access"
-              id="footer-hidden-admin-icon"
-            >
-              <Lock className="w-3 h-3" />
-            </button>
           </div>
 
         </div>

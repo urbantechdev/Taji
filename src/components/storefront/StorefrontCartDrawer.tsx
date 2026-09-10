@@ -156,28 +156,52 @@ export const StorefrontCartDrawer: React.FC<StorefrontCartDrawerProps> = ({
                         </span>
                       </div>
 
-                      {/* Quantity Selector & Line Total */}
-                      <div className="flex items-center justify-between pt-1">
-                        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+                      {/* Quantity / Decimal Kgs Selector & Line Total */}
+                      <div className="flex items-center justify-between pt-1.5 gap-2">
+                        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
                           <button
-                            onClick={() => updateCartQuantity(item.batchId, Math.max(1, item.quantity - 1))}
+                            type="button"
+                            onClick={() => {
+                              const step = item.unit?.toLowerCase() === 'kg' ? 0.5 : 1;
+                              const newQty = Math.max(0.1, Math.round((item.quantity - step) * 100) / 100);
+                              updateCartQuantity(item.batchId, newQty);
+                            }}
                             className="w-6 h-6 rounded flex items-center justify-center text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer"
+                            title="Decrease"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
-                          <span className="w-8 text-center text-xs font-bold font-mono text-slate-900">
-                            {item.quantity}
-                          </span>
+                          <input
+                            type="number"
+                            step={item.unit?.toLowerCase() === 'kg' ? "0.01" : "1"}
+                            min="0.01"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (!isNaN(val) && val > 0) {
+                                updateCartQuantity(item.batchId, val);
+                              }
+                            }}
+                            className="w-14 text-center text-xs font-bold font-mono text-slate-900 bg-transparent focus:outline-hidden focus:bg-rose-50 rounded"
+                            title="Edit quantity or kilograms"
+                          />
+                          <span className="text-[10px] text-slate-500 font-bold pr-1">{item.unit || 'pcs'}</span>
                           <button
-                            onClick={() => updateCartQuantity(item.batchId, item.quantity + 1)}
+                            type="button"
+                            onClick={() => {
+                              const step = item.unit?.toLowerCase() === 'kg' ? 0.5 : 1;
+                              const newQty = Math.round((item.quantity + step) * 100) / 100;
+                              updateCartQuantity(item.batchId, newQty);
+                            }}
                             className="w-6 h-6 rounded flex items-center justify-center text-slate-600 hover:bg-slate-100 text-xs font-bold cursor-pointer"
+                            title="Increase"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
                         </div>
 
                         <span className="text-xs font-extrabold text-slate-900 font-mono">
-                          KSh {(item.rollPricing?.totalPrice ?? (item.unitPrice * item.quantity)).toLocaleString()}
+                          KSh {(item.rollPricing?.totalPrice ?? Math.round(item.unitPrice * item.quantity)).toLocaleString()}
                         </span>
                       </div>
                     </div>

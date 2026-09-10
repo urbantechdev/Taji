@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CategoryType } from '../../types';
 import { useERP } from '../../context/ERPContext';
 import tajiLogo from '../../assets/images/taji_logo_1786034537873.jpg';
 import { BrandLogo } from '../common/BrandLogo';
+import { StorefrontHamburgerDrawer } from './StorefrontHamburgerDrawer';
+import { playClickSound } from '../../utils/audio';
 import {
   ShoppingBag,
   Search,
@@ -12,7 +14,12 @@ import {
   X,
   Clock,
   ArrowRight,
-  Lock
+  Lock,
+  User,
+  LogIn,
+  LogOut,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 interface StorefrontHeaderProps {
@@ -36,9 +43,31 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
   selectedCategory,
   setSelectedCategory
 }) => {
-  const { cart, brandSettings, products } = useERP();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const {
+    cart,
+    brandSettings,
+    products,
+    websiteCustomer,
+    logoutWebsiteCustomer,
+    setIsCustomerAuthModalOpen,
+    setIsCustomerProfileModalOpen
+  } = useERP();
+
+  const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close user dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Total items in cart
   const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
@@ -55,21 +84,39 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
     { id: 'Yarns', label: 'Knitting Yarns & Cones', count: products.filter(p => p.category === 'Yarns').length },
   ];
 
+  const handleLogout = () => {
+    playClickSound();
+    setIsUserDropdownOpen(false);
+    logoutWebsiteCustomer();
+  };
+
+  const handleOpenLogin = () => {
+    playClickSound();
+    setIsCustomerAuthModalOpen(true);
+  };
+
+  const handleOpenProfile = () => {
+    playClickSound();
+    setIsUserDropdownOpen(false);
+    setIsCustomerProfileModalOpen(true);
+  };
+
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-rose-100 shadow-xs" id="storefront-header">
+    <header className="relative z-30 bg-white border-b border-rose-100 shadow-xs" id="storefront-header">
       {/* Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-        <div className="flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
           
-          {/* Logo & Brand Identity */}
-          <div className="flex items-center gap-3">
+          {/* Left: Brand Identity */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Logo & Brand Identity */}
             <div 
               onClick={() => {
                 setSelectedCategory('all');
                 setSearchQuery('');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="flex items-center gap-3 cursor-pointer group"
+              className="flex items-center gap-2 sm:gap-3 cursor-pointer group"
             >
               <BrandLogo
                 logoUrl={displayLogo}
@@ -81,9 +128,9 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
                 interactive={true}
               />
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <span 
-                    className="text-xl sm:text-2xl font-black tracking-tight"
+                    className="text-lg sm:text-2xl font-black tracking-tight"
                     style={{ 
                       fontFamily: "'Audiowide', sans-serif",
                       color: primaryColor 
@@ -95,7 +142,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
                     Storefront
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 font-medium tracking-wide hidden sm:block">
+                <p className="text-[10px] text-slate-500 font-medium tracking-wide hidden lg:block">
                   Textile Enterprise • Dereck • Fleece • Yarns
                 </p>
               </div>
@@ -125,11 +172,12 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
           </div>
 
           {/* Right Action Icons */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             {/* Mobile Search Toggle */}
             <button
               onClick={() => setIsSearchExpanded(!isSearchExpanded)}
               className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer"
+              title="Search"
             >
               <Search className="w-5 h-5" />
             </button>
@@ -137,23 +185,137 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
             {/* Branches Button */}
             <button
               onClick={onOpenContact}
-              className="hidden md:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-rose-700 hover:bg-rose-50/60 rounded-xl transition-colors cursor-pointer"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-rose-700 hover:bg-rose-50/60 rounded-xl transition-colors cursor-pointer"
             >
               <MapPin className="w-4 h-4 text-rose-600" />
               <span>Branches</span>
             </button>
 
-            {/* System Portal Link (system.tajiknitters.com) */}
-            {onOpenAdminPortal && (
+            {/* USER PROFILE, LOGIN & LOGOUT SECTION */}
+            {websiteCustomer ? (
+              <div className="relative flex items-center gap-1" ref={userDropdownRef}>
+                {/* Profile Pill Dropdown Trigger */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    setIsUserDropdownOpen(!isUserDropdownOpen);
+                  }}
+                  className="flex items-center gap-2 p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-50 hover:bg-rose-50/70 border border-slate-200 hover:border-rose-300 rounded-xl transition-all cursor-pointer shadow-2xs active:scale-95"
+                  id="storefront-user-profile-btn"
+                  title={`Customer Account: ${websiteCustomer.name}`}
+                >
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-rose-600 to-pink-600 text-white font-black text-xs flex items-center justify-center relative shadow-xs shrink-0">
+                    <span>{websiteCustomer.name.charAt(0).toUpperCase()}</span>
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white"></span>
+                  </div>
+                  <div className="text-left hidden sm:block">
+                    <p className="text-xs font-bold text-slate-900 leading-tight truncate max-w-[85px] md:max-w-[110px]">
+                      {websiteCustomer.name.split(' ')[0]}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-medium capitalize truncate max-w-[85px] md:max-w-[110px]">
+                      Shopper
+                    </p>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+                </button>
+
+                {/* Direct Quick 1-Click Logout Button (Desktop) */}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="hidden md:flex items-center p-2 text-slate-400 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                  title="Sign Out of Customer Account"
+                  id="storefront-quick-logout-btn"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+
+                {/* User Dropdown Flyout */}
+                <AnimatePresence>
+                  {isUserDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-rose-100 p-2 z-50 space-y-1 divide-y divide-slate-100"
+                    >
+                      {/* Dropdown Header */}
+                      <div className="p-2.5 pb-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                            Customer Account
+                          </span>
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold rounded-full">
+                            Verified
+                          </span>
+                        </div>
+                        <p className="text-xs font-black text-slate-900 truncate mt-1">
+                          {websiteCustomer.name}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate font-mono">
+                          {websiteCustomer.phone || websiteCustomer.email}
+                        </p>
+                        <span className="inline-block mt-1 px-2 py-0.5 bg-rose-50 text-rose-800 text-[10px] font-bold rounded-md capitalize">
+                          {websiteCustomer.deliveryCity || 'Retail Shopper'}
+                        </span>
+                      </div>
+
+                      {/* Dropdown Menu Links */}
+                      <div className="pt-1 space-y-0.5">
+                        <button
+                          type="button"
+                          onClick={handleOpenProfile}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:text-rose-700 hover:bg-rose-50 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <User className="w-3.5 h-3.5 text-rose-600" />
+                          <span>My Profile &amp; Addresses</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playClickSound();
+                            setIsUserDropdownOpen(false);
+                            onOpenTrackOrder();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:text-rose-700 hover:bg-rose-50 rounded-xl flex items-center justify-between transition-colors cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5 text-slate-600" />
+                            <span>Track My Orders</span>
+                          </span>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                        </button>
+                      </div>
+
+                      {/* Dropdown Logout Action */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="w-full text-left px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Sign Out</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              /* Unauthenticated / Guest: Customer Sign In Button */
               <button
                 type="button"
-                onClick={onOpenAdminPortal}
-                className="hidden lg:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-rose-700 hover:bg-rose-50/50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200"
-                title="Open Internal ERP & POS (system.tajiknitters.com)"
-                id="header-system-portal-button"
+                onClick={handleOpenLogin}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-rose-50/80 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 rounded-xl font-bold text-xs shadow-2xs transition-all cursor-pointer active:scale-95"
+                id="storefront-login-btn"
+                title="Customer Sign In / Register"
               >
-                <Lock className="w-3.5 h-3.5 text-slate-500" />
-                <span>System Portal</span>
+                <LogIn className="w-4 h-4 text-rose-600" />
+                <span className="hidden sm:inline">Customer Sign In</span>
               </button>
             )}
 
@@ -183,12 +345,21 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
               )}
             </button>
 
-            {/* Mobile Menu Trigger */}
+            {/* Primary Hamburger Trigger (Right Side) */}
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 text-slate-700 hover:bg-slate-100 rounded-xl cursor-pointer"
+              type="button"
+              onClick={() => {
+                playClickSound();
+                setIsHamburgerOpen(true);
+              }}
+              className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl text-slate-700 hover:text-rose-700 hover:bg-rose-50 border border-slate-200/80 hover:border-rose-200 transition-all cursor-pointer shadow-2xs group active:scale-95 shrink-0"
+              title="Open Navigation Menu"
+              id="header-hamburger-button"
             >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              <Menu className="w-5 h-5 text-slate-700 group-hover:text-rose-700 transition-colors shrink-0" />
+              <span className="hidden md:inline text-xs font-bold text-slate-800 group-hover:text-rose-700">
+                Menu
+              </span>
             </button>
           </div>
         </div>
@@ -226,7 +397,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
         </AnimatePresence>
 
         {/* Category Navigation Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-3 border-t border-slate-100 mt-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2.5 sm:pt-3 border-t border-slate-100 mt-2">
           {categories.map((cat) => {
             const isActive = selectedCategory === cat.id;
             return (
@@ -253,108 +424,21 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="lg:hidden bg-white border-b border-rose-100 px-6 py-5 space-y-4 shadow-xl"
-          >
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quick Navigation</p>
-              <button
-                onClick={() => {
-                  setSelectedCategory('all');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full text-left py-2 px-3 rounded-lg hover:bg-rose-50 font-bold text-slate-800 text-sm flex items-center justify-between"
-              >
-                <span>Browse All Fabrics ({products.length})</span>
-                <ArrowRight className="w-4 h-4 text-slate-400" />
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedCategory('Dereck');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full text-left py-2 px-3 rounded-lg hover:bg-amber-50 font-bold text-amber-900 text-sm flex items-center justify-between"
-              >
-                <span>Dereck Weaves</span>
-                <span className="text-xs font-mono bg-amber-100 px-2 py-0.5 rounded">
-                  {products.filter(p => p.category === 'Dereck').length} items
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedCategory('Fleece');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full text-left py-2 px-3 rounded-lg hover:bg-rose-50 font-bold text-rose-900 text-sm flex items-center justify-between"
-              >
-                <span>Polar &amp; Coral Fleece</span>
-                <span className="text-xs font-mono bg-rose-100 px-2 py-0.5 rounded">
-                  {products.filter(p => p.category === 'Fleece').length} items
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedCategory('Yarns');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full text-left py-2 px-3 rounded-lg hover:bg-indigo-50 font-bold text-indigo-900 text-sm flex items-center justify-between"
-              >
-                <span>Knitting Yarns &amp; Cones</span>
-                <span className="text-xs font-mono bg-indigo-100 px-2 py-0.5 rounded">
-                  {products.filter(p => p.category === 'Yarns').length} items
-                </span>
-              </button>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 space-y-2">
-              <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  onOpenTrackOrder();
-                }}
-                className="w-full py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center gap-2"
-              >
-                <Clock className="w-4 h-4 text-rose-600" />
-                <span>Track My Active Order</span>
-              </button>
-              <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  onOpenContact();
-                }}
-                className="w-full py-2.5 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center gap-2"
-              >
-                <MapPin className="w-4 h-4 text-rose-600" />
-                <span>Branch Locations &amp; Contacts</span>
-              </button>
-
-              {onOpenAdminPortal && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    onOpenAdminPortal();
-                  }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-slate-900 text-white font-bold text-xs flex items-center justify-between shadow-xs cursor-pointer"
-                  id="mobile-drawer-system-portal-button"
-                >
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-rose-400" />
-                    <span>System Portal (system.tajiknitters.com)</span>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-slate-400" />
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Slide-out Hamburger Navigation & Account Drawer */}
+      <StorefrontHamburgerDrawer
+        isOpen={isHamburgerOpen}
+        onClose={() => setIsHamburgerOpen(false)}
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+        onOpenCart={onOpenCart}
+        onOpenTrackOrder={onOpenTrackOrder}
+        onOpenContact={onOpenContact}
+        onOpenAdminPortal={onOpenAdminPortal}
+        cartItemCount={cartItemCount}
+        cartTotalAmount={cartTotalAmount}
+      />
     </header>
   );
 };
+

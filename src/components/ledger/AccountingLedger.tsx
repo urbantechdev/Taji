@@ -61,11 +61,14 @@ import {
   FixedAsset,
   FixedAssetCategory,
   MpesaStatementItem,
-  Supplier
+  Supplier,
+  LedgerTab,
+  InwardInvoiceRecord
 } from '../../types';
 import { JournalVoucherModal } from './JournalVoucherModal';
 import { SupplierDirectoryModal } from '../suppliers/SupplierDirectoryModal';
 import { InwardInvoiceIntakeModal } from '../inventory/InwardInvoiceIntakeModal';
+import { InwardInvoicesListView } from './InwardInvoicesListView';
 import {
   BookOpenCheck,
   Download,
@@ -83,6 +86,7 @@ import {
   Banknote,
   Receipt,
   Building2,
+  Barcode,
   Wallet,
   Sparkles,
   RefreshCw,
@@ -112,19 +116,6 @@ import {
 } from 'lucide-react';
 import { ImportTaxLandedCostingModule } from './ImportTaxLandedCostingModule';
 import { DebtorsAgingScheduleTab } from './DebtorsAgingScheduleTab';
-
-type LedgerTab = 
-  | 'cfo_advisory'
-  | 'import_costing'
-  | 'debtors_aging'
-  | 'financial_statements'
-  | 'general_ledger'
-  | 'balance_sheet'
-  | 'income_statement'
-  | 'cash_flow'
-  | 'tax_engine'
-  | 'bank_reconciliation'
-  | 'fixed_assets';
 
 export const AccountingLedger: React.FC = () => {
   const {
@@ -160,7 +151,12 @@ export const AccountingLedger: React.FC = () => {
     isSupplierModalOpen: contextIsSupplierModalOpen,
     setIsSupplierModalOpen: contextSetIsSupplierModalOpen,
     isInwardInvoiceModalOpen: contextIsInwardInvoiceModalOpen,
-    setIsInwardInvoiceModalOpen: contextSetIsInwardInvoiceModalOpen
+    setIsInwardInvoiceModalOpen: contextSetIsInwardInvoiceModalOpen,
+    openCategoryIntakeModal,
+    inwardInvoices = [],
+    selectedInvoiceForEdit,
+    setSelectedInvoiceForEdit,
+    suppliers = []
   } = useERP();
 
   const isAccountantRole = Boolean(isAccountant || currentUser.role === 'accountant');
@@ -790,6 +786,19 @@ export const AccountingLedger: React.FC = () => {
                 <Receipt className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
                 <span>+ Inward Invoice</span>
               </button>
+
+              <button
+                type="button"
+                id="btn-hero-start-updating-inventory"
+                onClick={() => {
+                  openCategoryIntakeModal();
+                }}
+                className="px-3 py-1.5 bg-gradient-to-r from-teal-700 to-cyan-800 hover:from-teal-600 hover:to-cyan-700 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
+                title="Start Updating Physical Inventory (Select Invoice, Category, and Scan Barcodes for Lot, Shade, and Mass)"
+              >
+                <Barcode className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
+                <span>Start Updating Inventory</span>
+              </button>
             </div>
 
             {/* Accounting Management Actions */}
@@ -838,6 +847,25 @@ export const AccountingLedger: React.FC = () => {
           >
             <Sparkles className="w-4 h-4 text-slate-500 shrink-0" />
             <span>Virtual CFO Intelligence</span>
+          </button>
+
+          <button
+            id="tab-inward-invoices-registry"
+            onClick={() => {
+              setActiveSubTab('inward_invoices');
+              if (setAccountantSubTab) setAccountantSubTab('inward_invoices');
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'inward_invoices'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60'
+            }`}
+          >
+            <Receipt className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Inward Invoices &amp; Consignments</span>
+            <span className="bg-emerald-200/80 text-emerald-900 text-[10px] px-1.5 py-0.5 rounded-full font-black">
+              {inwardInvoices.length}
+            </span>
           </button>
 
           <button
@@ -965,6 +993,33 @@ export const AccountingLedger: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* TAB: INWARD INVOICES & CONSIGNMENTS LIST VIEW */}
+      {/* ------------------------------------------------------------- */}
+      {activeSubTab === 'inward_invoices' && (
+        <div className="animate-in fade-in duration-200">
+          <InwardInvoicesListView
+            onNewInvoice={() => {
+              setSelectedInvoiceForEdit(null);
+              setSelectedSupplierForInvoice(undefined);
+              setIsInwardInvoiceModalOpen(true);
+            }}
+            onEditInvoice={(invoice) => {
+              setSelectedInvoiceForEdit(invoice);
+              setSelectedSupplierForInvoice(suppliers.find(s => s.id === invoice.supplierId));
+              setIsInwardInvoiceModalOpen(true);
+            }}
+            onOpenCostingSuite={(invoice) => {
+              setActiveSubTab('import_costing');
+              if (setAccountantSubTab) setAccountantSubTab('import_costing');
+            }}
+            onOpenInventoryIntake={(invoiceId) => {
+              openCategoryIntakeModal(invoiceId);
+            }}
+          />
+        </div>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* TAB: IMPORT TAX & LANDED COSTING MODULE */}
@@ -4733,12 +4788,18 @@ export const AccountingLedger: React.FC = () => {
         onClose={() => {
           setIsInwardInvoiceModalOpen(false);
           setSelectedSupplierForInvoice(undefined);
+          setSelectedInvoiceForEdit(null);
         }}
         preselectedSupplier={selectedSupplierForInvoice}
+        preselectedInvoice={selectedInvoiceForEdit || undefined}
         onOpenCostingSuite={() => {
           setIsInwardInvoiceModalOpen(false);
+          setSelectedInvoiceForEdit(null);
           setActiveSubTab('import_costing');
           if (setAccountantSubTab) setAccountantSubTab('import_costing');
+        }}
+        onStartUpdatingInventory={(invId, cat) => {
+          openCategoryIntakeModal(invId, cat as any);
         }}
       />
 
