@@ -1,8 +1,6 @@
 {
-  "name": "Tewaw Enterprise",
-  "description": "TEWAW Enterprises is a premium Kenyan garment manufacturer and branding platform specialising in high-quality cotton apparel, security & specialised uniforms, and authentic heritage wear. Based in Nairobi, we offer end-to-end custom garment solutions for brands and organisations.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "name": "Taji",
+  "description": "Taji Enterprise ERP platform featuring multi-branch inventory, ETR billing, POS terminal, inter-branch transfers, payroll, and general ledger accounting.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
