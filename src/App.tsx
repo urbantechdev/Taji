@@ -4,7 +4,6 @@ import ScrollToTop from './components/ScrollToTop';
 import { PopupPromptProvider } from './components/PopupPrompt';
 import { PWAProvider } from './context/PWAContext';
 import PWAInstallModal from './components/PWAInstallModal';
-import FloatingWhatsApp from './components/FloatingWhatsApp';
 import Home from './pages/Home';
 
 // Lazy load secondary routes so initial homepage payload is featherweight & instant
@@ -49,7 +48,6 @@ export default function App() {
           <ScrollToTop />
           <PWAInstallModal />
           <RoutePrefetcher />
-          <FloatingWhatsApp />
           <Suspense fallback={
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center pointer-events-none">
               <div className="w-8 h-8 rounded-full border-2 border-brand-orange border-t-transparent animate-spin" />

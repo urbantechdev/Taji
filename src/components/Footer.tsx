@@ -110,8 +110,8 @@ export default function Footer({ onOpenLegal }: FooterProps) {
                   { 
                     icon: Facebook, 
                     gradient: 'hover:bg-[#1877F2] hover:text-white hover:shadow-lg hover:shadow-blue-500/30', 
-                    label: 'Facebook (@tewaw.enterprises)',
-                    href: 'https://www.facebook.com/tewaw.enterprises'
+                    label: 'Facebook (@msupa.tess)',
+                    href: 'https://www.facebook.com/msupa.tess'
                   },
                   { 
                     icon: ({ className }: { className?: string }) => (
@@ -204,11 +204,11 @@ export default function Footer({ onOpenLegal }: FooterProps) {
               ))}
               <li>
                 <button 
-                  onClick={() => window.open('https://wa.me/254736619688?text=' + encodeURIComponent('Hello Tewaw Enterprise, I would like to inquire about bulk garment manufacturing and apparel branding.'), '_blank')}
+                  onClick={() => window.open('https://wa.me/254736619688?text=' + encodeURIComponent('Hello Tewaw Enterprise, I would like to inquire about a custom garment and uniform production order.'), '_blank')}
                   className="text-slate-600 hover:text-brand-orange transition-colors flex items-center gap-2 group cursor-pointer"
                 >
                   <span className="w-1 h-1 bg-slate-300 rounded-full group-hover:bg-brand-orange group-hover:w-2 transition-all" />
-                  Custom Orders &amp; Branding
+                  Custom Orders
                 </button>
               </li>
             </ul>

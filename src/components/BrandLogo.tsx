@@ -30,9 +30,7 @@ export default function BrandLogo({ className, variant = 'light', showText = tru
   };
 
   const renderIcon = () => {
-    const rawLogo = settings?.headerLogoUrl;
-    const isMock = !rawLogo || rawLogo.includes('pinimg.com') || rawLogo.includes('d33d71d87f12393171b52129b460c431');
-    const logoUrl = isMock ? "/logo.svg" : rawLogo;
+    const logoUrl = settings?.headerLogoUrl || "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg";
     return (
       <img 
         referrerPolicy="no-referrer"
@@ -40,14 +38,9 @@ export default function BrandLogo({ className, variant = 'light', showText = tru
         alt="TEWAW Logo" 
         className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-115 group-hover:rotate-6"
         onError={(e) => {
-          const img = e.target as HTMLImageElement;
-          if (img.src !== window.location.origin + '/logo.svg') {
-            img.src = '/logo.svg';
-          } else {
-            img.style.display = 'none';
-            const fallback = document.getElementById(`logo-fallback-${size}`);
-            if (fallback) fallback.style.display = 'block';
-          }
+          (e.target as HTMLImageElement).style.display = 'none';
+          const fallback = document.getElementById(`logo-fallback-${size}`);
+          if (fallback) fallback.style.display = 'block';
         }}
       />
     );

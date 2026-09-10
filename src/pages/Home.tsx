@@ -15,15 +15,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, collection, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { ShoppingBag, X, Plus, Minus, Trash2, ArrowRight, RefreshCw, Palette, FileText, Scissors, Sparkles, Tag, Barcode } from 'lucide-react';
-import { DEFAULT_PRODUCTS, getColorHex, PLACEHOLDER_PRODUCT_IMAGE, getProductSku, copySkuToClipboard } from '../data/defaultProducts';
+import { ShoppingBag, X, Plus, Minus, Trash2, ArrowRight, RefreshCw, Palette, FileText, Scissors, Sparkles, Tag } from 'lucide-react';
+import { DEFAULT_PRODUCTS, getColorHex, PLACEHOLDER_PRODUCT_IMAGE } from '../data/defaultProducts';
 import { CATEGORIES } from '../constants';
 
 export interface CartItem {
   id: string;
   cartKey?: string;
-  sku?: string;
-  baseSku?: string;
   name: string;
   basePrice?: number;
   price: number;
@@ -170,37 +168,23 @@ export default function Home() {
     const platformOgImg = settings?.ogImageUrl || PLACEHOLDER_PRODUCT_IMAGE;
 
     return {
-      title: "Tewaw Enterprise | Garment Manufacturing, DTF Printing & Branding at Uhuru Market, Nairobi",
-      description: "Looking for bulk garment manufacturing, custom DTF printing, and corporate branding in Nairobi? Visit Tewaw Enterprise at Uhuru Market. Experts in apparel, uniforms, and high-quality digital textile printing.",
-      keywords: "DTF printing Nairobi, custom garment branding Uhuru Market, apparel printing Kenya, corporate t-shirt branding, textile printing Nairobi, screen printing Kenya, bulk garment manufacturing, school uniforms Nairobi, security uniforms Kenya, custom hoodies Nairobi",
+      title: "Tewaw Enterprise | Premium Kenyan Garment Manufacturer",
+      description: "Elite Kenyan garment manufacturing specialising in high-quality cotton apparel, security & field uniforms, school uniforms, and corporate branding. Based in Nairobi, Kenya.",
       canonical: "https://tewaw.com/",
       ogType: "website",
       ogImage: platformOgImg,
       schema: {
         "@context": "https://schema.org",
-        "@type": ["LocalBusiness", "ClothingStore", "Manufacturer"],
+        "@type": "ClothingStore",
         "name": "Tewaw Enterprise",
-        "legalName": "Tewaw Enterprise Limited",
-        "description": "Looking for bulk garment manufacturing, custom DTF printing, and corporate branding in Nairobi? Visit Tewaw Enterprise at Uhuru Market. Experts in apparel, uniforms, digital textile printing, screen printing, computerized embroidery, and high-quality corporate branding.",
+        "description": "Elite Kenyan garment manufacturing specialising in high-quality cotton apparel, security & field uniforms, and authentic heritage wear.",
         "url": "https://tewaw.com/",
         "telephone": "+254736619688",
-        "keywords": "DTF printing Nairobi, custom garment branding Uhuru Market, apparel printing Kenya, corporate t-shirt branding, textile printing Nairobi, screen printing, computerized embroidery",
-        "knowsAbout": [
-          "DTF Printing",
-          "Direct to Film Digital Transfers",
-          "Screen Printing",
-          "Custom Apparel Branding",
-          "Textile Printing",
-          "Corporate T-Shirt Branding",
-          "Computerized Embroidery",
-          "Garment Manufacturing"
-        ],
         "image": platformOgImg,
         "address": {
           "@type": "PostalAddress",
-          "streetAddress": "Jagoo Lane, Uhuru Market",
+          "streetAddress": "Jagoo Lane, Tewaw Enterprise Limited",
           "addressLocality": "Nairobi",
-          "addressRegion": "Nairobi County",
           "addressCountry": "KE"
         }
       }
@@ -220,21 +204,21 @@ export default function Home() {
   }, [searchParams, location]);
 
   useEffect(() => {
-    // Load favicon from settings or use official Tewaw icon
-    const isMock = (url?: string) => !url || url.includes('pinimg.com') || url.includes('d33d71d87f12393171b52129b460c431');
+    // Load favicon from settings
     return onSnapshot(doc(db, 'settings', 'global'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         setSettings(data);
-        const faviconUrl = data.faviconUrl && !isMock(data.faviconUrl) ? data.faviconUrl : '/favicon.ico';
-        const favicon = document.querySelector('link[rel*="icon"]') as HTMLLinkElement;
-        if (favicon) {
-          favicon.href = faviconUrl;
-        } else {
-          const newFavicon = document.createElement('link');
-          newFavicon.rel = 'icon';
-          newFavicon.href = faviconUrl;
-          document.head.appendChild(newFavicon);
+        if (data.faviconUrl) {
+          const favicon = document.querySelector('link[rel*="icon"]') as HTMLLinkElement;
+          if (favicon) {
+            favicon.href = data.faviconUrl;
+          } else {
+            const newFavicon = document.createElement('link');
+            newFavicon.rel = 'icon';
+            newFavicon.href = data.faviconUrl;
+            document.head.appendChild(newFavicon);
+          }
         }
       }
     });
@@ -252,14 +236,13 @@ export default function Home() {
 
   const handleConfirmAddToCart = (configuredItem: CartItem) => {
     const itemKey = configuredItem.cartKey || `${configuredItem.id}-${configuredItem.selectedColor || 'Standard'}-${configuredItem.selectedSize || 'L'}-${configuredItem.brandingType || 'none'}`;
-    const resolvedSku = configuredItem.sku || getProductSku(configuredItem);
 
     setCart(prev => {
       const existingIdx = prev.findIndex(item => (item.cartKey || item.id) === itemKey);
       if (existingIdx > -1) {
         return prev.map((item, idx) => idx === existingIdx ? { ...item, quantity: item.quantity + (configuredItem.quantity || 1) } : item);
       }
-      return [...prev, { ...configuredItem, cartKey: itemKey, sku: resolvedSku }];
+      return [...prev, { ...configuredItem, cartKey: itemKey }];
     });
     setIsCartOpen(true);
   };
@@ -295,7 +278,6 @@ export default function Home() {
         customerEmail: customerEmail.trim(),
         items: cart.map(item => ({
           id: item.id,
-          sku: item.sku || getProductSku(item),
           name: item.name,
           basePrice: Number(item.basePrice || item.price),
           price: Number(item.price),
@@ -315,14 +297,12 @@ export default function Home() {
       
       const docRef = await addDoc(collection(db, 'orders'), orderData);
       
-      // WhatsApp message with full size, SKU and branding breakdown
+      // WhatsApp message with full size and branding breakdown
       let message = `*NEW ORDER FROM TEWAW WEBSITE*\nOrder Ref: #${docRef.id.slice(0, 5)}\nCustomer: ${customerName.trim()} (${customerEmail.trim()})\n\n`;
       cart.forEach(item => {
-        const itemSku = item.sku || getProductSku(item);
-        const skuTag = itemSku ? ` [SKU: ${itemSku}]` : '';
         const sizeTag = item.selectedSize ? ` | Size: ${item.selectedSize}` : '';
         const brandingTag = item.brandingName ? ` | Branding: ${item.brandingName}` : '';
-        message += `• ${item.name}${skuTag} (${item.selectedColor || 'Standard'}${sizeTag}${brandingTag}) x${item.quantity} - KES ${(item.price * item.quantity).toLocaleString()}\n`;
+        message += `• ${item.name} (${item.selectedColor || 'Standard'}${sizeTag}${brandingTag}) x${item.quantity} - KES ${(item.price * item.quantity).toLocaleString()}\n`;
       });
       message += `\n*TOTAL: KES ${cartTotal.toLocaleString()}*\n\n_Please confirm production schedule and delivery details._`;
       
@@ -395,7 +375,7 @@ export default function Home() {
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
         />
-
+        
         <FeaturedGallery />
         
         {/* Clients Ticker / Showcase */}
@@ -491,15 +471,7 @@ export default function Home() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-1">
-                          <div>
-                            <h4 className="font-black text-xs text-brand-blue truncate uppercase">{item.name}</h4>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <span className="text-[8px] font-mono font-bold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                <Barcode className="w-2.5 h-2.5 text-brand-blue" />
-                                {item.sku || getProductSku(item)}
-                              </span>
-                            </div>
-                          </div>
+                          <h4 className="font-black text-xs text-brand-blue truncate uppercase">{item.name}</h4>
                           <button 
                             onClick={() => removeFromCart(itemKey)}
                             className="p-1 text-slate-300 hover:text-red-500 transition-colors shrink-0"

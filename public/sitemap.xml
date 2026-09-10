@@ -1,56 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://tewaw.com/</loc>
-    <lastmod>2026-09-07</lastmod>
+    <lastmod>2026-08-15</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-    <image:image>
-      <image:loc>https://tewaw.com/icon-512.png</image:loc>
-      <image:title>Tewaw Enterprise Brand Logo</image:title>
-      <image:caption>Tewaw Enterprise Uniforms and Apparel Manufacturing Kenya</image:caption>
-    </image:image>
-    <image:image>
-      <image:loc>https://tewaw.com/favicon.ico</image:loc>
-      <image:title>Tewaw Enterprise Favicon</image:title>
-      <image:caption>Tewaw Enterprise Official Icon</image:caption>
-    </image:image>
-  </url>
-  <url>
-    <loc>https://tewaw.com/gallery</loc>
-    <lastmod>2026-09-07</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.95</priority>
-    <image:image>
-      <image:loc>https://tewaw.com/api/gallery/image/3Mc6MOTvs3A94b9N4Wzd.webp</image:loc>
-      <image:title>Tewaw custom security uniforms - Tewaw Enterprise</image:title>
-      <image:caption>Tewaw Enterprise custom security uniforms. Quality garment and uniform manufacturing in Kenya.</image:caption>
-    </image:image>
-    <image:image>
-      <image:loc>https://tewaw.com/api/gallery/image/5x4xJb6vXk9173qYyN3Q.webp</image:loc>
-      <image:title>Tewaw custom branded hoodies - Tewaw Enterprise</image:title>
-      <image:caption>Tewaw Enterprise custom branded hoodies. Quality garment manufacturing in Kenya.</image:caption>
-    </image:image>
-    <image:image>
-      <image:loc>https://tewaw.com/api/gallery/image/D8r1eGjE5aXhX0O3q0tW.webp</image:loc>
-      <image:title>Tewaw Medical Scrubs - Tewaw Enterprise</image:title>
-      <image:caption>Tewaw Enterprise Medical Scrubs and healthcare uniforms in Kenya.</image:caption>
-    </image:image>
-    <image:image>
-      <image:loc>https://tewaw.com/api/gallery/image/P4k8L9jM1oQ2W3e4R5t6.webp</image:loc>
-      <image:title>Tewaw Girl School Dress Uniform - Tewaw Enterprise</image:title>
-      <image:caption>Tewaw Enterprise School uniform tailoring in Kenya.</image:caption>
-    </image:image>
-    <image:image>
-      <image:loc>https://tewaw.com/api/gallery/image/T7u1v8w9x0y2z3A4B5c6.webp</image:loc>
-      <image:title>Tewaw Co-porate Uniform - Tewaw Enterprise</image:title>
-      <image:caption>Tewaw Enterprise Corporate wear and tailored executive uniforms.</image:caption>
-    </image:image>
   </url>
   <url>
     <loc>https://tewaw.com/products</loc>
-    <lastmod>2026-09-07</lastmod>
+    <lastmod>2026-08-15</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
   </url>

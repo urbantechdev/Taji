@@ -1,18 +1,11 @@
 // Tewaw Enterprise Progressive Web App Service Worker
-const CACHE_NAME = 'tewaw-pwa-v4';
+const CACHE_NAME = 'tewaw-pwa-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/manifest.webmanifest',
-  '/pwa-icon.svg',
-  '/logo.svg',
-  '/favicon.ico',
-  '/favicon.svg',
-  '/favicon-32x32.png',
-  '/favicon-16x16.png',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/pwa-icon.svg'
 ];
 
 // Install Event: Precache static core assets & immediately activate

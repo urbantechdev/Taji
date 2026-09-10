@@ -43,10 +43,10 @@ const SOCIAL_LINKS = [
   {
     name: 'Facebook',
     icon: Facebook,
-    href: 'https://www.facebook.com/tewaw.enterprises',
+    href: 'https://www.facebook.com/msupa.tess',
     bgClass: 'bg-gradient-to-tr from-[#0b5ed7] via-[#1877F2] to-[#60a5fa] text-white',
     glowClass: 'shadow-[0_0_20px_rgba(24,119,242,0.6)] hover:shadow-[0_0_35px_rgba(24,119,242,1),0_0_15px_rgba(255,255,255,0.8)] border-blue-300/50',
-    label: 'Facebook (@tewaw.enterprises)',
+    label: 'Facebook (@msupa.tess)',
   },
   {
     name: 'Phone',

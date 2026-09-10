@@ -234,250 +234,87 @@ View in Admin: ${adminTicketUrl}
       server: { middlewareMode: true },
       appType: 'spa',
     });
+    app.use(vite.middlewares);
+  } else {
+    app.use(express.static(path.join(__dirname, 'dist'), {
+      maxAge: '1y',
+      immutable: true,
+      setHeaders: (res, filePath) => {
+        if (!filePath.endsWith('.html') && filePath.includes('/assets/')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        }
+      }
+    }));
   }
 
-  // XML and HTML entity escaping helpers
-  const escapeHtml = (str: string) => {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  };
-
-  const escapeXml = (str: string) => {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
-  };
-
-  // Helper to fetch gallery items from Firebase Firestore for dynamic sitemap and SEO injection
-  const getGalleryItems = async () => {
-    const items: any[] = [];
-    try {
-      const firestore = getDb();
-      if (firestore) {
-        const galleryRef = collection(firestore, 'gallery');
-        const snap = await getDocs(galleryRef);
-        snap.forEach((d) => {
-          items.push({ id: d.id, ...d.data() });
-        });
-      }
-    } catch (e) {
-      console.error('Error fetching gallery items from Firestore:', e);
-    }
-    return items;
-  };
-
-  // In-memory cache for parsed gallery images to provide fast responses for Googlebot and users
-  const galleryImageCache = new Map<string, { buffer: Buffer; mimeType: string; etag: string }>();
-
-  // Direct Binary Image Serving Endpoint for Googlebot-Image and users: /api/gallery/image/:id
-  app.get(['/api/gallery/image/:id', '/gallery/image/:id', '/images/gallery/:id'], async (req, res) => {
-    try {
-      // Strip any extension (.webp, .jpg, .png, etc.)
-      const rawId = req.params.id || '';
-      const docId = rawId.replace(/\.(webp|jpg|jpeg|png|gif|svg)$/i, '');
-
-      if (!docId) {
-        return res.status(400).send('Invalid image ID');
-      }
-
-      // Check cache
-      if (galleryImageCache.has(docId)) {
-        const cached = galleryImageCache.get(docId)!;
-        res.setHeader('Content-Type', cached.mimeType);
-        res.setHeader('Content-Length', cached.buffer.length);
-        res.setHeader('ETag', cached.etag);
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        return res.send(cached.buffer);
-      }
-
-      const firestore = getDb();
-      if (!firestore) {
-        return res.status(503).send('Database unavailable');
-      }
-
-      const docRef = doc(firestore, 'gallery', docId);
-      const docSnap = await getDoc(docRef);
-
-      if (!docSnap.exists()) {
-        return res.status(404).send('Gallery item not found');
-      }
-
-      const data = docSnap.data();
-      const imageUrl = data?.imageUrl;
-
-      if (!imageUrl) {
-        return res.status(404).send('Image URL not found');
-      }
-
-      // If it's a data URL, decode and serve as raw binary
-      const dataMatch = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (dataMatch) {
-        const mimeType = dataMatch[1];
-        const buffer = Buffer.from(dataMatch[2], 'base64');
-        const etag = `"${docId}-${buffer.length}"`;
-
-        if (galleryImageCache.size < 120) {
-          galleryImageCache.set(docId, { buffer, mimeType, etag });
-        }
-
-        res.setHeader('Content-Type', mimeType);
-        res.setHeader('Content-Length', buffer.length);
-        res.setHeader('ETag', etag);
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        return res.send(buffer);
-      }
-
-      // If it's an external HTTP/HTTPS URL, redirect permanently (HTTP 301)
-      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-        return res.redirect(301, imageUrl);
-      }
-
-      return res.status(400).send('Unsupported image format');
-    } catch (err: any) {
-      console.error('Error serving gallery image:', err);
-      return res.status(500).send('Error serving image');
-    }
-  });
-
-  // Dynamic Image & URL Sitemap for Google Search & Google Images (/sitemap.xml)
+  // Serve Dynamic Sitemap.xml
   app.get('/sitemap.xml', async (req, res) => {
     try {
       const host = req.get('host') || 'tewaw.com';
       const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
       const baseUrl = `${protocol}://${host}`;
-      const today = new Date().toISOString().split('T')[0];
 
-      // 1. Fetch gallery items and generate Google Image Sitemap entries
-      let galleryImagesXml = '';
-      try {
-        const galleryItems = await getGalleryItems();
-        galleryItems.forEach((item) => {
-          const rawTitle = item.title ? `Tewaw ${item.title} - Tewaw Enterprise` : 'Tewaw Enterprise Garment Portfolio';
-          const title = escapeXml(rawTitle);
-          const caption = escapeXml(
-            `Tewaw Enterprise custom ${item.title || 'garment'} (${item.category || 'Portfolio Showcase'}). ${item.description || 'Quality garment and uniform manufacturing in Kenya.'}`
-          );
-          const imageLoc = item.imageUrl && !item.imageUrl.startsWith('data:')
-            ? escapeXml(item.imageUrl)
-            : `${baseUrl}/api/gallery/image/${item.id}.webp`;
-
-          galleryImagesXml += `
-    <image:image>
-      <image:loc>${imageLoc}</image:loc>
-      <image:title>${title}</image:title>
-      <image:caption>${caption}</image:caption>
-    </image:image>`;
-        });
-      } catch (e) {
-        console.error('Error compiling gallery images for sitemap:', e);
-      }
-
-      // 2. Fetch products and generate product URLs with images
-      let productUrls = '';
+      let dynamicUrls = '';
       try {
         const firestore = getDb();
         if (firestore) {
+          // Fetch all products from Firestore to index them dynamically
           const productsRef = collection(firestore, 'products');
           const productsSnap = await getDocs(productsRef);
           productsSnap.forEach((doc) => {
             const product = doc.data();
             if (product.isDeleted) return;
-            const lastmod = product.updatedAt ? new Date(product.updatedAt).toISOString() : today;
-            const productImg = product.imageUrl ? (
-              product.imageUrl.startsWith('data:') 
-                ? `${baseUrl}/api/gallery/image/${doc.id}.webp` 
-                : escapeXml(product.imageUrl)
-            ) : '';
-
-            productUrls += `
+            const lastmod = product.updatedAt ? new Date(product.updatedAt).toISOString() : new Date().toISOString();
+            dynamicUrls += `
   <url>
     <loc>${baseUrl}/product/${doc.id}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.85</priority>${productImg ? `
-    <image:image>
-      <image:loc>${productImg}</image:loc>
-      <image:title>${escapeXml(`Tewaw ${product.name || 'Product'} - Tewaw Enterprise`)}</image:title>
-      <image:caption>${escapeXml(product.description || `Custom ${product.name} manufactured by Tewaw Enterprise`)}</image:caption>
-    </image:image>` : ''}
+    <priority>0.8</priority>
   </url>`;
           });
         }
       } catch (e) {
-        console.error('Error compiling products for dynamic sitemap:', e);
+        console.error('Error getting products for dynamic sitemap:', e);
       }
 
       const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>${baseUrl}/</loc>
-    <lastmod>${today}</lastmod>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-    <image:image>
-      <image:loc>${baseUrl}/icon-512.png</image:loc>
-      <image:title>Tewaw Enterprise Brand Logo</image:title>
-      <image:caption>Tewaw Enterprise Uniforms and Apparel Manufacturing Kenya</image:caption>
-    </image:image>
-    <image:image>
-      <image:loc>${baseUrl}/images/dtf-transfer-process.webp</image:loc>
-      <image:title>DTF Printing and Garment Branding Uhuru Market Nairobi</image:title>
-      <image:caption>Commercial Direct-to-Film digital textile printing and custom apparel branding at Tewaw Enterprise Uhuru Market Nairobi</image:caption>
-    </image:image>
-    <image:image>
-      <image:loc>${baseUrl}/images/vibrant-dtf-prints.webp</image:loc>
-      <image:title>Custom Hoodies and Corporate Wear DTF Branding</image:title>
-      <image:caption>High-definition vibrant DTF logo transfers on fleece hoodies and corporate polo shirts</image:caption>
-    </image:image>
-    <image:image>
-      <image:loc>${baseUrl}/favicon.ico</image:loc>
-      <image:title>Tewaw Enterprise Official Favicon</image:title>
-      <image:caption>Tewaw Enterprise Favicon Icon</image:caption>
-    </image:image>
-  </url>
-  <url>
-    <loc>${baseUrl}/gallery</loc>
-    <lastmod>${today}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.95</priority>${galleryImagesXml}
-  </url>
-  <url>
-    <loc>${baseUrl}/products</loc>
-    <lastmod>${today}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
   </url>
   <url>
     <loc>${baseUrl}/about</loc>
-    <lastmod>${today}</lastmod>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>${baseUrl}/gallery</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
     <loc>${baseUrl}/strengths</loc>
-    <lastmod>${today}</lastmod>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>${baseUrl}/contact</loc>
-    <lastmod>${today}</lastmod>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-  </url>${productUrls}
+  </url>${dynamicUrls}
 </urlset>`;
 
-      res.header('Content-Type', 'application/xml; charset=utf-8');
+      res.header('Content-Type', 'application/xml');
       res.send(sitemap);
     } catch (e) {
       console.error('Sitemap rendering error:', e);
@@ -599,6 +436,17 @@ ${xmlItems}
       res.status(500).type('text/plain').send('Failed to generate merchant feed: ' + e.message);
     }
   });
+
+  // Helper to escape HTML attribute values
+  const escapeHtml = (str: string) => {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
 
   // Helper to fetch product data from Firebase Firestore or fallback
   const getProductData = async (productId: string) => {
@@ -843,133 +691,8 @@ ${xmlItems}
     }
   };
 
-  // Pre-rendered SEO Gallery Page Route (/gallery)
-  app.get('/gallery', async (req, res) => {
-    try {
-      const host = req.get('host') || 'tewaw.com';
-      const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
-      const baseUrl = `${protocol}://${host}`;
-
-      let html = '';
-      const isDev = process.env.NODE_ENV !== 'production';
-      let filePath = isDev 
-        ? path.join(__dirname, 'gallery.html') 
-        : path.join(__dirname, 'dist', 'gallery.html');
-
-      if (!fs.existsSync(filePath)) {
-        filePath = isDev 
-          ? path.join(__dirname, 'index.html') 
-          : path.join(__dirname, 'dist', 'index.html');
-      }
-
-      if (fs.existsSync(filePath)) {
-        html = fs.readFileSync(filePath, 'utf-8');
-      } else {
-        html = '<!doctype html><html><head><meta charset="UTF-8"><script type="module" src="/src/main-gallery.tsx"></script></head><body><div id="root"></div></body></html>';
-      }
-
-      if (isDev && vite) {
-        try {
-          html = await vite.transformIndexHtml('/gallery.html', html);
-        } catch (err) {
-          console.warn('vite.transformIndexHtml failed for /gallery route:', err);
-        }
-      }
-
-      const galleryItems = await getGalleryItems();
-      const firstImage = galleryItems.length > 0 ? galleryItems[0] : null;
-      const firstImageUrl = firstImage 
-        ? (firstImage.imageUrl?.startsWith('data:') ? `${baseUrl}/api/gallery/image/${firstImage.id}.webp` : firstImage.imageUrl)
-        : `${baseUrl}/icon-512.png`;
-
-      // Build schema.org/ImageGallery structured data
-      const gallerySchema = {
-        "@context": "https://schema.org",
-        "@type": "ImageGallery",
-        "@id": `${baseUrl}/gallery#gallery`,
-        "name": "Tewaw Enterprise Garment Manufacturing Gallery",
-        "description": "Showcase of custom security uniforms, tactical hoodies, school dresses, corporate wear, medical scrubs, chef coats, and African heritage apparel manufactured by Tewaw Enterprise in Kenya.",
-        "url": `${baseUrl}/gallery`,
-        "publisher": {
-          "@type": "Organization",
-          "name": "Tewaw Enterprise",
-          "url": `${baseUrl}/`,
-          "logo": `${baseUrl}/icon-512.png`
-        },
-        "image": galleryItems.map((img) => ({
-          "@type": "ImageObject",
-          "@id": `${baseUrl}/gallery#image-${img.id}`,
-          "name": `Tewaw Enterprise - ${img.title || 'Garment Design'}`,
-          "caption": img.description || `Custom ${img.title || 'Uniform'} manufactured by Tewaw Enterprise`,
-          "description": `Tewaw Enterprise ${img.title || 'Apparel'} (${img.category || 'Custom Wear'}). Handcrafted garment manufacturing in Kenya.`,
-          "contentUrl": img.imageUrl?.startsWith('data:')
-            ? `${baseUrl}/api/gallery/image/${img.id}.webp`
-            : img.imageUrl,
-          "thumbnailUrl": img.imageUrl?.startsWith('data:')
-            ? `${baseUrl}/api/gallery/image/${img.id}.webp`
-            : img.imageUrl,
-          "author": {
-            "@type": "Organization",
-            "name": "Tewaw Enterprise"
-          }
-        }))
-      };
-
-      // Noscript gallery for web crawlers & image indexers
-      const noscriptImages = galleryItems.map((img) => {
-        const imgUrl = img.imageUrl?.startsWith('data:') ? `${baseUrl}/api/gallery/image/${img.id}.webp` : img.imageUrl;
-        return `
-        <figure itemscope itemtype="https://schema.org/ImageObject" style="margin: 10px; display: inline-block;">
-          <img itemprop="contentUrl" src="${imgUrl}" alt="Tewaw Enterprise - ${escapeHtml(img.title || 'Garment')}" style="max-width: 300px;" />
-          <figcaption>
-            <h3 itemprop="name">Tewaw Enterprise - ${escapeHtml(img.title || 'Garment')}</h3>
-            <p itemprop="description">${escapeHtml(img.description || img.category || 'Tewaw Garment Manufacturing Kenya')}</p>
-          </figcaption>
-        </figure>`;
-      }).join('\n');
-
-      const dynamicMetaTags = `
-    <!-- Googlebot & Image Search Optimization -->
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-    <meta name="title" content="Tewaw Garment Gallery • Visual Apparel Showcase | Tewaw Enterprise" />
-    <meta name="description" content="Explore Tewaw Enterprise's portfolio showcase of custom cotton apparel, security uniforms, tactical hoodies, school dresses, and industrial workwear manufactured in Kenya." />
-    <link rel="canonical" href="${baseUrl}/gallery" />
-    
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="${baseUrl}/gallery" />
-    <meta property="og:title" content="Tewaw Garment Gallery • Visual Apparel Showcase | Tewaw Enterprise" />
-    <meta property="og:description" content="Explore Tewaw Enterprise's portfolio showcase of custom cotton apparel, security uniforms, tactical hoodies, school dresses, and industrial workwear manufactured in Kenya." />
-    <meta property="og:image" content="${firstImageUrl}" />
-    <meta property="og:image:alt" content="Tewaw Enterprise Garment Manufacturing Portfolio Showcase" />
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="${baseUrl}/gallery" />
-    <meta property="twitter:title" content="Tewaw Garment Gallery • Visual Apparel Showcase | Tewaw Enterprise" />
-    <meta property="twitter:description" content="Explore Tewaw Enterprise's portfolio showcase of custom cotton apparel, security uniforms, tactical hoodies, school dresses, and industrial workwear manufactured in Kenya." />
-    <meta property="twitter:image" content="${firstImageUrl}" />
-    
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-      ${JSON.stringify(gallerySchema)}
-    </script>
-`;
-
-      html = html.replace(/<title>.*?<\/title>/gi, '');
-      html = html.replace(/<meta\s+(?:name|property)="(?:og:|twitter:|title|description)[^"]*"\s+content="[^"]*"\s*\/?>/gi, '');
-      html = html.replace('</head>', `${dynamicMetaTags}\n  </head>`);
-      
-      if (html.includes('</body>')) {
-        html = html.replace('</body>', `<noscript><div class="tewaw-seo-gallery">${noscriptImages}</div></noscript>\n</body>`);
-      }
-
-      res.status(200).set({ 'Content-Type': 'text/html' }).send(html);
-    } catch (e) {
-      console.error('Error serving /gallery route:', e);
-      serveHtmlPage('gallery.html', req, res);
-    }
-  });
+  // Serve Gallery Page
+  app.get('/gallery', (req, res) => serveHtmlPage('gallery.html', req, res));
 
   // Serve About Page
   app.get('/about', (req, res) => serveHtmlPage('about.html', req, res));
@@ -982,23 +705,6 @@ ${xmlItems}
 
   // Serve Admin Page and its child routes (e.g. /admin, /admin/sliders, /admin/products)
   app.get('/admin*', (req, res) => serveHtmlPage('admin.html', req, res));
-
-  // Vite middleware in dev or static asset serving in production
-  if (vite) {
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, 'dist'), {
-      maxAge: '1y',
-      immutable: true,
-      setHeaders: (res, filePath) => {
-        if (!filePath.endsWith('.html') && filePath.includes('/assets/')) {
-          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        } else {
-          res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-        }
-      }
-    }));
-  }
 
   // Fallback for all other routes
   app.get('*', (req, res) => serveHtmlPage('index.html', req, res));

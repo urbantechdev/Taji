@@ -8,11 +8,9 @@ import {
   ShoppingBag, 
   Box,
   Zap,
-  Layers,
-  Barcode,
-  Check
+  Layers
 } from 'lucide-react';
-import { Product, formatPriceDisplay, getColorHex, PLACEHOLDER_PRODUCT_IMAGE, getProductSku, copySkuToClipboard } from '../data/defaultProducts';
+import { Product, formatPriceDisplay, getColorHex, PLACEHOLDER_PRODUCT_IMAGE } from '../data/defaultProducts';
 import { getOptimizedImageUrl } from '../lib/imageOptimizer';
 import { cn } from '../lib/utils';
 
@@ -52,18 +50,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('right');
-  const [copiedSku, setCopiedSku] = useState(false);
-
-  const productSku = useMemo(() => getProductSku(product), [product]);
-
-  const handleCopySku = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const success = await copySkuToClipboard(productSku);
-    if (success) {
-      setCopiedSku(true);
-      setTimeout(() => setCopiedSku(false), 2000);
-    }
-  };
 
   // Touch gesture support for mobile swiping
   const touchStartXRef = useRef<number | null>(null);
@@ -324,35 +310,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       {/* Product Information */}
       <div className="px-1 sm:px-2">
         <div className="flex justify-between items-start gap-2">
-          <div className="w-full">
-            <div className="flex items-center justify-between gap-1">
-              <p className="text-[8px] sm:text-[9px] font-black text-brand-orange uppercase tracking-wider italic">
-                {product.category}
-              </p>
-              <button
-                type="button"
-                onClick={handleCopySku}
-                title="Click to copy SKU"
-                className={cn(
-                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold transition-all shrink-0 cursor-pointer border",
-                  copiedSku
-                    ? "bg-emerald-100 text-emerald-800 border-emerald-300 scale-105"
-                    : "bg-slate-100/90 hover:bg-slate-200/90 text-slate-600 border-slate-200 hover:text-brand-blue"
-                )}
-              >
-                {copiedSku ? (
-                  <>
-                    <Check className="w-2.5 h-2.5 text-emerald-600" />
-                    <span>COPIED</span>
-                  </>
-                ) : (
-                  <>
-                    <Barcode className="w-2.5 h-2.5 text-brand-blue/70" />
-                    <span>{productSku}</span>
-                  </>
-                )}
-              </button>
-            </div>
+          <div>
+            <p className="text-[8px] sm:text-[9px] font-black text-brand-orange uppercase tracking-wider italic">
+              {product.category}
+            </p>
             <h4 className="text-xs sm:text-sm md:text-base font-black text-brand-blue leading-tight mt-0.5 line-clamp-2 uppercase group-hover:text-brand-orange transition-colors">
               {product.name}
             </h4>

@@ -1,18 +1,13 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
-import { initializeFirestore, getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-const databaseId = (firebaseConfig as any).firestoreDatabaseId || "ai-studio-tewawenterprise-19b671ce-0125-49ca-9800-de239bbfa7d7";
+const databaseId = (firebaseConfig as any).firestoreDatabaseId || "ai-studio-19b671ce-0125-49ca-9800-de239bbfa7d7";
 
-// Use experimentalForceLongPolling to prevent WebChannel streaming connection timeouts in iframe/cloud sandbox environments
-export const db = typeof window !== 'undefined'
-  ? initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-    }, databaseId)
-  : getFirestore(app, databaseId);
+export const db = getFirestore(app, databaseId);
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

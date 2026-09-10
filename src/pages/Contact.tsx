@@ -279,13 +279,13 @@ export default function Contact() {
                           <span>@tewaw_enterprises</span>
                         </a>
                         <a 
-                          href="https://www.facebook.com/tewaw.enterprises" 
+                          href="https://www.facebook.com/msupa.tess" 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#1877F2] text-white text-xs font-bold shadow-sm hover:opacity-90 transition-opacity"
                         >
                           <Facebook className="w-4 h-4" />
-                          <span>@tewaw.enterprises</span>
+                          <span>@msupa.tess</span>
                         </a>
                       </div>
                     </div>

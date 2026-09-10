@@ -16,15 +16,13 @@ import {
   Percent,
   Scissors,
   Loader2,
-  AlertCircle,
-  Barcode
+  AlertCircle
 } from 'lucide-react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, User as FirebaseUser } from 'firebase/auth';
 import { cn } from '../lib/utils';
 import { QuoteItem, BrandingType, calculateQuoteDetails, printProformaQuote, shareQuotePDFViaWhatsApp } from '../lib/quoteUtils';
-import { getProductSku } from '../utils/sku';
 import { createSupportTicket } from '../lib/ticketService';
 
 interface QuoteModalProps {
@@ -211,11 +209,11 @@ export default function QuoteModal({ isOpen, onClose, initialItems = [], setting
           
           <div className="relative z-10 flex items-center gap-4">
             <img 
-              src={(!settings?.headerLogoUrl || settings.headerLogoUrl.includes('pinimg.com') || settings.headerLogoUrl.includes('d33d71d87f12393171b52129b460c431')) ? "/logo.svg" : settings.headerLogoUrl} 
+              src={settings?.headerLogoUrl || "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg"} 
               alt="Tewaw Enterprise Logo" 
               className="w-12 h-12 rounded-2xl object-cover border-2 border-brand-green shadow-lg shadow-brand-green/30"
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = '/logo.svg';
+                (e.currentTarget as HTMLElement).style.display = 'none';
               }}
             />
             <div>
@@ -381,13 +379,7 @@ export default function QuoteModal({ isOpen, onClose, initialItems = [], setting
                         <img src={item.imageUrl} alt={item.name} className="w-12 h-12 object-cover rounded-xl border border-slate-200" />
                       )}
                       <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-bold text-brand-blue text-sm">{item.name}</p>
-                          <span className="text-[9px] font-mono font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            <Barcode className="w-2.5 h-2.5 text-brand-blue" />
-                            {item.sku || getProductSku(item)}
-                          </span>
-                        </div>
+                        <p className="font-bold text-brand-blue text-sm">{item.name}</p>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wider">
                           {item.category} • Color: {item.selectedColor || 'Standard'}
                         </p>

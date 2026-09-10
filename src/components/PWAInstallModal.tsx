@@ -75,12 +75,10 @@ export default function PWAInstallModal() {
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-white p-0.5 shadow-lg border border-white/20 shrink-0 overflow-hidden flex items-center justify-center">
                   <img
-                    src="/icon-192.png"
+                    src="https://i.pinimg.com/1200x/fd/75/c0/fd75c0b874a3b2278a234befb8abc283.jpg"
                     alt="Tewaw App Icon"
                     className="w-full h-full object-cover rounded-xl"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/logo.svg';
-                    }}
+                    referrerPolicy="no-referrer"
                   />
                 </div>
                 <div>
@@ -150,12 +148,10 @@ export default function PWAInstallModal() {
             <div className="flex items-center gap-3.5 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-brand-blue to-slate-900 text-white overflow-hidden shadow-md">
               <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-white/20 shadow-sm bg-white">
                 <img
-                  src="/icon-192.png"
+                  src="https://i.pinimg.com/1200x/fd/75/c0/fd75c0b874a3b2278a234befb8abc283.jpg"
                   alt="Tewaw Enterprise App Preview"
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/logo.svg';
-                  }}
+                  referrerPolicy="no-referrer"
                 />
               </div>
               <div className="flex-1 min-w-0">

@@ -80,5 +80,3 @@ export const PLACEHOLDER_PRODUCT_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http:
 
 // Zero mock/stock products - retain only user-uploaded products
 export const DEFAULT_PRODUCTS: Product[] = [];
-
-export { getProductSku, copySkuToClipboard, generateProductSku, formatVariantSku } from '../utils/sku';

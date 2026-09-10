@@ -27,15 +27,15 @@
       "purpose": "maskable"
     },
     {
-      "src": "/icon-192.png",
+      "src": "https://i.pinimg.com/1200x/fd/75/c0/fd75c0b874a3b2278a234befb8abc283.jpg",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "https://i.pinimg.com/1200x/fd/75/c0/fd75c0b874a3b2278a234befb8abc283.jpg",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     }
   ],

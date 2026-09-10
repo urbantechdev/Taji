@@ -105,7 +105,7 @@ export default function BottomNav({ onOpenCart, cartCount }: { onOpenCart: () =>
 
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <a 
-                  href={`https://wa.me/${settings?.whatsappNumber?.replace(/[^\d]/g, '') || '254736619688'}?text=${encodeURIComponent('Hello Tewaw Enterprise, I would like to inquire about bulk garment manufacturing and DTF printing/branding.')}`}
+                  href={`https://wa.me/${settings?.whatsappNumber?.replace(/[^\d]/g, '') || '254736619688'}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center justify-center gap-2.5 p-5 rounded-3xl bg-[#269453]/10 border-2 border-[#269453]/20 hover:border-brand-green transition-all group"

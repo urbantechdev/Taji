@@ -22,25 +22,21 @@ export default function Navbar({ onOpenCart, onOpenQuote, cartCount, onCategoryS
   const location = useLocation();
 
   useEffect(() => {
-    // Set official Tewaw brand favicon
+    // Set default favicon immediately to the requested Pinterest image
     let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
       document.head.appendChild(link);
     }
-    link.href = "/favicon.ico";
-
-    const isMock = (url?: string) => !url || url.includes('pinimg.com') || url.includes('d33d71d87f12393171b52129b460c431');
+    link.href = "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg";
 
     return onSnapshot(doc(db, 'settings', 'global'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         setSettings(data);
-        if (data.faviconUrl && !isMock(data.faviconUrl)) {
+        if (data.faviconUrl) {
           link!.href = data.faviconUrl;
-        } else {
-          link!.href = "/favicon.ico";
         }
       }
     });

@@ -15,11 +15,10 @@ import {
   Info,
   Layers,
   Zap,
-  Tag,
-  Barcode
+  Tag
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { getColorHex, formatPriceDisplay, PLACEHOLDER_PRODUCT_IMAGE, getProductSku, formatVariantSku, copySkuToClipboard } from '../data/defaultProducts';
+import { getColorHex, formatPriceDisplay, PLACEHOLDER_PRODUCT_IMAGE } from '../data/defaultProducts';
 
 export interface BrandingOption {
   id: string;
@@ -130,21 +129,6 @@ export default function AddToCartModal({
   const unitPrice = basePrice + brandingChargePerUnit;
   const totalPrice = unitPrice * quantity;
 
-  const [copiedSku, setCopiedSku] = useState(false);
-  const baseSku = React.useMemo(() => getProductSku(product), [product]);
-  const activeSku = React.useMemo(() => {
-    return formatVariantSku(baseSku, { size: selectedSize, color: selectedColor });
-  }, [baseSku, selectedSize, selectedColor]);
-
-  const handleCopySku = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const success = await copySkuToClipboard(activeSku);
-    if (success) {
-      setCopiedSku(true);
-      setTimeout(() => setCopiedSku(false), 2000);
-    }
-  };
-
   const handleConfirm = () => {
     const chosenColor = selectedColor || (product.colors && product.colors.length > 0 ? product.colors[0] : 'Standard');
     const itemKey = `${product.id}-${chosenColor}-${selectedSize}-${selectedBranding.id}`;
@@ -152,8 +136,6 @@ export default function AddToCartModal({
     const cartPayload = {
       id: product.id,
       cartKey: itemKey,
-      sku: activeSku,
-      baseSku: baseSku,
       name: product.name,
       basePrice: basePrice,
       brandingType: selectedBranding.id,
@@ -233,25 +215,9 @@ export default function AddToCartModal({
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-brand-blue/10 text-brand-blue rounded-md tracking-wider">
-                    {product.category || 'Manufacturing'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopySku}
-                    title="Click to copy variant SKU"
-                    className={cn(
-                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-mono font-bold transition-all border cursor-pointer",
-                      copiedSku 
-                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                        : "bg-slate-200/70 hover:bg-slate-300/80 text-slate-700 border-slate-300/70 hover:text-brand-blue"
-                    )}
-                  >
-                    <Barcode className="w-3 h-3 text-brand-blue" />
-                    <span>{copiedSku ? 'SKU COPIED!' : `SKU: ${activeSku}`}</span>
-                  </button>
-                </div>
+                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-brand-blue/10 text-brand-blue rounded-md tracking-wider">
+                  {product.category || 'Manufacturing'}
+                </span>
                 <p className="text-xs sm:text-sm font-black text-brand-blue mt-1 truncate uppercase">
                   {product.name}
                 </p>

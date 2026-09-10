@@ -1,8 +1,5 @@
-import { getProductSku } from '../utils/sku';
-
 export interface QuoteItem {
   id: string;
-  sku?: string;
   name: string;
   price: number;
   imageUrl?: string;
@@ -132,14 +129,7 @@ export function calculateQuoteDetails(
   };
 }
 
-export const DEFAULT_LOGO_URL = "/logo.svg";
-
-export function resolveLogoUrl(url?: string): string {
-  if (!url || url.includes('pinimg.com') || url.includes('d33d71d87f12393171b52129b460c431')) {
-    return DEFAULT_LOGO_URL;
-  }
-  return url;
-}
+export const DEFAULT_LOGO_URL = "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg";
 
 /**
  * Common HTML CSS template used across Quote, Invoice, and Receipt
@@ -407,7 +397,7 @@ function getDocumentBaseStyles(accentColor: string = '#269453') {
  * PRINT OFFICIAL PROFORMA QUOTATION (WITH LOGO)
  */
 export function printProformaQuote(quote: QuoteDetails, logoUrl?: string) {
-  const activeLogoUrl = resolveLogoUrl(logoUrl);
+  const activeLogoUrl = logoUrl || DEFAULT_LOGO_URL;
   const printWindow = window.open('', '_blank', 'width=920,height=1050');
   if (!printWindow) {
     alert('Pop-up window was blocked. Please allow pop-ups to print or view the quotation.');
@@ -491,7 +481,6 @@ export function printProformaQuote(quote: QuoteDetails, logoUrl?: string) {
             <tr>
               <th>#</th>
               <th>Garment / Product Name</th>
-              <th>SKU</th>
               <th>Category</th>
               <th>Color</th>
               <th>Qty</th>
@@ -504,7 +493,6 @@ export function printProformaQuote(quote: QuoteDetails, logoUrl?: string) {
               <tr>
                 <td style="font-weight: 700; color: #64748b;">${idx + 1}</td>
                 <td><strong>${item.name}</strong></td>
-                <td style="font-family: monospace; font-size: 11px; font-weight: 700; color: #0b2c7a;">${item.sku || getProductSku(item)}</td>
                 <td>${item.category || 'General'}</td>
                 <td>${item.selectedColor || 'Standard'}</td>
                 <td style="font-weight: 800;">${item.quantity}</td>
@@ -591,7 +579,7 @@ export function printProformaQuote(quote: QuoteDetails, logoUrl?: string) {
  * PRINT OFFICIAL TAX INVOICE (WITH LOGO & KRA DETAILS)
  */
 export function printTaxInvoice(quote: QuoteDetails, logoUrl?: string) {
-  const activeLogoUrl = resolveLogoUrl(logoUrl);
+  const activeLogoUrl = logoUrl || DEFAULT_LOGO_URL;
   const printWindow = window.open('', '_blank', 'width=920,height=1050');
   if (!printWindow) {
     alert('Pop-up window was blocked. Please allow pop-ups to print or view the invoice.');
@@ -667,7 +655,6 @@ export function printTaxInvoice(quote: QuoteDetails, logoUrl?: string) {
             <tr>
               <th>#</th>
               <th>Description / Item Specification</th>
-              <th>SKU</th>
               <th>Color / Type</th>
               <th>Qty</th>
               <th>Unit Rate (KES)</th>
@@ -683,7 +670,6 @@ export function printTaxInvoice(quote: QuoteDetails, logoUrl?: string) {
                 <tr>
                   <td style="font-weight: 700; color: #64748b;">${idx + 1}</td>
                   <td><strong>${item.name}</strong><br/><span style="color: #64748b; font-size: 10px;">${item.category || 'Apparel'}</span></td>
-                  <td style="font-family: monospace; font-size: 11px; font-weight: 700; color: #0b2c7a;">${item.sku || getProductSku(item)}</td>
                   <td>${item.selectedColor || 'Standard'}</td>
                   <td style="font-weight: 800;">${item.quantity}</td>
                   <td style="font-family: monospace;">KES ${item.price.toLocaleString()}</td>
@@ -769,7 +755,7 @@ export function printTaxInvoice(quote: QuoteDetails, logoUrl?: string) {
  * PRINT OFFICIAL PAYMENT RECEIPT (WITH LOGO & ACKNOWLEDGEMENT)
  */
 export function printReceipt(quote: QuoteDetails, logoUrl?: string) {
-  const activeLogoUrl = resolveLogoUrl(logoUrl);
+  const activeLogoUrl = logoUrl || DEFAULT_LOGO_URL;
   const printWindow = window.open('', '_blank', 'width=920,height=1050');
   if (!printWindow) {
     alert('Pop-up window was blocked. Please allow pop-ups to print or view the receipt.');
@@ -850,7 +836,6 @@ export function printReceipt(quote: QuoteDetails, logoUrl?: string) {
             <tr>
               <th>#</th>
               <th>Product / Description</th>
-              <th>SKU</th>
               <th>Color</th>
               <th>Qty</th>
               <th>Unit Rate (KES)</th>
@@ -862,7 +847,6 @@ export function printReceipt(quote: QuoteDetails, logoUrl?: string) {
               <tr>
                 <td style="font-weight: 700; color: #64748b;">${idx + 1}</td>
                 <td><strong>${item.name}</strong> (${item.category || 'General'})</td>
-                <td style="font-family: monospace; font-size: 11px; font-weight: 700; color: #0b2c7a;">${item.sku || getProductSku(item)}</td>
                 <td>${item.selectedColor || 'Standard'}</td>
                 <td style="font-weight: 800;">${item.quantity}</td>
                 <td style="font-family: monospace;">KES ${item.price.toLocaleString()}</td>
@@ -937,7 +921,7 @@ export async function generateDocumentPDFBlob(
   const { default: jsPDF } = await import('jspdf');
   const { default: html2canvas } = await import('html2canvas');
 
-  const activeLogoUrl = resolveLogoUrl(logoUrl);
+  const activeLogoUrl = logoUrl || DEFAULT_LOGO_URL;
   const docTypeLabel = docType === 'invoice' ? 'TAX_INVOICE' : (docType === 'receipt' ? 'RECEIPT' : 'QUOTATION');
   const prefix = docType === 'invoice' ? 'TEI' : (docType === 'receipt' ? 'TER' : 'TEQ');
   const refCode = quote.orderId ? `${prefix}-${quote.orderId.slice(0, 6).toUpperCase()}` : quote.quoteRef.replace('TEQ', prefix);
@@ -1001,7 +985,6 @@ export async function generateDocumentPDFBlob(
         <tr style="background: #0f172a; color: white; font-weight: 800; text-transform: uppercase; font-size: 10px;">
           <th style="padding: 10px; text-align: left;">#</th>
           <th style="padding: 10px; text-align: left;">Item Name</th>
-          <th style="padding: 10px; text-align: left;">SKU</th>
           <th style="padding: 10px; text-align: left;">Category</th>
           <th style="padding: 10px; text-align: left;">Color</th>
           <th style="padding: 10px; text-align: center;">Qty</th>
@@ -1014,7 +997,6 @@ export async function generateDocumentPDFBlob(
           <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 1 ? 'background: #f8fafc;' : ''}">
             <td style="padding: 10px; font-weight: 700; color: #64748b;">${idx + 1}</td>
             <td style="padding: 10px; font-weight: 800; color: #0b2c7a;">${item.name}</td>
-            <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #0b2c7a; font-size: 10px;">${item.sku || getProductSku(item)}</td>
             <td style="padding: 10px;">${item.category || 'General'}</td>
             <td style="padding: 10px;">${item.selectedColor || 'Standard'}</td>
             <td style="padding: 10px; text-align: center; font-weight: 800;">${item.quantity}</td>

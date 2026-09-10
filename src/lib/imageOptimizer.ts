@@ -203,16 +203,3 @@ export function formatBytes(bytes: number, decimals = 1): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-/**
- * Resolves a crawlable and performant URL for gallery items.
- * If the image is stored as base64 in Firestore, routes through the binary image API endpoint for Googlebot indexing and browser caching.
- */
-export function getGalleryImageUrl(img: { id?: string; imageUrl?: string } | null | undefined, maxWidth = 800): string {
-  if (!img || !img.imageUrl) return '';
-  if (img.imageUrl.startsWith('data:') && img.id) {
-    return `/api/gallery/image/${img.id}.webp`;
-  }
-  return getOptimizedImageUrl(img.imageUrl, maxWidth);
-}
-
-

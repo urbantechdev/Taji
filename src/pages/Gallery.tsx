@@ -10,7 +10,7 @@ import GlassyBackground from '../components/GlassyBackground';
 import SEO from '../components/SEO';
 import { Camera, Eye, X, ShoppingBag, Plus, Minus, Trash2, ArrowRight, RefreshCw } from 'lucide-react';
 import { CartItem } from './Home';
-import { getOptimizedImageUrl, getGalleryImageUrl } from '../lib/imageOptimizer';
+import { getOptimizedImageUrl } from '../lib/imageOptimizer';
 import { PLACEHOLDER_PRODUCT_IMAGE } from '../data/defaultProducts';
 
 export default function Gallery() {
@@ -105,45 +105,18 @@ export default function Gallery() {
     }
   };
 
-  const gallerySchema = {
-    "@context": "https://schema.org",
-    "@type": "ImageGallery",
-    "@id": "https://tewaw.com/gallery#gallery",
-    "name": "Tewaw Enterprise Garment Manufacturing Gallery",
-    "description": "Showcase of custom security uniforms, tactical hoodies, school dresses, corporate wear, medical scrubs, chef coats, and African heritage apparel manufactured by Tewaw Enterprise in Kenya.",
-    "url": "https://tewaw.com/gallery",
-    "publisher": {
-      "@type": "Organization",
-      "name": "Tewaw Enterprise",
-      "url": "https://tewaw.com/",
-      "logo": "https://tewaw.com/icon-512.png"
-    },
-    "image": images.map((img) => ({
-      "@type": "ImageObject",
-      "@id": `https://tewaw.com/gallery#image-${img.id}`,
-      "name": `Tewaw Enterprise - ${img.title}`,
-      "caption": img.description || `Custom ${img.title} manufactured by Tewaw Enterprise`,
-      "description": `Tewaw Enterprise ${img.title} (${img.category || 'Custom Apparel'}). High quality garment manufacturing in Nairobi Kenya.`,
-      "contentUrl": img.imageUrl?.startsWith('data:')
-        ? `https://tewaw.com/api/gallery/image/${img.id}.webp`
-        : img.imageUrl,
-      "thumbnailUrl": img.imageUrl?.startsWith('data:')
-        ? `https://tewaw.com/api/gallery/image/${img.id}.webp`
-        : img.imageUrl,
-      "author": {
-        "@type": "Organization",
-        "name": "Tewaw Enterprise"
-      }
-    }))
-  };
-
   return (
     <div className="min-h-screen bg-white relative">
       <SEO 
-        title="Garment Gallery & Uniform Portfolio | Tewaw Enterprise"
-        description="Explore Tewaw Enterprise's portfolio showcase of custom cotton apparel, security uniforms, tactical hoodies, school dresses, and industrial workwear manufactured in Kenya."
+        title="Portfolio Showcase | Tewaw Garment Gallery"
+        description="Explore Tewaw Enterprise's portfolio showcase of custom cotton apparel, security uniforms, tactical hoodies, and industrial workwear crafted in Kenya."
         canonical="https://tewaw.com/gallery"
-        schema={gallerySchema}
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "ImageGallery",
+          "name": "Tewaw Garment Portfolio Showcase",
+          "description": "Curated collection of stitching works, client projects, and apparel highlights."
+        }}
       />
       <GlassyBackground />
       <Navbar 
@@ -180,22 +153,18 @@ export default function Gallery() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-6">
               {images.map((img, i) => (
-                <motion.figure
+                <motion.div
                   key={img.id}
-                  itemScope
-                  itemType="https://schema.org/ImageObject"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: i * 0.05 }}
                   onClick={() => setSelectedImage(img)}
-                  className="group relative aspect-square rounded-[28px] sm:rounded-[36px] overflow-hidden cursor-pointer shadow-xs hover:shadow-xl transition-all duration-500 border border-slate-100 m-0"
+                  className="group relative aspect-square rounded-[28px] sm:rounded-[36px] overflow-hidden cursor-pointer shadow-xs hover:shadow-xl transition-all duration-500 border border-slate-100"
                 >
                   <img 
-                    itemProp="contentUrl"
                     referrerPolicy="no-referrer"
-                    src={getGalleryImageUrl(img, 600)} 
-                    alt={`Tewaw Enterprise - ${img.title} (${img.category || 'Garment Showcase'})`}
-                    title={`Tewaw Enterprise - ${img.title}`}
+                    src={getOptimizedImageUrl(img.imageUrl, 600, 80)} 
+                    alt={img.title}
                     className="w-full h-full object-cover object-center scale-110 group-hover:scale-125 transition-transform duration-700"
                     loading="lazy"
                     decoding="async"
@@ -203,15 +172,12 @@ export default function Gallery() {
                       (e.target as HTMLImageElement).src = PLACEHOLDER_PRODUCT_IMAGE;
                     }}
                   />
-                  <meta itemProp="name" content={`Tewaw Enterprise - ${img.title}`} />
-                  <meta itemProp="caption" content={img.description || img.title} />
-                  <figcaption className="sr-only">Tewaw Enterprise - {img.title} ({img.category || 'Garment'})</figcaption>
                   <div className="absolute inset-0 bg-brand-blue/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-6 text-center">
                     <Eye className="w-8 h-8 text-white mb-2" />
                     <h3 className="text-white font-bold leading-tight uppercase tracking-tight">{img.title}</h3>
                     <p className="text-white/70 text-[10px] font-black uppercase mt-2 tracking-widest">{img.category || 'Tewaw Stitch'}</p>
                   </div>
-                </motion.figure>
+                </motion.div>
               ))}
             </div>
           )}
@@ -259,9 +225,8 @@ export default function Gallery() {
             <div className="w-full md:w-2/3 h-64 sm:h-80 md:h-auto bg-slate-100 overflow-hidden shrink-0 relative">
                <img 
                  referrerPolicy="no-referrer"
-                 src={getGalleryImageUrl(selectedImage, 1000)} 
-                 alt={`Tewaw Enterprise - ${selectedImage.title}`}
-                 title={`Tewaw Enterprise - ${selectedImage.title}`}
+                 src={getOptimizedImageUrl(selectedImage.imageUrl, 1000, 85)} 
+                 alt={selectedImage.title}
                  className="w-full h-full object-cover object-center scale-110 sm:scale-105 transition-transform duration-500"
                  decoding="async"
                  onError={(e) => {

@@ -35,12 +35,10 @@ export default function PWAInstallBanner() {
           {/* App Icon */}
           <div className="w-11 h-11 rounded-2xl bg-white p-0.5 shrink-0 shadow-md border border-white/20 overflow-hidden flex items-center justify-center">
             <img
-              src="/icon-192.png"
+              src="https://i.pinimg.com/1200x/fd/75/c0/fd75c0b874a3b2278a234befb8abc283.jpg"
               alt="Tewaw App"
               className="w-full h-full object-cover rounded-xl"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/logo.svg';
-              }}
+              referrerPolicy="no-referrer"
             />
           </div>
 

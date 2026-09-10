@@ -19,8 +19,8 @@ interface SEOProps {
 
 export default function SEO({
   title,
-  description = "Looking for bulk garment manufacturing, custom DTF printing, and corporate branding in Nairobi? Visit Tewaw Enterprise at Uhuru Market. Experts in apparel, uniforms, and high-quality digital textile printing.",
-  keywords = "DTF printing Nairobi, custom garment branding Uhuru Market, apparel printing Kenya, corporate t-shirt branding, textile printing Nairobi, screen printing Kenya, bulk garment manufacturing, school uniforms Nairobi, security uniforms Kenya, custom hoodies Nairobi",
+  description = "Elite Kenyan garment manufacturing specialising in high-quality cotton apparel, security & field uniforms, school uniforms, and corporate branding. Located at Uhuru Market, Jagoo Lane, Nairobi, Kenya.",
+  keywords = "Tewaw, Tewaw Enterprise, tewaw.com, garment manufacturer Kenya, school uniforms Nairobi, corporate uniforms, industrial overalls, security apparel Kenya, DTF printing Nairobi, fleece hoodies Kenya",
   canonical,
   ogType = "website",
   ogImage = "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=1200",

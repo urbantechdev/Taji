@@ -63,14 +63,12 @@ import {
   Images,
   Star,
   UploadCloud,
-  Ticket,
-  Barcode
+  Ticket
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import TicketsModule from '../components/admin/TicketsModule';
 import { CATEGORIES } from '../constants';
 import { DEFAULT_PRODUCTS, PRICE_DISCLAIMER_NOTE, formatPriceDisplay, COLOR_HEX_MAP, getColorHex, PLACEHOLDER_PRODUCT_IMAGE } from '../data/defaultProducts';
-import { getProductSku } from '../utils/sku';
 import { ensureProductsSeeded, ensureCategoriesSeeded, ensureSlidersSeeded, removeMockProductImagesFromFirestore, DEFAULT_HERO_SLIDES } from '../lib/firebaseSeeder';
 import { compressImage, getOptimizedImageUrl, formatBytes } from '../lib/imageOptimizer';
 import { cn } from '../lib/utils';
@@ -506,8 +504,8 @@ export default function AdminDashboard() {
           animate={{ opacity: 1, scale: 1 }}
           className="bg-white p-6 md:p-10 rounded-[40px] shadow-2xl border border-slate-100 text-center max-w-md w-full brand-edge-orange my-auto"
         >
-          <div className="w-20 h-20 rounded-2xl overflow-hidden mx-auto mb-6 shadow-xl border border-slate-100 bg-brand-blue flex items-center justify-center p-1">
-            <img referrerPolicy="no-referrer" src="/logo.svg" alt="Tewaw Logo" className="w-full h-full object-contain" />
+          <div className="w-20 h-20 rounded-2xl overflow-hidden mx-auto mb-6 shadow-xl border border-slate-100">
+            <img referrerPolicy="no-referrer" src="https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg" alt="Logo" className="w-full h-full object-cover" />
           </div>
           <h2 className="text-2xl font-display font-black text-brand-blue mb-1 uppercase tracking-tight">Admin Portal</h2>
           <p className="text-slate-500 mb-6 text-xs font-medium">Authorized TEWAW Enterprises Management System</p>
@@ -710,11 +708,11 @@ export default function AdminDashboard() {
                 <div className="w-11 h-11 bg-white rounded-2xl flex items-center justify-center overflow-hidden shadow-xl shadow-white/10 p-0.5 border border-white/20">
                   <img 
                     referrerPolicy="no-referrer"
-                    src={(!dashboardSettings?.headerLogoUrl || dashboardSettings.headerLogoUrl.includes('pinimg.com') || dashboardSettings.headerLogoUrl.includes('d33d71d87f12393171b52129b460c431')) ? "/logo.svg" : dashboardSettings.headerLogoUrl} 
+                    src={dashboardSettings?.headerLogoUrl || "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg"} 
                     alt="TEWAW Logo" 
                     className="w-full h-full object-cover rounded-xl"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/logo.svg";
+                      (e.target as HTMLImageElement).src = "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg";
                     }}
                   />
                 </div>
@@ -878,11 +876,11 @@ export default function AdminDashboard() {
             >
               <img 
                 referrerPolicy="no-referrer"
-                src={(!dashboardSettings?.headerLogoUrl || dashboardSettings.headerLogoUrl.includes('pinimg.com') || dashboardSettings.headerLogoUrl.includes('d33d71d87f12393171b52129b460c431')) ? "/logo.svg" : dashboardSettings.headerLogoUrl} 
+                src={dashboardSettings?.headerLogoUrl || "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg"} 
                 alt="TEWAW Logo" 
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/logo.svg";
+                  (e.target as HTMLImageElement).src = "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg";
                 }}
               />
             </motion.div>
@@ -1074,11 +1072,11 @@ export default function AdminDashboard() {
             <div className="w-10 h-10 bg-white rounded-xl overflow-hidden shrink-0 shadow-lg border border-white/20 p-0.5">
               <img 
                 referrerPolicy="no-referrer"
-                src={(!dashboardSettings?.headerLogoUrl || dashboardSettings.headerLogoUrl.includes('pinimg.com') || dashboardSettings.headerLogoUrl.includes('d33d71d87f12393171b52129b460c431')) ? "/logo.svg" : dashboardSettings.headerLogoUrl} 
+                src={dashboardSettings?.headerLogoUrl || "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg"} 
                 alt="TEWAW Logo" 
                 className="w-full h-full object-cover rounded-lg"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/logo.svg";
+                  (e.target as HTMLImageElement).src = "https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg";
                 }}
               />
             </div>
@@ -6509,10 +6507,6 @@ function ProductsModule() {
                       <div className="flex flex-col">
                         <span>{p.name}</span>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                          <span className="text-[8px] font-mono font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            <Barcode className="w-2.5 h-2.5 text-brand-blue" />
-                            {p.sku || getProductSku(p)}
-                          </span>
                           {((p.additionalImages && p.additionalImages.length > 0) || (p.images && p.images.length > 0)) && (
                             <span className="text-[8px] text-brand-blue uppercase font-black bg-brand-blue/5 border border-brand-blue/15 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <Images className="w-2.5 h-2.5 text-brand-orange" />
@@ -6615,12 +6609,6 @@ function ProductsModule() {
                        )}
                      </div>
                      <h4 className="font-bold text-brand-blue leading-tight truncate">{p.name}</h4>
-                     <div className="flex items-center gap-2 mt-0.5">
-                       <span className="text-[8px] font-mono font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded flex items-center gap-1">
-                         <Barcode className="w-2.5 h-2.5 text-brand-blue" />
-                         {p.sku || getProductSku(p)}
-                       </span>
-                     </div>
                      <p className="text-xs font-mono font-bold text-slate-500 mt-0.5">
                         {formatPriceDisplay(p)}
                      </p>
@@ -7042,7 +7030,6 @@ function OrdersModule() {
     return calculateQuoteDetails(
       (o.items || []).map((item: any) => ({
         id: item.id || 'item',
-        sku: item.sku || (item.category ? `${item.category.slice(0, 3).toUpperCase()}-${item.id || 'GEN'}` : 'TEW-GEN'),
         name: item.name || 'Custom Garment',
         price: Number(item.price || 0),
         quantity: Number(item.quantity || 1),
@@ -8154,23 +8141,23 @@ function SettingsModule({ user, isSuperAdmin, roleDisplayLabel, onLogout, onOpen
     const fetchSettings = async () => {
       const docRef = doc(db, 'settings', 'global');
       const snap = await getDoc(docRef);
-      const isMockImage = (url?: string) => !url || url.includes('pinimg.com') || url.includes('d33d71d87f12393171b52129b460c431');
+      const fallbackUrl = 'https://i.pinimg.com/736x/d3/3d/71/d33d71d87f12393171b52129b460c431.jpg';
       if (snap.exists()) {
         const data = snap.data();
         setSettings({
           ...data,
-          headerLogoUrl: isMockImage(data.headerLogoUrl) ? '' : data.headerLogoUrl,
-          faviconUrl: isMockImage(data.faviconUrl) ? '' : data.faviconUrl,
-          footerLogoUrl: isMockImage(data.footerLogoUrl) ? '' : data.footerLogoUrl,
+          headerLogoUrl: data.headerLogoUrl || fallbackUrl,
+          faviconUrl: data.faviconUrl || fallbackUrl,
+          footerLogoUrl: data.footerLogoUrl || fallbackUrl,
         });
-        const faviconUrlToUse = (!isMockImage(data.faviconUrl) && data.faviconUrl) ? data.faviconUrl : '/favicon.ico';
+        const faviconUrlToUse = data.faviconUrl || fallbackUrl;
         const favicon = document.querySelector('link[rel*="icon"]') as HTMLLinkElement;
         if (favicon) favicon.href = faviconUrlToUse;
       } else {
         setSettings({
-          headerLogoUrl: '',
-          faviconUrl: '',
-          footerLogoUrl: '',
+          headerLogoUrl: fallbackUrl,
+          faviconUrl: fallbackUrl,
+          footerLogoUrl: fallbackUrl,
           analyticsId: ''
         });
       }
@@ -8433,13 +8420,10 @@ function SettingsModule({ user, isSuperAdmin, roleDisplayLabel, onLogout, onOpen
                               referrerPolicy="no-referrer"
                               src={settings.faviconUrl} 
                               className="w-12 h-12 object-contain" 
-                              onError={(e) => (e.target as HTMLImageElement).src = `/favicon.ico`}
+                              onError={(e) => (e.target as HTMLImageElement).src = `https://placehold.co/64?text=X`}
                             />
                           ) : (
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <img src="/favicon.svg" alt="Official Favicon" className="w-10 h-10 object-contain" />
-                              <span className="text-[9px] font-bold text-slate-400">OFFICIAL FAVICON ACTIVE</span>
-                            </div>
+                            <div className="w-10 h-10 bg-brand-blue rounded-lg flex items-center justify-center text-white font-black">T</div>
                           )}
                           <label className="absolute inset-0 bg-brand-blue/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                              <div className="text-white text-center">
