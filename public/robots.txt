@@ -1,0 +1,12 @@
+# Taji E-Commerce Public Robots.txt
+User-agent: *
+Allow: /
+Allow: /?category=*
+Allow: /?product=*
+
+# Disallow private ERP staff routes from crawler index
+Disallow: /?view=admin
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://taji.co.ke/sitemap.xml
