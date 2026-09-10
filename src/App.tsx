@@ -37,9 +37,23 @@ import { UserGuideModule } from './components/docs/UserGuideModule';
 import { Footer } from './components/layout/Footer';
 import { StorefrontView } from './components/storefront/StorefrontView';
 import { QuotaAlertBanner } from './components/common/QuotaAlertBanner';
+import { CategoryIntakeModal } from './components/inventory/CategoryIntakeModal';
 
 const ERPContent: React.FC = () => {
-  const { appMode, isPlatformUnlocked, isAdmin, currentUser, viewMode, setViewMode, activeNavTab, setActiveNavTab } = useERP();
+  const {
+    appMode,
+    isPlatformUnlocked,
+    isAdmin,
+    currentUser,
+    viewMode,
+    setViewMode,
+    activeNavTab,
+    setActiveNavTab,
+    isCategoryIntakeModalOpen,
+    closeCategoryIntakeModal,
+    categoryIntakeInitialInvoiceId,
+    categoryIntakeInitialCategory
+  } = useERP();
   const [activeTab, setActiveTab] = useState<NavTab>(() => {
     const role = currentUser?.role;
     if (role === 'admin' || role === 'branch_manager' || role === 'accountant') {
@@ -223,6 +237,12 @@ const ERPContent: React.FC = () => {
       <FabricRollManagerModal />
       <AuthModal />
       <InactivityLockModal />
+      <CategoryIntakeModal
+        isOpen={isCategoryIntakeModalOpen}
+        onClose={closeCategoryIntakeModal}
+        initialInvoiceId={categoryIntakeInitialInvoiceId}
+        initialCategory={categoryIntakeInitialCategory || 'Dereck'}
+      />
 
     </div>
   );

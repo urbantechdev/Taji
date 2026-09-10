@@ -596,35 +596,43 @@ export function parseMillLabelPayload(rawText: string): ParsedMillLabelData | nu
     };
   }
 
-  // 5. Pipe or Semicolon Separated Format: "SHADE:NAVY-108|LOT:26E112|NET:24.00|PCS:12"
-  if (text.includes('|') || text.includes(';') || text.includes(',')) {
-    const parts = text.split(/[|;,]/).map(p => p.trim());
+  // 5. Delimited Format (Pipe, Semicolon, Comma, Slash): e.g. "SHADE:NAVY-108|LOT:26E112|NET:24.00|PCS:12" or "LOT:26E081/SHADE:MIX GREY-4251/MASS:24.00KG"
+  if (text.includes('|') || text.includes(';') || text.includes(',') || (text.includes('/') && (textUpper.includes('LOT') || textUpper.includes('SHADE') || textUpper.includes('MASS') || textUpper.includes('NET')))) {
+    const parts = text.split(/[|;,/]/).map(p => p.trim()).filter(Boolean);
     const data: ParsedMillLabelData = { barcode: text };
     
     for (const part of parts) {
       const lower = part.toLowerCase();
-      if (lower.startsWith('shade:') || lower.startsWith('color:')) {
-        const val = part.split(':')[1]?.trim() || '';
+      const delimiter = part.includes(':') ? ':' : (part.includes('=') ? '=' : (part.includes('-') && (lower.startsWith('lot-') || lower.startsWith('shade-') || lower.startsWith('mass-')) ? '-' : ' '));
+      const chunks = part.split(delimiter);
+      const key = chunks[0]?.trim().toLowerCase();
+      const val = chunks.slice(1).join(delimiter)?.trim() || '';
+
+      if (key.includes('shade') || key.includes('color') || key.includes('colour')) {
         data.shadeCode = val.toUpperCase();
-        const match = MILL_SHADE_CATALOG.find(s => s.code.toUpperCase().includes(val.toUpperCase()));
+        const match = MILL_SHADE_CATALOG.find(s => s.code.toUpperCase().includes(val.toUpperCase()) || val.toUpperCase().includes(s.code.toUpperCase()));
         if (match) {
           data.colorName = match.name;
           data.colorHex = match.hex;
         }
-      } else if (lower.startsWith('lot:') || lower.startsWith('dyelot:')) {
-        data.dyeLot = part.split(':')[1]?.trim();
-      } else if (lower.startsWith('net:') || lower.startsWith('kg:')) {
-        data.netWeightKg = parseFloat(part.split(':')[1]?.replace(/[^0-9.]/g, '')) || 24;
-      } else if (lower.startsWith('gross:')) {
-        data.grossWeightKg = parseFloat(part.split(':')[1]?.replace(/[^0-9.]/g, '')) || 24.84;
-      } else if (lower.startsWith('pcs:') || lower.startsWith('cones:')) {
-        data.packagesCount = parseInt(part.split(':')[1]?.replace(/[^0-9]/g, '')) || 12;
-      } else if (lower.startsWith('bag:')) {
-        data.bagNumber = part.split(':')[1]?.trim();
+      } else if (key.includes('lot') || key.includes('dyelot')) {
+        data.dyeLot = val.toUpperCase();
+      } else if (key.includes('mass') || key.includes('net') || key.includes('weight') || key.includes('kg') || key.includes('qty')) {
+        data.netWeightKg = parseFloat(val.replace(/[^0-9.]/g, '')) || 24;
+      } else if (key.includes('gross')) {
+        data.grossWeightKg = parseFloat(val.replace(/[^0-9.]/g, '')) || 24.84;
+      } else if (key.includes('pcs') || key.includes('cones') || key.includes('package')) {
+        data.packagesCount = parseInt(val.replace(/[^0-9]/g, '')) || 12;
+      } else if (key.includes('bag')) {
+        data.bagNumber = val;
       }
     }
 
-    if (data.shadeCode || data.dyeLot) {
+    if (data.shadeCode || data.dyeLot || data.netWeightKg) {
+      if (data.netWeightKg && !data.grossWeightKg) {
+        data.grossWeightKg = Number((data.netWeightKg + 0.84).toFixed(3));
+        data.tareWeightKg = 0.84;
+      }
       return data;
     }
   }

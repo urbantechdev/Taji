@@ -1,4 +1,5 @@
 export type LedgerTab = 
+  | 'inward_invoices'
   | 'cfo_advisory'
   | 'import_costing'
   | 'debtors_aging'
@@ -436,6 +437,17 @@ export interface UserProfile {
   avatarUrl?: string;
   status?: 'active' | 'inactive';
   lastLoginAt?: string;
+}
+
+export interface WebsiteCustomer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  deliveryAddress?: string;
+  deliveryCity?: string;
+  kraPin?: string;
+  createdAt: string;
 }
 
 export interface CartItemRollPricing {
@@ -2024,5 +2036,73 @@ export interface ComputedLocalPurchaseSummary {
     unitLandedCostKES: number;
     grossMarginPct: number;
   }>;
+}
+
+export interface InwardInvoiceLineItem {
+  id: string;
+  name: string;
+  sku?: string;
+  category: CategoryType;
+  subCategory?: string;
+  fiberComposition?: string;
+  colorName?: string;
+  colorHex?: string;
+  unit: UnitType;
+  quantity: number;
+  grossWeightKg?: number;
+  unitPriceUSD?: number;
+  unitPriceKES?: number;
+  hsCode?: string;
+  rollsCount?: number;
+  dyeLot?: string;
+  shadeCode?: string;
+  packagesCount?: number;
+  packageDetails?: string;
+  bagNumberRange?: string;
+  matchedProductId?: string;
+  totalPriceKES?: number;
+  totalPriceUSD?: number;
+}
+
+export interface InwardInvoiceRecord {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  supplyType: 'import' | 'local';
+  supplierId: string;
+  supplierName: string;
+  supplierCountry?: string;
+  supplierPin?: string;
+  customsOrEtimsRef: string;
+  kraEslipRef?: string;
+  destinationLocation: LocationId;
+  exchangeRate: number;
+  status: 'draft' | 'pending_clearance' | 'assessed' | 'capitalized';
+  
+  totalFreightUSD?: number;
+  totalInsuranceUSD?: number;
+  cocFeesUSD?: number;
+  portClearingFeesKES?: number;
+  localFreightKES?: number;
+  targetMarkupPct?: number;
+  
+  totalAmountUSD: number;
+  totalAmountKES: number;
+  totalQuantity: number;
+  totalQuantityUnit: UnitType;
+  totalRollsOrPackages?: number;
+  
+  lineItems: InwardInvoiceLineItem[];
+  notes?: string;
+  declarantName?: string;
+  declarantPin?: string;
+  portOfEntry?: string;
+  
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  lastEditedBy?: string;
+  capitalizedAt?: string;
+  journalRef?: string;
 }
 
