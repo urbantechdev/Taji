@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import GlassyBackground from '../components/GlassyBackground';
+// @ts-ignore
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 

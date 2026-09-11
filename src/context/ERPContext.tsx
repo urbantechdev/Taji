@@ -720,10 +720,10 @@ const ERPContext = createContext<ERPContextType | undefined>(undefined);
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [appModeState, setAppModeState] = useState<AppMode>('pos');
-  const [activeNavTab, setActiveNavTab] = useState<string>('dashboard');
-  const [activeRole, setActiveRoleState] = useState<UserRole>('pos_cashier');
-  const [activeLocation, setActiveLocation] = useState<LocationId>('sales_shop');
   const [currentUser, setCurrentUser] = useState<UserProfile>(CURRENT_USER);
+  const [activeRole, setActiveRoleState] = useState<UserRole>(CURRENT_USER.role || 'admin');
+  const [activeLocation, setActiveLocation] = useState<LocationId>(CURRENT_USER.assignedLocation || 'main_store');
+  const [activeNavTab, setActiveNavTab] = useState<string>(() => (CURRENT_USER.role === 'pos_cashier' ? 'pos' : 'dashboard'));
 
   // Accountant Role Body Menu & Sub-Tab Navigation
   const [accountantSubTab, setAccountantSubTab] = useState<LedgerTab>('import_costing');
@@ -3701,6 +3701,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const now = new Date().toISOString();
     const invoiceRecord: InwardInvoiceRecord = {
       ...invoiceData,
+      createdAt: invoiceData.createdAt || now,
+      createdBy: invoiceData.createdBy || currentUser.name || currentUser.email || 'Chief Accountant',
       updatedAt: now,
       lastEditedBy: currentUser.name || currentUser.email || 'Chief Accountant'
     };
@@ -4863,6 +4865,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: roleName,
       assignedLocation: assignedLoc
     }));
+
+    const allowed = ROLE_DEFINITIONS[role]?.allowedTabs || ['pos'];
+    if (!allowed.includes(activeNavTab as any)) {
+      setActiveNavTab(allowed[0] || 'pos');
+    }
 
     recordAuditLog('Role Switched', `User switched view to ${role} at location ${assignedLoc}`);
   };

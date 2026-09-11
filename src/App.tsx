@@ -44,6 +44,7 @@ const ERPContent: React.FC = () => {
     appMode,
     isPlatformUnlocked,
     isAdmin,
+    activeRole,
     currentUser,
     viewMode,
     setViewMode,
@@ -54,37 +55,23 @@ const ERPContent: React.FC = () => {
     categoryIntakeInitialInvoiceId,
     categoryIntakeInitialCategory
   } = useERP();
-  const [activeTab, setActiveTab] = useState<NavTab>(() => {
-    const role = currentUser?.role;
-    if (role === 'admin' || role === 'branch_manager' || role === 'accountant') {
-      return 'dashboard';
-    }
-    return 'pos';
-  });
-
-  // Sync with global activeNavTab from ERPContext
-  useEffect(() => {
-    if (activeNavTab && activeNavTab !== activeTab) {
-      setActiveTab(activeNavTab as NavTab);
-    }
-  }, [activeNavTab, activeTab]);
-
-  const handleSetActiveTab = (tab: NavTab) => {
-    setActiveTab(tab);
-    setActiveNavTab(tab);
-  };
 
   // Verify and enforce role permission for currently selected tab
-  const roleAllowedTabs = ROLE_DEFINITIONS[currentUser.role]?.allowedTabs || ['pos'];
-  const isCurrentTabAllowed = isTabAllowedForRole(currentUser.role, activeTab);
-  const effectiveTab: NavTab = isCurrentTabAllowed ? activeTab : (roleAllowedTabs[0] || 'pos');
+  const effectiveRole = activeRole || currentUser?.role || 'admin';
+  const roleAllowedTabs = ROLE_DEFINITIONS[effectiveRole]?.allowedTabs || ['pos'];
+  const isCurrentTabAllowed = isTabAllowedForRole(effectiveRole, activeNavTab);
+  const effectiveTab: NavTab = (isCurrentTabAllowed ? activeNavTab : (roleAllowedTabs[0] || 'pos')) as NavTab;
 
-  // Auto sync if user changes role or activeTab is forbidden
+  // Auto sync if user changes role or activeNavTab is forbidden for their permissions
   useEffect(() => {
-    if (!isCurrentTabAllowed) {
-      setActiveTab(effectiveTab);
+    if (!isCurrentTabAllowed && activeNavTab !== effectiveTab) {
+      setActiveNavTab(effectiveTab);
     }
-  }, [currentUser.role, isCurrentTabAllowed, effectiveTab]);
+  }, [isCurrentTabAllowed, activeNavTab, effectiveTab, setActiveNavTab]);
+
+  const handleSetActiveTab = (tab: NavTab) => {
+    setActiveNavTab(tab);
+  };
 
   const triggerFullscreen = () => {
     const doc = window.document;
@@ -138,7 +125,7 @@ const ERPContent: React.FC = () => {
     if (viewMode === 'admin') {
       triggerFullscreen();
     }
-  }, [viewMode, appMode, activeTab]);
+  }, [viewMode, appMode, effectiveTab]);
 
   // PUBLIC STOREFRONT VIEW: Default customer-facing e-commerce portal
   if (viewMode === 'storefront') {
