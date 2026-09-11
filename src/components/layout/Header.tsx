@@ -78,6 +78,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
     products,
     setIsQRScannerOpen,
     setIsMobileBarcodeScannerOpen,
+    openCategoryIntakeModal,
     brandSettings,
     setIsBrandSettingsModalOpen,
     mailNotifications,
@@ -1058,22 +1059,26 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               </button>
             </CapabilityTooltip>
 
-            {/* Camera Barcode Scanner */}
+            {/* Barcode - Start Updating Inventory */}
             <CapabilityTooltip
-              title="Camera Barcode Scanner"
-              description="Use smartphone or tablet camera to scan 1D Code 128 barcodes and 2D QR codes."
+              title="Start Updating Inventory"
+              description="Open Category & Barcode Inventory Intake to scan barcodes, intake lots, tare weights, and update physical stock from inward invoices."
               roleRequired="All Roles"
-              tip="Useful for floor audits & stocktaking."
+              tip="Select invoice, category, and scan barcodes for Lot, Shade, and Mass."
               placement="bottom"
               align="center"
             >
               <button
                 type="button"
-                onClick={() => setIsMobileBarcodeScannerOpen(true)}
-                className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-emerald-400/50 hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-bold group"
-                title="Camera Barcode Scanner"
+                id="btn-header-start-updating-inventory"
+                onClick={() => {
+                  playClickSound();
+                  openCategoryIntakeModal();
+                }}
+                className="px-3 py-2 bg-gradient-to-r from-teal-700 to-cyan-800 hover:from-teal-600 hover:to-cyan-700 text-white rounded-xl shadow-xs transition-all cursor-pointer border border-cyan-400/50 hover:scale-105 active:scale-95 flex items-center gap-2 text-xs font-bold group"
+                title="Start Updating Inventory (Scan Barcodes & Intake Stock)"
               >
-                <Camera className="w-5 h-5 text-emerald-200 group-hover:scale-110 transition-transform" />
+                <Barcode className="w-5 h-5 text-cyan-200 group-hover:scale-110 transition-transform" />
                 <span>Barcode</span>
               </button>
             </CapabilityTooltip>
@@ -1484,18 +1489,20 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
                     Operations & Scanner Tools
                   </label>
                   <div className="grid grid-cols-3 gap-1.5">
-                    {/* Barcode Camera */}
+                    {/* Barcode Inventory Intake */}
                     <button
                       type="button"
+                      id="btn-header-mobile-start-updating-inventory"
                       onClick={() => {
                         playClickSound();
-                        setIsMobileBarcodeScannerOpen(true);
+                        openCategoryIntakeModal();
                         setIsMobileMenuOpen(false);
                       }}
-                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-emerald-300 text-slate-800 hover:bg-emerald-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs cursor-pointer"
+                      className="p-2.5 rounded-xl bg-white border border-slate-200/90 hover:border-cyan-300 text-slate-800 hover:bg-cyan-50/50 transition-all flex flex-col items-center justify-center gap-1 group text-center shadow-2xs cursor-pointer"
+                      title="Start Updating Inventory (Barcode Intake)"
                     >
-                      <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 group-hover:scale-110 transition-transform">
-                        <Camera className="w-5 h-5" />
+                      <div className="p-2 rounded-xl bg-cyan-100 text-cyan-700 group-hover:scale-110 transition-transform">
+                        <Barcode className="w-5 h-5" />
                       </div>
                       <span className="text-[10px] font-bold text-slate-800">Barcode</span>
                     </button>

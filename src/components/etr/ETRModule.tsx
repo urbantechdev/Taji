@@ -28,7 +28,9 @@ import {
   Truck,
   RotateCcw,
   Trash2,
-  ChevronDown
+  ChevronDown,
+  Clock,
+  User
 } from 'lucide-react';
 import { CreateBillingDocumentModal } from './CreateBillingDocumentModal';
 import {
@@ -488,7 +490,18 @@ export const ETRModule: React.FC = () => {
                         </div>
                         <p className="font-mono font-bold text-slate-900 pt-1">#{order.receiptNumber}</p>
                         <p className="text-[10px] text-slate-400 font-mono">ID: {order.id}</p>
-                        <p className="text-[10px] text-slate-400">{new Date(order.timestamp).toLocaleString()}</p>
+                        <div className="flex items-center gap-1 text-[10.5px] text-slate-600 font-medium pt-0.5">
+                          <Clock className="w-3 h-3 text-rose-500 shrink-0" />
+                          <span>
+                            {new Date(order.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(order.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </span>
+                        </div>
+                        {order.operatorName && (
+                          <div className="flex items-center gap-1 text-[10.5px] text-slate-500 pt-0.5">
+                            <User className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>Created by: <strong className="text-slate-800">{order.operatorName}</strong>{order.operatorRole ? ` (${order.operatorRole})` : ''}</span>
+                          </div>
+                        )}
                         {order.isRerouted && (
                           <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-900">
                             Rerouted Fulfillment

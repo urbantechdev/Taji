@@ -43,7 +43,9 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Edit3,
-  Filter
+  Filter,
+  Clock,
+  User
 } from 'lucide-react';
 import {
   PRESET_INVOICE_26PA222,
@@ -160,6 +162,8 @@ export interface UnifiedInvoiceOption {
   totalQuantityUnit?: 'meter' | 'kg';
   totalLandedCostKES?: number;
   date?: string;
+  createdAt?: string;
+  createdBy?: string;
   type: 'import' | 'sad' | 'local' | 'delivery' | 'custom';
   suggestedCategory?: CategoryType;
   suggestedWholesalePrice?: number;
@@ -188,7 +192,8 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     commitCategoryIntakeSession,
     getTotalAssetValuation,
     deliveries = [],
-    invoiceBatches = []
+    invoiceBatches = [],
+    inwardInvoices = []
   } = useERP();
 
   // Workflow Step State (1: Select Invoice -> 2: Select Category -> 3: Set Price -> 4: Scan Barcodes)
@@ -400,7 +405,33 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
       '2026-05-20'
     );
 
-    // 3. Active Delivery Manifests
+    // 3. Inward Commercial Invoices from Ledger
+    (inwardInvoices || []).forEach(inv => {
+      const key = inv.invoiceNumber.toUpperCase();
+      if (!addedInvoiceKeys.has(key)) {
+        addedInvoiceKeys.add(key);
+        const locName = locations.find(l => l.id === inv.destinationLocation)?.name || inv.destinationLocation;
+        list.push({
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          supplierName: inv.supplierName,
+          supplierCountry: inv.supplierCountry,
+          customsEntryNo: inv.customsOrEtimsRef,
+          destinationLocationId: (inv.destinationLocation as LocationId) || 'main_store',
+          destinationLocationName: locName,
+          totalQuantity: inv.totalQuantity || (inv.lineItems ? inv.lineItems.reduce((acc, li) => acc + (Number(li.quantity) || 0), 0) : undefined),
+          totalQuantityUnit: (inv.totalQuantityUnit === 'kg' ? 'kg' : 'meter') as 'meter' | 'kg',
+          totalLandedCostKES: inv.totalAmountKES,
+          date: inv.invoiceDate,
+          createdAt: inv.createdAt,
+          createdBy: inv.createdBy || inv.lastEditedBy,
+          type: inv.supplyType === 'local' ? 'local' : 'import',
+          suggestedCategory: inv.lineItems?.[0]?.category as CategoryType
+        });
+      }
+    });
+
+    // 4. Active Delivery Manifests
     (deliveries || []).forEach(del => {
       const key = (del.consignmentNo || del.id).toUpperCase();
       if (!addedInvoiceKeys.has(key)) {
@@ -423,7 +454,7 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     });
 
     return list;
-  }, [invoiceBatches, deliveries, locations]);
+  }, [invoiceBatches, inwardInvoices, deliveries, locations]);
 
   // Filtered invoices in Step 1
   const filteredInvoices = useMemo(() => {
@@ -1316,6 +1347,28 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
                                 </span>
                               )}
                             </div>
+
+                            {(inv.createdAt || inv.createdBy) && (
+                              <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500 bg-slate-50/80 px-2 py-1 rounded-md border border-slate-100">
+                                {inv.createdAt && (
+                                  <div className="flex items-center gap-1 text-slate-600">
+                                    <Clock className="w-2.5 h-2.5 text-rose-500 shrink-0" />
+                                    <span>{new Date(inv.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                    {inv.createdAt.includes('T') && (
+                                      <span className="font-mono text-[9px] text-slate-400">
+                                        {new Date(inv.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {inv.createdBy && (
+                                  <div className="flex items-center gap-1 text-slate-600">
+                                    <User className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                                    <span className="truncate max-w-[120px]" title={inv.createdBy}>By: <strong className="text-slate-700">{inv.createdBy}</strong></span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Target Store & Quantities */}

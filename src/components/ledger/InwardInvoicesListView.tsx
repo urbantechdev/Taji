@@ -25,11 +25,29 @@ import {
   Receipt,
   RotateCcw,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  User,
+  Calendar
 } from 'lucide-react';
 import { useERP } from '../../context/ERPContext';
 import { InwardInvoiceRecord, CategoryType } from '../../types';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
+
+// Helper to cleanly parse and format invoice creation timestamp & fallback date
+const formatInvoiceCreation = (createdAt?: string, fallbackDate?: string) => {
+  const target = createdAt || fallbackDate;
+  if (!target) return { dateStr: '—', timeStr: '' };
+  try {
+    const d = new Date(target);
+    if (isNaN(d.getTime())) return { dateStr: target, timeStr: '' };
+    const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const hasTime = target.includes('T') || target.includes(':') || (createdAt && createdAt.length > 10);
+    const timeStr = hasTime ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
+    return { dateStr, timeStr };
+  } catch {
+    return { dateStr: target, timeStr: '' };
+  }
+};
 
 interface InwardInvoicesListViewProps {
   onNewInvoice: () => void;
@@ -547,6 +565,7 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
                 <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                   <th className="py-3 px-4">Invoice # &amp; Channel</th>
                   <th className="py-3 px-4">Supplier &amp; Origin</th>
+                  <th className="py-3 px-4">Creation Date &amp; Time / By</th>
                   <th className="py-3 px-4">Customs / eTIMS Ref</th>
                   <th className="py-3 px-4">Destination Store</th>
                   <th className="py-3 px-4">Consignment Items</th>
@@ -559,6 +578,7 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
                 {filteredInvoices.map((inv) => {
                   const isExpanded = expandedInvoiceId === inv.id;
                   const isImport = inv.supplyType === 'import';
+                  const creationInfo = formatInvoiceCreation(inv.createdAt, inv.invoiceDate);
 
                   return (
                     <React.Fragment key={inv.id}>
@@ -585,7 +605,7 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
                                 <Edit3 className="w-3 h-3 text-slate-300 group-hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
                               <div className="text-[10px] text-slate-400 font-medium">
-                                {new Date(inv.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                Doc Date: {new Date(inv.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                               </div>
                             </div>
                           </div>
@@ -599,6 +619,28 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
                           <div className="text-[10px] text-slate-400 flex items-center gap-1">
                             <span>{inv.supplierCountry || (isImport ? 'Overseas' : 'Kenya')}</span>
                             {inv.supplierPin && <span>• PIN: {inv.supplierPin}</span>}
+                          </div>
+                        </td>
+
+                        {/* Creation Date, Time & Created By */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
+                              <Calendar className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                              <span>{creationInfo.dateStr}</span>
+                              {creationInfo.timeStr && (
+                                <span className="inline-flex items-center gap-1 text-[10.5px] font-mono font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  {creationInfo.timeStr}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                              <User className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>
+                                Created by: <strong className="text-slate-800 font-semibold">{inv.createdBy || inv.lastEditedBy || 'Chief Accountant'}</strong>
+                              </span>
+                            </div>
                           </div>
                         </td>
 
@@ -752,8 +794,38 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
                       {/* Expandable Line Items Preview Sub-Row */}
                       {isExpanded && (
                         <tr className="bg-slate-50/80 border-b border-slate-200">
-                          <td colSpan={8} className="p-4">
+                          <td colSpan={9} className="p-4">
                             <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                              {/* Invoice Creation & Provenance Audit Details Banner */}
+                              <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs">
+                                <div className="flex items-center gap-2 text-slate-700">
+                                  <Clock className="w-4 h-4 text-rose-600 shrink-0" />
+                                  <span>
+                                    Invoice Created: <strong className="text-slate-900 font-bold">{creationInfo.dateStr}</strong> {creationInfo.timeStr ? `at ${creationInfo.timeStr}` : ''}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-slate-700">
+                                  <User className="w-4 h-4 text-slate-500 shrink-0" />
+                                  <span>
+                                    Created By: <strong className="text-slate-900 font-bold">{inv.createdBy || inv.lastEditedBy || 'Chief Accountant'}</strong>
+                                  </span>
+                                </div>
+                                {inv.updatedAt && inv.updatedAt !== inv.createdAt && (
+                                  <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                                    <RotateCcw className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>
+                                      Last Edited: {new Date(inv.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} by <strong className="text-slate-700">{inv.lastEditedBy || 'Chief Accountant'}</strong>
+                                    </span>
+                                  </div>
+                                )}
+                                {inv.capitalizedAt && (
+                                  <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-[11px] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>Capitalized: {new Date(inv.capitalizedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                  </div>
+                                )}
+                              </div>
+
                               <div className="flex items-center justify-between">
                                 <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                                   <Layers className="w-4 h-4 text-emerald-600" />
@@ -859,6 +931,7 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="inward-invoices-cards-grid">
           {filteredInvoices.map((inv) => {
             const isImport = inv.supplyType === 'import';
+            const creationInfo = formatInvoiceCreation(inv.createdAt, inv.invoiceDate);
 
             return (
               <div
@@ -887,12 +960,32 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
                           </span>
                         </div>
                         <div className="text-[10.5px] text-slate-400">
-                          {new Date(inv.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          Doc Date: {new Date(inv.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </div>
                       </div>
                     </div>
                     <div>
                       {getStatusBadge(inv.status)}
+                    </div>
+                  </div>
+
+                  {/* Creation Date, Time & Created By */}
+                  <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/70 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-[11px]">
+                      <Calendar className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <span>{creationInfo.dateStr}</span>
+                      {creationInfo.timeStr && (
+                        <span className="inline-flex items-center gap-1 font-mono text-[10px] text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                          <Clock className="w-2.5 h-2.5 text-slate-400" />
+                          {creationInfo.timeStr}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] text-slate-600">
+                      <User className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span className="truncate max-w-[130px]" title={inv.createdBy || inv.lastEditedBy || 'Chief Accountant'}>
+                        By: <strong className="text-slate-800">{inv.createdBy || inv.lastEditedBy || 'Chief Accountant'}</strong>
+                      </span>
                     </div>
                   </div>
 

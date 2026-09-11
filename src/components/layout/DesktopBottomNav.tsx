@@ -28,7 +28,7 @@ import { downloadReadmeMarkdown } from '../../utils/downloadReadme';
 interface NavItem {
   id: NavTab;
   label: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   badge?: string | number;
   highlight?: boolean;
 }
@@ -150,9 +150,12 @@ export const DesktopBottomNav: React.FC<DesktopBottomNavProps> = ({
   ];
 
   // RBAC Filter: Strictly only show tabs permitted for the user's role level!
-  const navItems = allNavItems.filter(item =>
-    isTabAllowedForRole(effectiveRole, item.id)
-  );
+  const navItems = allNavItems.filter(item => {
+    if (!isTabAllowedForRole(effectiveRole, item.id)) return false;
+    // For accountant role, ledger subtabs are already in their dedicated sidebar
+    if (effectiveRole === 'accountant' && item.id === 'ledger') return false;
+    return true;
+  });
 
   // If no items are permitted, do not render bottom navigation
   if (navItems.length === 0) {

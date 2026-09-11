@@ -53,7 +53,9 @@ import {
   Ship,
   Barcode,
   Boxes,
-  Save
+  Save,
+  Clock,
+  User
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
 
@@ -132,6 +134,8 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
   );
   const [invoiceNumber, setInvoiceNumber] = useState<string>(`INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
   const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [invoiceCreatedAt, setInvoiceCreatedAt] = useState<string>('');
+  const [invoiceCreatedBy, setInvoiceCreatedBy] = useState<string>('');
   const [customsOrEtimsRef, setCustomsOrEtimsRef] = useState<string>('26EMKIM' + Math.floor(100000000 + Math.random() * 900000000));
   const [kraEslipRef, setKraEslipRef] = useState<string>('102026' + Math.floor(1000000000 + Math.random() * 9000000000));
   const [destinationLocation, setDestinationLocation] = useState<LocationId>('main_store');
@@ -182,6 +186,8 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
       setSupplyType(inv.supplyType);
       setInvoiceNumber(inv.invoiceNumber);
       setInvoiceDate(inv.invoiceDate);
+      setInvoiceCreatedAt(inv.createdAt || '');
+      setInvoiceCreatedBy(inv.createdBy || '');
       setCustomsOrEtimsRef(inv.customsOrEtimsRef || '');
       setKraEslipRef(inv.kraEslipRef || '');
       setExchangeRate(inv.exchangeRate || 129.38999);
@@ -458,9 +464,10 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
           totalPriceUSD: supplyType === 'import' ? (Number(d.unitPriceUSD) || 0) * (Number(d.quantity) || 0) : undefined,
           totalPriceKES: (Number(d.unitPriceKES) || (d.unitPriceUSD ? Math.round(Number(d.unitPriceUSD) * exchangeRate) : 0)) * (Number(d.quantity) || 0)
         })),
-        createdAt: existingInward?.createdAt || new Date().toISOString(),
+        createdAt: invoiceCreatedAt || existingInward?.createdAt || new Date().toISOString(),
+        createdBy: invoiceCreatedBy || existingInward?.createdBy || currentUser.name || currentUser.email || 'Chief Accountant',
         updatedAt: new Date().toISOString(),
-        lastEditedBy: currentUser.name || currentUser.email || 'Accountant',
+        lastEditedBy: currentUser.name || currentUser.email || 'Chief Accountant',
         portOfEntry: 'ICD EMBAKASI',
         declarantName: 'Blue Pearl Logistics Limited',
         declarantPin: 'P051506858S'
@@ -1239,9 +1246,29 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
 
               {/* Header Fields */}
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
-                <h3 className="text-xs font-black uppercase tracking-wider text-rose-600">
-                  Invoice &amp; Declarant Metadata
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-rose-600">
+                    Invoice &amp; Declarant Metadata
+                  </h3>
+                  {(invoiceCreatedAt || invoiceCreatedBy) && (
+                    <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-600 bg-white border border-slate-200/90 px-3 py-1.5 rounded-xl shadow-2xs">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        <span>
+                          Created: <strong className="text-slate-800 font-bold">
+                            {new Date(invoiceCreatedAt || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(invoiceCreatedAt || Date.now()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </strong>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>
+                          Created by: <strong className="text-slate-800">{invoiceCreatedBy || 'Chief Accountant'}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
