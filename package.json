@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
+  "name": "taji-erp",
+  "description": "Enterprise Multi-Device Textile ERP & Billing System",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
