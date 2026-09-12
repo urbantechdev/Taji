@@ -637,26 +637,140 @@ export function parseMillLabelPayload(rawText: string): ParsedMillLabelData | nu
     }
   }
 
-  // 6. Exact Mill Shade Code Lookup in Catalog
-  const directMatch = MILL_SHADE_CATALOG.find(
-    s => s.code.toUpperCase() === textUpper || textUpper.startsWith(s.code.toUpperCase())
-  );
-  if (directMatch) {
+  // 6. Intelligent Query & Shade Number lookup (e.g. "4251", "3059", "MIX GREY", "26E081")
+  const queryMatch = findMillShadeByQuery(textUpper);
+  if (queryMatch) {
     return {
       barcode: textUpper,
-      shadeCode: directMatch.code,
-      colorName: directMatch.name,
-      colorHex: directMatch.hex,
-      dyeLot: directMatch.defaultDyeLot || 'LOT-2026',
-      grossWeightKg: directMatch.standardTareKg ? 24.840 : undefined,
-      netWeightKg: directMatch.standardTareKg ? 24.000 : undefined,
-      tareWeightKg: directMatch.standardTareKg || undefined,
+      shadeCode: queryMatch.code,
+      colorName: queryMatch.name,
+      colorHex: queryMatch.hex,
+      dyeLot: queryMatch.defaultDyeLot || (textUpper.startsWith('LOT-') ? textUpper : 'LOT-2026'),
+      grossWeightKg: queryMatch.standardTareKg ? 24.840 : undefined,
+      netWeightKg: queryMatch.standardTareKg ? 24.000 : undefined,
+      tareWeightKg: queryMatch.standardTareKg || undefined,
       packagesCount: 12,
       yarnCount: '2/24 NM',
-      manufacturer: directMatch.millSupplier,
-      category: directMatch.category === 'All' ? 'Yarns' : directMatch.category
+      manufacturer: queryMatch.millSupplier || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+      fiberComposition: '100% ACRYLIC (HB) DYED YARN',
+      category: queryMatch.category === 'All' ? 'Yarns' : queryMatch.category
     };
   }
 
   return null;
+}
+
+/**
+ * Intelligent Shade Search & Autofill Resolver
+ * Matches by full code, numeric suffix (e.g. '4251' -> 'MIX GREY-4251', '3059' -> 'MAROON-3059'),
+ * dye lot ('26E081'), or color name ('mix grey', 'maroon').
+ */
+export function findMillShadeByQuery<T extends { code: string; name?: string; defaultDyeLot?: string; hex?: string; category?: string }>(
+  query: string,
+  catalog: T[] = MILL_SHADE_CATALOG as unknown as T[]
+): T | undefined {
+  if (!query) return undefined;
+  const raw = query.trim();
+  if (!raw) return undefined;
+  const qUpper = raw.toUpperCase();
+  const digitsOnly = raw.replace(/\D/g, '');
+
+  // 1. Exact Code match
+  const exact = catalog.find(s => s.code.toUpperCase() === qUpper);
+  if (exact) return exact;
+
+  // 2. Exact Dye Lot match
+  const lotMatch = catalog.find(s => s.defaultDyeLot && s.defaultDyeLot.toUpperCase() === qUpper);
+  if (lotMatch) return lotMatch;
+
+  // 3. Numeric Suffix / Code Number match (e.g. '4251' in 'MIX GREY-4251', '3059' in 'MAROON-3059')
+  if (digitsOnly.length >= 2) {
+    // Check if code contains digits as distinct token or suffix
+    const exactNumericToken = catalog.find(s => {
+      const codeUpper = s.code.toUpperCase();
+      if (codeUpper.endsWith(`-${digitsOnly}`) || codeUpper.endsWith(` ${digitsOnly}`)) return true;
+      const parts = codeUpper.split(/[- ]+/);
+      return parts.includes(digitsOnly);
+    });
+    if (exactNumericToken) return exactNumericToken;
+
+    // Check if default dye lot matches or ends with digits
+    const lotNumeric = catalog.find(s => s.defaultDyeLot && s.defaultDyeLot.replace(/\D/g, '').endsWith(digitsOnly));
+    if (lotNumeric && digitsOnly.length >= 3) return lotNumeric;
+
+    // Check if code contains digits anywhere
+    const containsDigits = catalog.find(s => s.code.toUpperCase().includes(digitsOnly));
+    if (containsDigits && digitsOnly.length >= 3) return containsDigits;
+  }
+
+  // 4. Code starts with query (e.g. 'MIX' -> 'MIX GREY-4251')
+  if (qUpper.length >= 3) {
+    const startsWithCode = catalog.find(s => s.code.toUpperCase().startsWith(qUpper));
+    if (startsWithCode) return startsWithCode;
+  }
+
+  // 5. Exact Color Name match
+  const exactName = catalog.find(s => s.name && s.name.toUpperCase() === qUpper);
+  if (exactName) return exactName;
+
+  // 6. Color Name starts with or includes query
+  if (qUpper.length >= 3) {
+    const nameMatch = catalog.find(s => s.name && s.name.toUpperCase().startsWith(qUpper));
+    if (nameMatch) return nameMatch;
+    const codeIncludes = catalog.find(s => s.code.toUpperCase().includes(qUpper));
+    if (codeIncludes) return codeIncludes;
+    const nameIncludes = catalog.find(s => s.name && s.name.toUpperCase().includes(qUpper));
+    if (nameIncludes) return nameIncludes;
+  }
+
+  return undefined;
+}
+
+/**
+ * Multi-result search filter for dropdown autocomplete
+ */
+export function searchMillShades<T extends { code: string; name?: string; defaultDyeLot?: string; hex?: string; category?: string }>(
+  query: string,
+  catalog: T[] = MILL_SHADE_CATALOG as unknown as T[],
+  limit = 16
+): T[] {
+  if (!query || !query.trim()) return catalog.slice(0, limit);
+  const qUpper = query.trim().toUpperCase();
+  const digitsOnly = query.replace(/\D/g, '');
+
+  const results: { item: T; score: number }[] = [];
+
+  for (const item of catalog) {
+    const codeUpper = item.code.toUpperCase();
+    const nameUpper = (item.name || '').toUpperCase();
+    const lotUpper = (item.defaultDyeLot || '').toUpperCase();
+    let score = 0;
+
+    if (codeUpper === qUpper) {
+      score = 1000;
+    } else if (lotUpper === qUpper) {
+      score = 900;
+    } else if (digitsOnly.length >= 2 && (codeUpper.endsWith(`-${digitsOnly}`) || codeUpper.endsWith(` ${digitsOnly}`))) {
+      score = 850;
+    } else if (digitsOnly.length >= 2 && codeUpper.split(/[- ]+/).includes(digitsOnly)) {
+      score = 800;
+    } else if (codeUpper.startsWith(qUpper)) {
+      score = 700;
+    } else if (nameUpper.startsWith(qUpper)) {
+      score = 600;
+    } else if (codeUpper.includes(qUpper)) {
+      score = 500;
+    } else if (nameUpper.includes(qUpper)) {
+      score = 400;
+    } else if (digitsOnly.length >= 3 && (codeUpper.includes(digitsOnly) || lotUpper.includes(digitsOnly))) {
+      score = 350;
+    }
+
+    if (score > 0) {
+      results.push({ item, score });
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, limit).map(r => r.item);
 }

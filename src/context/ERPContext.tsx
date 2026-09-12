@@ -2937,9 +2937,48 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [deliveries]);
 
-  // Cart State
-  const [cart, setCart] = useState<POSCartItem[]>([]);
-  const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
+  // Cart State (Persisted across logout / page refresh so cashier work is never lost)
+  const [cart, setCart] = useState<POSCartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('taji_pos_active_cart');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading active cart from localStorage:', e);
+    }
+    return [];
+  });
+
+  const [heldCarts, setHeldCarts] = useState<HeldCart[]>(() => {
+    try {
+      const saved = localStorage.getItem('taji_pos_held_carts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading held carts from localStorage:', e);
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('taji_pos_active_cart', JSON.stringify(cart));
+    } catch (e) {
+      console.warn('Error saving active cart to localStorage:', e);
+    }
+  }, [cart]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('taji_pos_held_carts', JSON.stringify(heldCarts));
+    } catch (e) {
+      console.warn('Error saving held carts to localStorage:', e);
+    }
+  }, [heldCarts]);
 
   // Mail / Transfer Notifications State - only real notifications from real triggers
   const [mailNotifications, setMailNotifications] = useState<MailNotification[]>(() => {
