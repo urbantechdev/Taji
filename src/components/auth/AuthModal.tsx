@@ -455,7 +455,7 @@ export const AuthModal: React.FC = () => {
                   playClickSound();
                   signInAsAccountant('mwkomu@gmail.com');
                   playSuccessSound();
-                  setSuccessMessage('Welcome Accountant (mwkomu@gmail.com)');
+                  setSuccessMessage('Welcome Chief Accountant');
                   setTimeout(() => {
                     setIsAuthModalOpen(false);
                     setSuccessMessage(null);
@@ -466,16 +466,6 @@ export const AuthModal: React.FC = () => {
                 <Landmark className="w-4 h-4" />
                 <span>Continue as Accountant</span>
               </button>
-
-              <div className="p-2 bg-emerald-50 border border-emerald-200/80 rounded-xl text-[11px] text-emerald-800 flex items-center justify-between font-semibold">
-                <div className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Whitelisted Accountant:</span>
-                </div>
-                <code className="font-mono font-bold text-emerald-950 bg-white px-2 py-0.5 rounded border border-emerald-200 text-[10px]">
-                  mwkomu@gmail.com
-                </code>
-              </div>
 
               {unauthorizedDomain && (
                 <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-left text-xs text-amber-900">

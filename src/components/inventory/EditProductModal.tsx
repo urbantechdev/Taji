@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useERP } from '../../context/ERPContext';
 import { ProductBatch, CategoryType, UnitType, LocationId } from '../../types';
+import { MILL_SHADE_CATALOG } from '../../utils/textileShadeEngine';
 import {
   X,
   Save,
@@ -20,6 +21,7 @@ import {
   Image as ImageIcon,
   Link as LinkIcon
 } from 'lucide-react';
+import { ShadeCodeInput } from './ShadeCodeInput';
 
 interface EditProductModalProps {
   product: ProductBatch;
@@ -28,6 +30,7 @@ interface EditProductModalProps {
 
 export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose }) => {
   const {
+    products,
     updateProductBatch,
     deleteProductBatch,
     locations,
@@ -35,6 +38,51 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
     isAdmin,
     brandSettings
   } = useERP();
+
+  // Known shades collected from Mill Shade Catalog and existing inventory products
+  const knownShades = useMemo(() => {
+    const list: Array<{
+      code: string;
+      name: string;
+      hex: string;
+      category: string;
+      defaultDyeLot?: string;
+      source: 'mill' | 'inventory';
+    }> = [];
+    const seen = new Set<string>();
+
+    MILL_SHADE_CATALOG.forEach(s => {
+      const codeUpper = s.code.trim().toUpperCase();
+      if (!seen.has(codeUpper)) {
+        seen.add(codeUpper);
+        list.push({
+          code: s.code,
+          name: s.name,
+          hex: s.hex || '#475569',
+          category: s.category || 'All',
+          defaultDyeLot: s.defaultDyeLot,
+          source: 'mill'
+        });
+      }
+    });
+
+    products.forEach(p => {
+      const pCode = (p.shadeCode || '').trim();
+      if (pCode && !seen.has(pCode.toUpperCase())) {
+        seen.add(pCode.toUpperCase());
+        list.push({
+          code: pCode,
+          name: p.colorName || p.name || pCode,
+          hex: p.colorHex || '#475569',
+          category: p.category || 'All',
+          defaultDyeLot: p.dyeLot || p.sku,
+          source: 'inventory'
+        });
+      }
+    });
+
+    return list;
+  }, [products]);
 
   // Form State
   const [name, setName] = useState(product.name);
@@ -508,9 +556,16 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
                 </div>
 
                 <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                    Dye Lot No (Primary SKU)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold uppercase text-slate-500 block">
+                      Dye Lot No (Primary SKU)
+                    </label>
+                    {dyeLot && (
+                      <span className="text-[9px] text-emerald-600 font-bold">
+                        Auto-filled
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={dyeLot}
@@ -525,15 +580,36 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ product, onC
                 </div>
 
                 <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
-                    Shade Code
-                  </label>
-                  <input
-                    type="text"
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold uppercase text-slate-500 block">
+                      Shade Code
+                    </label>
+                    {colorName && (
+                      <span className="text-[10px] text-slate-500 font-medium truncate max-w-[120px]" title={colorName}>
+                        {colorName}
+                      </span>
+                    )}
+                  </div>
+
+                  <ShadeCodeInput
                     value={shadeCode}
-                    onChange={e => setShadeCode(e.target.value)}
-                    placeholder="e.g. MIX GREY-4251"
-                    className="w-full font-mono text-slate-800 text-xs focus:outline-none"
+                    colorHex={colorHex}
+                    category={category}
+                    knownShades={knownShades}
+                    placeholder="Type shade or # (e.g. 4251, 3059)"
+                    onSelectShade={(shade) => {
+                      setShadeCode(shade.code);
+                      if (!colorName || colorName === 'Standard Color') {
+                        setColorName(shade.name);
+                      }
+                      setColorHex(shade.hex);
+                      const autoLot = shade.defaultDyeLot || `LOT-${shade.code.replace(/[^A-Z0-9]/gi, '')}`;
+                      setDyeLot(autoLot);
+                      setSku(autoLot);
+                    }}
+                    onChangeText={(text) => {
+                      setShadeCode(text);
+                    }}
                   />
                 </div>
 

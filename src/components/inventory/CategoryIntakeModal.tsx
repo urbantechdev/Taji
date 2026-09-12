@@ -64,6 +64,12 @@ import {
 } from '../../utils/audio';
 import { OpticalShadeScannerModal, OpticalScanOutput } from './OpticalShadeScannerModal';
 import { MILL_SHADE_CATALOG, parseMillLabelPayload } from '../../utils/textileShadeEngine';
+import {
+  saveCategoryIntakeDraft,
+  getCategoryIntakeDraft,
+  clearCategoryIntakeDraft,
+  formatDraftTimeAgo
+} from '../../utils/draftRecoveryEngine';
 
 export interface CategoryPresetConfig {
   category: CategoryType;
@@ -253,6 +259,79 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     newTotalUnits: number;
     targetLocationName: string;
   } | null>(null);
+
+  // Session Recovery & Auto-save State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [recoveredIntakeInfo, setRecoveredIntakeInfo] = useState<{ savedAt: string; count: number } | null>(null);
+  const [isScanningAutosaved, setIsScanningAutosaved] = useState(false);
+
+  // Auto-restore uncommitted scanning session when opening
+  useEffect(() => {
+    if (isOpen && scannedItems.length === 0 && !completionResult) {
+      const saved = getCategoryIntakeDraft();
+      if (saved && Array.isArray(saved.scannedItems) && saved.scannedItems.length > 0) {
+        setSelectedCategory(saved.selectedCategory);
+        if (saved.selectedInvoiceId) setSelectedInvoiceId(saved.selectedInvoiceId);
+        if (saved.lockedInvoiceRef) setLockedInvoiceRef(saved.lockedInvoiceRef);
+        if (saved.targetLocation) setTargetLocation(saved.targetLocation);
+        if (saved.yarnBatchMode) setYarnBatchMode(saved.yarnBatchMode);
+        if (saved.yarnNetWeightKg) setYarnNetWeightKg(saved.yarnNetWeightKg);
+        if (saved.yarnGrossWeightKg) setYarnGrossWeightKg(saved.yarnGrossWeightKg);
+        if (saved.yarnTareWeightKg) setYarnTareWeightKg(saved.yarnTareWeightKg);
+        if (saved.yarnPackagesCount) setYarnPackagesCount(saved.yarnPackagesCount);
+        setScannedItems(saved.scannedItems);
+        setCurrentStep(4);
+        setRecoveredIntakeInfo({
+          savedAt: saved.savedAt,
+          count: saved.scannedItems.length
+        });
+      }
+    }
+  }, [isOpen]);
+
+  // Background Auto-Save to localStorage
+  useEffect(() => {
+    if (!isOpen || isSubmitting || completionResult) return;
+    const timer = setTimeout(() => {
+      if (scannedItems.length > 0) {
+        saveCategoryIntakeDraft({
+          selectedCategory,
+          selectedInvoiceId,
+          lockedInvoiceRef,
+          targetLocation,
+          yarnBatchMode,
+          yarnNetWeightKg,
+          yarnGrossWeightKg,
+          yarnTareWeightKg,
+          yarnPackagesCount,
+          scannedItems
+        });
+        setIsScanningAutosaved(true);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [
+    isOpen,
+    isSubmitting,
+    completionResult,
+    scannedItems,
+    selectedCategory,
+    selectedInvoiceId,
+    lockedInvoiceRef,
+    targetLocation,
+    yarnBatchMode,
+    yarnNetWeightKg,
+    yarnGrossWeightKg,
+    yarnTareWeightKg,
+    yarnPackagesCount
+  ]);
+
+  const handleDiscardRecoveredIntake = () => {
+    clearCategoryIntakeDraft();
+    setRecoveredIntakeInfo(null);
+    setScannedItems([]);
+    setCurrentStep(1);
+  };
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -702,8 +781,13 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
           itemQty = activeNet;
         } else {
           yarnCount = '2/24 NM';
-          dyeLot = dyeLot || (codeUpper.startsWith('LOT-') ? codeUpper : 'LOT-2026');
-          shadeCode = shadeCode || codeUpper;
+          const matchedMill = MILL_SHADE_CATALOG.find(s => s.code.toUpperCase() === (shadeCode || codeUpper).toUpperCase());
+          dyeLot = customMeta?.dyeLot || matchedMill?.defaultDyeLot || dyeLot || (codeUpper.startsWith('LOT-') ? codeUpper : 'LOT-2026');
+          shadeCode = matchedMill?.code || shadeCode || codeUpper;
+          if (matchedMill) {
+            colorName = matchedMill.name;
+            colorHex = matchedMill.hex;
+          }
           packagesCount = activePcs;
           weightPerPackageKg = activeWtPerPkg;
           grossWeightKg = activeGross;
@@ -842,6 +926,8 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
     );
 
     if (res.success) {
+      clearCategoryIntakeDraft();
+      setRecoveredIntakeInfo(null);
       setCompletionResult({
         totalQtyAdded: res.totalQtyAdded || sessionTotalUnits,
         totalCostValuationAdded: res.totalCostValuationAdded || sessionTotalCostValuation,
@@ -887,17 +973,56 @@ export const CategoryIntakeModal: React.FC<CategoryIntakeModalProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                playClickSound();
-                onClose();
-              }}
-              className="p-1.5 sm:p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
-              title="Close Intake Window"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {isScanningAutosaved && scannedItems.length > 0 && (
+                <span className="hidden sm:flex items-center gap-1.5 text-[11px] font-medium text-emerald-300 bg-emerald-950/60 border border-emerald-500/40 px-2.5 py-1 rounded-lg">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Auto-saved
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  playClickSound();
+                  onClose();
+                }}
+                className="p-1.5 sm:p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
+                title="Close Intake Window"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
+
+          {/* Recovery banner if restoring an in-progress intake session */}
+          {recoveredIntakeInfo && (
+            <div
+              id="banner-intake-recovered-session"
+              className="mt-3 bg-amber-500/20 border border-amber-400/40 px-3.5 py-2 rounded-xl text-xs text-amber-200 font-medium flex items-center justify-between gap-3 animate-fade-in"
+            >
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-amber-300 shrink-0" />
+                <span>
+                  <strong>Session Restored:</strong> Resumed your in-progress intake ({recoveredIntakeInfo.count} scanned items, saved {formatDraftTimeAgo(recoveredIntakeInfo.savedAt)}).
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setRecoveredIntakeInfo(null)}
+                  className="px-2.5 py-1 text-xs font-semibold bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg transition-colors cursor-pointer"
+                >
+                  Keep Session
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDiscardRecoveredIntake}
+                  className="px-2.5 py-1 text-xs font-medium text-amber-200 hover:text-rose-200 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                >
+                  Discard &amp; Start Fresh
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Sequential Stepper Navigation Bar */}
           <div className="mt-3 sm:mt-4 pt-3 border-t border-white/10">

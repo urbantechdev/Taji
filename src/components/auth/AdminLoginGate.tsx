@@ -157,7 +157,7 @@ export const AdminLoginGate: React.FC = () => {
                   className="p-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer shadow-2xs flex flex-col gap-0.5"
                 >
                   <span>Authorize as Accountant</span>
-                  <span className="text-[10px] text-emerald-600 font-mono">mwkomu@gmail.com</span>
+                  <span className="text-[10px] text-slate-400 font-normal truncate">Financial Ledger</span>
                 </button>
               </div>
             </div>
@@ -217,8 +217,8 @@ export const AdminLoginGate: React.FC = () => {
             </div>
 
             <div className="p-2 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
-              <span className="text-xs font-mono font-bold text-emerald-700">
-                mwkomu@gmail.com (Accountant)
+              <span className="text-xs font-sans font-bold text-emerald-700">
+                Chief Financial Accountant
               </span>
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>

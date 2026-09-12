@@ -24,6 +24,7 @@ import {
   calculateLocalPurchaseCosting,
   PRESET_LPS_RIVATEX
 } from '../../utils/localPurchaseCostingEngine';
+import { MILL_SHADE_CATALOG } from '../../utils/textileShadeEngine';
 import {
   FileText,
   Building2,
@@ -55,9 +56,16 @@ import {
   Boxes,
   Save,
   Clock,
-  User
+  User,
+  RotateCcw
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
+import {
+  saveInwardInvoiceDraft,
+  getInwardInvoiceDraft,
+  clearInwardInvoiceDraft,
+  formatDraftTimeAgo
+} from '../../utils/draftRecoveryEngine';
 
 interface InwardInvoiceIntakeModalProps {
   isOpen: boolean;
@@ -122,6 +130,56 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [editingInvoiceRecordId, setEditingInvoiceRecordId] = useState<string | null>(null);
 
+  // Known shades collected from Mill Shade Catalog and existing inventory products
+  const knownShades = useMemo(() => {
+    const list: Array<{
+      code: string;
+      name: string;
+      hex: string;
+      category: string;
+      defaultDyeLot?: string;
+      description?: string;
+      source: 'mill' | 'inventory';
+    }> = [];
+    const seen = new Set<string>();
+
+    // 1. Mill Shade Catalog
+    MILL_SHADE_CATALOG.forEach(s => {
+      const codeUpper = s.code.trim().toUpperCase();
+      if (!seen.has(codeUpper)) {
+        seen.add(codeUpper);
+        list.push({
+          code: s.code,
+          name: s.name,
+          hex: s.hex || '#475569',
+          category: s.category || 'All',
+          defaultDyeLot: s.defaultDyeLot,
+          description: s.description,
+          source: 'mill'
+        });
+      }
+    });
+
+    // 2. Existing inventory products
+    products.forEach(p => {
+      const pCode = (p.shadeCode || '').trim();
+      if (pCode && !seen.has(pCode.toUpperCase())) {
+        seen.add(pCode.toUpperCase());
+        list.push({
+          code: pCode,
+          name: p.color || p.name || pCode,
+          hex: p.colorHex || '#475569',
+          category: p.category || 'All',
+          defaultDyeLot: p.dyeLot || p.sku,
+          description: `${p.name} • SKU: ${p.sku}`,
+          source: 'inventory'
+        });
+      }
+    });
+
+    return list;
+  }, [products]);
+
   // Inward Invoice Selection & Store Lock Governance
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('custom');
   const [isStoreLockedByInvoice, setIsStoreLockedByInvoice] = useState<boolean>(false);
@@ -168,6 +226,131 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
       rollsCount: 100
     }
   ]);
+
+  // Step 3: Submission & Status
+  const [isCapitalizing, setIsCapitalizing] = useState(false);
+  const [capitalizationResult, setCapitalizationResult] = useState<{
+    journalRef: string;
+    itemsOnboarded: number;
+    totalLandedCostKES: number;
+    vatClaimedKES: number;
+  } | null>(null);
+
+  // Session Recovery & Auto-save State
+  const [recoveredDraftInfo, setRecoveredDraftInfo] = useState<{ savedAt: string; itemCount: number } | null>(null);
+  const [isDraftAutosaved, setIsDraftAutosaved] = useState(false);
+
+  // Auto-restore uncommitted draft when opening fresh
+  useEffect(() => {
+    if (isOpen && !preselectedInvoice && !editingInvoiceRecordId) {
+      const saved = getInwardInvoiceDraft();
+      if (saved && saved.draftItems && saved.draftItems.length > 0) {
+        setSupplyType(saved.supplyType);
+        if (saved.selectedSupplierId) setSelectedSupplierId(saved.selectedSupplierId);
+        if (saved.invoiceNumber) setInvoiceNumber(saved.invoiceNumber);
+        if (saved.invoiceDate) setInvoiceDate(saved.invoiceDate);
+        if (saved.customsOrEtimsRef) setCustomsOrEtimsRef(saved.customsOrEtimsRef);
+        if (saved.kraEslipRef) setKraEslipRef(saved.kraEslipRef);
+        if (saved.destinationLocation) setDestinationLocation(saved.destinationLocation);
+        if (saved.exchangeRate) setExchangeRate(saved.exchangeRate);
+        if (saved.totalFreightUSD !== undefined) setTotalFreightUSD(saved.totalFreightUSD);
+        if (saved.totalInsuranceUSD !== undefined) setTotalInsuranceUSD(saved.totalInsuranceUSD);
+        if (saved.cocFeesUSD !== undefined) setCocFeesUSD(saved.cocFeesUSD);
+        if (saved.portClearingFeesKES !== undefined) setPortClearingFeesKES(saved.portClearingFeesKES);
+        if (saved.localFreightKES !== undefined) setLocalFreightKES(saved.localFreightKES);
+        if (saved.targetMarkupPct !== undefined) setTargetMarkupPct(saved.targetMarkupPct);
+        setDraftItems(saved.draftItems as NewLineDraft[]);
+        if (saved.currentStep) setCurrentStep(saved.currentStep);
+        if (saved.editingInvoiceRecordId) {
+          setEditingInvoiceRecordId(saved.editingInvoiceRecordId);
+          setSelectedInvoiceId(saved.editingInvoiceRecordId);
+        }
+        setRecoveredDraftInfo({
+          savedAt: saved.savedAt,
+          itemCount: saved.draftItems.length
+        });
+      }
+    }
+  }, [isOpen, preselectedInvoice]);
+
+  // Background Auto-Save to localStorage
+  useEffect(() => {
+    if (!isOpen || isSaving || capitalizationResult) return;
+    const timer = setTimeout(() => {
+      if (draftItems.length > 0) {
+        saveInwardInvoiceDraft({
+          supplyType,
+          selectedSupplierId,
+          invoiceNumber,
+          invoiceDate,
+          customsOrEtimsRef,
+          kraEslipRef,
+          destinationLocation,
+          exchangeRate,
+          totalFreightUSD,
+          totalInsuranceUSD,
+          cocFeesUSD,
+          portClearingFeesKES,
+          localFreightKES,
+          targetMarkupPct,
+          draftItems,
+          currentStep,
+          editingInvoiceRecordId
+        });
+        setIsDraftAutosaved(true);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [
+    isOpen,
+    isSaving,
+    capitalizationResult,
+    supplyType,
+    selectedSupplierId,
+    invoiceNumber,
+    invoiceDate,
+    customsOrEtimsRef,
+    kraEslipRef,
+    destinationLocation,
+    exchangeRate,
+    totalFreightUSD,
+    totalInsuranceUSD,
+    cocFeesUSD,
+    portClearingFeesKES,
+    localFreightKES,
+    targetMarkupPct,
+    draftItems,
+    currentStep,
+    editingInvoiceRecordId
+  ]);
+
+  const handleDiscardRecoveredDraft = () => {
+    clearInwardInvoiceDraft();
+    setRecoveredDraftInfo(null);
+    setDraftItems([
+      {
+        id: `draft-${Date.now()}`,
+        isExistingCatalogProduct: false,
+        name: 'New Inward Line Item',
+        sku: `SKU-${Date.now().toString().slice(-4)}`,
+        category: 'Yarns',
+        subCategory: 'Standard Grade',
+        fiberComposition: '100% ACRYLIC (HB) DYED YARN',
+        colorName: 'Mix Grey',
+        colorHex: '#94A3B8',
+        unit: 'kg',
+        quantity: 0,
+        grossWeightKg: 0,
+        unitPriceUSD: 0,
+        unitPriceKES: 0
+      }
+    ]);
+    setInvoiceNumber(`INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+    setCustomsOrEtimsRef('26EMKIM' + Math.floor(100000000 + Math.random() * 900000000));
+    setKraEslipRef('102026' + Math.floor(1000000000 + Math.random() * 9000000000));
+    setCurrentStep(1);
+    setEditingInvoiceRecordId(null);
+  };
 
   // Load preselectedInvoice prop if provided upon opening
   useEffect(() => {
@@ -474,6 +657,8 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
       };
 
       const res = await saveInwardInvoice(invoiceRecord);
+      clearInwardInvoiceDraft();
+      setRecoveredDraftInfo(null);
       setEditingInvoiceRecordId(invoiceRecord.id);
       setSelectedInvoiceId(invoiceRecord.id);
       playSuccessSound();
@@ -489,15 +674,6 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
       setIsSaving(false);
     }
   };
-
-  // Step 3: Submission & Status
-  const [isCapitalizing, setIsCapitalizing] = useState(false);
-  const [capitalizationResult, setCapitalizationResult] = useState<{
-    journalRef: string;
-    itemsOnboarded: number;
-    totalLandedCostKES: number;
-    vatClaimedKES: number;
-  } | null>(null);
 
   const currentSupplier = suppliers.find(s => s.id === selectedSupplierId) || suppliers[0];
 
@@ -1026,6 +1202,12 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
           </div>
 
           <div className="flex items-center gap-2">
+            {isDraftAutosaved && !saveNotice && (
+              <span className="hidden sm:flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Auto-saved
+              </span>
+            )}
             <button
               id="btn-modal-save-invoice-top"
               type="button"
@@ -1045,6 +1227,37 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
             </button>
           </div>
         </div>
+
+        {/* Recovery banner if restoring an in-progress draft */}
+        {recoveredDraftInfo && (
+          <div
+            id="banner-modal-draft-recovered"
+            className="bg-amber-50 border-b border-amber-200 px-5 py-2.5 text-xs text-amber-900 font-medium flex items-center justify-between gap-3 animate-fade-in"
+          >
+            <div className="flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Session Restored:</strong> Resumed your in-progress intake draft ({recoveredDraftInfo.itemCount} line items, saved {formatDraftTimeAgo(recoveredDraftInfo.savedAt)}).
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setRecoveredDraftInfo(null)}
+                className="px-2.5 py-1 text-xs font-semibold bg-amber-200 hover:bg-amber-300 text-amber-900 rounded-lg transition-colors cursor-pointer"
+              >
+                Keep Draft
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardRecoveredDraft}
+                className="px-2.5 py-1 text-xs font-medium text-amber-800 hover:text-red-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
+              >
+                Discard &amp; Start Fresh
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Save confirmation banner */}
         {saveNotice && (
@@ -1567,13 +1780,24 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3"
                 >
                   <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 text-xs font-black flex items-center justify-center">
                         {idx + 1}
                       </span>
                       <span className="font-bold text-xs text-slate-900">
                         {item.name || 'Untitled Line Item'}
                       </span>
+                      {item.shadeCode && (
+                        <span className="text-[10.5px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-800 flex items-center gap-1.5 border border-slate-300">
+                          {item.colorHex && (
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-slate-400 shrink-0 inline-block"
+                              style={{ backgroundColor: item.colorHex }}
+                            />
+                          )}
+                          <span>{item.shadeCode}</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -1756,32 +1980,190 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                   {/* Lot, Shade, & Packaging breakdown */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Dye Lot # (SKU)
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                          Dye Lot # (SKU)
+                        </label>
+                        {item.dyeLot && (
+                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5">
+                            Auto-filled
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         placeholder="e.g. 26C002"
-                        value={item.dyeLot || ''}
+                        value={item.dyeLot || item.sku || ''}
                         onChange={e => {
                           const val = e.target.value.toUpperCase();
-                          handleUpdateDraft(item.id, { dyeLot: val, sku: val || item.sku });
+                          handleUpdateDraft(item.id, { dyeLot: val, sku: val });
                         }}
                         className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-rose-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Shade / Color Code
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. MAROON-3059"
-                        value={item.shadeCode || item.colorName || ''}
-                        onChange={e => handleUpdateDraft(item.id, { shadeCode: e.target.value, colorName: e.target.value })}
-                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-rose-500"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                          Shade / Color Code
+                        </label>
+                        {item.colorHex && (
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-slate-300 shadow-2xs inline-block shrink-0"
+                            style={{ backgroundColor: item.colorHex }}
+                            title={`Color Swatch: ${item.colorHex}`}
+                          />
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <select
+                          value={
+                            knownShades.some(s => s.code.toUpperCase() === (item.shadeCode || '').trim().toUpperCase())
+                              ? (item.shadeCode || '').trim().toUpperCase()
+                              : ((item.shadeCode && item.shadeCode !== '') ? '__custom__' : '')
+                          }
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === '__custom__') {
+                              if (!item.shadeCode) {
+                                handleUpdateDraft(item.id, { shadeCode: 'CUSTOM-SHADE' });
+                              }
+                              return;
+                            }
+                            if (!val) {
+                              handleUpdateDraft(item.id, { shadeCode: '', colorName: '', colorHex: '' });
+                              return;
+                            }
+                            const matched = knownShades.find(s => s.code.toUpperCase() === val.toUpperCase());
+                            if (matched) {
+                              const autoLot = matched.defaultDyeLot || `LOT-${matched.code.replace(/[^A-Z0-9]/gi, '')}`;
+                              handleUpdateDraft(item.id, {
+                                shadeCode: matched.code,
+                                colorName: matched.name,
+                                colorHex: matched.hex,
+                                dyeLot: autoLot,
+                                sku: autoLot,
+                                ...(matched.category && matched.category !== 'All' ? { category: matched.category as CategoryType } : {})
+                              });
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-rose-500"
+                        >
+                          <option value="">-- Choose Known Shade Code ({knownShades.length}) --</option>
+                          
+                          {/* Recommended for this category */}
+                          {(() => {
+                            const recs = knownShades.filter(s =>
+                              (item.category === 'Yarns' && s.category === 'Yarns') ||
+                              (['Dereck', 'Fleece'].includes(item.category) && ['Dereck', 'Fleece'].includes(s.category))
+                            );
+                            if (recs.length === 0) return null;
+                            return (
+                              <optgroup label={`Recommended for ${item.category}`}>
+                                {recs.map(s => (
+                                  <option key={`rec-${s.code}`} value={s.code.toUpperCase()}>
+                                    ● {s.code} — {s.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            );
+                          })()}
+
+                          {/* Oster India Yarns */}
+                          <optgroup label="Oster India 2/24 NM Acrylic Yarns">
+                            {knownShades
+                              .filter(s => s.category === 'Yarns')
+                              .map(s => (
+                                <option key={`yarn-${s.code}`} value={s.code.toUpperCase()}>
+                                  ● {s.code} — {s.name}
+                                </option>
+                              ))}
+                          </optgroup>
+
+                          {/* Dereck Fabrics */}
+                          <optgroup label="Dereck Fabrics (Rolls / Meters)">
+                            {knownShades
+                              .filter(s => s.category === 'Dereck')
+                              .map(s => (
+                                <option key={`fab-drk-${s.code}`} value={s.code.toUpperCase()}>
+                                  ● {s.code} — {s.name}
+                                </option>
+                              ))}
+                          </optgroup>
+
+                          {/* Fleece Fabrics */}
+                          <optgroup label="Polar Fleece Fabrics (Rolls / Meters)">
+                            {knownShades
+                              .filter(s => s.category === 'Fleece')
+                              .map(s => (
+                                <option key={`fab-fl-${s.code}`} value={s.code.toUpperCase()}>
+                                  ● {s.code} — {s.name}
+                                </option>
+                              ))}
+                          </optgroup>
+
+                          {/* General Mill Palette */}
+                          <optgroup label="General Mill Palette">
+                            {knownShades
+                              .filter(s => s.category === 'All' && s.source === 'mill')
+                              .map(s => (
+                                <option key={`all-${s.code}`} value={s.code.toUpperCase()}>
+                                  ● {s.code} — {s.name}
+                                </option>
+                              ))}
+                          </optgroup>
+
+                          {/* Existing Inventory Shades */}
+                          {knownShades.some(s => s.source === 'inventory') && (
+                            <optgroup label="Catalog & Inventory Batches">
+                              {knownShades
+                                .filter(s => s.source === 'inventory')
+                                .map(s => (
+                                  <option key={`inv-${s.code}`} value={s.code.toUpperCase()}>
+                                    ★ {s.code} — {s.name}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          )}
+
+                          <option value="__custom__">✏️ Custom Shade (Type Manually)...</option>
+                        </select>
+
+                        {/* Custom shade code input if not matching known codes or custom chosen */}
+                        {(!knownShades.some(s => s.code.toUpperCase() === (item.shadeCode || '').trim().toUpperCase()) || item.shadeCode === 'CUSTOM-SHADE') && (
+                          <input
+                            type="text"
+                            placeholder="Type custom shade code (e.g. MAROON-3059)"
+                            value={item.shadeCode === 'CUSTOM-SHADE' ? '' : (item.shadeCode || '')}
+                            onChange={e => {
+                              const val = e.target.value.toUpperCase();
+                              const matched = knownShades.find(s => s.code.toUpperCase() === val.trim() || s.defaultDyeLot?.toUpperCase() === val.trim());
+                              if (matched) {
+                                const autoLot = matched.defaultDyeLot || `LOT-${matched.code.replace(/[^A-Z0-9]/gi, '')}`;
+                                handleUpdateDraft(item.id, {
+                                  shadeCode: matched.code,
+                                  colorName: matched.name,
+                                  colorHex: matched.hex,
+                                  dyeLot: autoLot,
+                                  sku: autoLot,
+                                  ...(matched.category && matched.category !== 'All' ? { category: matched.category as CategoryType } : {})
+                                });
+                              } else {
+                                handleUpdateDraft(item.id, {
+                                  shadeCode: val,
+                                  colorName: item.colorName || val,
+                                  ...(val.trim() && (!item.dyeLot || item.dyeLot.startsWith('LOT-')) ? {
+                                    dyeLot: `LOT-${val.trim().replace(/[^A-Z0-9]/gi, '')}`,
+                                    sku: `LOT-${val.trim().replace(/[^A-Z0-9]/gi, '')}`
+                                  } : {})
+                                });
+                              }
+                            }}
+                            className="w-full bg-amber-50/80 border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-rose-500"
+                          />
+                        )}
+                      </div>
                     </div>
 
                     <div>
