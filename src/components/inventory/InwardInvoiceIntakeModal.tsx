@@ -167,10 +167,10 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
         seen.add(pCode.toUpperCase());
         list.push({
           code: pCode,
-          name: p.color || p.name || pCode,
-          hex: p.colorHex || '#475569',
+          name: (p as any).color || (p as any).colorName || p.name || pCode,
+          hex: (p as any).colorHex || '#475569',
           category: p.category || 'All',
-          defaultDyeLot: p.dyeLot || p.sku,
+          defaultDyeLot: (p as any).dyeLot || p.sku,
           description: `${p.name} • SKU: ${p.sku}`,
           source: 'inventory'
         });
@@ -342,7 +342,8 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
         quantity: 0,
         grossWeightKg: 0,
         unitPriceUSD: 0,
-        unitPriceKES: 0
+        unitPriceKES: 0,
+        hsCode: '5509.32.00'
       }
     ]);
     setInvoiceNumber(`INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);

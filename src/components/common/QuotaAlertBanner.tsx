@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, ExternalLink, X, Database, ShieldAlert } from 'lucide-react';
 import { useERP } from '../../context/ERPContext';
+import { firebaseConfig } from '../../lib/firebase';
 
 export const QuotaAlertBanner: React.FC = () => {
   const { isQuotaExceeded, setIsQuotaExceeded } = useERP();
@@ -10,8 +11,8 @@ export const QuotaAlertBanner: React.FC = () => {
     return null;
   }
 
-  const databaseId = 'ai-studio-taji-9c7acca3-fcfc-48ad-9890-2ef0d95f9983';
-  const projectId = 'gen-lang-client-0971248288';
+  const databaseId = firebaseConfig.firestoreDatabaseId || '(default)';
+  const projectId = firebaseConfig.projectId;
   const consoleUrl = `https://console.firebase.google.com/project/${projectId}/firestore/databases/${databaseId}/data?openUpgradeDialog=true`;
   const pricingUrl = 'https://firebase.google.com/pricing#cloud-firestore';
 

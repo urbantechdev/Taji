@@ -35,6 +35,7 @@ export const AuthModal: React.FC = () => {
     adminUser,
     isGoogleAdminAuthenticated,
     signInWithGoogleAdmin,
+    signInWithSocial,
     signInAsWhitelistedAdmin,
     signInAsAccountant,
     signOutGoogleAdmin,
@@ -386,25 +387,7 @@ export const AuthModal: React.FC = () => {
                     />
                   </svg>
                 )}
-                <span>{isGoogleSigningIn ? 'Connecting...' : 'Sign in with Google'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  playClickSound();
-                  signInAsWhitelistedAdmin();
-                  playSuccessSound();
-                  setSuccessMessage('Welcome Administrator');
-                  setTimeout(() => {
-                    setIsAuthModalOpen(false);
-                    setSuccessMessage(null);
-                  }, 600);
-                }}
-                className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98 shadow-sm"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Continue as Admin</span>
+                <span>{isGoogleSigningIn ? 'Connecting...' : 'Sign in with Google (Admin)'}</span>
               </button>
 
               {unauthorizedDomain && (
@@ -446,25 +429,7 @@ export const AuthModal: React.FC = () => {
                     />
                   </svg>
                 )}
-                <span>{isGoogleSigningIn ? 'Connecting...' : 'Sign in with Google'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  playClickSound();
-                  signInAsAccountant('mwkomu@gmail.com');
-                  playSuccessSound();
-                  setSuccessMessage('Welcome Chief Accountant');
-                  setTimeout(() => {
-                    setIsAuthModalOpen(false);
-                    setSuccessMessage(null);
-                  }, 600);
-                }}
-                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98 shadow-sm"
-              >
-                <Landmark className="w-4 h-4" />
-                <span>Continue as Accountant</span>
+                <span>{isGoogleSigningIn ? 'Connecting...' : 'Sign in with Google (Accountant)'}</span>
               </button>
 
               {unauthorizedDomain && (

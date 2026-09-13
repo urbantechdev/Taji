@@ -4663,7 +4663,7 @@ export const AccountingLedger: React.FC = () => {
                     }}
                     className="text-emerald-700 hover:underline font-bold text-[11px]"
                   >
-                    Insert Demo Statement Dump
+                    Insert Sample CSV Format
                   </button>
                 </div>
                 <textarea

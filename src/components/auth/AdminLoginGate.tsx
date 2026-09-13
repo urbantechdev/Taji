@@ -137,30 +137,6 @@ export const AdminLoginGate: React.FC = () => {
                 </p>
               </div>
             </div>
-
-            <div className="pt-2 border-t border-amber-200/80 space-y-2">
-              <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
-                Preview Mode Quick Authorization:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => signInAsWhitelistedAdmin()}
-                  className="p-3 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer shadow-2xs flex flex-col gap-0.5"
-                >
-                  <span>Authorize as Super Admin</span>
-                  <span className="text-[10px] text-slate-400 font-normal truncate">Executive Management</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => signInAsAccountant('mwkomu@gmail.com')}
-                  className="p-3 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer shadow-2xs flex flex-col gap-0.5"
-                >
-                  <span>Authorize as Accountant</span>
-                  <span className="text-[10px] text-slate-400 font-normal truncate">Financial Ledger</span>
-                </button>
-              </div>
-            </div>
           </div>
         )}
 

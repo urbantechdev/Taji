@@ -89,6 +89,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
     posSession,
     isGoogleAdminAuthenticated,
     adminUser,
+    isEmailVerified,
     lockPOSSession,
     signOutGoogleAdmin,
     isMailDrawerOpen,
@@ -1192,8 +1193,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
 
             {/* Executive User Profile */}
             <CapabilityTooltip
-              title="User Profile & Credentials"
-              description="View active operator name, role permissions, and active store station."
+              title={isEmailVerified ? `Verified User: ${currentUser.name}` : `User Profile: ${currentUser.name}`}
+              description={isEmailVerified ? 'Email verified with Firebase Authentication. Full ERP access.' : 'Email pending verification. Click to verify in profile.'}
               roleRequired="Current User"
               shortcut="Alt + P"
               placement="bottom"
@@ -1202,10 +1203,22 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               <button
                 type="button"
                 onClick={() => setIsUserProfileModalOpen(true)}
-                className="p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all cursor-pointer group flex items-center justify-center hover:scale-105 active:scale-95"
+                className={`p-2 sm:px-3 sm:py-2 rounded-xl transition-all cursor-pointer group flex items-center gap-1.5 hover:scale-105 active:scale-95 border ${
+                  isEmailVerified
+                    ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-white'
+                    : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-400/50 text-amber-200'
+                }`}
                 title={`Profile: ${currentUser.name}`}
               >
-                <User className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                <User className="w-4 h-4 text-white group-hover:scale-110 transition-transform shrink-0" />
+                <span className="hidden lg:inline text-xs font-bold text-white truncate max-w-[110px]">
+                  {currentUser.name.split(' ')[0]}
+                </span>
+                {isEmailVerified ? (
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-pulse" />
+                )}
               </button>
             </CapabilityTooltip>
 
