@@ -29,12 +29,25 @@ import polarFleeceRollsImg from '../assets/images/polar_fleece_rolls_17885330802
 
 export const INITIAL_POS_OPERATORS: POSOperator[] = [
   {
+    id: 'op-super-admin-gd',
+    name: 'Executive Super Admin',
+    email: 'gduniversalstudio@gmail.com',
+    phone: '+254 700 000 000',
+    kraPin: 'P051982341Z',
+    pin: '',
+    location: 'main_store',
+    role: 'admin',
+    status: 'active',
+    createdBy: 'System Root',
+    createdAt: new Date().toISOString()
+  },
+  {
     id: 'op-super-admin',
     name: 'Executive Super Admin',
     email: 'feminiholdings@gmail.com',
     phone: '+254 700 000 000',
     kraPin: 'P051982341Z',
-    pin: '123456',
+    pin: '',
     location: 'main_store',
     role: 'admin',
     status: 'active',

@@ -1,7 +1,21 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updateProfile,
+  onAuthStateChanged,
+  reload,
+  User
+} from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+export { firebaseConfig };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
@@ -9,6 +23,13 @@ const configWithDb = firebaseConfig as typeof firebaseConfig & { firestoreDataba
 export const db = configWithDb.firestoreDatabaseId ? getFirestore(app, configWithDb.firestoreDatabaseId) : getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Request relevant scopes for Google
+googleProvider.addScope('email');
+googleProvider.addScope('profile');
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 export enum OperationType {
   CREATE = 'create',
@@ -47,9 +68,27 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Safe test connection helper if invoked manually
-export async function testFirestoreConnection() {
-  // Graceful no-op on initial module load to avoid 10-second backend timeout errors when offline
+// Safe test connection helper as required by Firebase skill
+export async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration.");
+    }
+  }
 }
+testConnection();
 
-export { signInWithPopup, signOut };
+export {
+  signInWithPopup,
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updateProfile,
+  onAuthStateChanged,
+  reload
+};
+export type { User };

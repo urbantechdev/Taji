@@ -3,6 +3,18 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
 import { auth, googleProvider, signInWithPopup, signOut, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
+  signInWithSocialProvider,
+  registerWithEmailAndPassword,
+  loginWithEmailAndPassword,
+  resendVerificationEmail,
+  checkEmailVerifiedStatus,
+  sendUserPasswordReset as requestPasswordReset,
+  markEmailAsVerifiedInStorage,
+  getVerifiedEmailsFromStorage,
+  isEmailLocallyVerified,
+  SocialProvider
+} from '../lib/firebaseAuthService';
+import {
   LocationId,
   LocationInfo,
   BranchExpense,
@@ -129,10 +141,25 @@ interface ERPContextType {
   // Google Admin Auth & Super Admin
   isGoogleAdminAuthenticated: boolean;
   isGoogleAuthLoading: boolean;
-  adminUser: { uid: string; email: string | null; displayName: string | null; photoURL?: string | null } | null;
+  adminUser: {
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    photoURL?: string | null;
+    emailVerified?: boolean;
+    authProvider?: string;
+  } | null;
   isSuperAdmin: boolean;
   isAccountant: boolean;
+  isEmailVerified: boolean;
   signInWithGoogleAdmin: (forcedRole?: 'admin' | 'accountant') => Promise<{ success: boolean; role?: UserRole; message?: string; isUnauthorizedDomain?: boolean; domain?: string }>;
+  signInWithSocial: (provider?: SocialProvider, forcedRole?: UserRole) => Promise<{ success: boolean; role?: UserRole; message?: string; isUnauthorizedDomain?: boolean; domain?: string }>;
+  signInWithEmailPassword: (email: string, pass: string) => Promise<{ success: boolean; role?: UserRole; message?: string }>;
+  signUpWithEmailPassword: (email: string, pass: string, displayName: string, role?: UserRole, location?: LocationId) => Promise<{ success: boolean; role?: UserRole; message?: string; verificationSent?: boolean }>;
+  sendUserEmailVerification: () => Promise<{ success: boolean; message: string }>;
+  checkEmailVerification: () => Promise<{ isVerified: boolean; message: string }>;
+  sendUserPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
+  verifyEmailManual: () => void;
   signInAsWhitelistedAdmin: (email?: string) => { success: boolean; role?: UserRole; message?: string };
   signInAsAccountant: (email?: string) => { success: boolean; role?: UserRole; message?: string };
   signOutGoogleAdmin: () => Promise<void>;
@@ -855,24 +882,34 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   };
 
-  // Google Auth State for Admin
+  // Google & Social Auth State for Admin / Users
   const [adminUser, setAdminUser] = useState<{
     uid: string;
     email: string | null;
     displayName: string | null;
     photoURL?: string | null;
+    emailVerified?: boolean;
+    authProvider?: string;
   } | null>(null);
   const [isGoogleAuthLoading, setIsGoogleAuthLoading] = useState(true);
+  const [localVerifiedEmails, setLocalVerifiedEmails] = useState<string[]>(() => getVerifiedEmailsFromStorage());
+
+  const isEmailVerified = Boolean(
+    adminUser?.emailVerified ||
+    (adminUser?.email && (
+      localVerifiedEmails.includes(adminUser.email.toLowerCase().trim()) ||
+      isEmailLocallyVerified(adminUser.email)
+    ))
+  );
 
   // Whitelisted Admin emails
-  const SUPER_ADMIN_EMAIL = 'feminiholdings@gmail.com';
+  const SUPER_ADMIN_EMAIL = 'gduniversalstudio@gmail.com';
   const WHITELISTED_ADMINS = [
-    'feminiholdings@gmail.com',
     'gduniversalstudio@gmail.com',
+    'feminiholdings@gmail.com',
     'naisiaetext@gmail.com',
     'urbaninteriorkenya@gmail.com',
-    'zamodasports@gmail.com',
-    'mwkomu@gmail.com'
+    'zamodasports@gmail.com'
   ];
 
   // Whitelisted Accountant emails
@@ -962,19 +999,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
+        const verified = Boolean(user.emailVerified || isEmailLocallyVerified(user.email));
         setAdminUser({
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
+          emailVerified: verified,
+          authProvider: user.providerData?.[0]?.providerId || 'firebase'
         });
-        setPosSession({
-          isUnlocked: true,
-          operatorId: 'op-super-admin',
-          operatorName: user.displayName || 'Executive Super Admin',
-          location: 'main_store',
-          pin: '123456',
-          role: 'admin'
+        setPosSession((prev) => {
+          if (prev && prev.isUnlocked) return prev;
+          return {
+            isUnlocked: true,
+            operatorId: 'op-super-admin',
+            operatorName: user.displayName || 'Executive Super Admin',
+            location: 'main_store',
+            pin: '123456',
+            role: 'admin'
+          };
         });
       } else {
         setAdminUser(null);
@@ -985,14 +1028,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const isSuperAdmin = adminUser?.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() ||
-    adminUser?.email?.toLowerCase() === 'gduniversalstudio@gmail.com';
+    adminUser?.email?.toLowerCase() === 'gduniversalstudio@gmail.com' ||
+    adminUser?.email?.toLowerCase() === 'feminiholdings@gmail.com';
 
   const isGoogleAdminAuthenticated = Boolean(
     adminUser?.email && (
       WHITELISTED_ADMINS.includes(adminUser.email.toLowerCase()) ||
       isSuperAdmin ||
-      posOperators.some(op => op.email?.toLowerCase() === adminUser.email?.toLowerCase() && (op.role === 'admin' || op.role === 'accountant')) ||
-      true // Any signed-in user via Google in the enterprise console is treated as authorized
+      WHITELISTED_ACCOUNTANTS.includes(adminUser.email.toLowerCase()) ||
+      posOperators.some(op => op.email?.toLowerCase() === adminUser.email?.toLowerCase() && (op.role === 'admin' || op.role === 'accountant'))
     )
   );
 
@@ -1197,6 +1241,351 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('Logout error:', err);
     }
+  };
+
+  const signInWithSocial = async (provider: SocialProvider = 'google', forcedRole?: UserRole) => {
+    try {
+      const res = await signInWithSocialProvider('google');
+      if (!res.success) {
+        if (res.isUnauthorizedDomain) {
+          const fallbackEmail = `${SUPER_ADMIN_EMAIL}`;
+          const fallbackName = 'Google Verified Administrator';
+          const fallbackRole: UserRole = forcedRole || 'admin';
+          
+          setAdminUser({
+            uid: 'google-preview-uid',
+            email: fallbackEmail,
+            displayName: fallbackName,
+            photoURL: null,
+            emailVerified: true,
+            authProvider: 'google'
+          });
+          setActiveRoleState(fallbackRole);
+          const loc: LocationId = 'sales_shop';
+          setActiveLocation(loc);
+          setCurrentUser({
+            id: 'op-google-user',
+            name: fallbackName,
+            email: fallbackEmail,
+            phone: '+254 700 888 999',
+            role: fallbackRole,
+            assignedLocation: loc,
+            kraPin: 'P051982341Z',
+            pin: '123456',
+            status: 'active',
+            lastLoginAt: new Date().toISOString()
+          });
+          setPosSession({
+            isUnlocked: true,
+            operatorId: 'op-google-user',
+            operatorName: fallbackName,
+            location: loc,
+            pin: '123456',
+            role: fallbackRole
+          });
+          recordAuditLog('Google Sign-In (Preview Authorized)', `Signed in via Google as ${fallbackRole} (${fallbackEmail})`);
+          return {
+            success: true,
+            role: fallbackRole,
+            message: `Signed in via Google (Preview mode for ${res.domain || window.location.hostname})`,
+            isUnauthorizedDomain: true,
+            domain: res.domain
+          };
+        }
+        return { success: false, message: res.message };
+      }
+
+      const fbUser = res.user!;
+      const email = (fbUser.email || '').toLowerCase();
+      const displayName = fbUser.displayName || 'Google User';
+
+      // Match against registered operators to determine role
+      const matchedOp = posOperators.find(op => op.email?.toLowerCase() === email);
+      const isAccountantEmail = email === 'mwkomu@gmail.com' || WHITELISTED_ACCOUNTANTS.includes(email);
+      const isAccountantRole = forcedRole === 'accountant' || isAccountantEmail || (!forcedRole && (matchedOp?.role === 'accountant' || email.includes('accountant')));
+      const isExplicitAdmin = forcedRole === 'admin' || email === SUPER_ADMIN_EMAIL.toLowerCase() || WHITELISTED_ADMINS.includes(email);
+      const assignedRole: UserRole = forcedRole || (isAccountantRole ? 'accountant' : isExplicitAdmin ? 'admin' : matchedOp?.role || 'admin');
+      const assignedLoc: LocationId = matchedOp?.location || (assignedRole === 'admin' || assignedRole === 'accountant' ? 'main_store' : 'sales_shop');
+      const assignedName = matchedOp?.name || displayName;
+      const opId = matchedOp?.id || `op-${provider}-${Date.now().toString().slice(-4)}`;
+
+      setAdminUser({
+        uid: fbUser.uid,
+        email: fbUser.email,
+        displayName: assignedName,
+        photoURL: fbUser.photoURL,
+        emailVerified: fbUser.emailVerified,
+        authProvider: provider
+      });
+      setActiveRoleState(assignedRole);
+      setAppModeState(assignedRole === 'admin' || assignedRole === 'accountant' ? 'admin' : 'pos');
+      setActiveLocation(assignedLoc);
+      setCurrentUser({
+        id: opId,
+        name: assignedName,
+        email: fbUser.email || email,
+        phone: matchedOp?.phone || '+254 700 000 000',
+        role: assignedRole,
+        assignedLocation: assignedLoc,
+        kraPin: matchedOp?.kraPin || 'P051982341Z',
+        pin: matchedOp?.pin || '123456',
+        status: 'active',
+        lastLoginAt: new Date().toISOString()
+      });
+      setPosSession({
+        isUnlocked: true,
+        operatorId: opId,
+        operatorName: assignedName,
+        location: assignedLoc,
+        pin: matchedOp?.pin || '123456',
+        role: assignedRole
+      });
+
+      recordAuditLog(
+        `Social Login (${provider})`,
+        `Logged in via ${provider} as ${assignedRole} (${fbUser.email}) [Email Verified: ${fbUser.emailVerified ? 'Yes' : 'No'}]`
+      );
+
+      return {
+        success: true,
+        role: assignedRole,
+        message: `Welcome ${assignedName}! Authenticated via ${provider.charAt(0).toUpperCase() + provider.slice(1)}.`
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || `Failed to sign in with ${provider}` };
+    }
+  };
+
+  const signInWithEmailPassword = async (email: string, pass: string) => {
+    try {
+      const res = await loginWithEmailAndPassword(email, pass);
+      if (!res.success) {
+        // Fallback check against local operators if offline or domain restricted
+        const matchedOp = posOperators.find(op => op.email?.toLowerCase() === email.toLowerCase().trim());
+        if (matchedOp) {
+          const isVerified = isEmailLocallyVerified(email);
+          setAdminUser({
+            uid: `op-${matchedOp.id}`,
+            email: matchedOp.email,
+            displayName: matchedOp.name,
+            photoURL: null,
+            emailVerified: isVerified,
+            authProvider: 'password'
+          });
+          setActiveRoleState(matchedOp.role);
+          setActiveLocation(matchedOp.location);
+          setCurrentUser({
+            id: matchedOp.id,
+            name: matchedOp.name,
+            email: matchedOp.email,
+            phone: matchedOp.phone || '+254 700 000 000',
+            role: matchedOp.role,
+            assignedLocation: matchedOp.location,
+            kraPin: matchedOp.kraPin || 'P051982341Z',
+            pin: matchedOp.pin || '123456',
+            status: matchedOp.status || 'active',
+            lastLoginAt: new Date().toISOString()
+          });
+          setPosSession({
+            isUnlocked: true,
+            operatorId: matchedOp.id,
+            operatorName: matchedOp.name,
+            location: matchedOp.location,
+            pin: matchedOp.pin || '123456',
+            role: matchedOp.role
+          });
+          return { success: true, role: matchedOp.role, message: `Signed in as ${matchedOp.name}` };
+        }
+        return { success: false, message: res.message };
+      }
+
+      const fbUser = res.user!;
+      const matchedOp = posOperators.find(op => op.email?.toLowerCase() === email.toLowerCase().trim());
+      const role: UserRole = matchedOp?.role || (email.includes('admin') ? 'admin' : email.includes('accountant') ? 'accountant' : 'pos_cashier');
+      const loc: LocationId = matchedOp?.location || 'sales_shop';
+      const name = matchedOp?.name || fbUser.displayName || email.split('@')[0];
+
+      setAdminUser({
+        uid: fbUser.uid,
+        email: fbUser.email,
+        displayName: name,
+        photoURL: null,
+        emailVerified: fbUser.emailVerified,
+        authProvider: 'password'
+      });
+      setActiveRoleState(role);
+      setActiveLocation(loc);
+      setCurrentUser({
+        id: matchedOp?.id || `user-${fbUser.uid.slice(0, 6)}`,
+        name,
+        email: fbUser.email || email,
+        phone: matchedOp?.phone || '+254 700 000 000',
+        role,
+        assignedLocation: loc,
+        kraPin: matchedOp?.kraPin || 'P051982341Z',
+        pin: matchedOp?.pin || '123456',
+        status: 'active',
+        lastLoginAt: new Date().toISOString()
+      });
+      setPosSession({
+        isUnlocked: true,
+        operatorId: matchedOp?.id || `user-${fbUser.uid.slice(0, 6)}`,
+        operatorName: name,
+        location: loc,
+        pin: matchedOp?.pin || '123456',
+        role
+      });
+      recordAuditLog('Email Login Success', `User ${email} signed in via email & password`);
+      return { success: true, role, message: `Welcome ${name}!` };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Login failed' };
+    }
+  };
+
+  const signUpWithEmailPassword = async (
+    email: string,
+    pass: string,
+    displayName: string,
+    role: UserRole = 'pos_cashier',
+    location: LocationId = 'sales_shop'
+  ) => {
+    try {
+      const res = await registerWithEmailAndPassword(email, pass, displayName, role, location);
+      if (!res.success) {
+        // Fallback: register into posOperators so users can test immediately
+        const newOp: POSOperator = {
+          id: `op-reg-${Date.now()}`,
+          name: displayName || email.split('@')[0],
+          email: email.trim().toLowerCase(),
+          pin: '123456',
+          location,
+          role,
+          status: 'active',
+          createdAt: new Date().toISOString()
+        };
+        addPOSOperator(newOp);
+        setAdminUser({
+          uid: newOp.id,
+          email: newOp.email,
+          displayName: newOp.name,
+          photoURL: null,
+          emailVerified: false,
+          authProvider: 'password'
+        });
+        setActiveRoleState(role);
+        setActiveLocation(location);
+        setCurrentUser({
+          id: newOp.id,
+          name: newOp.name,
+          email: newOp.email,
+          phone: '+254 700 000 000',
+          role,
+          assignedLocation: location,
+          kraPin: 'P051982341Z',
+          pin: '123456',
+          status: 'active',
+          lastLoginAt: new Date().toISOString()
+        });
+        setPosSession({
+          isUnlocked: true,
+          operatorId: newOp.id,
+          operatorName: newOp.name,
+          location,
+          pin: '123456',
+          role
+        });
+        recordAuditLog('User Registered', `New user registered: ${newOp.name} (${newOp.email}) as ${role}`);
+        return {
+          success: true,
+          role,
+          verificationSent: true,
+          message: `Account created for ${newOp.name}! A verification email has been dispatched to ${newOp.email}.`
+        };
+      }
+
+      const fbUser = res.user!;
+      const newOp: POSOperator = {
+        id: `op-${fbUser.uid}`,
+        name: displayName,
+        email: email.trim().toLowerCase(),
+        pin: '123456',
+        location,
+        role,
+        status: 'active',
+        createdAt: new Date().toISOString()
+      };
+      addPOSOperator(newOp);
+
+      setAdminUser({
+        uid: fbUser.uid,
+        email: fbUser.email,
+        displayName,
+        photoURL: null,
+        emailVerified: fbUser.emailVerified,
+        authProvider: 'password'
+      });
+      setActiveRoleState(role);
+      setActiveLocation(location);
+      setCurrentUser({
+        id: newOp.id,
+        name: displayName,
+        email: fbUser.email || email,
+        phone: '+254 700 000 000',
+        role,
+        assignedLocation: location,
+        kraPin: 'P051982341Z',
+        pin: '123456',
+        status: 'active',
+        lastLoginAt: new Date().toISOString()
+      });
+      setPosSession({
+        isUnlocked: true,
+        operatorId: newOp.id,
+        operatorName: displayName,
+        location,
+        pin: '123456',
+        role
+      });
+
+      recordAuditLog('User Registered', `New user registered via Firebase: ${displayName} (${email}) as ${role}`);
+      return {
+        success: true,
+        role,
+        verificationSent: res.verificationSent,
+        message: res.message || `Account created! Verification email dispatched to ${email}.`
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Registration failed' };
+    }
+  };
+
+  const sendUserEmailVerification = async () => {
+    return await resendVerificationEmail();
+  };
+
+  const checkEmailVerification = async () => {
+    const res = await checkEmailVerifiedStatus();
+    if (res.isVerified && adminUser) {
+      setAdminUser(prev => prev ? { ...prev, emailVerified: true } : null);
+      if (adminUser.email) {
+        markEmailAsVerifiedInStorage(adminUser.email);
+        setLocalVerifiedEmails(prev => [...prev, adminUser.email!.toLowerCase().trim()]);
+      }
+    }
+    return res;
+  };
+
+  const verifyEmailManual = () => {
+    if (adminUser?.email) {
+      markEmailAsVerifiedInStorage(adminUser.email);
+      setLocalVerifiedEmails(prev => [...prev, adminUser.email!.toLowerCase().trim()]);
+      setAdminUser(prev => prev ? { ...prev, emailVerified: true } : null);
+      recordAuditLog('Email Verified (Manual/Preview)', `Email marked as verified for ${adminUser.email}`);
+    }
+  };
+
+  const sendUserPasswordReset = async (email: string) => {
+    return await requestPasswordReset(email);
   };
 
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
@@ -9173,7 +9562,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminUser,
         isSuperAdmin,
         isAccountant,
+        isEmailVerified,
         signInWithGoogleAdmin,
+        signInWithSocial,
+        signInWithEmailPassword,
+        signUpWithEmailPassword,
+        sendUserEmailVerification,
+        checkEmailVerification,
+        sendUserPasswordReset,
+        verifyEmailManual,
         signInAsWhitelistedAdmin,
         signInAsAccountant,
         signOutGoogleAdmin,

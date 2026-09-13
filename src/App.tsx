@@ -29,6 +29,7 @@ import { MobileBarcodeScannerModal } from './components/common/MobileBarcodeScan
 import { DuplicateBarcodeAlertModal } from './components/common/DuplicateBarcodeAlertModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { PlatformLockScreen } from './components/auth/PlatformLockScreen';
+import { EmailVerificationBanner } from './components/auth/EmailVerificationBanner';
 import { InactivityLockModal } from './components/auth/InactivityLockModal';
 import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
 import { ReturnExchangeModal } from './components/ReturnExchangeModal';
@@ -159,6 +160,9 @@ const ERPContent: React.FC = () => {
 
       {/* Cloud Quota Status Notice Banner */}
       <QuotaAlertBanner />
+
+      {/* Firebase Email Verification Notice Banner */}
+      <EmailVerificationBanner />
 
       {/* Main Workspace Body (Stationary Sidebar + Scrollable Body) */}
       <div className="flex-1 flex flex-row overflow-hidden w-full min-h-0 relative">

@@ -646,14 +646,14 @@ export function parseMillLabelPayload(rawText: string): ParsedMillLabelData | nu
       colorName: queryMatch.name,
       colorHex: queryMatch.hex,
       dyeLot: queryMatch.defaultDyeLot || (textUpper.startsWith('LOT-') ? textUpper : 'LOT-2026'),
-      grossWeightKg: queryMatch.standardTareKg ? 24.840 : undefined,
-      netWeightKg: queryMatch.standardTareKg ? 24.000 : undefined,
-      tareWeightKg: queryMatch.standardTareKg || undefined,
+      grossWeightKg: (queryMatch as any).standardTareKg ? 24.840 : undefined,
+      netWeightKg: (queryMatch as any).standardTareKg ? 24.000 : undefined,
+      tareWeightKg: (queryMatch as any).standardTareKg || undefined,
       packagesCount: 12,
       yarnCount: '2/24 NM',
-      manufacturer: queryMatch.millSupplier || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
+      manufacturer: (queryMatch as any).millSupplier || 'UDEY UDYOG UNIT OF OSTER INDIA PVT LTD',
       fiberComposition: '100% ACRYLIC (HB) DYED YARN',
-      category: queryMatch.category === 'All' ? 'Yarns' : queryMatch.category
+      category: ((queryMatch.category === 'All' || !queryMatch.category) ? 'Yarns' : queryMatch.category) as 'Fleece' | 'Dereck' | 'Yarns'
     };
   }
 
