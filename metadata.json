@@ -1,6 +1,6 @@
 {
   "name": "Taji ERP",
-  "description": "Enterprise Multi-Device Textile ERP & Billing System",
+  "description": "Enterprise Multi-Device Textile ERP & Billing System with Firebase Authentication",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

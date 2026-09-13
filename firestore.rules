@@ -138,5 +138,20 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if true;
     }
+
+    // Categories Collection
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+
+    // Sliders Collection
+    match /sliders/{sliderId} {
+      allow read, write: if true;
+    }
+
+    // Connection Health Verification
+    match /test/{testId} {
+      allow read, write: if true;
+    }
   }
 }
