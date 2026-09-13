@@ -105,18 +105,6 @@ export const StorefrontCustomerAuthModal: React.FC = () => {
     }
   };
 
-  const handleQuickDemoCustomer = () => {
-    playClickSound();
-    setErrorMessage(null);
-    const result = loginWebsiteCustomer('faith.wanjiku@gmail.com');
-    if (result.success) {
-      setSuccessMessage('Logged in as Faith Wanjiku (Retail Customer)');
-      setTimeout(() => {
-        handleClose();
-      }, 1000);
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
       <motion.div
@@ -304,20 +292,6 @@ export const StorefrontCustomerAuthModal: React.FC = () => {
                 <span>Sign In to Customer Account</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
-
-              {/* Instant Demo Customer Button for Seamless Testing */}
-              <div className="pt-2 border-t border-slate-100 text-center">
-                <p className="text-[11px] text-slate-500 mb-2">Want to test the shopper experience instantly?</p>
-                <button
-                  type="button"
-                  onClick={handleQuickDemoCustomer}
-                  className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                  id="btn-quick-demo-customer"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-rose-600" />
-                  <span>1-Click Test Login as Faith Wanjiku (Shopper)</span>
-                </button>
-              </div>
             </form>
           )}
 
