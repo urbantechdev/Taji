@@ -1,248 +1,386 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ERPProvider, useERP } from './context/ERPContext';
-import { Header } from './components/layout/Header';
-import { Sidebar, NavTab } from './components/layout/Sidebar';
-import { MobileBottomNav } from './components/layout/MobileBottomNav';
-import { DesktopBottomNav } from './components/layout/DesktopBottomNav';
-import { isTabAllowedForRole, ROLE_DEFINITIONS } from './utils/rbac';
-import { AdminDashboard } from './components/dashboard/AdminDashboard';
-import { POSModule } from './components/pos/POSModule';
-import { InventoryCatalog } from './components/inventory/InventoryCatalog';
-import { InterStoreTransfers } from './components/transfers/InterStoreTransfers';
-import { AccountingLedger } from './components/ledger/AccountingLedger';
-import { ETRModule } from './components/etr/ETRModule';
-import { HRPayrollModule } from './components/hr/HRPayrollModule';
-import { AuditLogsModule } from './components/audit/AuditLogsModule';
-import { POSOperatorManager } from './components/admin/POSOperatorManager';
-import { BranchManagementModule } from './components/branches/BranchManagementModule';
-import { TodaySalesView } from './components/dashboard/TodaySalesView';
-import { CloseShiftModal } from './components/pos/CloseShiftModal';
-import { ShiftZReportModal } from './components/pos/ShiftZReportModal';
-import { PeriodicStatementModal } from './components/dashboard/PeriodicStatementModal';
-import { TodaySalesModal } from './components/dashboard/TodaySalesModal';
-import { GmailInbox } from './components/gmail/GmailInbox';
-import { SettingsModule } from './components/settings/SettingsModule';
-import { ETRReceiptModal } from './components/common/ETRReceiptModal';
-import { QRScannerModal } from './components/common/QRScannerModal';
-import { MobileBarcodeScannerModal } from './components/common/MobileBarcodeScannerModal';
-import { DuplicateBarcodeAlertModal } from './components/common/DuplicateBarcodeAlertModal';
-import { AuthModal } from './components/auth/AuthModal';
-import { PlatformLockScreen } from './components/auth/PlatformLockScreen';
-import { EmailVerificationBanner } from './components/auth/EmailVerificationBanner';
-import { InactivityLockModal } from './components/auth/InactivityLockModal';
-import { MailNotificationPopup } from './components/notifications/MailNotificationPopup';
-import { ReturnExchangeModal } from './components/ReturnExchangeModal';
-import { FabricRollManagerModal } from './components/FabricRollManagerModal';
-import { UserGuideModule } from './components/docs/UserGuideModule';
-import { Footer } from './components/layout/Footer';
-import { StorefrontView } from './components/storefront/StorefrontView';
-import { QuotaAlertBanner } from './components/common/QuotaAlertBanner';
-import { CategoryIntakeModal } from './components/inventory/CategoryIntakeModal';
+import { UniformProduct, QuoteItem } from './types';
+import { UNIFORM_PRODUCTS } from './data/uniformsData';
+import { Navbar } from './components/Navbar';
+import { Hero } from './components/Hero';
+import { UniformCatalog } from './components/UniformCatalog';
+import { InteractiveCustomizer } from './components/InteractiveCustomizer';
+import { Footer } from './components/Footer';
+import { UniformModal } from './components/UniformModal';
+import { QuoteEstimatorModal } from './components/QuoteEstimatorModal';
+import { SizeAndFabricGuide } from './components/SizeAndFabricGuide';
+import { MobileStorefrontBottomNav } from './components/MobileStorefrontBottomNav';
+import { ERPProvider } from './context/ERPContext';
+import { AdminERPSuite } from './components/admin/AdminERPSuite';
+import { PlatformPolicyPage } from './pages/PlatformPolicyPage';
+import { TermsOfServicePage } from './pages/TermsOfServicePage';
+import { CookiePolicyPage } from './pages/CookiePolicyPage';
+import { LocationPage } from './pages/LocationPage';
+import { CookieConsentBanner } from './components/CookieConsentBanner';
+import { ServicesSection } from './components/ServicesSection';
+import { ContactSection } from './components/ContactSection';
+import { updateSEO } from './utils/seo';
 
-const ERPContent: React.FC = () => {
-  const {
-    appMode,
-    isPlatformUnlocked,
-    isAdmin,
-    activeRole,
-    currentUser,
-    viewMode,
-    setViewMode,
-    activeNavTab,
-    setActiveNavTab,
-    isCategoryIntakeModalOpen,
-    closeCategoryIntakeModal,
-    categoryIntakeInitialInvoiceId,
-    categoryIntakeInitialCategory
-  } = useERP();
+export type AppViewMode = 'storefront' | 'erp' | 'privacy' | 'terms' | 'cookies' | 'location';
 
-  // Verify and enforce role permission for currently selected tab
-  const effectiveRole = activeRole || currentUser?.role || 'admin';
-  const roleAllowedTabs = ROLE_DEFINITIONS[effectiveRole]?.allowedTabs || ['pos'];
-  const isCurrentTabAllowed = isTabAllowedForRole(effectiveRole, activeNavTab);
-  const effectiveTab: NavTab = (isCurrentTabAllowed ? activeNavTab : (roleAllowedTabs[0] || 'pos')) as NavTab;
-
-  // Auto sync if user changes role or activeNavTab is forbidden for their permissions
-  useEffect(() => {
-    if (!isCurrentTabAllowed && activeNavTab !== effectiveTab) {
-      setActiveNavTab(effectiveTab);
-    }
-  }, [isCurrentTabAllowed, activeNavTab, effectiveTab, setActiveNavTab]);
-
-  const handleSetActiveTab = (tab: NavTab) => {
-    setActiveNavTab(tab);
-  };
-
-  const triggerFullscreen = () => {
-    const doc = window.document;
-    const docEl = doc.documentElement as any;
-    if (
-      !doc.fullscreenElement &&
-      !(doc as any).webkitFullscreenElement &&
-      !(doc as any).mozFullScreenElement &&
-      !(doc as any).msFullscreenElement
-    ) {
-      const enterMethod =
-        docEl.requestFullscreen ||
-        docEl.webkitRequestFullscreen ||
-        docEl.mozRequestFullScreen ||
-        docEl.msRequestFullscreen;
-
-      if (enterMethod) {
-        enterMethod.call(docEl).catch(() => {
-          // Handled silently if browser security blocks non-gesture fullscreen
-        });
+export default function App() {
+  // View mode: storefront website always loads first. Admin is accessed through the lock icon at the footer.
+  const [viewMode, setViewMode] = useState<AppViewMode>(() => {
+    // Clear any lingering erp mode or hashes so storefront website ALWAYS loads first
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#privacy' || hash === '#policy') return 'privacy';
+      if (hash === '#terms' || hash === '#tos') return 'terms';
+      if (hash === '#cookies' || hash === '#cookie-policy') return 'cookies';
+      if (hash === '#location' || hash === '#directions' || hash === '#map') return 'location';
+      // If URL contains admin/erp hash on startup, clear it so website loads first
+      if (hash === '#erp' || hash === '#admin') {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      try {
+        localStorage.removeItem('nasisi_view_mode');
+      } catch {
+        // ignore
       }
     }
+    return 'storefront';
+  });
+
+  // Listen to browser URL hash changes for deep linking & back/forward buttons
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#privacy' || hash === '#policy') {
+        setViewMode('privacy');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (hash === '#terms' || hash === '#tos') {
+        setViewMode('terms');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (hash === '#cookies' || hash === '#cookie-policy') {
+        setViewMode('cookies');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (hash === '#location' || hash === '#directions' || hash === '#map') {
+        setViewMode('location');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (hash === '#erp' || hash === '#admin') {
+        setViewMode('erp');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (hash === '' || hash === '#catalog' || hash === '#products' || hash === '#services' || hash === '#portfolio' || hash === '#contact' || hash === '#contacts') {
+        // If coming from a standalone page to a section hash, return to storefront
+        setViewMode((current) => (current === 'privacy' || current === 'terms' || current === 'cookies' || current === 'location' ? 'storefront' : current));
+        if (hash === '#services') updateSEO('services');
+        else if (hash === '#catalog' || hash === '#products') updateSEO('products');
+        else if (hash === '#contact' || hash === '#contacts') updateSEO('contacts');
+        else updateSEO('home');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Sync SEO whenever viewMode changes
+  useEffect(() => {
+    if (viewMode === 'storefront') {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#services') updateSEO('services');
+      else if (hash === '#catalog' || hash === '#products') updateSEO('products');
+      else if (hash === '#contact' || hash === '#contacts') updateSEO('contacts');
+      else updateSEO('home');
+    }
+  }, [viewMode]);
+
+  // Helper to switch view mode with scroll-to-top and hash synchronization
+  const navigateToView = (mode: AppViewMode) => {
+    setViewMode(mode);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (mode === 'privacy') {
+      window.location.hash = 'privacy';
+      updateSEO('privacy');
+    } else if (mode === 'terms') {
+      window.location.hash = 'terms';
+      updateSEO('terms');
+    } else if (mode === 'cookies') {
+      window.location.hash = 'cookies';
+      updateSEO('cookies');
+    } else if (mode === 'location') {
+      window.location.hash = 'location';
+      updateSEO('location');
+    } else if (mode === 'erp') {
+      window.location.hash = 'erp';
+    } else if (mode === 'storefront') {
+      if (window.location.hash.includes('privacy') || window.location.hash.includes('terms') || window.location.hash.includes('cookies') || window.location.hash.includes('location') || window.location.hash.includes('erp')) {
+        window.history.pushState(null, '', window.location.pathname);
+      }
+      updateSEO('home');
+    }
   };
 
+  // Auto full screen activation on open and first interaction
   useEffect(() => {
-    // Only engage fullscreen locked interface in internal Admin/POS terminal mode
-    if (viewMode !== 'admin') return;
+    const triggerFullscreen = () => {
+      try {
+        if (!document.fullscreenElement) {
+          const docEl = document.documentElement as any;
+          if (docEl.requestFullscreen) {
+            docEl.requestFullscreen().catch(() => {});
+          } else if (docEl.webkitRequestFullscreen) {
+            docEl.webkitRequestFullscreen();
+          } else if (docEl.mozRequestFullScreen) {
+            docEl.mozRequestFullScreen();
+          } else if (docEl.msRequestFullscreen) {
+            docEl.msRequestFullscreen();
+          }
+        }
+      } catch {
+        // Handled silently
+      }
+    };
 
-    // Attempt immediate fullscreen upon platform mount
+    // Attempt immediately on mount
     triggerFullscreen();
 
-    // Browser security may require a user gesture; automatically trigger on any first user interaction
-    const handleGesture = () => {
+    // Trigger automatically on first user gesture anywhere on the window
+    const handleFirstGesture = () => {
       triggerFullscreen();
+      window.removeEventListener('pointerdown', handleFirstGesture);
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
     };
 
-    window.addEventListener('click', handleGesture, { passive: true });
-    window.addEventListener('touchstart', handleGesture, { passive: true });
-    window.addEventListener('keydown', handleGesture, { passive: true });
-    window.addEventListener('pointerdown', handleGesture, { passive: true });
+    window.addEventListener('pointerdown', handleFirstGesture, { once: true });
+    window.addEventListener('click', handleFirstGesture, { once: true });
+    window.addEventListener('touchstart', handleFirstGesture, { once: true });
+    window.addEventListener('keydown', handleFirstGesture, { once: true });
 
     return () => {
-      window.removeEventListener('click', handleGesture);
-      window.removeEventListener('touchstart', handleGesture);
-      window.removeEventListener('keydown', handleGesture);
-      window.removeEventListener('pointerdown', handleGesture);
+      window.removeEventListener('pointerdown', handleFirstGesture);
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
     };
+  }, []);
+
+  // Cart state persisted to localStorage
+  const [quoteItems, setQuoteItems] = useState<QuoteItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('nasisi_quote_items');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    // Default starter item to showcase instant quote readiness
+    return [
+      {
+        id: 'initial-blazer',
+        product: UNIFORM_PRODUCTS[0],
+        selectedColor: 'Royal Blue',
+        quantities: { 'Youth M': 20, 'Adult S': 30 },
+        totalQuantity: 50,
+        brandingType: 'embroidery',
+        logoPlacement: ['Left Chest'],
+        logoNotes: 'School Crest Gold Stitching Sample',
+        unitPrice: 37.31,
+        totalPrice: 1865.5,
+      },
+    ];
+  });
+
+  const [selectedProductForModal, setSelectedProductForModal] = useState<UniformProduct | null>(null);
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
+  const [isCustomizerModalOpen, setIsCustomizerModalOpen] = useState(false);
+  const [customizerProduct, setCustomizerProduct] = useState<UniformProduct | null>(null);
+  const [customizerColorHex, setCustomizerColorHex] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      // Storefront website must always load first on initial visits & refreshes
+      if (viewMode !== 'erp') {
+        localStorage.setItem('nasisi_view_mode', viewMode);
+      } else {
+        localStorage.removeItem('nasisi_view_mode');
+      }
+    } catch {
+      // ignore
+    }
   }, [viewMode]);
 
   useEffect(() => {
-    if (viewMode === 'admin') {
-      triggerFullscreen();
+    try {
+      localStorage.setItem('nasisi_quote_items', JSON.stringify(quoteItems));
+    } catch {
+      // ignore
     }
-  }, [viewMode, appMode, effectiveTab]);
+  }, [quoteItems]);
 
-  // PUBLIC STOREFRONT VIEW: Default customer-facing e-commerce portal
-  if (viewMode === 'storefront') {
-    return (
-      <>
-        <StorefrontView onOpenAdminPortal={() => setViewMode('admin')} />
-        <MailNotificationPopup />
-      </>
-    );
-  }
+  const handleAddToCart = (item: QuoteItem) => {
+    setQuoteItems((prev) => [item, ...prev]);
+  };
 
-  // HARD AUTHENTICATION GATE: Lock platform until Admin logs in with Gmail or User logs in with PIN
-  if (!isPlatformUnlocked) {
-    return (
-      <>
-        <QuotaAlertBanner />
-        <PlatformLockScreen />
-        <MailNotificationPopup />
-      </>
-    );
-  }
+  const handleRemoveItem = (id: string) => {
+    setQuoteItems((prev) => prev.filter((item) => item.id !== id));
+  };
 
-  // Determine if active view should be POS terminal
-  const isPosView = appMode === 'pos' && isTabAllowedForRole(currentUser.role, 'pos');
+  const handleClearCart = () => {
+    setQuoteItems([]);
+  };
 
-  return (
-    <div className="min-h-[100dvh] h-[100dvh] max-h-[100dvh] w-full max-w-[100vw] bg-slate-50/80 font-sans text-slate-800 flex flex-col antialiased selection:bg-pink-100 selection:text-pink-900 overflow-hidden relative">
-      
-      {/* Top Header Bar (Stationary at top) */}
-      <Header activeTab={effectiveTab} setActiveTab={handleSetActiveTab} />
+  const handleOpenCustomizerWithProduct = (product: UniformProduct, colorHex: string) => {
+    setCustomizerProduct(product);
+    setCustomizerColorHex(colorHex);
+    setIsCustomizerModalOpen(true);
+  };
 
-      {/* Cloud Quota Status Notice Banner */}
-      <QuotaAlertBanner />
-
-      {/* Firebase Email Verification Notice Banner */}
-      <EmailVerificationBanner />
-
-      {/* Main Workspace Body (Stationary Sidebar + Scrollable Body) */}
-      <div className="flex-1 flex flex-row overflow-hidden w-full min-h-0 relative">
-        
-        {/* Navigation Sidebar (Stationary left column for users with multiple allowed tabs when not on full POS checkout) */}
-        {effectiveTab !== 'pos' && roleAllowedTabs.length > 1 && (
-          <Sidebar activeTab={effectiveTab} setActiveTab={handleSetActiveTab} />
-        )}
-
-        {/* Dynamic View Area (The only area that scrolls up and down) */}
-        <div className="flex-1 h-full overflow-y-auto overflow-x-hidden min-h-0 flex flex-col justify-between responsive-table-container">
-          <main className="p-2 sm:p-4 md:p-6 lg:p-8 max-w-[1920px] 2xl:max-w-[2200px] mx-auto w-full space-y-4 sm:space-y-6 pb-28 sm:pb-32 md:pb-36 lg:pb-40">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={effectiveTab}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="space-y-6"
-              >
-                {effectiveTab === 'dashboard' && <AdminDashboard />}
-                {effectiveTab === 'sales_today' && <TodaySalesView />}
-                {effectiveTab === 'branches' && <BranchManagementModule />}
-                {effectiveTab === 'pos' && <POSModule />}
-                {effectiveTab === 'catalog' && <InventoryCatalog />}
-                {effectiveTab === 'transfers' && <InterStoreTransfers />}
-                {effectiveTab === 'ledger' && <AccountingLedger />}
-                {effectiveTab === 'etr' && <ETRModule />}
-                {effectiveTab === 'payroll' && <HRPayrollModule initialSubTab="directory" />}
-                {effectiveTab === 'operators' && <HRPayrollModule initialSubTab="pos_users" />}
-                {effectiveTab === 'audit' && <AuditLogsModule />}
-                {effectiveTab === 'gmail' && <GmailInbox />}
-                {effectiveTab === 'settings' && <SettingsModule />}
-                {effectiveTab === 'guide' && <UserGuideModule onNavigateToTab={handleSetActiveTab} />}
-              </motion.div>
-            </AnimatePresence>
-          </main>
-
-          {/* Footer inside scroll container */}
-          <Footer />
-        </div>
-
-      </div>
-
-      {/* Desktop Floating Dock Navigation Bar (Filtered strictly by current user's role) */}
-      <DesktopBottomNav activeTab={effectiveTab} setActiveTab={handleSetActiveTab} />
-
-      {/* Mobile Bottom Navigation Bar */}
-      <MobileBottomNav activeTab={effectiveTab} setActiveTab={handleSetActiveTab} appMode={appMode} />
-
-      {/* Global Toast / Popups & Modals */}
-      <MailNotificationPopup />
-      <ETRReceiptModal />
-      <QRScannerModal />
-      <MobileBarcodeScannerModal />
-      <DuplicateBarcodeAlertModal />
-      <CloseShiftModal />
-      <ShiftZReportModal />
-      <PeriodicStatementModal />
-      <TodaySalesModal />
-      <ReturnExchangeModal />
-      <FabricRollManagerModal />
-      <AuthModal />
-      <InactivityLockModal />
-      <CategoryIntakeModal
-        isOpen={isCategoryIntakeModalOpen}
-        onClose={closeCategoryIntakeModal}
-        initialInvoiceId={categoryIntakeInitialInvoiceId}
-        initialCategory={categoryIntakeInitialCategory || 'Dereck'}
-      />
-
-    </div>
-  );
-};
-
-export default function App() {
   return (
     <ERPProvider>
-      <ERPContent />
+      {/* 1. Independent Platform & Privacy Policy Page */}
+      {viewMode === 'privacy' && (
+        <PlatformPolicyPage
+          onBackToStorefront={() => navigateToView('storefront')}
+          onNavigateToTerms={() => navigateToView('terms')}
+          onNavigateToCookies={() => navigateToView('cookies')}
+        />
+      )}
+
+      {/* 2. Independent Terms of Service Page */}
+      {viewMode === 'terms' && (
+        <TermsOfServicePage
+          onBackToStorefront={() => navigateToView('storefront')}
+          onNavigateToPrivacy={() => navigateToView('privacy')}
+          onNavigateToCookies={() => navigateToView('cookies')}
+        />
+      )}
+
+      {/* 3. Independent Cookies & Storage Policy Page */}
+      {viewMode === 'cookies' && (
+        <CookiePolicyPage
+          onBackToStorefront={() => navigateToView('storefront')}
+          onNavigateToPrivacy={() => navigateToView('privacy')}
+          onNavigateToTerms={() => navigateToView('terms')}
+        />
+      )}
+
+      {/* 4. Independent Location & Google Map Details Page */}
+      {viewMode === 'location' && (
+        <LocationPage
+          onBackToStorefront={() => navigateToView('storefront')}
+          onNavigateToServices={() => {
+            navigateToView('storefront');
+            setTimeout(() => {
+              const el = document.getElementById('services');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }, 120);
+          }}
+          onNavigateToCatalog={() => {
+            navigateToView('storefront');
+            setTimeout(() => {
+              const el = document.getElementById('catalog');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }, 120);
+          }}
+        />
+      )}
+
+      {/* 5. Enterprise ERP & Invoicing Center */}
+      {viewMode === 'erp' && (
+        <AdminERPSuite onSwitchToStorefront={() => navigateToView('storefront')} />
+      )}
+
+      {/* 6. Main Storefront & 3D Mockup Studio */}
+      {viewMode === 'storefront' && (
+        <div className="min-h-screen flex flex-col bg-white text-slate-900 font-['Plus_Jakarta_Sans',sans-serif]">
+          {/* Header & Sticky Nav with Mega Menu */}
+          <Navbar
+            quoteItems={quoteItems}
+            onOpenQuoteModal={() => setIsQuoteModalOpen(true)}
+            onOpenCustomizer={() => setIsCustomizerModalOpen(true)}
+            onOpenSizeGuide={() => setIsSizeGuideOpen(true)}
+            onSelectProduct={(product) => setSelectedProductForModal(product)}
+            onOpenPrivacyPolicy={() => navigateToView('privacy')}
+            onOpenTerms={() => navigateToView('terms')}
+            onOpenCookies={() => navigateToView('cookies')}
+            onOpenLocation={() => navigateToView('location')}
+            onOpenAdminERP={() => navigateToView('erp')}
+          />
+
+          <main className="flex-1 pt-32 sm:pt-36 md:pt-40 pb-24 lg:pb-0">
+            {/* Plain Hero Banner with animated images and no text overlay */}
+            <Hero />
+
+            {/* Uniform Catalog (Products) */}
+            <UniformCatalog
+              onSelectProduct={(product) => setSelectedProductForModal(product)}
+              onOpenCustomizerWithProduct={handleOpenCustomizerWithProduct}
+            />
+
+            {/* In-House Services Section (Embroidery, Screen Printing, Custom Knitwear) */}
+            <ServicesSection
+              onOpenQuoteModal={() => setIsQuoteModalOpen(true)}
+              onOpenCustomizer={() => setIsCustomizerModalOpen(true)}
+            />
+
+            {/* Inquiries & Workshop Contact Section */}
+            <ContactSection
+              onOpenLocation={() => navigateToView('location')}
+            />
+          </main>
+
+          {/* Modern Mobile Bottom Navigation */}
+          <MobileStorefrontBottomNav
+            quoteItems={quoteItems}
+            onOpenQuoteModal={() => setIsQuoteModalOpen(true)}
+            onOpenCustomizer={() => setIsCustomizerModalOpen(true)}
+            onOpenSizeGuide={() => setIsSizeGuideOpen(true)}
+          />
+
+          {/* Modern Footer with Direct Legal & Location Links */}
+          <Footer
+            onOpenAdminERP={() => navigateToView('erp')}
+            onOpenPrivacyPolicy={() => navigateToView('privacy')}
+            onOpenTerms={() => navigateToView('terms')}
+            onOpenCookies={() => navigateToView('cookies')}
+            onOpenLocation={() => navigateToView('location')}
+          />
+
+          {/* Cookie Consent Floating Banner */}
+          <CookieConsentBanner
+            onOpenCookiePolicy={() => navigateToView('cookies')}
+            onOpenPrivacyPolicy={() => navigateToView('privacy')}
+          />
+
+          {/* Modals & Studios */}
+          <InteractiveCustomizer
+            isOpen={isCustomizerModalOpen}
+            onClose={() => setIsCustomizerModalOpen(false)}
+            onAddToCart={handleAddToCart}
+            preselectedProduct={customizerProduct}
+            preselectedColorHex={customizerColorHex}
+            onOpenQuoteModal={() => setIsQuoteModalOpen(true)}
+          />
+
+          <UniformModal
+            product={selectedProductForModal}
+            onClose={() => setSelectedProductForModal(null)}
+            onAddToCart={handleAddToCart}
+            onOpenCustomizerWithProduct={handleOpenCustomizerWithProduct}
+          />
+
+          <QuoteEstimatorModal
+            isOpen={isQuoteModalOpen}
+            onClose={() => setIsQuoteModalOpen(false)}
+            quoteItems={quoteItems}
+            onRemoveItem={handleRemoveItem}
+            onClearCart={handleClearCart}
+          />
+
+          <SizeAndFabricGuide
+            isOpen={isSizeGuideOpen}
+            onClose={() => setIsSizeGuideOpen(false)}
+          />
+        </div>
+      )}
     </ERPProvider>
   );
 }

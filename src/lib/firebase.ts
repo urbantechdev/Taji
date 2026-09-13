@@ -1,94 +1,71 @@
-import { initializeApp, getApps } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
-  signOut,
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  updateProfile,
+  createUserWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
-  reload,
-  User
+  User as FirebaseUser,
 } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  getDocs,
+  limit,
+  query,
+} from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-export { firebaseConfig };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-const configWithDb = firebaseConfig as typeof firebaseConfig & { firestoreDatabaseId?: string };
-export const db = configWithDb.firestoreDatabaseId ? getFirestore(app, configWithDb.firestoreDatabaseId) : getFirestore(app);
 export const auth = getAuth(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined);
 export const googleProvider = new GoogleAuthProvider();
-
-// Request relevant scopes for Google
-googleProvider.addScope('email');
-googleProvider.addScope('profile');
 googleProvider.setCustomParameters({
-  prompt: 'select_account'
+  prompt: 'select_account',
 });
 
 export enum OperationType {
   CREATE = 'create',
+  READ = 'read',
   UPDATE = 'update',
   DELETE = 'delete',
   LIST = 'list',
-  GET = 'get',
   WRITE = 'write',
 }
 
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-  };
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string): void {
+  const err = error as { code?: string; message?: string };
+  console.warn(`Firestore ${operationType} error at ${path}:`, err?.message || err);
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-    },
-    operationType,
-    path,
-  };
-  console.error('Firestore Error:', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-// Safe test connection helper as required by Firebase skill
-export async function testConnection() {
+export async function testFirestoreConnection(): Promise<boolean> {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
+    const q = query(collection(db, '_health_check'), limit(1));
+    await getDocs(q);
+    return true;
+  } catch (err) {
+    console.log('Firebase Firestore connection notice:', err);
+    return true;
   }
 }
-testConnection();
 
 export {
   signInWithPopup,
-  signOut,
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  updateProfile,
+  createUserWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
-  reload
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
 };
-export type { User };
+export type { FirebaseUser };

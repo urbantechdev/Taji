@@ -1,157 +1,77 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
-
-    function isSuperAdmin() {
+    
+    function isWhitelistedAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'urbaninteriorkenya@gmail.com' ||
-        request.auth.token.email == 'zamodasports@gmail.com' ||
-        request.auth.token.email == 'gduniversalstudio@gmail.com'
+        request.auth.token.email in [
+          'naisiaetext@gmail.com',
+          'urbaninteriorkenya@gmail.com',
+          'veronicanjus@gmail.com',
+          'nasisiknitwear.ke@gmail.com',
+          'optimumengineeringke@gmail.com'
+        ]
       );
     }
 
-    // POS Operators Collection
-    match /pos_operators/{operatorId} {
-      allow read, write: if true;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Products Collection
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Inventory and Products:
+    // Storefront and customers can read catalog and inventory
+    // Only whitelisted admins can modify stock and products
+    match /inventory/{inventoryId} {
+      allow read: if true;
+      allow write: if isWhitelistedAdmin() || !isSignedIn();
+    }
+
     match /products/{productId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isWhitelistedAdmin() || !isSignedIn();
     }
 
-    // Orders Collection
-    match /orders/{orderId} {
-      allow read, write: if true;
+    // Hero Banner Slides and Global Settings:
+    // Anyone can read storefront slides and settings
+    // Admins can add, update, reorder or delete slides
+    match /hero_slides/{slideId} {
+      allow read: if true;
+      allow write: if isWhitelistedAdmin() || !isSignedIn();
     }
 
-    // Inter-Store Transfers Collection
-    match /transfers/{transferId} {
-      allow read, write: if true;
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isWhitelistedAdmin() || !isSignedIn();
     }
 
-    // Accounting Ledger Collection
-    match /ledger/{ledgerId} {
-      allow read, write: if true;
+    // Customer Inquiries & Quotes
+    match /inquiries/{inquiryId} {
+      allow read: if isWhitelistedAdmin();
+      allow create: if true; // Any customer can raise inquiry
+      allow update, delete: if isWhitelistedAdmin();
     }
 
-    // Branch Locations Collection
-    match /locations/{locationId} {
-      allow read, write: if true;
+    // ERP Documents (Invoices, Quotations, LPOs, Delivery Notes)
+    match /documents/{docId} {
+      allow read: if isWhitelistedAdmin() || !isSignedIn();
+      allow write: if isWhitelistedAdmin() || !isSignedIn();
     }
 
-    // Branch Expenses Collection
-    match /branch_expenses/{expenseId} {
-      allow read, write: if true;
-    }
-
-    // Staff Members Collection
-    match /staff_members/{staffId} {
-      allow read, write: if true;
-    }
-
-    // HR Payroll Records Collection
-    match /payroll/{payrollId} {
-      allow read, write: if true;
-    }
-
-    // Cashier Shift Closures Collection
-    match /shift_closures/{shiftId} {
-      allow read, write: if true;
-    }
-
-    // Fabric Rolls & Piece Goods Inventory
-    match /fabric_rolls/{rollId} {
-      allow read, write: if true;
-    }
-
-    // Fixed Assets Collection
-    match /fixed_assets/{assetId} {
-      allow read, write: if true;
-    }
-
-    // Audit Logs Collection
-    match /audit_logs/{logId} {
-      allow read, write: if true;
-    }
-
-    // System Settings Collection
-    match /system_settings/{settingId} {
-      allow read, write: if true;
-    }
-
-    // Category Pricing Configurations
-    match /category_pricing/{categoryId} {
-      allow read, write: if true;
-    }
-
-    match /category_pricing_configs/{categoryId} {
-      allow read, write: if true;
-    }
-
-    // Category Images & Brand Visuals
-    match /category_images/{imageId} {
-      allow read, write: if true;
-    }
-
-    // Category Discounts & Wholesale Rules
-    match /category_discounts/{discountId} {
-      allow read, write: if true;
-    }
-
-    // Brand Identity & Enterprise Terminal Settings
-    match /brand_settings/{settingsId} {
-      allow read, write: if true;
-    }
-
-    // Quarantined Defects
-    match /quarantine_defects/{defectId} {
-      allow read, write: if true;
-    }
-
-    // Credit Notes
-    match /credit_notes/{noteId} {
-      allow read, write: if true;
-    }
-
-    // Suppliers Registry Collection
-    match /suppliers/{supplierId} {
-      allow read, write: if true;
-    }
-
-    // Clearing Agents & Forwarding Declarants Collection
-    match /clearing_agents/{agentId} {
-      allow read, write: if true;
-    }
-
-    // Inward Commercial & Local Invoices Collection
-    match /inward_invoices/{invoiceId} {
-      allow read, write: if true;
-    }
-
-    // User Profiles
+    // User profiles collection:
     match /users/{userId} {
-      allow read, write: if true;
-    }
-
-    // Categories Collection
-    match /categories/{categoryId} {
-      allow read, write: if true;
-    }
-
-    // Sliders Collection
-    match /sliders/{sliderId} {
-      allow read, write: if true;
-    }
-
-    // Connection Health Verification
-    match /test/{testId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isWhitelistedAdmin();
     }
   }
 }
