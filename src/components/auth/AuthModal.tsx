@@ -34,8 +34,8 @@ export const AuthModal: React.FC = () => {
     lockPOSSession,
     adminUser,
     isGoogleAdminAuthenticated,
+    isDevOrSandbox,
     signInWithGoogleAdmin,
-    signInWithSocial,
     signInAsWhitelistedAdmin,
     signInAsAccountant,
     signOutGoogleAdmin,
@@ -387,8 +387,28 @@ export const AuthModal: React.FC = () => {
                     />
                   </svg>
                 )}
-                <span>{isGoogleSigningIn ? 'Connecting...' : 'Sign in with Google (Admin)'}</span>
+                <span>{isGoogleSigningIn ? 'Connecting...' : 'Sign in with Google'}</span>
               </button>
+
+              {isDevOrSandbox && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound();
+                    signInAsWhitelistedAdmin();
+                    playSuccessSound();
+                    setSuccessMessage('Welcome Administrator (Sandbox Preview)');
+                    setTimeout(() => {
+                      setIsAuthModalOpen(false);
+                      setSuccessMessage(null);
+                    }, 600);
+                  }}
+                  className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 shadow-2xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Dev Sandbox Quick Admin Login</span>
+                </button>
+              )}
 
               {unauthorizedDomain && (
                 <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-left text-xs text-amber-900">
@@ -429,8 +449,36 @@ export const AuthModal: React.FC = () => {
                     />
                   </svg>
                 )}
-                <span>{isGoogleSigningIn ? 'Connecting...' : 'Sign in with Google (Accountant)'}</span>
+                <span>{isGoogleSigningIn ? 'Connecting...' : 'Sign in with Google'}</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  signInAsAccountant('mwkomu@gmail.com');
+                  playSuccessSound();
+                  setSuccessMessage('Welcome Accountant (mwkomu@gmail.com)');
+                  setTimeout(() => {
+                    setIsAuthModalOpen(false);
+                    setSuccessMessage(null);
+                  }, 600);
+                }}
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98 shadow-sm"
+              >
+                <Landmark className="w-4 h-4" />
+                <span>Continue as Accountant</span>
+              </button>
+
+              <div className="p-2 bg-emerald-50 border border-emerald-200/80 rounded-xl text-[11px] text-emerald-800 flex items-center justify-between font-semibold">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Whitelisted Accountant:</span>
+                </div>
+                <code className="font-mono font-bold text-emerald-950 bg-white px-2 py-0.5 rounded border border-emerald-200 text-[10px]">
+                  mwkomu@gmail.com
+                </code>
+              </div>
 
               {unauthorizedDomain && (
                 <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-left text-xs text-amber-900">
