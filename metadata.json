@@ -1,6 +1,6 @@
 {
-  "name": "NASISI Uniforms & Custom Knitwear",
-  "description": "Modern website for NASISI Knitwear & Graphics specializing in School Uniforms, Service Uniforms, custom embroidery, screen printing, and branding.",
-  "requestFramePermissions": ["geolocation"],
+  "name": "Taji",
+  "description": "Taji Enterprise ERP platform featuring multi-branch inventory, ETR billing, POS terminal, inter-branch transfers, payroll, and general ledger accounting.",
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
