@@ -55,6 +55,10 @@ export async function connectGmailAccount(): Promise<string> {
       }
       return '';
     }
+    if (errStr.includes('unauthorized-domain')) {
+      console.warn(`[Gmail Auth] Domain "${typeof window !== 'undefined' ? window.location.hostname : ''}" is not in Firebase Console Authorized Domains.`);
+      return '';
+    }
     console.error('Error connecting Google Gmail:', error);
     throw error;
   }

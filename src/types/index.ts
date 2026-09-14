@@ -437,6 +437,7 @@ export interface UserProfile {
   avatarUrl?: string;
   status?: 'active' | 'inactive';
   lastLoginAt?: string;
+  authProvider?: string;
 }
 
 export interface WebsiteCustomer {
@@ -447,6 +448,7 @@ export interface WebsiteCustomer {
   deliveryAddress?: string;
   deliveryCity?: string;
   kraPin?: string;
+  password?: string;
   createdAt: string;
 }
 

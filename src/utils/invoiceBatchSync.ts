@@ -216,8 +216,4 @@ export const PRESET_INVOICE_BATCH_UDEY: InvoiceInventoryBatch = buildInvoiceInve
   '2026-02-18T09:20:00.000Z'
 );
 
-export const INITIAL_INVOICE_BATCHES: InvoiceInventoryBatch[] = [
-  PRESET_INVOICE_BATCH_SAD_26EMKIM,
-  PRESET_INVOICE_BATCH_26PA222,
-  PRESET_INVOICE_BATCH_UDEY
-].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+export const INITIAL_INVOICE_BATCHES: InvoiceInventoryBatch[] = [];
