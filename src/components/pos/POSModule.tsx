@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
 import ReflectionOverlay from '../common/ReflectionOverlay';
 import RightEdgeBlend from '../common/RightEdgeBlend';
@@ -51,7 +51,9 @@ import {
   Scissors,
   Boxes,
   Tag,
-  Sliders
+  Sliders,
+  Zap,
+  Check
 } from 'lucide-react';
 import { formatRollPricingSummary } from '../../utils/rollPricingEngine';
 
@@ -60,6 +62,7 @@ export const POSModule: React.FC = () => {
     activeLocation,
     locations,
     products,
+    fabricRolls,
     cart,
     addToCart,
     removeFromCart,
@@ -214,8 +217,28 @@ export const POSModule: React.FC = () => {
   const [selectedViewProduct, setSelectedViewProduct] = useState<ProductBatch | null>(null);
 
   // Barcode Checkout Scanner State
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [barcodeCheckoutInput, setBarcodeCheckoutInput] = useState('');
   const [barcodeScanFeedback, setBarcodeScanFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [autoAddToCart, setAutoAddToCart] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('taji_pos_barcode_auto_add');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [scanQuantity, setScanQuantity] = useState<number>(1);
+
+  // Toggle Auto-Add to Cart setting
+  const toggleAutoAddToCart = () => {
+    const nextVal = !autoAddToCart;
+    setAutoAddToCart(nextVal);
+    try {
+      localStorage.setItem('taji_pos_barcode_auto_add', String(nextVal));
+    } catch {}
+    playClickSound();
+  };
 
   // Inter-Store Stock Transfer Modal State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -237,31 +260,84 @@ export const POSModule: React.FC = () => {
     setBarcodeScanFeedback(null);
     const codeUpper = rawCode.toUpperCase();
 
-    // Find product by exact barcode, SKU, or ID
-    const matchedProduct = products.find(p =>
-      (p.barcode && p.barcode.toUpperCase() === codeUpper) ||
-      (p.sku && p.sku.toUpperCase() === codeUpper) ||
-      p.id.toUpperCase() === codeUpper
-    );
+    // 1. Build search token list (handles JSON QR codes, direct text, and leading zeros)
+    const searchTokens: string[] = [codeUpper];
+    try {
+      const parsed = JSON.parse(rawCode);
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.sku) searchTokens.push(String(parsed.sku).toUpperCase());
+        if (parsed.barcode) searchTokens.push(String(parsed.barcode).toUpperCase());
+        if (parsed.batch || parsed.batchId || parsed.id) {
+          searchTokens.push(String(parsed.batch || parsed.batchId || parsed.id).toUpperCase());
+        }
+      }
+    } catch {}
+
+    const strippedZero = codeUpper.replace(/^0+/, '');
+    if (strippedZero && strippedZero !== codeUpper) {
+      searchTokens.push(strippedZero);
+    }
+
+    // 2. Find product by exact barcode, SKU, ID, lot, shade, or QR data
+    let matchedProduct = products.find(p => {
+      const pBarcode = (p.barcode || '').toUpperCase();
+      const pSku = (p.sku || '').toUpperCase();
+      const pId = (p.id || '').toUpperCase();
+      const pDyeLot = (p.dyeLot || '').toUpperCase();
+      const pShade = (p.shadeCode || '').toUpperCase();
+      const pQr = (p.qrCodeData || '').toUpperCase();
+
+      return searchTokens.some(tok =>
+        (pBarcode && (pBarcode === tok || pBarcode.replace(/^0+/, '') === tok)) ||
+        (pSku && pSku === tok) ||
+        (pId && pId === tok) ||
+        (pDyeLot && pDyeLot === tok) ||
+        (pShade && pShade === tok) ||
+        (pQr && pQr.includes(tok))
+      );
+    });
+
+    // 3. Fallback: Search fabric rolls registry if applicable
+    if (!matchedProduct && fabricRolls && fabricRolls.length > 0) {
+      const matchedRoll = fabricRolls.find(r =>
+        searchTokens.some(tok =>
+          (r.barcode && r.barcode.toUpperCase() === tok) ||
+          (r.rollNumber && r.rollNumber.toUpperCase() === tok) ||
+          r.id.toUpperCase() === tok
+        )
+      );
+      if (matchedRoll) {
+        matchedProduct = products.find(p => p.id === matchedRoll.batchId || p.name === matchedRoll.productName);
+      }
+    }
 
     if (matchedProduct) {
       const availableStock = matchedProduct.locationStock[activeLocation] || 0;
       const currentInCart = cart.find(c => c.batchId === matchedProduct.id)?.quantity || 0;
+      const qtyToAdd = scanQuantity > 0 ? scanQuantity : 1;
 
-      if (availableStock <= currentInCart && !activeLocInfo?.canSellDirectly) {
+      if (availableStock < (currentInCart + qtyToAdd) && !activeLocInfo?.canSellDirectly) {
         // Warning if stock depleted
         playScannerErrorBeep();
         setBarcodeScanFeedback({
           type: 'error',
-          message: `Zero stock for "${matchedProduct.name}" at ${activeLocInfo?.name || activeLocation}. Reroute needed.`
+          message: `Zero stock for "${matchedProduct.name}" at ${activeLocInfo?.name || activeLocation}. (Available: ${availableStock} ${matchedProduct.unit})`
         });
       } else {
-        addToCart(matchedProduct, 1, false);
-        playBarcodeScanBeep(true);
-        setBarcodeScanFeedback({
-          type: 'success',
-          message: `Scanned & Added: ${matchedProduct.name} (${matchedProduct.barcode || matchedProduct.sku})`
-        });
+        if (autoAddToCart) {
+          addToCart(matchedProduct, qtyToAdd, false);
+          playBarcodeScanBeep(true);
+          setBarcodeScanFeedback({
+            type: 'success',
+            message: `Scanned & Added to Cart (+${qtyToAdd}): ${matchedProduct.name} (${matchedProduct.barcode || matchedProduct.sku})`
+          });
+        } else {
+          playClickSound();
+          setBarcodeScanFeedback({
+            type: 'success',
+            message: `Barcode Verified: ${matchedProduct.name} (${matchedProduct.barcode || matchedProduct.sku}) • Auto-Add is currently OFF.`
+          });
+        }
       }
       setBarcodeCheckoutInput('');
     } else {
@@ -272,6 +348,50 @@ export const POSModule: React.FC = () => {
       });
     }
   };
+
+  // Automatic Hands-Free Hardware Barcode Scanner Listener (USB & Bluetooth Wedge)
+  useEffect(() => {
+    let scanBuffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
+      const isOurBarcodeInput = target === barcodeInputRef.current;
+
+      // When scanner finishes code with Enter
+      if (e.key === 'Enter') {
+        if (scanBuffer.length >= 3 && !isInput) {
+          e.preventDefault();
+          const scanned = scanBuffer.trim();
+          scanBuffer = '';
+          handleBarcodeScanCheckout(undefined, scanned);
+          return;
+        }
+        scanBuffer = '';
+        return;
+      }
+
+      // Ignore modifiers / non-character keys
+      if (e.key.length !== 1 || e.ctrlKey || e.altKey || e.metaKey) {
+        return;
+      }
+
+      const now = Date.now();
+      const diff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      // Barcode scanners type rapid bursts (< 60ms between characters)
+      if (diff > 80) {
+        scanBuffer = e.key;
+      } else {
+        scanBuffer += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [products, fabricRolls, activeLocation, cart, autoAddToCart, scanQuantity, activeLocInfo]);
 
   // Filtered product catalog (Restricted to active shop unless admin or explicitly searching for restock)
   const filteredProducts = products.filter(p => {
@@ -735,6 +855,7 @@ export const POSModule: React.FC = () => {
                 <div className="relative flex-1 min-w-0">
                   <Barcode className="w-4 h-4 text-rose-500 absolute left-3 top-2.5 shrink-0" />
                   <input
+                    ref={barcodeInputRef}
                     type="text"
                     value={barcodeCheckoutInput}
                     onChange={e => setBarcodeCheckoutInput(e.target.value)}
@@ -742,6 +863,25 @@ export const POSModule: React.FC = () => {
                     className="w-full pl-9 pr-3 py-2 bg-gradient-to-r from-rose-50/50 to-amber-50/30 border-2 border-rose-200 focus:border-rose-500 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400/20"
                   />
                 </div>
+
+                {/* Auto-Add to Cart Toggle Switch */}
+                <button
+                  type="button"
+                  id="btn-pos-toggle-auto-add-cart"
+                  onClick={toggleAutoAddToCart}
+                  className={`px-2.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all border shrink-0 cursor-pointer shadow-xs active:scale-95 ${
+                    autoAddToCart
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                      : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                  }`}
+                  title={autoAddToCart ? 'Auto-Add to Cart is Active. Scanning a barcode will instantly add +1 to cart.' : 'Click to enable automatic add-to-cart on barcode scan.'}
+                >
+                  <Zap className={`w-3.5 h-3.5 ${autoAddToCart ? 'text-amber-500 fill-amber-500' : 'text-slate-400'}`} />
+                  <span className="hidden sm:inline">Auto-Add:</span>
+                  <span className={autoAddToCart ? 'text-emerald-700 font-mono' : 'text-slate-500 font-mono'}>
+                    {autoAddToCart ? 'ON' : 'OFF'}
+                  </span>
+                </button>
 
                 <button
                   type="submit"
@@ -757,12 +897,31 @@ export const POSModule: React.FC = () => {
                   type="button"
                   onClick={() => setIsQRScannerOpen(true)}
                   className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0 whitespace-nowrap cursor-pointer shadow-xs active:scale-95"
-                  title="Open phone or device camera to scan 1D barcodes and 2D QR codes"
+                  title="Open phone or device camera to scan 1D barcodes and 2D QR codes directly into cart"
                 >
                   <QrCode className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                   <span className="hidden sm:inline">Camera QR</span>
                 </button>
               </form>
+
+              {/* Barcode Scanner Helper & Live Status Indicator */}
+              <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-0.5">
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full inline-block ${autoAddToCart ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                  <span>
+                    Hardware Scanner (USB / Bluetooth) &amp; Camera ready &mdash;{' '}
+                    <strong className={autoAddToCart ? 'text-emerald-700' : 'text-slate-700'}>
+                      {autoAddToCart ? 'Auto-adds scanned items to cart' : 'Manual verification mode'}
+                    </strong>
+                  </span>
+                </span>
+                {autoAddToCart && (
+                  <span className="text-emerald-700 font-bold hidden sm:inline-flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    Instant Checkout Active
+                  </span>
+                )}
+              </div>
 
               {/* Barcode Scanner Feedback Alert */}
               {barcodeScanFeedback && (
