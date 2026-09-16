@@ -27,11 +27,13 @@ import {
   Sparkles,
   AlertCircle,
   User,
-  Calendar
+  Calendar,
+  Barcode
 } from 'lucide-react';
 import { useERP } from '../../context/ERPContext';
 import { InwardInvoiceRecord, CategoryType } from '../../types';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
+import { BulkBarcodeGeneratorModal } from '../inventory/BulkBarcodeGeneratorModal';
 
 // Helper to cleanly parse and format invoice creation timestamp & fallback date
 const formatInvoiceCreation = (createdAt?: string, fallbackDate?: string) => {
@@ -77,6 +79,7 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [barcodeInvoice, setBarcodeInvoice] = useState<InwardInvoiceRecord | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -739,6 +742,20 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
                               </button>
                             )}
 
+                            {/* Generate Barcode Stickers from Packing List */}
+                            <button
+                              id={`btn-barcodes-invoice-${inv.id}`}
+                              type="button"
+                              onClick={() => {
+                                playClickSound();
+                                setBarcodeInvoice(inv);
+                              }}
+                              className="p-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg border border-amber-200/70 transition-colors cursor-pointer"
+                              title="Create Barcode & Roll Labels from Packing List"
+                            >
+                              <Barcode className="w-3.5 h-3.5" />
+                            </button>
+
                             {/* Delete Button (with confirmation) */}
                             {deleteConfirmId === inv.id ? (
                               <div className="flex items-center gap-1">
@@ -903,17 +920,31 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
                                   <span>Insurance: ${inv.totalInsuranceUSD || 0}</span>
                                   <span>Port Clearance: KSh {(inv.portClearingFeesKES || 0).toLocaleString()}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    playClickSound();
-                                    onEditInvoice(inv);
-                                  }}
-                                  className="text-rose-600 hover:text-rose-700 font-bold text-xs flex items-center gap-1 cursor-pointer"
-                                >
-                                  <span>Open in Edit Mode</span>
-                                  <ArrowRight className="w-3.5 h-3.5" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playClickSound();
+                                      setBarcodeInvoice(inv);
+                                    }}
+                                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
+                                    title="Generate printable barcodes and roll labels from packing list items"
+                                  >
+                                    <Barcode className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>Packing List Barcodes ({inv.lineItems?.length || 0})</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playClickSound();
+                                      onEditInvoice(inv);
+                                    }}
+                                    className="text-rose-600 hover:text-rose-700 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <span>Open in Edit Mode</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -1052,6 +1083,20 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
 
                   <div className="flex items-center gap-1.5">
                     <button
+                      id={`card-btn-barcode-${inv.id}`}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        playClickSound();
+                        setBarcodeInvoice(inv);
+                      }}
+                      className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 font-bold text-xs rounded-xl shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Generate Barcodes from Packing List"
+                    >
+                      <Barcode className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Barcodes</span>
+                    </button>
+                    <button
                       id={`card-btn-edit-${inv.id}`}
                       type="button"
                       onClick={(e) => {
@@ -1070,6 +1115,15 @@ export const InwardInvoicesListView: React.FC<InwardInvoicesListViewProps> = ({
             );
           })}
         </div>
+      )}
+
+      {/* BULK BARCODE GENERATOR MODAL (Directly from Packing List) */}
+      {barcodeInvoice && (
+        <BulkBarcodeGeneratorModal
+          isOpen={!!barcodeInvoice}
+          onClose={() => setBarcodeInvoice(null)}
+          preselectedInvoice={barcodeInvoice}
+        />
       )}
     </div>
   );

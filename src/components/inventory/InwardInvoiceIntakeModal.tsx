@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useERP } from '../../context/ERPContext';
 import {
   Supplier,
@@ -66,6 +66,7 @@ import {
   clearInwardInvoiceDraft,
   formatDraftTimeAgo
 } from '../../utils/draftRecoveryEngine';
+import { BulkBarcodeGeneratorModal } from './BulkBarcodeGeneratorModal';
 
 interface InwardInvoiceIntakeModalProps {
   isOpen: boolean;
@@ -239,10 +240,17 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
   // Session Recovery & Auto-save State
   const [recoveredDraftInfo, setRecoveredDraftInfo] = useState<{ savedAt: string; itemCount: number } | null>(null);
   const [isDraftAutosaved, setIsDraftAutosaved] = useState(false);
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
+  const draftRestoredRef = useRef(false);
 
   // Auto-restore uncommitted draft when opening fresh
   useEffect(() => {
-    if (isOpen && !preselectedInvoice && !editingInvoiceRecordId) {
+    if (!isOpen) {
+      draftRestoredRef.current = false;
+      return;
+    }
+    if (isOpen && !preselectedInvoice && !editingInvoiceRecordId && !draftRestoredRef.current) {
+      draftRestoredRef.current = true;
       const saved = getInwardInvoiceDraft();
       if (saved && saved.draftItems && saved.draftItems.length > 0) {
         setSupplyType(saved.supplyType);
@@ -271,7 +279,7 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
         });
       }
     }
-  }, [isOpen, preselectedInvoice]);
+  }, [isOpen, preselectedInvoice, editingInvoiceRecordId]);
 
   // Background Auto-Save to localStorage
   useEffect(() => {
@@ -354,11 +362,15 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
   };
 
   // Load preselectedInvoice prop if provided upon opening
+  const preselectedInvoiceId = preselectedInvoice
+    ? ('id' in preselectedInvoice ? preselectedInvoice.id : (preselectedInvoice as any).invoiceNumber)
+    : null;
+
   useEffect(() => {
     if (preselectedInvoice && isOpen) {
       applyInvoiceRecord(preselectedInvoice);
     }
-  }, [preselectedInvoice, isOpen]);
+  }, [preselectedInvoiceId, isOpen]);
 
   // Helper to load an invoice / shipment / delivery record and enforce store lock
   const applyInvoiceRecord = (record: ImportShipmentRecord | LocalPurchaseRecord | DeliveryRecord | InwardInvoiceRecord) => {
@@ -769,6 +781,75 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
       lineItems: localItems
     });
   }, [supplyType, draftItems, localFreightKES, targetMarkupPct]);
+
+  // Construct current invoice representation for bulk barcode generator
+  const currentInvoiceAsRecord: InwardInvoiceRecord = useMemo(() => {
+    const sup = suppliers.find(s => s.id === selectedSupplierId);
+    const totalKES = supplyType === 'import'
+      ? (calculatedImportSummary?.totalLandedInventoryKES || 0)
+      : (calculatedLocalSummary?.totalCapitalizedInventoryCostKES || 0);
+    const totalFOB = supplyType === 'import' ? (calculatedImportSummary?.totalFOB_USD || 0) : 0;
+    const totalQty = draftItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+    const primaryUnit = draftItems[0]?.unit || 'meter';
+
+    return {
+      id: editingInvoiceRecordId || selectedInvoiceId || `INV-${invoiceNumber || Date.now()}`,
+      invoiceNumber: invoiceNumber || 'DRAFT-INVOICE',
+      invoiceDate: invoiceDate || new Date().toISOString().split('T')[0],
+      supplierId: selectedSupplierId,
+      supplierName: sup?.name || 'Consignment Supplier',
+      supplyType: supplyType,
+      customsOrEtimsRef: customsOrEtimsRef,
+      destinationLocation: destinationLocation,
+      status: (preselectedInvoice && 'status' in preselectedInvoice ? preselectedInvoice.status : 'draft') as any,
+      exchangeRate: exchangeRate,
+      totalFreightUSD: totalFreightUSD,
+      totalInsuranceUSD: totalInsuranceUSD,
+      portClearingFeesKES: portClearingFeesKES,
+      totalAmountKES: totalKES,
+      totalAmountUSD: totalFOB,
+      totalQuantity: totalQty,
+      totalQuantityUnit: primaryUnit,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lineItems: draftItems.map((item, idx) => ({
+        id: item.id || `item-${idx + 1}`,
+        name: item.name,
+        sku: item.sku || `SKU-${invoiceNumber || 'INV'}-${idx + 1}`,
+        category: item.category,
+        colorName: item.colorName || item.shadeCode,
+        colorHex: item.colorHex,
+        quantity: item.quantity,
+        unit: item.unit,
+        rollsCount: item.rollsCount,
+        packagesCount: item.packagesCount,
+        unitPriceUSD: item.unitPriceUSD,
+        unitPriceKES: item.unitPriceKES || (item.unitPriceUSD ? Math.round(item.unitPriceUSD * exchangeRate) : 0),
+        totalPriceKES: (item.unitPriceKES || (item.unitPriceUSD ? Math.round(item.unitPriceUSD * exchangeRate) : 0)) * item.quantity,
+        dyeLot: item.dyeLot,
+        shadeCode: item.shadeCode,
+        grossWeightKg: item.grossWeightKg
+      }))
+    };
+  }, [
+    editingInvoiceRecordId,
+    selectedInvoiceId,
+    invoiceNumber,
+    invoiceDate,
+    selectedSupplierId,
+    suppliers,
+    supplyType,
+    customsOrEtimsRef,
+    destinationLocation,
+    preselectedInvoice,
+    exchangeRate,
+    totalFreightUSD,
+    totalInsuranceUSD,
+    portClearingFeesKES,
+    calculatedImportSummary,
+    calculatedLocalSummary,
+    draftItems
+  ]);
 
   // Add Item to draft
   const handleAddDraftItem = () => {
@@ -1765,14 +1846,31 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                     Add batches to be received. You can link existing catalog items or define brand new SKUs.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddDraftItem}
-                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Add Item to Invoice</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {draftItems.length > 0 && (
+                    <button
+                      id="btn-intake-modal-step2-barcodes"
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsBarcodeModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="Preview and generate barcode & QR labels from these packing list items"
+                    >
+                      <Barcode className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Barcodes ({draftItems.length})</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleAddDraftItem}
+                    className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Add Item to Invoice</span>
+                  </button>
+                </div>
               </div>
 
               {draftItems.map((item, idx) => (
@@ -2234,6 +2332,20 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
 
                   <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
                     <button
+                      id="btn-print-capitalized-barcodes"
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setIsBarcodeModalOpen(true);
+                      }}
+                      className="px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
+                      title="Print barcodes and roll stickers immediately for this invoice's packing list"
+                    >
+                      <Barcode className="w-4 h-4" />
+                      <span>Print Packing List Barcodes</span>
+                    </button>
+
+                    <button
                       id="btn-start-updating-inventory"
                       type="button"
                       onClick={() => {
@@ -2462,6 +2574,22 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
                 <span>Open in Landed Costing Suite</span>
               </button>
             )}
+
+            {draftItems.length > 0 && !capitalizationResult && (
+              <button
+                id="btn-modal-footer-barcodes"
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  setIsBarcodeModalOpen(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-900 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Generate and print barcodes directly for this invoice packing list"
+              >
+                <Barcode className="w-3.5 h-3.5 text-amber-600" />
+                <span>Barcodes ({draftItems.length})</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -2515,6 +2643,15 @@ export const InwardInvoiceIntakeModal: React.FC<InwardInvoiceIntakeModalProps> =
           </div>
         </div>
       </div>
+
+      {/* Packing List Barcode Generator Studio Modal */}
+      {isBarcodeModalOpen && (
+        <BulkBarcodeGeneratorModal
+          isOpen={isBarcodeModalOpen}
+          onClose={() => setIsBarcodeModalOpen(false)}
+          preselectedInvoice={currentInvoiceAsRecord}
+        />
+      )}
     </div>
   );
 };

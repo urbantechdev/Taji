@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useERP } from '../../context/ERPContext';
 import { ProductBatch, LocationId } from '../../types';
@@ -50,7 +50,8 @@ export const QRScannerModal: React.FC = () => {
     updateProductBatch,
     scanToAddProduct,
     recordAuditLog,
-    brandSettings
+    brandSettings,
+    cart
   } = useERP();
 
   // Scanner Operating Modes
@@ -65,8 +66,18 @@ export const QRScannerModal: React.FC = () => {
 
   // Scanner Viewport State (Fullscreen & Minimized After Scan)
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
-  const [autoMinimizeOnScan, setAutoMinimizeOnScan] = useState<boolean>(true);
+  // Default to false for seamless continuous checkout scanning
+  const [autoMinimizeOnScan, setAutoMinimizeOnScan] = useState<boolean>(false);
   const [autoAddToCartOnScan, setAutoAddToCartOnScan] = useState<boolean>(true);
+
+  // Live POS Cart Totals for Seamless Checkout HUD
+  const cartTotalItems = useMemo(() => {
+    return (cart || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
+  }, [cart]);
+
+  const cartTotalAmount = useMemo(() => {
+    return (cart || []).reduce((sum, item) => sum + ((item.quantity || 1) * (item.unitPrice || 0)), 0);
+  }, [cart]);
 
   // Scanned Match State
   const [scannedProduct, setScannedProduct] = useState<ProductBatch | null>(null);
@@ -384,10 +395,10 @@ export const QRScannerModal: React.FC = () => {
       });
     }
 
-    // Release scan lock after short debounce
+    // Release scan lock after short debounce for rapid seamless scanning
     setTimeout(() => {
       isProcessingScanRef.current = false;
-    }, 1200);
+    }, 600);
   };
 
   // Image Upload File QR Decoder
@@ -815,6 +826,43 @@ export const QRScannerModal: React.FC = () => {
           {/* TAB 1: LIVE CAMERA SCANNER */}
           {activeScanMode === 'camera' && (
             <div className="space-y-3">
+
+              {/* SEAMLESS LIVE CHECKOUT CART HUD */}
+              <div className="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 rounded-2xl p-3 sm:p-3.5 border border-rose-500/40 text-white flex flex-wrap items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 font-bold shrink-0">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black uppercase tracking-wider text-rose-300">
+                        Active Checkout Cart:
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 font-mono text-[11px] font-black border border-emerald-400/30">
+                        {cartTotalItems} items
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 font-mono font-bold mt-0.5">
+                      Current Total: <strong className="text-emerald-400 text-sm">KSh {cartTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsQRScannerOpen(false);
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border border-emerald-400/40"
+                    title="Close scanner and proceed directly to payment breakdown"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Proceed to Payment (KSh {cartTotalAmount.toLocaleString()})</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-video sm:aspect-[4/3] max-h-[300px] flex items-center justify-center border-2 border-rose-500/40 shadow-inner shadow-rose-950/30">
                 
                 {/* HTML5 QR Code Video Target Element */}

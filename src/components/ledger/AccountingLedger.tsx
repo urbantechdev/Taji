@@ -112,6 +112,7 @@ import {
   Calculator,
   RotateCcw,
   Ship,
+  Trash2,
   X
 } from 'lucide-react';
 import { ImportTaxLandedCostingModule } from './ImportTaxLandedCostingModule';
@@ -156,7 +157,8 @@ export const AccountingLedger: React.FC = () => {
     inwardInvoices = [],
     selectedInvoiceForEdit,
     setSelectedInvoiceForEdit,
-    suppliers = []
+    suppliers = [],
+    wipeAccountingAndLedgerInvoices
   } = useERP();
 
   const isAccountantRole = Boolean(isAccountant || currentUser.role === 'accountant');
@@ -216,6 +218,27 @@ export const AccountingLedger: React.FC = () => {
   const [importedMpesaItems, setImportedMpesaItems] = useState<MpesaStatementItem[]>([]);
   const [reconciliationFilter, setReconciliationFilter] = useState<'all' | 'matched' | 'unmatched_pos' | 'unmatched_stmt'>('all');
   const [tariffJournalMessage, setTariffJournalMessage] = useState<string | null>(null);
+
+  // Invoices & Ledger Wipe Engine States
+  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
+  const [wipeNotice, setWipeNotice] = useState<string | null>(null);
+
+  const handleWipeInvoices = async () => {
+    setIsWiping(true);
+    try {
+      const res = await wipeAccountingAndLedgerInvoices();
+      if (res.success) {
+        setWipeNotice('All inward invoices, commercial batches, orders, and ledger entries successfully reset to zero.');
+        setIsWipeModalOpen(false);
+        setTimeout(() => setWipeNotice(null), 6000);
+      }
+    } catch (e: any) {
+      setWipeNotice(`Failed to wipe: ${e?.message || 'Error occurred'}`);
+    } finally {
+      setIsWiping(false);
+    }
+  };
 
   // Fixed Asset Management States
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
@@ -799,6 +822,17 @@ export const AccountingLedger: React.FC = () => {
                 <Barcode className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
                 <span>Start Updating Inventory</span>
               </button>
+
+              <button
+                type="button"
+                id="btn-hero-reset-invoices-zero"
+                onClick={() => setIsWipeModalOpen(true)}
+                className="px-2.5 py-1.5 hover:bg-rose-50 text-slate-500 hover:text-rose-700 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="Wipe all inward invoices, commercial batches & ledger entries back to zero for fresh entry"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-rose-600 shrink-0" />
+                <span>Reset Invoices to 0</span>
+              </button>
             </div>
 
             {/* Accounting Management Actions */}
@@ -834,6 +868,22 @@ export const AccountingLedger: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Wipe Confirmation Success Banner */}
+        {wipeNotice && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between shadow-xs mb-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{wipeNotice}</span>
+            </div>
+            <button
+              onClick={() => setWipeNotice(null)}
+              className="text-emerald-700 hover:text-emerald-900 font-bold ml-4 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Sub Navigation Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-slate-100 pb-1 scrollbar-thin">
@@ -4802,6 +4852,73 @@ export const AccountingLedger: React.FC = () => {
           openCategoryIntakeModal(invId, cat as any);
         }}
       />
+
+      {/* Confirmation Modal to Wipe Invoices & Ledger Back to Zero */}
+      {isWipeModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 text-rose-600">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-extrabold text-slate-900">Reset Invoices &amp; Ledger to Zero</h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Are you sure you want to wipe all invoices and accounting ledger entries? This will clear all existing test records and restore the ledger to zero so you can start clean, fresh entries.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 space-y-2 text-xs">
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Inward Commercial Invoices:</span>
+                <span className="font-bold text-rose-600">Will be wiped to 0</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Invoice Inventory Batches:</span>
+                <span className="font-bold text-rose-600">Will be wiped to 0</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>General Ledger Journals:</span>
+                <span className="font-bold text-rose-600">Will be wiped to 0</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Sales Orders / Invoices:</span>
+                <span className="font-bold text-rose-600">Will be wiped to 0</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-white flex items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={isWiping}
+                onClick={() => setIsWipeModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isWiping}
+                onClick={handleWipeInvoices}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+              >
+                {isWiping ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Wiping to Zero...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm &amp; Reset to 0</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

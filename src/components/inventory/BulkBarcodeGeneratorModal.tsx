@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useERP } from '../../context/ERPContext';
-import { ProductBatch, CategoryType, LocationId } from '../../types';
+import { ProductBatch, CategoryType, LocationId, InwardInvoiceRecord } from '../../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -26,7 +26,10 @@ import {
   Warehouse,
   Eye,
   Tag,
-  Grid
+  Grid,
+  Boxes,
+  Scroll,
+  Scissors
 } from 'lucide-react';
 import { playClickSound, playSuccessSound } from '../../utils/audio';
 import { generateRealQRCodeDataURL, generateRealBarcodeDataURL } from '../../utils/realQrBarcode';
@@ -35,12 +38,14 @@ interface BulkBarcodeGeneratorModalProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedBatchId?: string;
+  preselectedInvoice?: InwardInvoiceRecord | null;
 }
 
 export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps> = ({
   isOpen,
   onClose,
-  preselectedBatchId
+  preselectedBatchId,
+  preselectedInvoice
 }) => {
   const { products, locations, activeLocation, currentUser } = useERP();
 
@@ -49,6 +54,10 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryType | 'All'>('All');
   const [stockLocationFilter, setStockLocationFilter] = useState<LocationId | 'All'>('All');
+
+  // Invoice Packing List state
+  const [packingListMode, setPackingListMode] = useState<'line_items' | 'rolls'>('line_items');
+  const [selectedPackingItemIds, setSelectedPackingItemIds] = useState<string[]>([]);
 
   // Generator configuration
   const [barcodeFormat, setBarcodeFormat] = useState<'CODE128' | 'EAN13' | 'QR' | 'BOTH'>('BOTH');
@@ -73,14 +82,17 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
   // Initialize selected products on mount or when modal opens
   useEffect(() => {
     if (isOpen) {
-      if (preselectedBatchId) {
+      if (preselectedInvoice && preselectedInvoice.lineItems) {
+        setSelectedPackingItemIds(preselectedInvoice.lineItems.map(li => li.id));
+        setCustomStoreHeader(`TAJI TEXTILES • INV ${preselectedInvoice.invoiceNumber}`);
+      } else if (preselectedBatchId) {
         setSelectedProductIds([preselectedBatchId]);
-      } else if (products.length > 0 && selectedProductIds.length === 0) {
-        // Pre-select the first 8 products by default for instant preview
-        setSelectedProductIds(products.slice(0, 8).map(p => p.id));
+      } else if (products.length > 0) {
+        // Pre-select the first 8 products by default for instant preview if none selected
+        setSelectedProductIds(prev => (prev.length === 0 ? products.slice(0, 8).map(p => p.id) : prev));
       }
     }
-  }, [isOpen, preselectedBatchId, products]);
+  }, [isOpen, preselectedBatchId, preselectedInvoice?.id, preselectedInvoice?.invoiceNumber]);
 
   if (!isOpen) return null;
 
@@ -144,35 +156,95 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
     colorHex: string;
     price: number;
     unit: string;
-  }> = [
-    ...products
-      .filter(p => selectedProductIds.includes(p.id))
-      .map(p => {
-        const lotSku = p.dyeLot || p.sku;
-        return {
-          id: p.id,
-          sku: lotSku,
-          barcode: p.barcode || lotSku,
-          name: p.name,
-          category: p.category,
-          colorName: p.colorName,
-          colorHex: p.colorHex,
-          price: p.unitPriceRetail,
-          unit: p.unit
-        };
-      }),
-    ...customItems.map((c, i) => ({
-      id: `CUSTOM-${i}`,
-      sku: c.sku,
-      barcode: c.sku,
-      name: c.name,
-      category: c.category,
-      colorName: 'Standard',
-      colorHex: '#334155',
-      price: c.price,
-      unit: 'meter'
-    }))
-  ];
+    subText?: string;
+  }> = useMemo(() => {
+    if (preselectedInvoice && preselectedInvoice.lineItems && preselectedInvoice.lineItems.length > 0) {
+      const items: Array<{
+        id: string;
+        sku: string;
+        barcode: string;
+        name: string;
+        category: string;
+        colorName: string;
+        colorHex: string;
+        price: number;
+        unit: string;
+        subText?: string;
+      }> = [];
+
+      preselectedInvoice.lineItems
+        .filter(li => selectedPackingItemIds.includes(li.id))
+        .forEach((li, idx) => {
+          const baseSku = li.sku || `INV-${preselectedInvoice.invoiceNumber}-${idx + 1}`;
+          const basePrice = li.unitPriceKES || (li.unitPriceUSD ? Math.round(li.unitPriceUSD * (preselectedInvoice.exchangeRate || 130)) : 1000);
+          const rolls = Math.min(100, Math.max(1, Number(li.rollsCount || li.packagesCount || 1)));
+
+          if (packingListMode === 'rolls') {
+            for (let r = 1; r <= rolls; r++) {
+              const rollCode = `${baseSku}-R${String(r).padStart(2, '0')}`;
+              items.push({
+                id: `${li.id}-roll-${r}`,
+                sku: rollCode,
+                barcode: rollCode,
+                name: `${li.name} (Roll ${r}/${rolls})`,
+                category: li.category,
+                colorName: `${li.colorName || li.shadeCode || 'Standard'} • Roll ${r} of ${rolls}`,
+                colorHex: li.colorHex || '#334155',
+                price: basePrice,
+                unit: li.unit || 'meter',
+                subText: `Inv: ${preselectedInvoice.invoiceNumber} • Lot: ${li.dyeLot || 'N/A'}`
+              });
+            }
+          } else {
+            items.push({
+              id: li.id,
+              sku: baseSku,
+              barcode: li.sku || `INV-${preselectedInvoice.invoiceNumber}-${idx + 1}`,
+              name: li.name,
+              category: li.category,
+              colorName: `${li.colorName || ''} ${li.shadeCode ? `(${li.shadeCode})` : ''}`.trim() || 'Standard',
+              colorHex: li.colorHex || '#334155',
+              price: basePrice,
+              unit: li.unit || 'meter',
+              subText: `Inv: ${preselectedInvoice.invoiceNumber}${li.dyeLot ? ` • Lot: ${li.dyeLot}` : ''}${rolls > 1 ? ` • ${rolls} Rolls` : ''}`
+            });
+          }
+        });
+
+      return items;
+    }
+
+    return [
+      ...products
+        .filter(p => selectedProductIds.includes(p.id))
+        .map(p => {
+          const lotSku = p.dyeLot || p.sku;
+          return {
+            id: p.id,
+            sku: lotSku,
+            barcode: p.barcode || lotSku,
+            name: p.name,
+            category: p.category,
+            colorName: p.colorName,
+            colorHex: p.colorHex,
+            price: p.unitPriceRetail,
+            unit: p.unit,
+            subText: p.dyeLot ? `Lot: ${p.dyeLot}` : undefined
+          };
+        }),
+      ...customItems.map((c, i) => ({
+        id: `CUSTOM-${i}`,
+        sku: c.sku,
+        barcode: c.sku,
+        name: c.name,
+        category: c.category,
+        colorName: 'Standard',
+        colorHex: '#334155',
+        price: c.price,
+        unit: 'meter'
+      }))
+    ];
+  }, [preselectedInvoice, selectedPackingItemIds, packingListMode, products, selectedProductIds, customItems]);
 
   const totalLabelsToPrint = selectedProductList.length * Math.max(1, copiesPerItem);
 
@@ -364,14 +436,16 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <h3 className="font-extrabold text-sm sm:text-lg text-white truncate">
-                  Bulk Barcode &amp; QR Label Generator
+                  {preselectedInvoice ? `Packing List Barcode Studio (${preselectedInvoice.invoiceNumber})` : 'Bulk Barcode & QR Label Generator'}
                 </h3>
                 <span className="px-1.5 sm:px-2 py-0.5 bg-rose-500/20 text-rose-300 rounded-full text-[9px] sm:text-[10px] font-bold border border-rose-500/30 shrink-0">
-                  Labels
+                  {preselectedInvoice ? 'Packing List' : 'Labels'}
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-400 hidden sm:block">
-                Batch generate, preview and print EAN/Code-128 barcode labels with live price &amp; category tags
+                {preselectedInvoice
+                  ? `Generate, preview and print barcode stickers directly from accountant's invoice packing list (${preselectedInvoice.supplierName})`
+                  : 'Batch generate, preview and print EAN/Code-128 barcode labels with live price & category tags'}
               </p>
             </div>
           </div>
@@ -404,13 +478,159 @@ export const BulkBarcodeGeneratorModal: React.FC<BulkBarcodeGeneratorModalProps>
           
           {/* LEFT COLUMN: SELECTION & CUSTOMIZATION (5 Cols) */}
           <div className="lg:col-span-5 border-r border-slate-200 p-4 overflow-y-auto space-y-4 bg-slate-50/50">
+
+            {/* INVOICE PACKING LIST SECTION (When opened from an Inward Invoice) */}
+            {preselectedInvoice && (
+              <div className="bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-rose-50/90 border-2 border-amber-300/80 rounded-2xl p-3.5 space-y-3 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-amber-500 text-white rounded-xl shadow-xs">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                          Packing List: {preselectedInvoice.invoiceNumber}
+                        </span>
+                        <span className="px-1.5 py-0.2 bg-amber-200/80 text-amber-900 rounded-md text-[9px] font-extrabold uppercase">
+                          {preselectedInvoice.status}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 font-medium">
+                        Supplier: <strong className="text-slate-800">{preselectedInvoice.supplierName}</strong>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Packing List Mode Switch */}
+                <div className="space-y-1.5">
+                  <label className="text-[10.5px] font-bold text-slate-700 flex items-center justify-between">
+                    <span>Label Generation Mode:</span>
+                    <span className="text-[10px] text-amber-700 font-semibold font-mono">
+                      {packingListMode === 'rolls' ? '1 Label per Roll/Bale' : '1 Label per SKU/Line Item'}
+                    </span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 bg-white p-1 rounded-xl border border-amber-200 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setPackingListMode('line_items');
+                      }}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        packingListMode === 'line_items'
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Boxes className="w-3.5 h-3.5" />
+                      <span>Line Item SKUs</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        setPackingListMode('rolls');
+                      }}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        packingListMode === 'rolls'
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Scissors className="w-3.5 h-3.5" />
+                      <span>Roll-by-Roll (R01..)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Checklist of Packing List Items */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-1.5">
+                      <Scroll className="w-3.5 h-3.5 text-amber-600" />
+                      Invoice Items ({selectedPackingItemIds.length}/{preselectedInvoice.lineItems?.length || 0})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playClickSound();
+                        if (selectedPackingItemIds.length === (preselectedInvoice.lineItems?.length || 0)) {
+                          setSelectedPackingItemIds([]);
+                        } else {
+                          setSelectedPackingItemIds(preselectedInvoice.lineItems?.map(li => li.id) || []);
+                        }
+                      }}
+                      className="text-xs font-bold text-rose-600 hover:text-rose-700 cursor-pointer"
+                    >
+                      {selectedPackingItemIds.length === (preselectedInvoice.lineItems?.length || 0) ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+
+                  <div className="bg-white border border-amber-200/90 rounded-xl p-2 max-h-48 overflow-y-auto space-y-1 shadow-2xs">
+                    {preselectedInvoice.lineItems?.map((li, liIdx) => {
+                      const isSelected = selectedPackingItemIds.includes(li.id);
+                      return (
+                        <div
+                          key={li.id || liIdx}
+                          onClick={() => {
+                            playClickSound();
+                            setSelectedPackingItemIds(prev =>
+                              prev.includes(li.id) ? prev.filter(x => x !== li.id) : [...prev, li.id]
+                            );
+                          }}
+                          className={`p-2 rounded-lg border transition-all flex items-center justify-between cursor-pointer ${
+                            isSelected
+                              ? 'bg-rose-50/90 border-rose-300 text-rose-950 shadow-2xs'
+                              : 'bg-slate-50/40 border-slate-100 hover:bg-slate-100/80 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="shrink-0 text-rose-600">
+                              {isSelected ? <CheckSquare className="w-4 h-4 fill-rose-600 text-white" /> : <Square className="w-4 h-4 text-slate-300" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold truncate text-slate-900">{li.name}</p>
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                                {li.colorHex && (
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full border border-slate-300 shrink-0"
+                                    style={{ backgroundColor: li.colorHex }}
+                                  />
+                                )}
+                                <span className="truncate">{li.colorName || li.shadeCode || 'Std'}</span>
+                                <span>•</span>
+                                <span className="font-semibold text-slate-700">{li.quantity} {li.unit}</span>
+                                {li.rollsCount ? (
+                                  <span className="font-bold text-amber-700">({li.rollsCount} rolls)</span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-[10px] font-mono font-bold text-slate-600">
+                              {li.sku || `ITEM-${liIdx + 1}`}
+                            </div>
+                            <div className="text-[9.5px] font-bold text-emerald-600">
+                              KSh {(li.unitPriceKES || (li.unitPriceUSD ? Math.round(li.unitPriceUSD * preselectedInvoice.exchangeRate) : 0)).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
             
-            {/* Search & Quick Filters */}
+            {/* Search & Quick Filters (Catalog fallback / extra products) */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <CheckSquare className="w-3.5 h-3.5 text-rose-600" />
-                  Select Catalog Products ({selectedProductIds.length} Selected)
+                  {preselectedInvoice ? 'Or Add from Catalog' : 'Select Catalog Products'} ({selectedProductIds.length} Selected)
                 </label>
                 <button
                   type="button"
@@ -744,6 +964,7 @@ interface BulkStickerItemCardProps {
     colorHex: string;
     price: number;
     unit: string;
+    subText?: string;
   };
   customStoreHeader: string;
   includeCategory: boolean;
@@ -815,6 +1036,11 @@ const BulkStickerItemCard: React.FC<BulkStickerItemCardProps> = ({
             <span className="text-[10px] text-slate-500 font-medium truncate">
               {item.colorName}
             </span>
+          </div>
+        )}
+        {item.subText && (
+          <div className="text-[9px] font-mono text-slate-500 font-semibold truncate mt-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+            {item.subText}
           </div>
         )}
       </div>

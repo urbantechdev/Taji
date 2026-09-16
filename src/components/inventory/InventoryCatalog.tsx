@@ -90,7 +90,8 @@ export const InventoryCatalog: React.FC = () => {
     isAdmin,
     invoiceBatches,
     setActiveNavTab,
-    setAccountantSubTab
+    setAccountantSubTab,
+    setIsStockLedgerReconcileOpen
   } = useERP();
 
   // Role-Based Feature Permission Gates
@@ -582,6 +583,15 @@ export const InventoryCatalog: React.FC = () => {
                   >
                     <Barcode className="w-3.5 h-3.5 text-pink-600" />
                     <span>Product Intake</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsStockLedgerReconcileOpen(true)}
+                    className="px-2.5 py-1.5 hover:bg-purple-50 text-purple-800 font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Compare Physical Stock with General Ledger Balance Sheet Value"
+                  >
+                    <Scale className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Stock vs. Ledger</span>
                   </button>
 
                   <button
