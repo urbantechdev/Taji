@@ -317,7 +317,39 @@ export interface MobileBarcodeScanOptions {
   name?: string;
   colorName?: string;
   colorHex?: string;
+  shadeCode?: string;
+  dyeLot?: string;
   fiberComposition?: string;
+  invoiceRef?: string;
+}
+
+export interface StockLedgerReconciliationItem {
+  batchId: string;
+  barcode: string;
+  name: string;
+  category: CategoryType;
+  locationId: LocationId;
+  physicalQty: number;
+  unit: UnitType;
+  costPrice: number;
+  retailPrice: number;
+  physicalCostValue: number;
+  ledgerCostValue: number;
+  varianceQty: number;
+  varianceCostValue: number;
+  status: 'matched' | 'surplus' | 'deficit' | 'new_batch';
+}
+
+export interface StockLedgerReconciliationSummary {
+  totalPhysicalUnits: number;
+  totalPhysicalCostValue: number;
+  totalPhysicalRetailValue: number;
+  totalLedgerBookValue: number;
+  netVarianceCostValue: number;
+  variancePercentage: number;
+  matchStatus: 'matched' | 'balanced_tolerance' | 'surplus' | 'deficit';
+  categoryBreakdown: Record<string, { physicalUnits: number; physicalCost: number; ledgerCost: number; variance: number }>;
+  locationBreakdown: Record<string, { physicalUnits: number; physicalCost: number; ledgerCost: number; variance: number }>;
 }
 
 export type TareCalculationType = 'fixed_tare' | 'percentage_tare' | 'none';

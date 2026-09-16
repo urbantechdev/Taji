@@ -485,6 +485,8 @@ interface ERPContextType {
   setIsQRScannerOpen: (open: boolean) => void;
   isMobileBarcodeScannerOpen: boolean;
   setIsMobileBarcodeScannerOpen: (open: boolean) => void;
+  isStockLedgerReconcileOpen: boolean;
+  setIsStockLedgerReconcileOpen: (open: boolean) => void;
   duplicateAlertState: DuplicateBarcodeAlertState;
   setDuplicateAlertState: React.Dispatch<React.SetStateAction<DuplicateBarcodeAlertState>>;
   dismissDuplicateAlert: () => void;
@@ -684,7 +686,8 @@ interface ERPContextType {
   // Inward Consignments & Inward Invoices
   inwardInvoices: InwardInvoiceRecord[];
   saveInwardInvoice: (record: InwardInvoiceRecord) => Promise<{ success: boolean; invoice: InwardInvoiceRecord }>;
-  deleteInwardInvoice: (id: string) => Promise<void>;
+  deleteInwardInvoice: (id: string) => Promise<{ success: boolean; message: string }>;
+  wipeAllInvoices: () => Promise<{ success: boolean; message: string }>;
   wipeAccountingAndLedgerInvoices: () => Promise<{ success: boolean; message: string }>;
   selectedInvoiceForEdit: InwardInvoiceRecord | null;
   setSelectedInvoiceForEdit: (inv: InwardInvoiceRecord | null) => void;
@@ -753,18 +756,35 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {}
       return updated;
     });
+
+    try {
+      await setDoc(doc(db, 'inward_invoices', record.id), record, { merge: true });
+    } catch (e) {
+      console.warn('Firestore inward_invoices sync notice:', e);
+    }
+
     return { success: true, invoice: record };
   };
 
-  const deleteInwardInvoice = async (id: string) => {
-    setInwardInvoices(prev => {
-      const updated = prev.filter(i => i.id !== id);
-      try {
-        localStorage.setItem('taji_inward_invoices', JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
-  };
+  // Realtime Cloud Firestore sync for inward_invoices collection
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'inward_invoices'), (snapshot) => {
+        const firestoreInvoices = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InwardInvoiceRecord));
+        if (firestoreInvoices.length > 0) {
+          setInwardInvoices(firestoreInvoices);
+          try {
+            localStorage.setItem('taji_inward_invoices', JSON.stringify(firestoreInvoices));
+          } catch (e) {}
+        }
+      }, (err) => {
+        console.warn('Firestore inward_invoices listener notice:', err.message);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Error setting up inward_invoices listener:', e);
+    }
+  }, []);
 
   const [selectedInvoiceForEdit, setSelectedInvoiceForEdit] = useState<InwardInvoiceRecord | null>(null);
   const [isCategoryIntakeModalOpen, setIsCategoryIntakeModalOpen] = useState(false);
@@ -1079,6 +1099,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (e) {}
   }, [posSession]);
+
+  // One-time automatic purge of legacy demo inward invoices, invoice batches, and ledger entries
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && localStorage.getItem('taji_invoices_wiped_zero_v3') !== 'true') {
+        localStorage.setItem('taji_inward_invoices', JSON.stringify([]));
+        localStorage.setItem('taji_invoice_batches', JSON.stringify([]));
+        localStorage.setItem('taji_invoice_inventory_batches', JSON.stringify([]));
+        localStorage.setItem('urban_interior_ledger', JSON.stringify([]));
+        localStorage.setItem('taji_invoices_wiped_zero_v3', 'true');
+        setInwardInvoices([]);
+        setInvoiceBatches([]);
+        setLedger([]);
+      }
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -2894,6 +2930,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedReceipt, setSelectedReceipt] = useState<SaleOrder | null>(null);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [isMobileBarcodeScannerOpen, setIsMobileBarcodeScannerOpen] = useState(false);
+  const [isStockLedgerReconcileOpen, setIsStockLedgerReconcileOpen] = useState(false);
   const [duplicateAlertState, setDuplicateAlertState] = useState<DuplicateBarcodeAlertState>({
     isOpen: false,
     barcode: '',
@@ -3599,7 +3636,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const unsub = onSnapshot(doc(db, 'system_settings', 'invoice_batches'), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data && Array.isArray(data.batches) && data.batches.length > 0) {
+          if (data && Array.isArray(data.batches)) {
             setInvoiceBatches(data.batches);
           }
         }
@@ -3753,6 +3790,166 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {
       success: true,
       message: `Updated pricing for Invoice ${targetBatch.invoiceNumber}. ${updatedProductsCount} linked catalog products synced.`
+    };
+  };
+
+  // Instant and permanent invoice deletion across the entire ERP system
+  const deleteInwardInvoice = async (id: string): Promise<{ success: boolean; message: string }> => {
+    const targetInvoice = inwardInvoices.find(i => i.id === id || i.invoiceNumber?.trim().toLowerCase() === id.trim().toLowerCase());
+    const targetId = targetInvoice?.id || id;
+    const invNumber = (targetInvoice?.invoiceNumber || id).trim();
+    const customsRef = targetInvoice?.customsOrEtimsRef?.trim();
+
+    // 1. Instantly remove from inwardInvoices state & localStorage
+    const updatedInward = inwardInvoices.filter(i => 
+      i.id !== id && 
+      i.id !== targetId && 
+      i.invoiceNumber?.trim().toLowerCase() !== invNumber.toLowerCase()
+    );
+    setInwardInvoices(updatedInward);
+    try {
+      localStorage.setItem('taji_inward_invoices', JSON.stringify(updatedInward));
+    } catch (e) {
+      console.warn('LocalStorage inward invoice delete error:', e);
+    }
+
+    // 2. Instantly remove matching batch from invoiceBatches state, localStorage, and Firestore
+    const updatedBatches = invoiceBatches.filter(b => 
+      b.id !== targetId &&
+      b.id !== id &&
+      b.invoiceNumber?.trim().toLowerCase() !== invNumber.toLowerCase() &&
+      (!customsRef || b.invoiceNumber?.trim().toLowerCase() !== customsRef.toLowerCase())
+    );
+    setInvoiceBatches(updatedBatches);
+    try {
+      localStorage.setItem('taji_invoice_batches', JSON.stringify(updatedBatches));
+      localStorage.setItem('taji_invoice_inventory_batches', JSON.stringify(updatedBatches));
+    } catch (e) {}
+
+    try {
+      await setDoc(doc(db, 'system_settings', 'invoice_batches'), {
+        batches: updatedBatches,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Firestore invoice batch delete sync notice:', e);
+    }
+
+    // 3. Remove Firestore document from inward_invoices collection
+    try {
+      await deleteDoc(doc(db, 'inward_invoices', targetId));
+      if (id !== targetId) {
+        await deleteDoc(doc(db, 'inward_invoices', id));
+      }
+    } catch (e) {
+      console.warn('Firestore inward invoice delete notice:', e);
+    }
+
+    // 4. Remove associated products created from this invoice
+    setProducts(prev => {
+      const filtered = prev.filter(p => 
+        p.invoiceRef?.trim().toLowerCase() !== invNumber.toLowerCase() &&
+        p.sourceInvoiceId !== targetId &&
+        p.sourceInvoiceId !== id &&
+        p.batchNumber?.trim().toLowerCase() !== invNumber.toLowerCase() &&
+        (!customsRef || p.invoiceRef?.trim().toLowerCase() !== customsRef.toLowerCase())
+      );
+      try {
+        localStorage.setItem('urban_interior_products', JSON.stringify(filtered));
+      } catch (e) {}
+      return filtered;
+    });
+
+    // 5. Remove associated fabric rolls created from this invoice
+    setFabricRolls(prev => {
+      const filtered = prev.filter(r => 
+        r.invoiceRef?.trim().toLowerCase() !== invNumber.toLowerCase() &&
+        r.batchNumber?.trim().toLowerCase() !== invNumber.toLowerCase() &&
+        (!customsRef || r.invoiceRef?.trim().toLowerCase() !== customsRef.toLowerCase())
+      );
+      try {
+        localStorage.setItem('urban_interior_fabric_rolls', JSON.stringify(filtered));
+      } catch (e) {}
+      return filtered;
+    });
+
+    // 6. Remove associated ledger entries created for this invoice
+    setLedger(prev => {
+      const filtered = prev.filter(l => 
+        l.reference?.trim().toLowerCase() !== invNumber.toLowerCase() &&
+        l.invoiceRef?.trim().toLowerCase() !== invNumber.toLowerCase() &&
+        (!customsRef || l.reference?.trim().toLowerCase() !== customsRef.toLowerCase())
+      );
+      try {
+        localStorage.setItem('urban_interior_ledger', JSON.stringify(filtered));
+      } catch (e) {}
+      return filtered;
+    });
+
+    // 7. Clear active draft or editing selection for this invoice
+    if (selectedInvoiceForEdit?.id === targetId || selectedInvoiceForEdit?.invoiceNumber === invNumber) {
+      setSelectedInvoiceForEdit(null);
+    }
+    try {
+      localStorage.removeItem(`taji_inward_invoice_draft_${targetId}`);
+      localStorage.removeItem(`taji_inward_invoice_draft_${invNumber}`);
+      const draftRaw = localStorage.getItem('taji_inward_invoice_draft_v1');
+      if (draftRaw) {
+        const parsed = JSON.parse(draftRaw);
+        if (parsed?.invoiceNumber === invNumber || parsed?.editingInvoiceRecordId === targetId) {
+          localStorage.removeItem('taji_inward_invoice_draft_v1');
+        }
+      }
+    } catch (e) {}
+
+    recordAuditLog(
+      'INVOICE_INSTANTLY_DELETED',
+      `Invoice ${invNumber} completely deleted from system (all batches, linked rolls, and ledger vouchers purged).`
+    );
+
+    return {
+      success: true,
+      message: `Invoice "${invNumber}" has been completely and permanently removed from the system.`
+    };
+  };
+
+  // Instant wipe of all inward invoices and commercial batches across system
+  const wipeAllInvoices = async (): Promise<{ success: boolean; message: string }> => {
+    setInwardInvoices([]);
+    setInvoiceBatches([]);
+    setSelectedInvoiceForEdit(null);
+
+    try {
+      localStorage.setItem('taji_inward_invoices', JSON.stringify([]));
+      localStorage.setItem('taji_invoice_batches', JSON.stringify([]));
+      localStorage.setItem('taji_invoice_inventory_batches', JSON.stringify([]));
+      localStorage.removeItem('taji_inward_invoice_draft_v1');
+      localStorage.removeItem('taji_category_intake_draft_v1');
+      localStorage.removeItem('taji_inward_invoice_draft_v2');
+    } catch (e) {}
+
+    try {
+      await setDoc(doc(db, 'system_settings', 'invoice_batches'), {
+        batches: [],
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser.name
+      }, { merge: true });
+    } catch (e) {}
+
+    try {
+      const snap = await getDocs(collection(db, 'inward_invoices'));
+      for (const docSnap of snap.docs) {
+        await deleteDoc(doc(db, 'inward_invoices', docSnap.id));
+      }
+    } catch (e) {
+      console.warn('Firestore inward_invoices wipe notice:', e);
+    }
+
+    recordAuditLog('ALL_INVOICES_WIPED', 'All inward invoices and commercial batches completely wiped from system.');
+    return {
+      success: true,
+      message: 'All inward invoices and inventory batches completely cleared from system.'
     };
   };
 
@@ -8069,12 +8266,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       costPrice: costP,
       colorName: color,
       colorHex: colorHex,
+      shadeCode: options?.shadeCode || undefined,
+      dyeLot: options?.dyeLot || undefined,
       fiberComposition: fiber,
       imageUrl: imgUrl,
       locationStock: initialStockMap,
       createdAt: new Date().toISOString().split('T')[0],
       qrCodeData: qrData,
-      minReorderLevel: 15
+      minReorderLevel: 15,
+      invoiceRef: options?.invoiceRef || undefined
     };
 
     // Optimistic local update
@@ -8426,7 +8626,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Enterprise System Data Wipe Engine
+  // Enterprise System Data Wipe Engine - Cleans everything and keeps users only
   const wipeSystemData = async (options: { scope: 'all' | 'transactions_only' | 'inventory_only'; wipeFirestore?: boolean } = { scope: 'all', wipeFirestore: true }) => {
     const { scope = 'all', wipeFirestore = true } = options;
     try {
@@ -8441,6 +8641,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           'taji_inward_invoices',
           'taji_invoice_batches',
           'taji_invoice_inventory_batches',
+          'taji_inward_invoice_draft_v1',
+          'taji_category_intake_draft_v1',
+          'taji_inward_invoice_draft_v2',
           'urban_interior_orders',
           'urban_interior_transfers',
           'urban_interior_ledger',
@@ -8471,8 +8674,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         keysToClear.push(
           'urban_interior_staff',
           'urban_interior_mail_notifications',
-          'urban_interior_fixed_assets',
-          'urban_interior_pos_operators'
+          'urban_interior_fixed_assets'
+          // NOTE: POS OPERATORS & USER ACCOUNTS REMAIN 100% PRESERVED ('urban_interior_pos_operators')
         );
       }
 
@@ -8488,6 +8691,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (isTransactions) {
         setInwardInvoices([]);
         setInvoiceBatches([]);
+        setSelectedInvoiceForEdit(null);
         setOrders([]);
         setTransfers([]);
         setLedger([]);
@@ -8512,23 +8716,23 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       if (isAll) {
-        setStaff([]);
         setFixedAssets([]);
         setMailNotifications([]);
-        setPosOperators(INITIAL_POS_OPERATORS);
+        // NOTE: USER ACCOUNTS (posOperators) REMAIN 100% PRESERVED AND ACTIVE
       }
 
       // Purge Firestore Cloud documents if enabled
       if (wipeFirestore) {
         const collectionsToWipe: string[] = [];
         if (isTransactions) {
-          collectionsToWipe.push('orders', 'transfers', 'ledger', 'branch_expenses', 'shift_closures', 'credit_notes', 'input_vat_claims', 'wht_records', 'tare_logs', 'deliveries');
+          collectionsToWipe.push('orders', 'transfers', 'ledger', 'branch_expenses', 'shift_closures', 'credit_notes', 'input_vat_claims', 'wht_records', 'tare_logs', 'deliveries', 'inward_invoices');
         }
         if (isInventory) {
           collectionsToWipe.push('products', 'fabric_rolls', 'quarantine_defects', 'stocktakes');
         }
         if (isAll) {
-          collectionsToWipe.push('fixed_assets', 'payroll', 'staff_members', 'audit_logs', 'mail_notifications');
+          collectionsToWipe.push('fixed_assets', 'payroll', 'mail_notifications');
+          // NOTE: DO NOT WIPE 'pos_operators' OR 'users' - USER ACCOUNTS ARE PRESERVED!
         }
 
         for (const colName of collectionsToWipe) {
@@ -8541,17 +8745,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.warn(`Firestore wipe warning on collection ${colName}:`, colErr);
           }
         }
+
+        // Also reset system_settings/invoice_batches to empty
+        try {
+          await setDoc(doc(db, 'system_settings', 'invoice_batches'), { batches: [], lastUpdated: new Date().toISOString() }, { merge: true });
+        } catch (e) {}
       }
 
       recordAuditLog(
         'SYSTEM_DATA_WIPED',
-        `Permanent system data wipe executed (Scope: ${scope}, Firestore wiped: ${wipeFirestore ? 'Yes' : 'No'})`
+        `Permanent system data wipe executed (Scope: ${scope}, Firestore wiped: ${wipeFirestore ? 'Yes' : 'No'}, User accounts preserved)`
       );
 
       playSuccessSound();
       return {
         success: true,
-        message: `System data wipe completed successfully for scope: "${scope.replace('_', ' ').toUpperCase()}".`
+        message: `System data wipe completed successfully. All operational data cleared back to zero; platform remains clean with all users intact.`
       };
     } catch (err: any) {
       console.error('Error during system data wipe:', err);
@@ -9130,6 +9339,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsQRScannerOpen,
         isMobileBarcodeScannerOpen,
         setIsMobileBarcodeScannerOpen,
+        isStockLedgerReconcileOpen,
+        setIsStockLedgerReconcileOpen,
         duplicateAlertState,
         setDuplicateAlertState,
         dismissDuplicateAlert,
@@ -9227,6 +9438,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         inwardInvoices,
         saveInwardInvoice,
         deleteInwardInvoice,
+        wipeAllInvoices,
         wipeAccountingAndLedgerInvoices,
         selectedInvoiceForEdit,
         setSelectedInvoiceForEdit,
