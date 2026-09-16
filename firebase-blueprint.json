@@ -137,6 +137,10 @@
     "/category_pricing_configs/{categoryId}": {
       "schema": "BrandSettings",
       "description": "Category pricing configuration details"
+    },
+    "/inward_invoices/{invoiceId}": {
+      "schema": "SaleOrder",
+      "description": "Master inward commercial invoices and consignments"
     }
   }
 }
